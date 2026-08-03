@@ -1,17 +1,19 @@
 import * as attendanceService from '../services/attendanceService';
 
-export async function fetchAttendanceHistory(className: string) {
-  if (!className) return [];
-  return attendanceService.listAttendanceHistory(className);
+export async function fetchAttendanceHistory(workspaceId: string, className: string) {
+  if (!workspaceId || !className) return [];
+  return attendanceService.listAttendanceHistory(workspaceId, className);
 }
 
 export async function submitAttendanceRecord(
+  workspaceId: string,
   className: string,
   subject: string,
   students: { id: string; name: string; nis?: string }[],
-  statusMap: Record<string, string>
+  statusMap: Record<string, string>,
+  scheduleId?: string | null
 ) {
-  return attendanceService.submitAttendance(className, subject, students, statusMap);
+  return attendanceService.submitAttendance(workspaceId, className, subject, students, statusMap, scheduleId);
 }
 
 export async function deleteAttendanceRecord(id: string) {

@@ -14,9 +14,10 @@ import { SkeletonText, SkeletonCard, SkeletonTable } from "../ui/Skeleton";
 type AttendanceTabProps = {
   className: string;
   subject: string;
+  scheduleId?: string | null;
 };
 
-export default function AttendanceTab({ className, subject }: AttendanceTabProps) {
+export default function AttendanceTab({ className, subject, scheduleId }: AttendanceTabProps) {
   const { workspaceId } = useWorkspace();
   const [statusMap, setStatusMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -61,9 +62,9 @@ export default function AttendanceTab({ className, subject }: AttendanceTabProps
   }
 
   async function loadHistory() {
-    if (!className) return;
+    if (!className || !workspaceId) return;
     try {
-      const entries = await attendanceController.fetchAttendanceHistory(className);
+      const entries = await attendanceController.fetchAttendanceHistory(workspaceId, className);
       setHistory(entries);
     } catch (error) {
       console.error("Gagal memuat riwayat presensi:", error);
@@ -84,10 +85,18 @@ export default function AttendanceTab({ className, subject }: AttendanceTabProps
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!workspaceId) return;
     setLoading(true);
     setSuccess(false);
     try {
-      await attendanceController.submitAttendanceRecord(className, subject, students, statusMap);
+      await attendanceController.submitAttendanceRecord(
+        workspaceId,
+        className,
+        subject,
+        students,
+        statusMap,
+        scheduleId
+      );
       setSuccess(true);
       await loadHistory();
     } catch (error: any) {

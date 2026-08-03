@@ -8,6 +8,9 @@ import AttendanceTab from './attendance/AttendanceTab';
 import GradesTab from './grades/GradesTab';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as classController from '@/lib/controllers/classController';
+import * as scheduleController from '@/lib/controllers/scheduleController';
+import { getCurrentDayName } from '@/lib/services/dashboardService';
+import { findActiveScheduleId } from '@/lib/utils/scheduleTime';
 
 export default function AttendanceForm() {
   const { workspaceId } = useWorkspace();
@@ -15,6 +18,7 @@ export default function AttendanceForm() {
   const [classesList, setClassesList] = useState<string[]>([]);
   const [selectedClass, setSelectedClass] = useState('');
   const [subject, setSubject] = useState('');
+  const [schedules, setSchedules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -25,6 +29,7 @@ export default function AttendanceForm() {
   useEffect(() => {
     if (workspaceId) {
       loadClasses();
+      loadSchedules();
     } else {
       setLoading(false);
     }
@@ -46,6 +51,20 @@ export default function AttendanceForm() {
       setLoading(false);
     }
   }
+
+  async function loadSchedules() {
+    if (!workspaceId) return;
+    try {
+      const list = await scheduleController.fetchSchedules(workspaceId);
+      setSchedules(list);
+    } catch (error) {
+      console.error('Gagal memuat jadwal:', error);
+    }
+  }
+
+  const activeScheduleId = selectedClass
+    ? findActiveScheduleId(schedules, selectedClass, getCurrentDayName())
+    : null;
 
   const tabs = [
     { key: 'jurnal', label: 'Jurnal Mengajar', icon: BookOpen },
@@ -105,9 +124,11 @@ export default function AttendanceForm() {
         </div>
       </Card>
 
-      {selectedClass && activeTab === 'jurnal' && <JournalTab className={selectedClass} subject={subject} />}
+      {selectedClass && activeTab === 'jurnal' && (
+        <JournalTab className={selectedClass} subject={subject} scheduleId={activeScheduleId} />
+      )}
       {selectedClass && activeTab === 'presensi' && (
-        <AttendanceTab className={selectedClass} subject={subject} />
+        <AttendanceTab className={selectedClass} subject={subject} scheduleId={activeScheduleId} />
       )}
       {selectedClass && activeTab === 'nilai' && <GradesTab className={selectedClass} />}
     </div>
