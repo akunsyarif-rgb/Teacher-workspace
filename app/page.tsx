@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useWorkspace } from "@/src/context/WorkspaceContext";
 import { fetchDashboardSummary } from "@/lib/controllers/dashboardController";
 import { saveTeacherQuickNote } from "@/lib/controllers/teacherProfileController";
-import { isScheduleOngoing } from "@/lib/utils/scheduleTime";
+import { isScheduleOngoing, resolveCurrentWorkflowStep } from "@/lib/utils/scheduleTime";
 import type { TodayClassStatus } from "@/lib/services/dashboardService";
 import {
   GraduationCap,
@@ -26,6 +26,7 @@ import {
   Circle,
   AlertCircle,
   BarChart3,
+  ArrowRight,
 } from "lucide-react";
 
 function getGreeting(date: Date = new Date()) {
@@ -351,6 +352,7 @@ export default function DashboardPage() {
   };
 
   const hasPending = pendingClasses.length > 0;
+  const workflowStep = resolveCurrentWorkflowStep(todayClassStatuses);
 
   return (
     <div className="min-h-screen bg-gray-50 p-3 sm:p-4 md:p-6 lg:p-8 space-y-4 md:space-y-6">
@@ -444,6 +446,36 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* Workflow Engine: satu langkah paling relevan sekarang, dipilihkan otomatis */}
+        {workflowStep && (
+          <div className="bg-blue-600 p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-lg text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[10px] font-extrabold uppercase tracking-wider text-blue-100">
+                {workflowStep.isOngoing ? 'Sedang Berlangsung Sekarang' : 'Sesi Berikutnya'}
+              </p>
+              <p className="text-lg md:text-xl font-extrabold mt-1 truncate">
+                Kelas {workflowStep.status.className} • {workflowStep.status.timeSlot}
+              </p>
+              <p className="text-xs md:text-sm text-blue-100 mt-1">
+                {!workflowStep.status.hasAttendance
+                  ? 'Belum presensi hari ini'
+                  : !workflowStep.status.hasJournal
+                  ? 'Presensi sudah, tinggal isi jurnal'
+                  : ''}
+              </p>
+            </div>
+            <Link
+              href={`/attendance?class=${encodeURIComponent(workflowStep.status.className)}&tab=${
+                !workflowStep.status.hasAttendance ? 'presensi' : 'jurnal'
+              }`}
+              className="shrink-0 flex items-center justify-center gap-1.5 px-5 py-3 bg-white text-blue-700 rounded-xl text-sm font-extrabold shadow-sm hover:bg-blue-50 transition-colors"
+            >
+              {workflowStep.isOngoing ? 'Lanjutkan Mengajar' : 'Mulai Sekarang'}
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        )}
 
         {/* Progress Card */}
         <ProgressCard />
