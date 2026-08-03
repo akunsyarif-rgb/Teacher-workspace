@@ -23,7 +23,7 @@ export default function BottomNav() {
     if (workspaceId) {
       loadPendingCount();
     }
-  }, [workspaceId]);
+  }, [workspaceId, pathname]);
 
   async function loadPendingCount() {
     if (!workspaceId) return;
