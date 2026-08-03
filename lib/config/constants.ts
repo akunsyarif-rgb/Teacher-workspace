@@ -5,6 +5,7 @@ export const COLLECTIONS = {
   GRADES: 'grades',
   GRADE_COLUMNS: 'grade_columns',
   SCHEDULES: 'schedules',
+  CLASS_FUND: 'class_fund_transactions',
 };
 
 export const ATTENDANCE_STATUS_OPTIONS = ['Hadir', 'Sakit', 'Izin', 'Dispensasi', 'Alpa'] as const;
