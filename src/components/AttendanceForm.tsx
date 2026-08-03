@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { BookOpen, UserCheck, Table, CheckCircle2, Circle, PartyPopper } from 'lucide-react';
+import { BookOpen, UserCheck, Table, Users, CheckCircle2, Circle, PartyPopper } from 'lucide-react';
 import Link from 'next/link';
 import Card from './ui/Card';
 import JournalTab from './journal/JournalTab';
 import AttendanceTab from './attendance/AttendanceTab';
 import GradesTab from './grades/GradesTab';
+import ClassDetail from './classes/ClassDetail';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as classController from '@/lib/controllers/classController';
 import * as scheduleController from '@/lib/controllers/scheduleController';
@@ -16,7 +17,7 @@ import { findActiveScheduleId } from '@/lib/utils/scheduleTime';
 
 export default function AttendanceForm() {
   const { workspaceId } = useWorkspace();
-  const [activeTab, setActiveTab] = useState<'jurnal' | 'presensi' | 'nilai'>('jurnal');
+  const [activeTab, setActiveTab] = useState<'jurnal' | 'presensi' | 'nilai' | 'siswa'>('jurnal');
   const [classesList, setClassesList] = useState<string[]>([]);
   const [selectedClass, setSelectedClass] = useState('');
   const [subject, setSubject] = useState('');
@@ -37,7 +38,7 @@ export default function AttendanceForm() {
     const cls = params.get('class');
     const tab = params.get('tab');
     if (cls) setSelectedClass(cls);
-    if (tab === 'jurnal' || tab === 'presensi' || tab === 'nilai') setActiveTab(tab);
+    if (tab === 'jurnal' || tab === 'presensi' || tab === 'nilai' || tab === 'siswa') setActiveTab(tab);
   }, []);
 
   useEffect(() => {
@@ -116,6 +117,7 @@ export default function AttendanceForm() {
     { key: 'jurnal', label: 'Jurnal Mengajar', icon: BookOpen },
     { key: 'presensi', label: 'Presensi', icon: UserCheck },
     { key: 'nilai', label: 'Daftar Nilai', icon: Table },
+    { key: 'siswa', label: 'Siswa', icon: Users },
   ] as const;
 
   if (loading) {
@@ -133,7 +135,7 @@ export default function AttendanceForm() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h2 className="text-lg font-bold text-gray-900">Pusat Kegiatan Kelas & Penilaian</h2>
-            <p className="text-xs text-gray-500">Kelola jurnal, presensi, dan buku nilai dalam satu layar</p>
+            <p className="text-xs text-gray-500">Kelola jurnal, presensi, nilai, dan data siswa dalam satu layar</p>
           </div>
           <div className="flex bg-gray-100 p-1.5 rounded-2xl w-full md:w-auto">
             {tabs.map(({ key, label, icon: Icon }) => (
@@ -229,6 +231,9 @@ export default function AttendanceForm() {
         />
       )}
       {selectedClass && activeTab === 'nilai' && <GradesTab className={selectedClass} />}
+      {selectedClass && activeTab === 'siswa' && (
+        <ClassDetail className={selectedClass} onBack={() => setActiveTab('jurnal')} backLabel="Tutup" />
+      )}
     </div>
   );
 }

@@ -9,9 +9,10 @@ import ConfirmDeleteModal from '@/src/components/ui/ConfirmDeleteModal';
 type ClassDetailProps = {
   className: string;
   onBack: () => void;
+  backLabel?: string;
 };
 
-export default function ClassDetail({ className, onBack }: ClassDetailProps) {
+export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke Daftar Kelas' }: ClassDetailProps) {
   const { workspaceId } = useWorkspace();
   const [students, setStudents] = useState<any[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; nis: string } | null>(null);
@@ -64,7 +65,7 @@ export default function ClassDetail({ className, onBack }: ClassDetailProps) {
           onClick={onBack}
           className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all"
         >
-          Kembali ke Daftar Kelas
+          {backLabel}
         </button>
       </div>
 
