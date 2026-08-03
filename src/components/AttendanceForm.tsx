@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { BookOpen, UserCheck, Table, Users, CheckCircle2, Circle, PartyPopper } from 'lucide-react';
+import { BookOpen, UserCheck, Table, Users, History, CheckCircle2, Circle, PartyPopper } from 'lucide-react';
 import Link from 'next/link';
 import Card from './ui/Card';
 import JournalTab from './journal/JournalTab';
 import AttendanceTab from './attendance/AttendanceTab';
 import GradesTab from './grades/GradesTab';
 import ClassDetail from './classes/ClassDetail';
+import TimelineTab from './timeline/TimelineTab';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as classController from '@/lib/controllers/classController';
 import * as scheduleController from '@/lib/controllers/scheduleController';
@@ -17,7 +18,7 @@ import { findActiveScheduleId, resolveCurrentWorkflowStep } from '@/lib/utils/sc
 
 export default function AttendanceForm() {
   const { workspaceId } = useWorkspace();
-  const [activeTab, setActiveTab] = useState<'jurnal' | 'presensi' | 'nilai' | 'siswa'>('jurnal');
+  const [activeTab, setActiveTab] = useState<'jurnal' | 'presensi' | 'nilai' | 'siswa' | 'riwayat'>('jurnal');
   const [classesList, setClassesList] = useState<string[]>([]);
   const [selectedClass, setSelectedClass] = useState('');
   const [subject, setSubject] = useState('');
@@ -38,7 +39,9 @@ export default function AttendanceForm() {
     const cls = params.get('class');
     const tab = params.get('tab');
     if (cls) setSelectedClass(cls);
-    if (tab === 'jurnal' || tab === 'presensi' || tab === 'nilai' || tab === 'siswa') setActiveTab(tab);
+    if (tab === 'jurnal' || tab === 'presensi' || tab === 'nilai' || tab === 'siswa' || tab === 'riwayat') {
+      setActiveTab(tab);
+    }
   }, []);
 
   // Muat kelas, jadwal, dan status sesi bersamaan — Workflow Engine perlu
@@ -113,6 +116,7 @@ export default function AttendanceForm() {
     { key: 'presensi', label: 'Presensi', icon: UserCheck },
     { key: 'nilai', label: 'Daftar Nilai', icon: Table },
     { key: 'siswa', label: 'Siswa', icon: Users },
+    { key: 'riwayat', label: 'Riwayat', icon: History },
   ] as const;
 
   if (loading) {
@@ -229,6 +233,7 @@ export default function AttendanceForm() {
       {selectedClass && activeTab === 'siswa' && (
         <ClassDetail className={selectedClass} onBack={() => setActiveTab('jurnal')} backLabel="Tutup" />
       )}
+      {selectedClass && activeTab === 'riwayat' && <TimelineTab className={selectedClass} />}
     </div>
   );
 }
