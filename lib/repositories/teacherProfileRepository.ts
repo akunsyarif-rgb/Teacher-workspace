@@ -12,6 +12,7 @@ export type TeacherProfile = {
   role?: TeacherRole;
   isActive?: boolean;
   quickNote?: string; // <-- TAMBAH
+  homeroomClassName?: string | null; // kelas yang diwalikan guru ini, null = bukan wali kelas
 };
 
 export async function getTeacherProfile(uid: string): Promise<TeacherProfile | null> {
