@@ -1,18 +1,17 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import AddStudentForm from './classes/AddStudentForm';
 import BulkImportForm from './classes/BulkImportForm';
 import ClassCard from './classes/ClassCard';
-import ClassDetail from './classes/ClassDetail';
 import * as classController from '@/lib/controllers/classController';
 import LoadingSpinner from './ui/LoadingSpinner';
 
 export default function ClassManagement() {
+  const router = useRouter();
   const { workspaceId } = useWorkspace();
-  const [view, setView] = useState<'overview' | 'detail'>('overview');
-  const [activeClass, setActiveClass] = useState<string | null>(null);
   const [classSummaries, setClassSummaries] = useState<{ className: string; count: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -37,23 +36,12 @@ export default function ClassManagement() {
     }
   }
 
-  function openDetail(className: string) {
-    setActiveClass(className);
-    setView('detail');
-  }
-
-  function backToOverview() {
-    setActiveClass(null);
-    setView('overview');
-    loadSummaries();
+  function openClass(className: string) {
+    router.push(`/attendance?class=${encodeURIComponent(className)}&tab=siswa`);
   }
 
   if (loading) {
     return <LoadingSpinner text="Memuat daftar kelas..." />;
-  }
-
-  if (view === 'detail' && activeClass) {
-    return <ClassDetail className={activeClass} onBack={backToOverview} />;
   }
 
   return (
@@ -80,7 +68,7 @@ export default function ClassManagement() {
                 key={summary.className}
                 className={summary.className}
                 count={summary.count}
-                onClick={() => openDetail(summary.className)}
+                onClick={() => openClass(summary.className)}
               />
             ))}
           </div>
