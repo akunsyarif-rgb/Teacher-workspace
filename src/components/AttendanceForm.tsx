@@ -13,7 +13,7 @@ import * as classController from '@/lib/controllers/classController';
 import * as scheduleController from '@/lib/controllers/scheduleController';
 import * as dashboardController from '@/lib/controllers/dashboardController';
 import { getCurrentDayName, TodayClassStatus } from '@/lib/services/dashboardService';
-import { findActiveScheduleId } from '@/lib/utils/scheduleTime';
+import { findActiveScheduleId, resolveCurrentWorkflowStep } from '@/lib/utils/scheduleTime';
 
 export default function AttendanceForm() {
   const { workspaceId } = useWorkspace();
@@ -41,42 +41,37 @@ export default function AttendanceForm() {
     if (tab === 'jurnal' || tab === 'presensi' || tab === 'nilai' || tab === 'siswa') setActiveTab(tab);
   }, []);
 
+  // Muat kelas, jadwal, dan status sesi bersamaan — Workflow Engine perlu
+  // ketiganya sekaligus untuk memilihkan kelas default yang paling relevan
+  // (sesi yang sedang berlangsung), bukan sekadar kelas pertama di daftar.
   useEffect(() => {
-    if (workspaceId) {
-      loadClasses();
-      loadSchedules();
-      loadSessionStatuses();
-    } else {
+    if (!workspaceId) {
       setLoading(false);
+      return;
     }
-  }, [workspaceId]);
-
-  async function loadClasses() {
-    if (!workspaceId) return;
-    setLoading(true);
-    try {
-      const summaries = await classController.fetchClassSummaries(workspaceId);
+    (async () => {
+      setLoading(true);
+      const [summaries, scheduleList, statuses] = await Promise.all([
+        classController.fetchClassSummaries(workspaceId).catch((error) => {
+          console.error('Gagal memuat daftar kelas:', error);
+          return [];
+        }),
+        scheduleController.fetchSchedules(workspaceId).catch((error) => {
+          console.error('Gagal memuat jadwal:', error);
+          return [];
+        }),
+        loadSessionStatuses(),
+      ]);
       const classNames = summaries.map((s: any) => s.className);
       setClassesList(classNames);
+      setSchedules(scheduleList);
       if (classNames.length > 0 && !selectedClass) {
-        setSelectedClass(classNames[0]);
+        const step = resolveCurrentWorkflowStep(statuses);
+        setSelectedClass(step && classNames.includes(step.status.className) ? step.status.className : classNames[0]);
       }
-    } catch (error) {
-      console.error('Gagal memuat daftar kelas:', error);
-    } finally {
       setLoading(false);
-    }
-  }
-
-  async function loadSchedules() {
-    if (!workspaceId) return;
-    try {
-      const list = await scheduleController.fetchSchedules(workspaceId);
-      setSchedules(list);
-    } catch (error) {
-      console.error('Gagal memuat jadwal:', error);
-    }
-  }
+    })();
+  }, [workspaceId]);
 
   async function loadSessionStatuses() {
     if (!workspaceId) return [];

@@ -75,3 +75,29 @@ export function findActiveScheduleId(
   const ongoing = todays.find((s) => isScheduleOngoing(s.timeSlot));
   return (ongoing ?? todays[0]).id;
 }
+
+export type WorkflowStep<T extends { timeSlot: string; isDone: boolean }> = {
+  status: T;
+  isOngoing: boolean;
+};
+
+/**
+ * Lapisan orkestrasi (Workflow Engine): dari daftar status kelas hari ini
+ * (sudah terurut kronologis, lihat dashboardService), tentukan SATU sesi
+ * yang paling relevan untuk guru sekarang — supaya guru tidak perlu
+ * menyusuri daftar sendiri. Prioritas: sesi yang sedang berlangsung dan
+ * belum selesai, lalu sesi belum selesai berikutnya. null kalau semua
+ * sudah selesai atau tidak ada jadwal hari ini.
+ */
+export function resolveCurrentWorkflowStep<T extends { timeSlot: string; isDone: boolean }>(
+  statuses: T[],
+  now: Date = new Date()
+): WorkflowStep<T> | null {
+  const pending = statuses.filter((s) => !s.isDone);
+  if (pending.length === 0) return null;
+
+  const ongoing = pending.find((s) => isScheduleOngoing(s.timeSlot, now));
+  if (ongoing) return { status: ongoing, isOngoing: true };
+
+  return { status: pending[0], isOngoing: false };
+}
