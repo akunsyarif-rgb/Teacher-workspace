@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { CheckCircle2, Calendar, UserCheck, History, Trash2 } from "lucide-react";
+import { CheckCircle2, CloudOff, Calendar, UserCheck, History, Trash2 } from "lucide-react";
 import Card from "../ui/Card";
 import Button from "../ui/Button";
 import StudentAttendanceRow from "./StudentAttendanceRow";
@@ -9,6 +9,7 @@ import ConfirmDeleteModal from "@/src/components/ui/ConfirmDeleteModal";
 import * as attendanceController from "@/lib/controllers/attendanceController";
 import * as studentController from "@/lib/controllers/classController";
 import { useWorkspace } from "@/src/context/WorkspaceContext";
+import { useOnlineStatus } from "@/src/hooks/useOnlineStatus";
 import { SkeletonText, SkeletonCard, SkeletonTable } from "../ui/Skeleton";
 
 type AttendanceTabProps = {
@@ -20,6 +21,7 @@ type AttendanceTabProps = {
 
 export default function AttendanceTab({ className, subject, scheduleId, onSubmitted }: AttendanceTabProps) {
   const { workspaceId } = useWorkspace();
+  const isOnline = useOnlineStatus();
   const [statusMap, setStatusMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -119,8 +121,17 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
     <div className="space-y-6">
       {success && (
         <div className="p-4 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center gap-2 text-xs font-medium">
-          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-          <span>Presensi Kelas {className} berhasil disimpan!</span>
+          {isOnline ? (
+            <>
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span>Presensi Kelas {className} berhasil disimpan!</span>
+            </>
+          ) : (
+            <>
+              <CloudOff className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span>Presensi tersimpan offline — akan tersinkron otomatis saat koneksi kembali.</span>
+            </>
+          )}
         </div>
       )}
 

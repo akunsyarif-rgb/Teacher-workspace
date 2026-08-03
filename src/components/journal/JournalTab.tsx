@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { CheckCircle2, Calendar } from "lucide-react";
+import { CheckCircle2, CloudOff, Calendar } from "lucide-react";
 import Input from "../ui/Input";
 import Textarea from "../ui/Textarea";
 import Button from "../ui/Button";
@@ -10,6 +10,7 @@ import JournalHistoryList from "./JournalHistoryList";
 import ConfirmDeleteModal from "@/src/components/ui/ConfirmDeleteModal";
 import * as journalController from "@/lib/controllers/journalController";
 import { useWorkspace } from "@/src/context/WorkspaceContext";
+import { useOnlineStatus } from "@/src/hooks/useOnlineStatus";
 import { SkeletonText, SkeletonCard } from "../ui/Skeleton";
 
 type JournalTabProps = {
@@ -21,6 +22,7 @@ type JournalTabProps = {
 
 export default function JournalTab({ className, subject, scheduleId, onSubmitted }: JournalTabProps) {
   const { workspaceId } = useWorkspace();
+  const isOnline = useOnlineStatus();
   const [topic, setTopic] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
@@ -83,8 +85,17 @@ export default function JournalTab({ className, subject, scheduleId, onSubmitted
     <div className="space-y-6">
       {success && (
         <div className="p-4 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center gap-2 text-xs font-medium">
-          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-          <span>Jurnal Mengajar Kelas {className} berhasil disimpan!</span>
+          {isOnline ? (
+            <>
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span>Jurnal Mengajar Kelas {className} berhasil disimpan!</span>
+            </>
+          ) : (
+            <>
+              <CloudOff className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span>Jurnal tersimpan offline — akan tersinkron otomatis saat koneksi kembali.</span>
+            </>
+          )}
         </div>
       )}
 

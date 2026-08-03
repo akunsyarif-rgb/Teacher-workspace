@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, Table, Plus, Save } from 'lucide-react';
+import { CheckCircle2, CloudOff, Table, Plus, Save } from 'lucide-react';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import GradesTable from './GradesTable';
@@ -9,6 +9,7 @@ import GradeColumnModal from './GradeColumnModal';
 import * as gradeController from '@/lib/controllers/gradeController';
 import * as studentController from '@/lib/controllers/classController';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
+import { useOnlineStatus } from '@/src/hooks/useOnlineStatus';
 import { SkeletonTable, SkeletonText } from '../ui/Skeleton';
 
 type GradesTabProps = {
@@ -17,6 +18,7 @@ type GradesTabProps = {
 
 export default function GradesTab({ className }: GradesTabProps) {
   const { workspaceId } = useWorkspace();
+  const isOnline = useOnlineStatus();
   const [columns, setColumns] = useState<any[]>([]);
   const [grades, setGrades] = useState<Record<string, Record<string, string>>>({});
   const [students, setStudents] = useState<any[]>([]);
@@ -115,8 +117,17 @@ export default function GradesTab({ className }: GradesTabProps) {
 
       {success && (
         <div className="p-4 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center gap-2 text-xs font-medium">
-          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-          <span>Semua perubahan nilai berhasil disimpan!</span>
+          {isOnline ? (
+            <>
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span>Semua perubahan nilai berhasil disimpan!</span>
+            </>
+          ) : (
+            <>
+              <CloudOff className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span>Nilai tersimpan offline — akan tersinkron otomatis saat koneksi kembali.</span>
+            </>
+          )}
         </div>
       )}
 
