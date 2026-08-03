@@ -59,7 +59,7 @@ export default function ClassManagement() {
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <AddStudentForm onAdded={loadSummaries} />
+        <AddStudentForm onAdded={loadSummaries} existingClasses={classSummaries.map((s) => s.className)} />
         <BulkImportForm onAdded={loadSummaries} />
       </div>
 
