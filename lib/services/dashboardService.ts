@@ -4,6 +4,17 @@ import {
   getAllSchedulesForSummary,
   getAllAttendancesForSummary,
 } from '../repositories/dashboardRepository';
+import { getScheduleStartMinutes } from '../utils/scheduleTime';
+
+export type TodayClassStatus = {
+  scheduleId: string;
+  className: string;
+  subject: string;
+  timeSlot: string;
+  hasJournal: boolean;
+  hasAttendance: boolean;
+  isDone: boolean;
+};
 
 export type DashboardSummary = {
   uniqueClasses: string[];
@@ -21,7 +32,8 @@ export type DashboardSummary = {
     journalCounts: number[];
     attendanceCounts: number[];
   };
-  pendingClasses: string[]; // Kelas yang butuh jurnal hari ini
+  pendingClasses: string[]; // Kelas yang butuh jurnal/presensi hari ini
+  todayClassStatuses: TodayClassStatus[]; // Status per slot jadwal hari ini — dasar Action Center
 };
 
 const DAY_NAMES: Record<number, string> = {
@@ -62,6 +74,7 @@ export async function loadDashboardSummary(workspaceId: string): Promise<Dashboa
       todayProgress: { total: 0, journalsDone: 0, attendancesDone: 0, percentage: 0 },
       weeklyStats: { days: [], journalCounts: [], attendanceCounts: [] },
       pendingClasses: [],
+      todayClassStatuses: [],
     };
   }
 
@@ -79,38 +92,43 @@ export async function loadDashboardSummary(workspaceId: string): Promise<Dashboa
   const currentDayName = getCurrentDayName();
   const todayDate = getTodayDate();
 
-  // Jadwal hari ini
-  const todaySchedules = schedules.filter(
-    (s: any) => String(s.day ?? '').toLowerCase() === currentDayName.toLowerCase()
-  );
-
-  // Hitung progress administrasi
-  const todayClassNames = Array.from(
-    new Set(todaySchedules.map((s: any) => s.className?.trim()).filter(Boolean))
-  ) as string[];
+  // Jadwal hari ini, diurutkan berdasarkan jam mulai
+  const todaySchedules = schedules
+    .filter((s: any) => String(s.day ?? '').toLowerCase() === currentDayName.toLowerCase())
+    .sort((a: any, b: any) => getScheduleStartMinutes(a.timeSlot || '') - getScheduleStartMinutes(b.timeSlot || ''));
 
   const journalsToday = journals.filter((j: any) => j.date === todayDate);
-  const journalClasses = new Set(journalsToday.map((j: any) => j.className?.trim()).filter(Boolean));
-
   const attendancesToday = attendances.filter((a: any) => a.date === todayDate);
-  const attendanceClasses = new Set(attendancesToday.map((a: any) => a.className?.trim()).filter(Boolean));
 
-  let journalsDone = 0;
-  let attendancesDone = 0;
-  const pendingClasses: string[] = [];
-
-  todayClassNames.forEach((cls) => {
-    const hasJournal = journalClasses.has(cls);
-    const hasAttendance = attendanceClasses.has(cls);
-    if (hasJournal) journalsDone += 1;
-    if (hasAttendance) attendancesDone += 1;
-    if (!hasJournal || !hasAttendance) {
-      pendingClasses.push(cls);
-    }
+  // Status per slot jadwal (bukan per nama kelas) — supaya kelas dengan dua
+  // slot jadwal berbeda di hari yang sama tidak saling tertukar status
+  // selesainya. Record baru dicocokkan lewat scheduleId; record lama tanpa
+  // scheduleId jatuh ke pencocokan className seperti sebelumnya.
+  const todayClassStatuses: TodayClassStatus[] = todaySchedules.map((s: any) => {
+    const hasJournal = journalsToday.some((j: any) =>
+      j.scheduleId ? j.scheduleId === s.id : j.className?.trim() === s.className?.trim()
+    );
+    const hasAttendance = attendancesToday.some((a: any) =>
+      a.scheduleId ? a.scheduleId === s.id : a.className?.trim() === s.className?.trim()
+    );
+    return {
+      scheduleId: s.id,
+      className: s.className,
+      subject: s.subject,
+      timeSlot: s.timeSlot,
+      hasJournal,
+      hasAttendance,
+      isDone: hasJournal && hasAttendance,
+    };
   });
 
-  const total = todayClassNames.length;
+  const journalsDone = todayClassStatuses.filter((s) => s.hasJournal).length;
+  const attendancesDone = todayClassStatuses.filter((s) => s.hasAttendance).length;
+  const total = todayClassStatuses.length;
   const percentage = total > 0 ? Math.round(((journalsDone + attendancesDone) / (total * 2)) * 100) : 0;
+  const pendingClasses = Array.from(
+    new Set(todayClassStatuses.filter((s) => !s.isDone).map((s) => s.className))
+  );
 
   // ===== STATISTIK MINGGUAN (7 hari terakhir) =====
   const weeklyDays: string[] = [];
@@ -143,6 +161,7 @@ export async function loadDashboardSummary(workspaceId: string): Promise<Dashboa
       attendancesDone,
       percentage,
     },
+    todayClassStatuses,
     weeklyStats: {
       days: weeklyDays,
       journalCounts: weeklyJournalCounts,

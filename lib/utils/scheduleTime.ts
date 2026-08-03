@@ -35,6 +35,29 @@ export function isScheduleOngoing(timeSlot: string, now: Date = new Date()): boo
 }
 
 /**
+ * Menit-ke-berapa (sejak 00.00) sebuah slot jadwal dimulai — dipakai untuk
+ * mengurutkan daftar jadwal/Action Center secara kronologis. Format yang
+ * tidak dikenali ditaruh paling akhir daripada dianggap error.
+ */
+export function getScheduleStartMinutes(timeSlot: string): number {
+  const timeRangeRegex = /(\d{1,2})[:.](\d{2})\s*[-–—]\s*(\d{1,2})[:.](\d{2})/;
+  const match = timeSlot.match(timeRangeRegex);
+  if (match) {
+    return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+  }
+
+  const jamKeRegex = /Jam Ke[- ](\d+)\s*s\.d\.\s*(\d+)/i;
+  const jamMatch = timeSlot.match(jamKeRegex);
+  if (jamMatch) {
+    const startKe = parseInt(jamMatch[1], 10);
+    const baseMinutes = 7 * 60 + 30;
+    return baseMinutes + (startKe - 1) * 45;
+  }
+
+  return Number.MAX_SAFE_INTEGER;
+}
+
+/**
  * Cari schedule occurrence yang relevan untuk kelas ini hari ini — dipakai
  * untuk menandai jurnal/presensi dengan scheduleId saat dibuat, supaya
  * kelas dengan lebih dari satu slot jadwal di hari yang sama tidak

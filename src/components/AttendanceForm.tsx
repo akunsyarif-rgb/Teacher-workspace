@@ -26,6 +26,17 @@ export default function AttendanceForm() {
     setSubject(savedSubject || '');
   }, []);
 
+  // Dukung deep-link dari Action Center di Dashboard (?class=XI+A&tab=presensi)
+  // supaya guru langsung diarahkan ke tugas yang tepat, bukan harus pilih ulang.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const cls = params.get('class');
+    const tab = params.get('tab');
+    if (cls) setSelectedClass(cls);
+    if (tab === 'jurnal' || tab === 'presensi' || tab === 'nilai') setActiveTab(tab);
+  }, []);
+
   useEffect(() => {
     if (workspaceId) {
       loadClasses();

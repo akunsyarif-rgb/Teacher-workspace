@@ -9,6 +9,7 @@ import { useWorkspace } from "@/src/context/WorkspaceContext";
 import { fetchDashboardSummary } from "@/lib/controllers/dashboardController";
 import { saveTeacherQuickNote } from "@/lib/controllers/teacherProfileController";
 import { isScheduleOngoing } from "@/lib/utils/scheduleTime";
+import type { TodayClassStatus } from "@/lib/services/dashboardService";
 import {
   GraduationCap,
   LogOut,
@@ -57,7 +58,6 @@ export default function DashboardPage() {
 
   const [uniqueClasses, setUniqueClasses] = useState<string[]>([]);
   const [totalJournals, setTotalJournals] = useState(0);
-  const [todaySchedules, setTodaySchedules] = useState<any[]>([]);
   const [currentDayName, setCurrentDayName] = useState("");
   const [todayProgress, setTodayProgress] = useState<{
     total: number;
@@ -66,6 +66,7 @@ export default function DashboardPage() {
     percentage: number;
   }>({ total: 0, journalsDone: 0, attendancesDone: 0, percentage: 0 });
   const [pendingClasses, setPendingClasses] = useState<string[]>([]);
+  const [todayClassStatuses, setTodayClassStatuses] = useState<TodayClassStatus[]>([]);
 
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
   const teacherName = teacherProfile?.name || "Guru Pengajar";
@@ -124,10 +125,10 @@ export default function DashboardPage() {
       const summary = await fetchDashboardSummary(workspaceId);
       setUniqueClasses(summary.uniqueClasses);
       setTotalJournals(summary.totalJournals);
-      setTodaySchedules(summary.todaySchedules);
       setCurrentDayName(summary.currentDayName);
       setTodayProgress(summary.todayProgress);
       setPendingClasses(summary.pendingClasses || []);
+      setTodayClassStatuses(summary.todayClassStatuses || []);
     } catch (err) {
       console.error("Gagal memuat ringkasan:", err);
     }
@@ -345,14 +346,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {!isComplete && pendingClasses.length > 0 && (
-          <Link
-            href="/attendance"
-            className="mt-3 inline-block text-[10px] md:text-xs font-bold text-blue-600 hover:underline"
-          >
-            ⚠️ {pendingClasses.length} kelas perlu dilengkapi: {pendingClasses.join(', ')}
-          </Link>
-        )}
       </div>
     );
   };
@@ -455,64 +448,67 @@ export default function DashboardPage() {
         {/* Progress Card */}
         <ProgressCard />
 
-        {/* Jadwal Hari Ini */}
-        <div className="bg-blue-600 p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-lg text-white space-y-3 md:space-y-4">
+        {/* Action Center: Yang Perlu Diselesaikan Hari Ini */}
+        <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 space-y-3 md:space-y-4">
           <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4 md:w-5 md:h-5 text-blue-200" />
-            <h3 className="text-[10px] md:text-xs font-extrabold uppercase tracking-wider text-blue-100">
-              Jadwal Mengajar Hari Ini ({currentDayName})
+            <Clock className="w-4 h-4 md:w-5 md:h-5 text-blue-600" />
+            <h3 className="text-[10px] md:text-xs font-extrabold text-gray-700 uppercase tracking-wider">
+              Yang Perlu Diselesaikan Hari Ini ({currentDayName})
             </h3>
           </div>
 
-          {todaySchedules.length === 0 ? (
-            <div className="p-3 md:p-5 bg-white/10 backdrop-blur-md rounded-xl md:rounded-2xl border border-white/10 text-center space-y-1 md:space-y-2">
-              <p className="text-sm md:text-base font-extrabold text-white">
-                Tidak ada jadwal mengajar untuk hari {currentDayName}.
+          {todayClassStatuses.length === 0 ? (
+            <div className="p-4 md:p-6 bg-gray-50 rounded-xl md:rounded-2xl border border-dashed border-gray-200 text-center space-y-1">
+              <p className="text-sm font-bold text-gray-600">
+                Tidak ada jadwal mengajar untuk hari {currentDayName}. Santai dulu 😊
               </p>
               <Link
                 href="/schedule"
-                className="inline-block text-[10px] md:text-xs text-blue-100 underline underline-offset-2"
+                className="inline-block text-[10px] md:text-xs text-blue-600 underline underline-offset-2 font-bold"
               >
                 Tambahkan lewat menu Jadwal Mengajar
               </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-              {todaySchedules.map((sched) => {
-                const isOngoing = isScheduleOngoing(sched.timeSlot || sched.time || '');
+            <div className="divide-y divide-gray-100">
+              {todayClassStatuses.map((status) => {
+                const isOngoing = isScheduleOngoing(status.timeSlot || '');
+                const nextTab = !status.hasAttendance ? 'presensi' : 'jurnal';
+                const label = status.isDone
+                  ? `Selesai • ${status.subject || subject}`
+                  : !status.hasAttendance && !status.hasJournal
+                  ? `Presensi & Jurnal belum diisi • ${status.timeSlot}`
+                  : !status.hasAttendance
+                  ? `Presensi belum diisi • ${status.timeSlot}`
+                  : `Jurnal belum diisi • ${status.timeSlot}`;
+
                 return (
-                  <div
-                    key={sched.id}
-                    className={`p-3 md:p-5 rounded-xl md:rounded-2xl flex flex-col justify-between gap-3 md:gap-4 border transition-all ${
-                      isOngoing
-                        ? 'bg-emerald-500/40 border-emerald-300/40 shadow-lg shadow-emerald-500/20'
-                        : 'bg-white/10 border-white/10'
-                    }`}
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm md:text-base font-extrabold">
-                          Kelas {sched.className} • {sched.timeSlot || sched.time}
+                  <div key={status.scheduleId} className="py-3 md:py-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-lg md:text-xl shrink-0" aria-hidden>
+                        {status.isDone ? '✅' : status.hasJournal || status.hasAttendance ? '🟢' : '🟡'}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-extrabold text-gray-900 truncate flex items-center gap-2">
+                          Kelas {status.className}
+                          {isOngoing && !status.isDone && (
+                            <span className="text-[9px] font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full whitespace-nowrap">
+                              Berlangsung
+                            </span>
+                          )}
                         </p>
-                        {isOngoing && (
-                          <span className="flex items-center gap-1 px-2 py-0.5 md:px-2.5 md:py-1 bg-emerald-400 text-white text-[8px] md:text-[9px] font-extrabold rounded-full shadow-md animate-pulse whitespace-nowrap">
-                            <CheckCircle2 className="w-2.5 h-2.5 md:w-3 md:h-3" />
-                            Sedang Berlangsung
-                          </span>
-                        )}
+                        <p className="text-[10px] md:text-xs text-gray-500 truncate">{label}</p>
                       </div>
-                      <p className="text-[10px] md:text-xs text-blue-100">Mapel: {sched.subject || subject}</p>
                     </div>
-                    <Link
-                      href="/attendance"
-                      className={`self-start px-3 py-1.5 md:px-4 md:py-2 rounded-xl text-[10px] md:text-xs font-bold transition-all shadow-sm ${
-                        isOngoing
-                          ? 'bg-emerald-400 hover:bg-emerald-300 text-blue-900'
-                          : 'bg-white hover:bg-blue-50 text-blue-600'
-                      }`}
-                    >
-                      Mulai Mengajar →
-                    </Link>
+
+                    {!status.isDone && (
+                      <Link
+                        href={`/attendance?class=${encodeURIComponent(status.className)}&tab=${nextTab}`}
+                        className="shrink-0 px-3 py-1.5 md:px-4 md:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] md:text-xs font-bold transition-colors shadow-sm"
+                      >
+                        {status.hasAttendance || status.hasJournal ? 'Lanjut' : 'Mulai'}
+                      </Link>
+                    )}
                   </div>
                 );
               })}
