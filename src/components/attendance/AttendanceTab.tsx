@@ -15,9 +15,10 @@ type AttendanceTabProps = {
   className: string;
   subject: string;
   scheduleId?: string | null;
+  onSubmitted?: () => void;
 };
 
-export default function AttendanceTab({ className, subject, scheduleId }: AttendanceTabProps) {
+export default function AttendanceTab({ className, subject, scheduleId, onSubmitted }: AttendanceTabProps) {
   const { workspaceId } = useWorkspace();
   const [statusMap, setStatusMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -99,6 +100,7 @@ export default function AttendanceTab({ className, subject, scheduleId }: Attend
       );
       setSuccess(true);
       await loadHistory();
+      onSubmitted?.();
     } catch (error: any) {
       alert(error.message || "Gagal menyimpan presensi.");
     } finally {

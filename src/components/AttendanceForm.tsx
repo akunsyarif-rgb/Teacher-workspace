@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { BookOpen, UserCheck, Table } from 'lucide-react';
+import { BookOpen, UserCheck, Table, CheckCircle2, Circle, PartyPopper } from 'lucide-react';
+import Link from 'next/link';
 import Card from './ui/Card';
 import JournalTab from './journal/JournalTab';
 import AttendanceTab from './attendance/AttendanceTab';
@@ -9,7 +10,8 @@ import GradesTab from './grades/GradesTab';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as classController from '@/lib/controllers/classController';
 import * as scheduleController from '@/lib/controllers/scheduleController';
-import { getCurrentDayName } from '@/lib/services/dashboardService';
+import * as dashboardController from '@/lib/controllers/dashboardController';
+import { getCurrentDayName, TodayClassStatus } from '@/lib/services/dashboardService';
 import { findActiveScheduleId } from '@/lib/utils/scheduleTime';
 
 export default function AttendanceForm() {
@@ -19,6 +21,7 @@ export default function AttendanceForm() {
   const [selectedClass, setSelectedClass] = useState('');
   const [subject, setSubject] = useState('');
   const [schedules, setSchedules] = useState<any[]>([]);
+  const [todayClassStatuses, setTodayClassStatuses] = useState<TodayClassStatus[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -41,6 +44,7 @@ export default function AttendanceForm() {
     if (workspaceId) {
       loadClasses();
       loadSchedules();
+      loadSessionStatuses();
     } else {
       setLoading(false);
     }
@@ -73,9 +77,40 @@ export default function AttendanceForm() {
     }
   }
 
+  async function loadSessionStatuses() {
+    if (!workspaceId) return [];
+    try {
+      const summary = await dashboardController.fetchDashboardSummary(workspaceId);
+      const statuses = summary.todayClassStatuses || [];
+      setTodayClassStatuses(statuses);
+      return statuses;
+    } catch (error) {
+      console.error('Gagal memuat status sesi mengajar:', error);
+      return [];
+    }
+  }
+
   const activeScheduleId = selectedClass
     ? findActiveScheduleId(schedules, selectedClass, getCurrentDayName())
     : null;
+
+  const currentSession = todayClassStatuses.find((s) => s.scheduleId === activeScheduleId) ?? null;
+
+  // Setelah presensi/jurnal tersimpan, refresh status sesi dan otomatis
+  // pindah ke langkah berikutnya kalau sesi ini punya jadwal hari ini —
+  // supaya guru tidak perlu klik-klik menu sendiri (lihat diskusi
+  // "Class Workspace" & "Workflow Engine" di roadmap).
+  async function handleAttendanceSubmitted() {
+    const statuses = await loadSessionStatuses();
+    const updated = statuses.find((s) => s.scheduleId === activeScheduleId);
+    if (updated && !updated.hasJournal) {
+      setActiveTab('jurnal');
+    }
+  }
+
+  async function handleJournalSubmitted() {
+    await loadSessionStatuses();
+  }
 
   const tabs = [
     { key: 'jurnal', label: 'Jurnal Mengajar', icon: BookOpen },
@@ -135,11 +170,63 @@ export default function AttendanceForm() {
         </div>
       </Card>
 
+      {currentSession && (
+        <div
+          className={`p-4 md:p-5 rounded-2xl md:rounded-3xl border space-y-3 ${
+            currentSession.isDone
+              ? 'bg-emerald-50 border-emerald-200'
+              : 'bg-blue-50 border-blue-200'
+          }`}
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">Sesi Mengajar</p>
+              <p className="text-sm font-extrabold text-gray-900">
+                Kelas {currentSession.className} • {currentSession.timeSlot}
+                {currentSession.subject ? ` • ${currentSession.subject}` : ''}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className={`flex items-center gap-1.5 text-xs font-bold ${currentSession.hasAttendance ? 'text-emerald-700' : 'text-gray-400'}`}>
+                {currentSession.hasAttendance ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                Presensi
+              </span>
+              <span className={`flex items-center gap-1.5 text-xs font-bold ${currentSession.hasJournal ? 'text-emerald-700' : 'text-gray-400'}`}>
+                {currentSession.hasJournal ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                Jurnal
+              </span>
+            </div>
+          </div>
+
+          {currentSession.isDone && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-emerald-200">
+              <p className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
+                <PartyPopper className="w-4 h-4" />
+                Sesi ini sudah selesai — kerja bagus!
+              </p>
+              <Link href="/" className="text-xs font-bold text-blue-600 hover:underline">
+                Kembali ke Beranda →
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
+
       {selectedClass && activeTab === 'jurnal' && (
-        <JournalTab className={selectedClass} subject={subject} scheduleId={activeScheduleId} />
+        <JournalTab
+          className={selectedClass}
+          subject={subject}
+          scheduleId={activeScheduleId}
+          onSubmitted={handleJournalSubmitted}
+        />
       )}
       {selectedClass && activeTab === 'presensi' && (
-        <AttendanceTab className={selectedClass} subject={subject} scheduleId={activeScheduleId} />
+        <AttendanceTab
+          className={selectedClass}
+          subject={subject}
+          scheduleId={activeScheduleId}
+          onSubmitted={handleAttendanceSubmitted}
+        />
       )}
       {selectedClass && activeTab === 'nilai' && <GradesTab className={selectedClass} />}
     </div>
