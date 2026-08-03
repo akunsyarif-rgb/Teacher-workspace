@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import BottomNav from "@/src/components/BottomNav";
+import { WorkspaceProvider } from "@/src/context/WorkspaceContext"; // <-- IMPOR INI
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,7 +29,13 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {/* BUNGKUS SELURUH APLIKASI DENGAN WORKSPACE PROVIDER */}
+        <WorkspaceProvider>
+          <div className="flex-1 pb-20">{children}</div>
+          <BottomNav />
+        </WorkspaceProvider>
+      </body>
     </html>
   );
 }
