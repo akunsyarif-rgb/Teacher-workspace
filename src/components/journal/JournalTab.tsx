@@ -9,14 +9,17 @@ import Card from "../ui/Card";
 import JournalHistoryList from "./JournalHistoryList";
 import ConfirmDeleteModal from "@/src/components/ui/ConfirmDeleteModal";
 import * as journalController from "@/lib/controllers/journalController";
+import { useWorkspace } from "@/src/context/WorkspaceContext";
 import { SkeletonText, SkeletonCard } from "../ui/Skeleton";
 
 type JournalTabProps = {
   className: string;
   subject: string;
+  scheduleId?: string | null;
 };
 
-export default function JournalTab({ className, subject }: JournalTabProps) {
+export default function JournalTab({ className, subject, scheduleId }: JournalTabProps) {
+  const { workspaceId } = useWorkspace();
   const [topic, setTopic] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
@@ -33,14 +36,14 @@ export default function JournalTab({ className, subject }: JournalTabProps) {
   }, []);
 
   useEffect(() => {
-    if (className) loadHistory();
-  }, [className]);
+    if (className && workspaceId) loadHistory();
+  }, [className, workspaceId]);
 
   async function loadHistory() {
-    if (!className) return;
+    if (!className || !workspaceId) return;
     setLoadingHistory(true);
     try {
-      const entries = await journalController.fetchJournalHistory(className);
+      const entries = await journalController.fetchJournalHistory(workspaceId, className);
       setHistory(entries);
     } catch (error) {
       console.error("Gagal memuat riwayat jurnal:", error);
@@ -51,10 +54,11 @@ export default function JournalTab({ className, subject }: JournalTabProps) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!workspaceId) return;
     setLoading(true);
     setSuccess(false);
     try {
-      await journalController.submitJournalEntry(className, subject, { topic, notes });
+      await journalController.submitJournalEntry(workspaceId, className, subject, { topic, notes }, scheduleId);
       setSuccess(true);
       setTopic("");
       setNotes("");

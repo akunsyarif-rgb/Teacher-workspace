@@ -38,9 +38,9 @@ export default function GradesTab({ className }: GradesTabProps) {
   }
 
   async function loadData() {
-    if (!className) return;
+    if (!className || !workspaceId) return;
     try {
-      const data = await gradeController.fetchGradeData(className);
+      const data = await gradeController.fetchGradeData(workspaceId, className);
       setColumns(data.columns);
       setGrades(data.grades);
     } catch (error) {
@@ -66,10 +66,11 @@ export default function GradesTab({ className }: GradesTabProps) {
   }
 
   async function handleSaveAll() {
+    if (!workspaceId) return;
     setLoading(true);
     setSuccess(false);
     try {
-      await gradeController.saveGrades(className, grades);
+      await gradeController.saveGrades(workspaceId, className, grades);
       setSuccess(true);
     } catch (error: any) {
       alert(error.message || 'Gagal menyimpan nilai.');
@@ -79,7 +80,8 @@ export default function GradesTab({ className }: GradesTabProps) {
   }
 
   async function handleAddColumn(title: string, type: string) {
-    await gradeController.addColumn(className, title, type);
+    if (!workspaceId) return;
+    await gradeController.addColumn(workspaceId, className, title, type);
     await loadData();
   }
 

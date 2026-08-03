@@ -1,16 +1,20 @@
 import { getDocuments, batchWrite, BatchOperation } from '../adapters/firestoreAdapter';
 import { COLLECTIONS } from '../config/constants';
 
-export async function getGradesByClass(className: string) {
-  if (!className) return [];
-  return getDocuments(COLLECTIONS.GRADES, [['className', '==', className]]);
+export async function getGradesByClass(workspaceId: string, className: string) {
+  if (!workspaceId || !className) return [];
+  return getDocuments(COLLECTIONS.GRADES, [
+    ['workspaceId', '==', workspaceId],
+    ['className', '==', className],
+  ]);
 }
 
 export async function saveGradesBatch(
+  workspaceId: string,
   className: string,
   entries: { studentId: string; columnId: string; score: string }[]
 ) {
-  if (!className) return;
+  if (!workspaceId || !className) return;
   const operations: BatchOperation[] = entries.map((entry) => {
     const docId = `${entry.studentId}_${entry.columnId}`;
     if (entry.score === '') {
@@ -21,6 +25,7 @@ export async function saveGradesBatch(
       collectionName: COLLECTIONS.GRADES,
       id: docId,
       data: {
+        workspaceId,
         className,
         studentId: entry.studentId,
         columnId: entry.columnId,

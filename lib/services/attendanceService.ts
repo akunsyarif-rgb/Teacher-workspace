@@ -1,17 +1,20 @@
 import * as attendanceRepository from '../repositories/attendanceRepository';
 import { ATTENDANCE_STATUS_OPTIONS } from '../config/constants';
 
-export async function listAttendanceHistory(className: string) {
-  if (!className) return [];
-  return attendanceRepository.getAttendanceByClass(className);
+export async function listAttendanceHistory(workspaceId: string, className: string) {
+  if (!workspaceId || !className) return [];
+  return attendanceRepository.getAttendanceByClass(workspaceId, className);
 }
 
 export async function submitAttendance(
+  workspaceId: string,
   className: string,
   subject: string,
   students: { id: string; name: string; nis?: string }[],
-  statusMap: Record<string, string>
+  statusMap: Record<string, string>,
+  scheduleId?: string | null
 ) {
+  if (!workspaceId) throw new Error('Workspace tidak valid.');
   if (!className) throw new Error('Kelas tidak valid.');
   const summary: Record<string, number> = { hadir: 0, sakit: 0, izin: 0, dispensasi: 0, alpa: 0 };
   const details = students.map((student) => {
@@ -24,11 +27,13 @@ export async function submitAttendance(
     return { studentId: student.id, name: student.name, nis: student.nis || '-', status };
   });
   return attendanceRepository.createAttendance({
+    workspaceId,
     className,
     subject: subject.trim(),
     date: new Date().toISOString().split('T')[0],
     summary,
     details,
+    scheduleId: scheduleId ?? null,
   });
 }
 
