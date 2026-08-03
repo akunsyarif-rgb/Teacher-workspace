@@ -10,6 +10,7 @@ export async function fetchDashboardSummary(workspaceId: string) {
       todayProgress: { total: 0, journalsDone: 0, attendancesDone: 0, percentage: 0 },
       weeklyStats: { days: [], journalCounts: [], attendanceCounts: [] },
       pendingClasses: [],
+      todayClassStatuses: [],
     };
   }
   return loadDashboardSummary(workspaceId);
