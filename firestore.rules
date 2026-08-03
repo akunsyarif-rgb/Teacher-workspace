@@ -36,6 +36,13 @@ service cloud.firestore {
         profile.data.workspaceId == workspaceId;
     }
 
+    // Cek apakah user adalah wali kelas dari kelas ini (untuk fitur khusus
+    // wali kelas seperti Kas Kelas)
+    function isHomeroomOf(className) {
+      let profile = get(/databases/$(database)/documents/teacher_profiles/$(request.auth.uid));
+      return profile != null && profile.data.homeroomClassName == className;
+    }
+
     // ============================================================
     // KOLEKSI: teacher_profiles
     // ============================================================
@@ -174,6 +181,24 @@ service cloud.firestore {
 
       allow delete: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
+    }
+
+    // ============================================================
+    // KOLEKSI: class_fund_transactions (Kas Kelas — khusus wali kelas)
+    // ============================================================
+    match /class_fund_transactions/{docId} {
+      // Sekelas boleh membaca (transparansi kas), tapi hanya wali kelas
+      // dari kelas itu yang boleh menulis/menghapus.
+      allow read: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.workspaceId == getWorkspaceId(request.auth.uid) &&
+        isHomeroomOf(request.resource.data.className);
+
+      allow update, delete: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        isHomeroomOf(resource.data.className);
     }
   }
 }
