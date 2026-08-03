@@ -1,6 +1,11 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { initializeFirestore, getFirestore } from "firebase/firestore";
+import {
+  initializeFirestore,
+  getFirestore,
+  persistentLocalCache,
+  persistentSingleTabManager,
+} from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -25,9 +30,21 @@ export const auth = getAuth(app);
 // initializeFirestore hanya boleh dipanggil sekali per app — try/catch di
 // sini menangani reload/HMR saat development, jatuh ke getFirestore biasa
 // kalau instance Firestore untuk app ini sudah pernah dibuat sebelumnya.
+// Cache lokal (IndexedDB) — dasar dukungan offline: baca & tulis tetap
+// berfungsi tanpa koneksi (Firestore antre perubahan secara otomatis),
+// lalu tersinkron sendiri begitu online kembali. Hanya diaktifkan di
+// browser karena IndexedDB tidak ada saat build/prerender di Node.js.
+// persistentSingleTabManager dipakai karena app ini tidak butuh sinkron
+// antar-tab; kalau tab lain dibuka, tab itu otomatis jatuh ke cache
+// memori biasa (fallback bawaan SDK, bukan error).
 export const db = (() => {
   try {
-    return initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+    return initializeFirestore(app, {
+      experimentalAutoDetectLongPolling: true,
+      ...(typeof window !== "undefined"
+        ? { localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({}) }) }
+        : {}),
+    });
   } catch {
     return getFirestore(app);
   }

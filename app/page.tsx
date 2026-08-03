@@ -10,6 +10,7 @@ import { fetchDashboardSummary } from "@/lib/controllers/dashboardController";
 import { saveTeacherQuickNote } from "@/lib/controllers/teacherProfileController";
 import { isScheduleOngoing, resolveCurrentWorkflowStep } from "@/lib/utils/scheduleTime";
 import type { TodayClassStatus } from "@/lib/services/dashboardService";
+import { useOnlineStatus } from "@/src/hooks/useOnlineStatus";
 import {
   GraduationCap,
   LogOut,
@@ -55,7 +56,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [quickNote, setQuickNote] = useState("");
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
-  const [isOnline, setIsOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
+  const isOnline = useOnlineStatus();
 
   const [uniqueClasses, setUniqueClasses] = useState<string[]>([]);
   const [totalJournals, setTotalJournals] = useState(0);
@@ -74,22 +75,12 @@ export default function DashboardPage() {
   const subject = teacherProfile?.subject || "";
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const handleOnline = () => {
-      setIsOnline(true);
+    if (isOnline) {
       setSyncStatus((prev) => (prev === "offline" ? "idle" : prev));
-    };
-    const handleOffline = () => {
-      setIsOnline(false);
+    } else {
       setSyncStatus("offline");
-    };
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
+    }
+  }, [isOnline]);
 
   useEffect(() => {
     if (teacherProfile?.quickNote !== undefined) {

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import BottomNav from "@/src/components/BottomNav";
+import OfflineBanner from "@/src/components/ui/OfflineBanner";
 import { WorkspaceProvider } from "@/src/context/WorkspaceContext"; // <-- IMPOR INI
 
 const geistSans = Geist({
@@ -32,6 +33,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         {/* BUNGKUS SELURUH APLIKASI DENGAN WORKSPACE PROVIDER */}
         <WorkspaceProvider>
+          <OfflineBanner />
           <div className="flex-1 pb-20">{children}</div>
           <BottomNav />
         </WorkspaceProvider>
