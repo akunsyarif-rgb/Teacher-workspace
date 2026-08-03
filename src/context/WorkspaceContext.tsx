@@ -17,6 +17,7 @@ type WorkspaceContextValue = {
   classLimit: number | null;
   teacherProfile: TeacherProfile | null;
   loading: boolean;
+  refreshProfile: () => Promise<void>;
 };
 
 const defaultState: WorkspaceContextValue = {
@@ -28,12 +29,50 @@ const defaultState: WorkspaceContextValue = {
   classLimit: null,
   teacherProfile: null,
   loading: true,
+  refreshProfile: async () => {},
 };
 
 const WorkspaceContext = createContext<WorkspaceContextValue>(defaultState);
 
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<WorkspaceContextValue>(defaultState);
+
+  async function loadForUser(user: User) {
+    try {
+      const profile = await getTeacherProfile(user.uid);
+
+      if (!profile?.workspaceId) {
+        setState({
+          user,
+          workspaceId: null,
+          workspace: null,
+          role: profile?.role ?? null,
+          plan: null,
+          classLimit: null,
+          teacherProfile: profile,
+          loading: false,
+          refreshProfile: () => loadForUser(user),
+        });
+        return;
+      }
+
+      const workspace = await getWorkspaceById(profile.workspaceId);
+      setState({
+        user,
+        workspaceId: profile.workspaceId,
+        workspace,
+        role: profile.role ?? null,
+        plan: workspace?.plan ?? null,
+        classLimit: workspace?.classLimit ?? null,
+        teacherProfile: profile,
+        loading: false,
+        refreshProfile: () => loadForUser(user),
+      });
+    } catch (err) {
+      console.error('Gagal memuat sesi workspace:', err);
+      setState((prev) => ({ ...prev, user, loading: false }));
+    }
+  }
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -47,42 +86,12 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           classLimit: null,
           teacherProfile: null,
           loading: false,
+          refreshProfile: async () => {},
         });
         return;
       }
 
-      try {
-        const profile = await getTeacherProfile(user.uid);
-
-        if (!profile?.workspaceId) {
-          setState({
-            user,
-            workspaceId: null,
-            workspace: null,
-            role: profile?.role ?? null,
-            plan: null,
-            classLimit: null,
-            teacherProfile: profile,
-            loading: false,
-          });
-          return;
-        }
-
-        const workspace = await getWorkspaceById(profile.workspaceId);
-        setState({
-          user,
-          workspaceId: profile.workspaceId,
-          workspace,
-          role: profile.role ?? null,
-          plan: workspace?.plan ?? null,
-          classLimit: workspace?.classLimit ?? null,
-          teacherProfile: profile,
-          loading: false,
-        });
-      } catch (err) {
-        console.error('Gagal memuat sesi workspace:', err);
-        setState((prev) => ({ ...prev, user, loading: false }));
-      }
+      await loadForUser(user);
     });
 
     return () => unsubscribe();

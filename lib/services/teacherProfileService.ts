@@ -27,6 +27,10 @@ export async function updateTeacherSubject(uid: string, subject: string) {
   return saveTeacherProfile(uid, { subject: trimmed });
 }
 
+export async function updateTeacherHomeroomClass(uid: string, className: string | null) {
+  return saveTeacherProfile(uid, { homeroomClassName: className || null });
+}
+
 // Fungsi baru: update quickNote
 export async function updateTeacherQuickNoteService(uid: string, quickNote: string) {
   if (!uid) throw new Error('UID diperlukan.');
