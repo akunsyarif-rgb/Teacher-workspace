@@ -1,13 +1,16 @@
 import * as studentService from '../services/studentService';
+import { withCache, clearAllCached } from '../utils/sessionCache';
 
 export async function fetchClassSummaries(workspaceId: string) {
   if (!workspaceId) return [];
-  return studentService.listClassSummaries(workspaceId);
+  return withCache(`classSummaries:${workspaceId}`, () => studentService.listClassSummaries(workspaceId));
 }
 
 export async function fetchStudentsInClass(workspaceId: string, className: string) {
   if (!workspaceId || !className) return [];
-  return studentService.getStudentsInClass(workspaceId, className);
+  return withCache(`studentsInClass:${workspaceId}:${className}`, () =>
+    studentService.getStudentsInClass(workspaceId, className)
+  );
 }
 
 export async function submitSingleStudent(
@@ -15,7 +18,9 @@ export async function submitSingleStudent(
   data: { name: string; nis: string; className: string }
 ) {
   if (!workspaceId) throw new Error('workspaceId diperlukan');
-  return studentService.addSingleStudent(workspaceId, data);
+  const result = await studentService.addSingleStudent(workspaceId, data);
+  clearAllCached();
+  return result;
 }
 
 export async function submitBulkStudents(
@@ -24,9 +29,13 @@ export async function submitBulkStudents(
   namesText: string
 ) {
   if (!workspaceId) throw new Error('workspaceId diperlukan');
-  return studentService.addBulkStudents(workspaceId, className, namesText);
+  const result = await studentService.addBulkStudents(workspaceId, className, namesText);
+  clearAllCached();
+  return result;
 }
 
 export async function deleteStudent(id: string) {
-  return studentService.removeStudent(id);
+  const result = await studentService.removeStudent(id);
+  clearAllCached();
+  return result;
 }
