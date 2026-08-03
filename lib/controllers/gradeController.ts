@@ -1,8 +1,9 @@
 import * as gradeService from '../services/gradeService';
+import { withCache, clearAllCached } from '../utils/sessionCache';
 
 export async function fetchGradeData(workspaceId: string, className: string) {
   if (!workspaceId || !className) return { columns: [], grades: {} };
-  return gradeService.loadGradeData(workspaceId, className);
+  return withCache(`gradeData:${workspaceId}:${className}`, () => gradeService.loadGradeData(workspaceId, className));
 }
 
 export async function saveGrades(
@@ -10,13 +11,19 @@ export async function saveGrades(
   className: string,
   gradesMap: Record<string, Record<string, string>>
 ) {
-  return gradeService.saveAllGrades(workspaceId, className, gradesMap);
+  const result = await gradeService.saveAllGrades(workspaceId, className, gradesMap);
+  clearAllCached();
+  return result;
 }
 
 export async function addColumn(workspaceId: string, className: string, title: string, type: string) {
-  return gradeService.addGradeColumn(workspaceId, className, title, type);
+  const result = await gradeService.addGradeColumn(workspaceId, className, title, type);
+  clearAllCached();
+  return result;
 }
 
 export async function removeColumn(id: string) {
-  return gradeService.removeGradeColumn(id);
+  const result = await gradeService.removeGradeColumn(id);
+  clearAllCached();
+  return result;
 }

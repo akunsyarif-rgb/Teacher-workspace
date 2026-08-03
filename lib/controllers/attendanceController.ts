@@ -1,8 +1,11 @@
 import * as attendanceService from '../services/attendanceService';
+import { withCache, clearAllCached } from '../utils/sessionCache';
 
 export async function fetchAttendanceHistory(workspaceId: string, className: string) {
   if (!workspaceId || !className) return [];
-  return attendanceService.listAttendanceHistory(workspaceId, className);
+  return withCache(`attendanceHistory:${workspaceId}:${className}`, () =>
+    attendanceService.listAttendanceHistory(workspaceId, className)
+  );
 }
 
 export async function submitAttendanceRecord(
@@ -13,9 +16,20 @@ export async function submitAttendanceRecord(
   statusMap: Record<string, string>,
   scheduleId?: string | null
 ) {
-  return attendanceService.submitAttendance(workspaceId, className, subject, students, statusMap, scheduleId);
+  const result = await attendanceService.submitAttendance(
+    workspaceId,
+    className,
+    subject,
+    students,
+    statusMap,
+    scheduleId
+  );
+  clearAllCached();
+  return result;
 }
 
 export async function deleteAttendanceRecord(id: string) {
-  return attendanceService.removeAttendance(id);
+  const result = await attendanceService.removeAttendance(id);
+  clearAllCached();
+  return result;
 }
