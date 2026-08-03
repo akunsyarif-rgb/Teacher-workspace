@@ -16,9 +16,10 @@ type JournalTabProps = {
   className: string;
   subject: string;
   scheduleId?: string | null;
+  onSubmitted?: () => void;
 };
 
-export default function JournalTab({ className, subject, scheduleId }: JournalTabProps) {
+export default function JournalTab({ className, subject, scheduleId, onSubmitted }: JournalTabProps) {
   const { workspaceId } = useWorkspace();
   const [topic, setTopic] = useState("");
   const [notes, setNotes] = useState("");
@@ -63,6 +64,7 @@ export default function JournalTab({ className, subject, scheduleId }: JournalTa
       setTopic("");
       setNotes("");
       await loadHistory();
+      onSubmitted?.();
     } catch (error: any) {
       alert(error.message || "Gagal menyimpan jurnal.");
     } finally {
