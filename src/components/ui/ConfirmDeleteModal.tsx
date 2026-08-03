@@ -92,7 +92,7 @@ export default function ConfirmDeleteModal({
           onClick={handleConfirm}
           loading={loading}
           disabled={isConfirmDisabled}
-          className={`${buttonBg} text-white`}
+          className={buttonBg + " text-white"}
         >
           {loading ? "Menghapus..." : "Ya, Hapus"}
         </Button>

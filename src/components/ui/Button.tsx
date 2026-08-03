@@ -9,6 +9,7 @@ type ButtonProps = {
   variant?: 'primary' | 'secondary';
   loading?: boolean;
   disabled?: boolean;
+  className?: string; // TAMBAH: menerima className custom
 };
 
 export default function Button({
@@ -18,6 +19,7 @@ export default function Button({
   variant = 'primary',
   loading = false,
   disabled = false,
+  className = '', // default kosong
 }: ButtonProps) {
   const baseClass =
     'w-full py-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2';
@@ -31,7 +33,7 @@ export default function Button({
       type={type}
       onClick={onClick}
       disabled={disabled || loading}
-      className={`${baseClass} ${variantClass}`}
+      className={`${baseClass} ${variantClass} ${className}`}
     >
       {children}
     </button>
