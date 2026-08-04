@@ -13,6 +13,7 @@ type StudentAttendanceRowProps = {
 
 const ACTIVE_COLOR: Record<string, string> = {
   Hadir: 'bg-blue-600 text-white shadow-sm',
+  Terlambat: 'bg-orange-500 text-white shadow-sm',
   Sakit: 'bg-amber-500 text-white shadow-sm',
   Izin: 'bg-purple-600 text-white shadow-sm',
   Dispensasi: 'bg-teal-600 text-white shadow-sm',
@@ -21,6 +22,7 @@ const ACTIVE_COLOR: Record<string, string> = {
 
 const DOT_COLOR: Record<string, string> = {
   Hadir: 'bg-blue-500',
+  Terlambat: 'bg-orange-500',
   Sakit: 'bg-amber-500',
   Izin: 'bg-purple-500',
   Dispensasi: 'bg-teal-500',
@@ -29,6 +31,7 @@ const DOT_COLOR: Record<string, string> = {
 
 const STATUS_LETTER: Record<string, string> = {
   Hadir: 'H',
+  Terlambat: 'T',
   Sakit: 'S',
   Izin: 'I',
   Dispensasi: 'D',

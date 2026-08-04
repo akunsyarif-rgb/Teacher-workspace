@@ -16,14 +16,22 @@ export async function submitAttendance(
 ) {
   if (!workspaceId) throw new Error('Workspace tidak valid.');
   if (!className) throw new Error('Kelas tidak valid.');
-  const summary: Record<string, number> = { hadir: 0, sakit: 0, izin: 0, dispensasi: 0, alpa: 0 };
+  // "Terlambat" tetap dihitung hadir untuk keperluan rekap/laporan
+  // (siswa terlambat bukan siswa absen), tapi tetap tercatat terpisah
+  // di summary.terlambat dan di status per-siswa untuk visibilitas disiplin.
+  const summary: Record<string, number> = { hadir: 0, sakit: 0, izin: 0, dispensasi: 0, alpa: 0, terlambat: 0 };
   const details = students.map((student) => {
     const rawStatus = statusMap[student.id];
     const status = (ATTENDANCE_STATUS_OPTIONS as readonly string[]).includes(rawStatus)
       ? rawStatus
       : 'Hadir';
-    const key = status.toLowerCase();
-    if (summary[key] !== undefined) summary[key] += 1;
+    if (status === 'Terlambat') {
+      summary.hadir += 1;
+      summary.terlambat += 1;
+    } else {
+      const key = status.toLowerCase();
+      if (summary[key] !== undefined) summary[key] += 1;
+    }
     return { studentId: student.id, name: student.name, nis: student.nis || '-', status };
   });
   return attendanceRepository.createAttendance({
