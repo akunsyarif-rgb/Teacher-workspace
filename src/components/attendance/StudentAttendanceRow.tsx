@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { ATTENDANCE_STATUS_OPTIONS } from '@/lib/config/constants';
+import { STATUS_LETTER, STATUS_COLOR as DOT_COLOR } from '@/lib/utils/attendanceStatus';
 
 type StudentAttendanceRowProps = {
   student: { id: string; name: string; nis?: string };
@@ -18,24 +19,6 @@ const ACTIVE_COLOR: Record<string, string> = {
   Izin: 'bg-purple-600 text-white shadow-sm',
   Dispensasi: 'bg-teal-600 text-white shadow-sm',
   Alpa: 'bg-red-600 text-white shadow-sm',
-};
-
-const DOT_COLOR: Record<string, string> = {
-  Hadir: 'bg-blue-500',
-  Terlambat: 'bg-orange-500',
-  Sakit: 'bg-amber-500',
-  Izin: 'bg-purple-500',
-  Dispensasi: 'bg-teal-500',
-  Alpa: 'bg-red-500',
-};
-
-const STATUS_LETTER: Record<string, string> = {
-  Hadir: 'H',
-  Terlambat: 'T',
-  Sakit: 'S',
-  Izin: 'I',
-  Dispensasi: 'D',
-  Alpa: 'A',
 };
 
 const HISTORY_SLOTS = 5;
