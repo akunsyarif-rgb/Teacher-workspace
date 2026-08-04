@@ -28,6 +28,7 @@ import {
   AlertCircle,
   BarChart3,
   ArrowRight,
+  Wallet,
 } from "lucide-react";
 
 function getGreeting(date: Date = new Date()) {
@@ -619,6 +620,36 @@ export default function DashboardPage() {
             </Link>
           </div>
         </div>
+
+        {/* Menu Wali Kelas — hanya tampil untuk guru yang jadi wali kelas.
+            Semua fitur khusus wali kelas (Kas Kelas, dan lainnya nanti)
+            masuk ke satu kartu ini, bukan menambah item BottomNav baru. */}
+        {teacherProfile?.homeroomClassName && (
+          <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 space-y-3 md:space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 md:w-9 md:h-9 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                <GraduationCap className="w-4 h-4 md:w-4.5 md:h-4.5" />
+              </div>
+              <div>
+                <p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                  Menu Wali Kelas
+                </p>
+                <p className="text-xs font-bold text-gray-700">Kelas {teacherProfile.homeroomClassName}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <Link
+                href="/kas-kelas"
+                className="bg-gray-50 hover:bg-blue-50 border border-gray-100 hover:border-blue-200 rounded-2xl p-3 flex flex-col items-center gap-2 text-center transition-colors"
+              >
+                <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center">
+                  <Wallet className="w-4 h-4" />
+                </div>
+                <span className="text-[11px] font-bold text-gray-700">Kas Kelas</span>
+              </Link>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
