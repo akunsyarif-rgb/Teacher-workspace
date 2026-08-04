@@ -27,19 +27,30 @@ const DOT_COLOR: Record<string, string> = {
   Alpa: 'bg-red-500',
 };
 
+const HISTORY_SLOTS = 5;
+
+// Selalu tampilkan 5 slot (terisi warna atau lingkaran kosong) supaya strip
+// ini konsisten terlihat sebagai elemen baru, bukan hanya teks kecil yang
+// gampang tidak diperhatikan saat siswa belum punya riwayat sama sekali.
 function RecentHistoryStrip({ recentHistory }: { recentHistory: { date: string; status: string }[] }) {
-  if (recentHistory.length === 0) {
-    return <p className="text-[9px] text-gray-300">Belum ada riwayat</p>;
-  }
+  const padded = Array.from(
+    { length: HISTORY_SLOTS },
+    (_, i) => recentHistory[recentHistory.length - HISTORY_SLOTS + i] || null
+  );
+
   return (
-    <div className="flex items-center gap-1" title="Riwayat presensi pertemuan terakhir">
-      {recentHistory.map((h, i) => (
-        <span
-          key={i}
-          className={`w-2 h-2 rounded-full ${DOT_COLOR[h.status] || 'bg-gray-300'}`}
-          title={`${h.date}: ${h.status}`}
-        />
-      ))}
+    <div className="flex items-center gap-1" title="Riwayat presensi 5 pertemuan terakhir">
+      {padded.map((h, i) =>
+        h ? (
+          <span
+            key={i}
+            className={`w-2.5 h-2.5 rounded-full ${DOT_COLOR[h.status] || 'bg-gray-300'}`}
+            title={`${h.date}: ${h.status}`}
+          />
+        ) : (
+          <span key={i} className="w-2.5 h-2.5 rounded-full border border-gray-200" title="Belum ada data" />
+        )
+      )}
     </div>
   );
 }
