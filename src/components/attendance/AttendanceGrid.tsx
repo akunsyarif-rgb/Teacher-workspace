@@ -20,6 +20,17 @@ type AttendanceGridProps = {
   onChange: (studentId: string, next: TodayEntry) => void;
 };
 
+// Lebar kolom tetap (mobile / sm+) — dipakai konsisten oleh header & baris
+// data supaya kolomnya sejajar. Pakai flex row biasa (bukan <table>):
+// table-layout browser (auto maupun fixed) terbukti tidak bisa diandalkan
+// untuk mempertahankan lebar kolom yang presisi saat ada sel sticky +
+// konten yang tidak bisa dipotong (nama siswa panjang) — kolom sticky
+// jadi ikut membengkak dan menutupi kolom riwayat di layar sempit. Flex
+// row dengan shrink-0 di tiap sel memberi kontrol lebar yang deterministik.
+const NAME_COL = 'w-[96px] sm:w-[180px] shrink-0';
+const HISTORY_COL = 'w-[30px] sm:w-[36px] shrink-0';
+const TODAY_COL = 'w-[210px] sm:w-[250px] shrink-0';
+
 function formatShortDate(dateStr: string): string {
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return dateStr;
@@ -97,53 +108,50 @@ export default function AttendanceGrid({ students, history, statusMap, onChange 
   const sortedHistory = [...history].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-gray-100 -mx-1">
-      <table className="border-collapse text-xs w-max min-w-full">
-        <thead>
-          <tr className="bg-gray-50">
-            <th className="sticky left-0 z-20 bg-gray-50 text-left px-2 sm:px-3 py-2.5 font-bold text-gray-500 w-[96px] sm:w-[180px]">
-              Nama Siswa
-            </th>
-            {sortedHistory.map((session, i) => (
-              <th
-                key={session.id}
-                className="px-0.5 sm:px-1 py-2.5 text-center font-bold text-gray-400 min-w-[30px] sm:min-w-[36px]"
-                title={session.date}
-              >
-                <div>{i + 1}</div>
-                <div className="text-[8px] font-medium text-gray-300">{formatShortDate(session.date)}</div>
-              </th>
-            ))}
-            <th className="sticky right-0 z-20 bg-gray-50 border-l-2 border-gray-200 px-1.5 sm:px-2.5 py-2.5 text-center font-bold text-gray-500 min-w-[210px] sm:min-w-[230px]">
-              Hari Ini
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {students.map((student, idx) => {
-            const entry = statusMap[student.id] || { status: 'Hadir', late: false };
-            return (
-              <tr key={student.id} className="border-t border-gray-100">
-                <td className="sticky left-0 z-10 bg-white px-2 sm:px-3 py-2 font-bold text-gray-900 w-[96px] sm:w-[180px] truncate">
-                  <span className="text-gray-400 font-normal mr-1 sm:mr-1.5">{idx + 1}.</span>
-                  {student.name}
-                </td>
-                {sortedHistory.map((session) => {
-                  const detail = (session.details || []).find((d) => d.studentId === student.id);
-                  return (
-                    <td key={session.id} className="px-0.5 sm:px-1 py-2 text-center">
-                      <HistoryBadge detail={detail} />
-                    </td>
-                  );
-                })}
-                <td className="sticky right-0 z-10 bg-white border-l-2 border-gray-200 px-1.5 sm:px-2.5 py-2">
-                  <TodayStatusControl value={entry} onChange={(next) => onChange(student.id, next)} />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className="overflow-x-auto rounded-2xl border border-gray-100 -mx-1 text-xs">
+      <div className="w-fit min-w-full">
+        <div className="flex bg-gray-50">
+          <div className={`sticky left-0 z-20 bg-gray-50 text-left px-2 sm:px-3 py-2.5 font-bold text-gray-500 ${NAME_COL}`}>
+            Nama Siswa
+          </div>
+          {sortedHistory.map((session, i) => (
+            <div
+              key={session.id}
+              className={`px-0.5 sm:px-1 py-2.5 text-center font-bold text-gray-400 ${HISTORY_COL}`}
+              title={session.date}
+            >
+              <div>{i + 1}</div>
+              <div className="text-[8px] font-medium text-gray-300">{formatShortDate(session.date)}</div>
+            </div>
+          ))}
+          <div className={`sticky right-0 z-20 bg-gray-50 border-l-2 border-gray-200 px-1.5 sm:px-2.5 py-2.5 text-center font-bold text-gray-500 ${TODAY_COL}`}>
+            Hari Ini
+          </div>
+        </div>
+
+        {students.map((student, idx) => {
+          const entry = statusMap[student.id] || { status: 'Hadir', late: false };
+          return (
+            <div key={student.id} className="flex border-t border-gray-100">
+              <div className={`sticky left-0 z-10 bg-white px-2 sm:px-3 py-2 font-bold text-gray-900 truncate ${NAME_COL}`}>
+                <span className="text-gray-400 font-normal mr-1 sm:mr-1.5">{idx + 1}.</span>
+                {student.name}
+              </div>
+              {sortedHistory.map((session) => {
+                const detail = (session.details || []).find((d) => d.studentId === student.id);
+                return (
+                  <div key={session.id} className={`flex items-center justify-center py-2 ${HISTORY_COL}`}>
+                    <HistoryBadge detail={detail} />
+                  </div>
+                );
+              })}
+              <div className={`sticky right-0 z-10 bg-white border-l-2 border-gray-200 px-1.5 sm:px-2.5 py-2 flex items-center ${TODAY_COL}`}>
+                <TodayStatusControl value={entry} onChange={(next) => onChange(student.id, next)} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
