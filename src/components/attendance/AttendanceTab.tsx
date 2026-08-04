@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { CheckCircle2, CloudOff, Calendar, UserCheck, History, Trash2 } from "lucide-react";
+import { CheckCircle2, CloudOff, Calendar, UserCheck, History, Trash2, FileDown } from "lucide-react";
 import Card from "../ui/Card";
 import Button from "../ui/Button";
 import StudentAttendanceRow from "./StudentAttendanceRow";
@@ -10,6 +10,7 @@ import * as attendanceController from "@/lib/controllers/attendanceController";
 import * as studentController from "@/lib/controllers/classController";
 import { useWorkspace } from "@/src/context/WorkspaceContext";
 import { useOnlineStatus } from "@/src/hooks/useOnlineStatus";
+import { exportAttendanceRecapPdf } from "@/lib/utils/attendancePdf";
 import { SkeletonText, SkeletonCard, SkeletonTable } from "../ui/Skeleton";
 
 type AttendanceTabProps = {
@@ -130,6 +131,10 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
     setDeleteTarget(null);
   }
 
+  function handleExportPdf() {
+    exportAttendanceRecapPdf({ className, subject, students, history });
+  }
+
   return (
     <div className="space-y-6">
       {success && (
@@ -210,10 +215,22 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
 
       {/* Riwayat dengan Skeleton */}
       <Card className="space-y-4">
-        <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-          <History className="w-4 h-4 text-blue-600" />
-          Riwayat Presensi ({loadingData ? '...' : history.length} Sesi)
-        </h3>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+            <History className="w-4 h-4 text-blue-600" />
+            Riwayat Presensi ({loadingData ? '...' : history.length} Sesi)
+          </h3>
+          {!loadingData && history.length > 0 && (
+            <button
+              type="button"
+              onClick={handleExportPdf}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl text-[11px] font-bold transition-colors"
+            >
+              <FileDown className="w-3.5 h-3.5" />
+              Export PDF Rekap
+            </button>
+          )}
+        </div>
 
         {loadingData ? (
           <div className="space-y-3">
