@@ -19,7 +19,10 @@ export const STUDENT_NOTE_CATEGORIES = {
   KOMUNIKASI_ORTU: 'komunikasi_ortu',
 } as const;
 
-export const ATTENDANCE_STATUS_OPTIONS = ['Hadir', 'Terlambat', 'Sakit', 'Izin', 'Dispensasi', 'Alpa'] as const;
+// "Terlambat" bukan status sendiri — itu atribut tambahan (late: boolean)
+// di atas status Hadir, supaya statistik kehadiran tetap terhitung hadir.
+// Lihat detail/late di attendanceService.
+export const ATTENDANCE_STATUS_OPTIONS = ['Hadir', 'Sakit', 'Izin', 'Dispensasi', 'Alpa'] as const;
 
 export const DEFAULT_GRADE_COLUMNS = [
   { title: 'Tugas 1', type: 'Tugas' },
