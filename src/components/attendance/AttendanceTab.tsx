@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { CheckCircle2, CloudOff, Calendar, UserCheck, History, Trash2, FileDown } from "lucide-react";
 import Card from "../ui/Card";
 import Button from "../ui/Button";
-import StudentAttendanceRow from "./StudentAttendanceRow";
+import AttendanceHistoryTable from "./AttendanceHistoryTable";
 import ConfirmDeleteModal from "@/src/components/ui/ConfirmDeleteModal";
 import * as attendanceController from "@/lib/controllers/attendanceController";
 import * as studentController from "@/lib/controllers/classController";
@@ -73,19 +73,6 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
     } catch (error) {
       console.error("Gagal memuat riwayat presensi:", error);
     }
-  }
-
-  // Strip riwayat singkat per siswa — dirakit dari sesi presensi yang
-  // sudah tersimpan (history), bukan data/kolom baru. Membantu guru melihat
-  // pola kehadiran tanpa mengubah cara mengisi presensi hari ini.
-  function getRecentHistory(studentId: string, limit = 5): { date: string; status: string }[] {
-    const sorted = [...history].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-    const result: { date: string; status: string }[] = [];
-    sorted.forEach((session) => {
-      const detail = (session.details || []).find((d: any) => d.studentId === studentId);
-      if (detail) result.push({ date: session.date, status: detail.status });
-    });
-    return result.slice(-limit);
   }
 
   function handleStatusChange(studentId: string, status: string) {
@@ -190,18 +177,12 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
           ) : students.length === 0 ? (
             <p className="text-xs text-gray-500 text-center py-12">Belum ada siswa di kelas ini.</p>
           ) : (
-            <div className="divide-y divide-gray-100">
-              {students.map((student, idx) => (
-                <StudentAttendanceRow
-                  key={student.id}
-                  student={student}
-                  index={idx}
-                  status={statusMap[student.id] || "Hadir"}
-                  onStatusChange={handleStatusChange}
-                  recentHistory={getRecentHistory(student.id)}
-                />
-              ))}
-            </div>
+            <AttendanceHistoryTable
+              students={students}
+              history={history}
+              statusMap={statusMap}
+              onStatusChange={handleStatusChange}
+            />
           )}
         </Card>
 

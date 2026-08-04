@@ -1,5 +1,5 @@
-// Sumber tunggal untuk kode huruf status presensi — dipakai di strip
-// riwayat singkat (StudentAttendanceRow) dan ekspor PDF rekap presensi,
+// Sumber tunggal untuk kode huruf status presensi — dipakai di tabel
+// riwayat presensi (AttendanceHistoryTable) dan ekspor PDF rekap presensi,
 // supaya keduanya selalu konsisten.
 export const STATUS_LETTER: Record<string, string> = {
   Hadir: 'H',
