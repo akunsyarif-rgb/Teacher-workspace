@@ -200,5 +200,44 @@ service cloud.firestore {
         hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
         isHomeroomOf(resource.data.className);
     }
+
+    // ============================================================
+    // KOLEKSI: class_inventory (Inventaris Kelas — khusus wali kelas)
+    // ============================================================
+    match /class_inventory/{docId} {
+      // Sekelas boleh membaca (transparansi barang), tapi hanya wali
+      // kelas dari kelas itu yang boleh menulis/menghapus.
+      allow read: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.workspaceId == getWorkspaceId(request.auth.uid) &&
+        isHomeroomOf(request.resource.data.className);
+
+      allow update, delete: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        isHomeroomOf(resource.data.className);
+    }
+
+    // ============================================================
+    // KOLEKSI: student_notes (Konseling, Prestasi, Komunikasi Ortu —
+    // khusus wali kelas). Berbeda dari Kas Kelas/Inventaris: ini data
+    // pribadi siswa, jadi baca DIBATASI ke wali kelas kelas itu atau
+    // admin/owner — tidak untuk seluruh guru di workspace.
+    // ============================================================
+    match /student_notes/{docId} {
+      allow read: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        (isHomeroomOf(resource.data.className) ||
+         isAdminOrOwner(getWorkspaceId(request.auth.uid)));
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.workspaceId == getWorkspaceId(request.auth.uid) &&
+        isHomeroomOf(request.resource.data.className);
+
+      allow update, delete: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        isHomeroomOf(resource.data.className);
+    }
   }
 }
