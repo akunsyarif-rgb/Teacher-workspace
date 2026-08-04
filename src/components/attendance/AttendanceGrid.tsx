@@ -28,16 +28,16 @@ function formatShortDate(dateStr: string): string {
 
 function HistoryBadge({ detail }: { detail?: { status: string; late?: boolean } }) {
   if (!detail) {
-    return <span className="inline-flex w-6 h-6 rounded-lg border border-dashed border-gray-200" />;
+    return <span className="inline-flex w-7 h-7 rounded-lg border border-dashed border-gray-200" />;
   }
   const bg = STATUS_COLOR[detail.status] || 'bg-gray-300';
   return (
     <span
-      className="relative inline-flex w-6 h-6 shrink-0"
+      className="relative inline-flex w-7 h-7 shrink-0"
       title={`${detail.status}${detail.late ? ' (Terlambat)' : ''}`}
     >
       <span
-        className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-extrabold text-white ${bg}`}
+        className={`w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-extrabold text-white ${bg}`}
       >
         {STATUS_LETTER[detail.status] || '?'}
       </span>
@@ -52,7 +52,7 @@ function HistoryBadge({ detail }: { detail?: { status: string; late?: boolean } 
 
 function TodayStatusControl({ value, onChange }: { value: TodayEntry; onChange: (next: TodayEntry) => void }) {
   return (
-    <div className="flex items-center gap-1 flex-wrap">
+    <div className="flex items-center gap-1.5 flex-wrap">
       {ATTENDANCE_STATUS_OPTIONS.map((option) => {
         const isActive = value.status === option;
         return (
@@ -61,7 +61,7 @@ function TodayStatusControl({ value, onChange }: { value: TodayEntry; onChange: 
             type="button"
             onClick={() => onChange({ status: option, late: option === 'Hadir' ? value.late : false })}
             title={option}
-            className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-extrabold transition-colors ${
+            className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-extrabold transition-colors ${
               isActive ? `${STATUS_COLOR[option]} text-white shadow-sm` : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
             }`}
           >
@@ -74,7 +74,7 @@ function TodayStatusControl({ value, onChange }: { value: TodayEntry; onChange: 
         disabled={value.status !== 'Hadir'}
         onClick={() => onChange({ ...value, late: !value.late })}
         title="Terlambat (hanya berlaku untuk Hadir)"
-        className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors ${
+        className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
           value.status !== 'Hadir'
             ? 'bg-gray-50 text-gray-200 cursor-not-allowed'
             : value.late
@@ -82,7 +82,7 @@ function TodayStatusControl({ value, onChange }: { value: TodayEntry; onChange: 
             : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
         }`}
       >
-        <Clock className="w-3 h-3" />
+        <Clock className="w-4 h-4" />
       </button>
     </div>
   );
@@ -98,7 +98,7 @@ export default function AttendanceGrid({ students, history, statusMap, onChange 
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-gray-100 -mx-1">
-      <table className="border-collapse text-xs w-full">
+      <table className="border-collapse text-xs w-max min-w-full">
         <thead>
           <tr className="bg-gray-50">
             <th className="sticky left-0 z-20 bg-gray-50 text-left px-3 py-2.5 font-bold text-gray-500 min-w-[180px]">
@@ -107,14 +107,14 @@ export default function AttendanceGrid({ students, history, statusMap, onChange 
             {sortedHistory.map((session, i) => (
               <th
                 key={session.id}
-                className="px-1 py-2.5 text-center font-bold text-gray-400 w-8"
+                className="px-1 py-2.5 text-center font-bold text-gray-400 min-w-[36px]"
                 title={session.date}
               >
                 <div>{i + 1}</div>
                 <div className="text-[8px] font-medium text-gray-300">{formatShortDate(session.date)}</div>
               </th>
             ))}
-            <th className="sticky right-0 z-20 bg-gray-50 border-l-2 border-gray-200 px-2.5 py-2.5 text-center font-bold text-gray-500 min-w-[190px]">
+            <th className="sticky right-0 z-20 bg-gray-50 border-l-2 border-gray-200 px-2.5 py-2.5 text-center font-bold text-gray-500 min-w-[230px]">
               Hari Ini
             </th>
           </tr>
