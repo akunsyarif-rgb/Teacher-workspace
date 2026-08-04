@@ -27,11 +27,26 @@ const DOT_COLOR: Record<string, string> = {
   Alpa: 'bg-red-500',
 };
 
+const STATUS_LETTER: Record<string, string> = {
+  Hadir: 'H',
+  Sakit: 'S',
+  Izin: 'I',
+  Dispensasi: 'D',
+  Alpa: 'A',
+};
+
 const HISTORY_SLOTS = 5;
 
-// Selalu tampilkan 5 slot (terisi warna atau lingkaran kosong) supaya strip
-// ini konsisten terlihat sebagai elemen baru, bukan hanya teks kecil yang
-// gampang tidak diperhatikan saat siswa belum punya riwayat sama sekali.
+function formatShortDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  return `${d.getDate()}/${d.getMonth() + 1}`;
+}
+
+// Selalu tampilkan 5 slot (terisi atau kosong) supaya strip ini konsisten
+// terlihat sebagai elemen baru. Kode huruf (H/S/I/D/A) + tanggal kecil di
+// atasnya, meniru format rekap kehadiran (siswa x pertemuan) yang biasa
+// dipakai guru, tapi tetap ringkas untuk ditaruh di layar presensi harian.
 function RecentHistoryStrip({ recentHistory }: { recentHistory: { date: string; status: string }[] }) {
   const padded = Array.from(
     { length: HISTORY_SLOTS },
@@ -39,18 +54,20 @@ function RecentHistoryStrip({ recentHistory }: { recentHistory: { date: string; 
   );
 
   return (
-    <div className="flex items-center gap-1" title="Riwayat presensi 5 pertemuan terakhir">
-      {padded.map((h, i) =>
-        h ? (
+    <div className="flex items-end gap-1" title="Riwayat presensi 5 pertemuan terakhir">
+      {padded.map((h, i) => (
+        <div key={i} className="flex flex-col items-center gap-0.5">
+          <span className="text-[7px] leading-none text-gray-400">{h ? formatShortDate(h.date) : ''}</span>
           <span
-            key={i}
-            className={`w-2.5 h-2.5 rounded-full ${DOT_COLOR[h.status] || 'bg-gray-300'}`}
-            title={`${h.date}: ${h.status}`}
-          />
-        ) : (
-          <span key={i} className="w-2.5 h-2.5 rounded-full border border-gray-200" title="Belum ada data" />
-        )
-      )}
+            className={`w-4 h-4 rounded flex items-center justify-center text-[9px] font-extrabold leading-none ${
+              h ? `${DOT_COLOR[h.status] || 'bg-gray-400'} text-white` : 'bg-gray-50 text-gray-300 border border-gray-200'
+            }`}
+            title={h ? `${h.date}: ${h.status}` : 'Belum ada data'}
+          >
+            {h ? STATUS_LETTER[h.status] || '?' : '·'}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
