@@ -29,7 +29,19 @@ import {
   BarChart3,
   ArrowRight,
   Wallet,
+  Package,
+  HeartHandshake,
+  Trophy,
+  Phone,
 } from "lucide-react";
+
+const HOMEROOM_MENU_ITEMS = [
+  { href: "/kas-kelas", label: "Kas Kelas", icon: Wallet },
+  { href: "/inventaris", label: "Inventaris", icon: Package },
+  { href: "/konseling", label: "Konseling", icon: HeartHandshake },
+  { href: "/prestasi", label: "Prestasi", icon: Trophy },
+  { href: "/komunikasi-ortu", label: "Komunikasi Ortu", icon: Phone },
+];
 
 function getGreeting(date: Date = new Date()) {
   const hour = date.getHours();
@@ -638,15 +650,18 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <Link
-                href="/kas-kelas"
-                className="bg-gray-50 hover:bg-blue-50 border border-gray-100 hover:border-blue-200 rounded-2xl p-3 flex flex-col items-center gap-2 text-center transition-colors"
-              >
-                <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center">
-                  <Wallet className="w-4 h-4" />
-                </div>
-                <span className="text-[11px] font-bold text-gray-700">Kas Kelas</span>
-              </Link>
+              {HOMEROOM_MENU_ITEMS.map(({ href, label, icon: Icon }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className="bg-gray-50 hover:bg-blue-50 border border-gray-100 hover:border-blue-200 rounded-2xl p-3 flex flex-col items-center gap-2 text-center transition-colors"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center">
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  <span className="text-[11px] font-bold text-gray-700">{label}</span>
+                </Link>
+              ))}
             </div>
           </div>
         )}
