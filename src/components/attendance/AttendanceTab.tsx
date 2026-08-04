@@ -74,6 +74,19 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
     }
   }
 
+  // Strip riwayat singkat per siswa — dirakit dari sesi presensi yang
+  // sudah tersimpan (history), bukan data/kolom baru. Membantu guru melihat
+  // pola kehadiran tanpa mengubah cara mengisi presensi hari ini.
+  function getRecentHistory(studentId: string, limit = 5): { date: string; status: string }[] {
+    const sorted = [...history].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    const result: { date: string; status: string }[] = [];
+    sorted.forEach((session) => {
+      const detail = (session.details || []).find((d: any) => d.studentId === studentId);
+      if (detail) result.push({ date: session.date, status: detail.status });
+    });
+    return result.slice(-limit);
+  }
+
   function handleStatusChange(studentId: string, status: string) {
     setStatusMap((prev) => ({ ...prev, [studentId]: status }));
   }
@@ -180,6 +193,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
                   index={idx}
                   status={statusMap[student.id] || "Hadir"}
                   onStatusChange={handleStatusChange}
+                  recentHistory={getRecentHistory(student.id)}
                 />
               ))}
             </div>
