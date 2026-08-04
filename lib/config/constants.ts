@@ -8,7 +8,7 @@ export const COLLECTIONS = {
   CLASS_FUND: 'class_fund_transactions',
 };
 
-export const ATTENDANCE_STATUS_OPTIONS = ['Hadir', 'Sakit', 'Izin', 'Dispensasi', 'Alpa'] as const;
+export const ATTENDANCE_STATUS_OPTIONS = ['Hadir', 'Terlambat', 'Sakit', 'Izin', 'Dispensasi', 'Alpa'] as const;
 
 export const DEFAULT_GRADE_COLUMNS = [
   { title: 'Tugas 1', type: 'Tugas' },

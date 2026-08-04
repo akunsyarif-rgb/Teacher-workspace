@@ -240,6 +240,11 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
                   </div>
                   <div className="flex flex-wrap gap-2 pt-1 text-[11px] font-semibold">
                     <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded">Hadir: {item.summary?.hadir || 0}</span>
+                    {(item.summary?.terlambat || 0) > 0 && (
+                      <span className="text-orange-600 bg-orange-50 px-2 py-0.5 rounded">
+                        (Terlambat: {item.summary.terlambat})
+                      </span>
+                    )}
                     <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded">Sakit: {item.summary?.sakit || 0}</span>
                     <span className="text-purple-600 bg-purple-50 px-2 py-0.5 rounded">Izin: {item.summary?.izin || 0}</span>
                     <span className="text-red-600 bg-red-50 px-2 py-0.5 rounded">Alpa: {item.summary?.alpa || 0}</span>
