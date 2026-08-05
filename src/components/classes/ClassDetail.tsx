@@ -89,7 +89,7 @@ export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke
               </div>
               <button
                 onClick={() => setDeleteTarget({ id: student.id, name: student.name, nis: student.nis || '-' })}
-                className="p-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl transition-colors shrink-0"
+                className="p-3.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl transition-colors active:scale-90 shrink-0"
                 title="Hapus Siswa"
                 aria-label={`Hapus Siswa ${student.name}`}
               >

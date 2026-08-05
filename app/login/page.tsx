@@ -158,7 +158,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-blue-200 transition-all flex items-center justify-center gap-2 mt-2"
+            className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-blue-200 transition-all active:scale-[0.97] flex items-center justify-center gap-2 mt-2"
           >
             <span>{loading ? "Memproses..." : "Masuk ke Beranda"}</span>
             <ArrowRight className="w-4 h-4" />

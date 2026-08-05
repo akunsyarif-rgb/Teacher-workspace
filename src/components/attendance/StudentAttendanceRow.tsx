@@ -94,7 +94,7 @@ export default function StudentAttendanceRow({
               key={option}
               type="button"
               onClick={() => onStatusChange(student.id, option)}
-              className={`px-2.5 py-1.5 rounded-xl text-sm font-bold transition-all ${
+              className={`px-3 py-3 min-h-[44px] rounded-xl text-sm font-bold transition-all active:scale-95 ${
                 isActive ? ACTIVE_COLOR[option] : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'
               }`}
             >

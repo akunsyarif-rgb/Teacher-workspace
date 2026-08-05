@@ -106,7 +106,7 @@ export default function SignupPage() {
               key={key}
               type="button"
               onClick={() => setMode(key)}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-[11px] font-bold transition-all ${
+              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-[11px] font-bold transition-all active:scale-95 ${
                 mode === key ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
               }`}
             >
@@ -208,7 +208,7 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-blue-200 transition-all flex items-center justify-center gap-2 mt-2"
+            className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-blue-200 transition-all active:scale-[0.97] flex items-center justify-center gap-2 mt-2"
           >
             <span>{loading ? 'Memproses...' : 'Daftar & Masuk'}</span>
             <ArrowRight className="w-4 h-4" />

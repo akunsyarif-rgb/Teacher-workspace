@@ -6,6 +6,7 @@ import Card from '../ui/Card';
 import Button from '../ui/Button';
 import Textarea from '../ui/Textarea';
 import ConfirmDeleteModal from '../ui/ConfirmDeleteModal';
+import InlineAlert from '../ui/InlineAlert';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as classController from '@/lib/controllers/classController';
 import * as studentNoteController from '@/lib/controllers/studentNoteController';
@@ -40,6 +41,7 @@ export default function StudentNoteList({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
 
   useEffect(() => {
@@ -77,6 +79,7 @@ export default function StudentNoteList({
     if (!student) return;
     setSubmitting(true);
     setSuccess(false);
+    setErrorMsg('');
     try {
       await studentNoteController.submitStudentNote(workspaceId, className, category, {
         studentId: student.id,
@@ -89,7 +92,7 @@ export default function StudentNoteList({
       setSuccess(true);
       await loadData();
     } catch (error: any) {
-      alert(error.message || 'Gagal menyimpan catatan.');
+      setErrorMsg(error.message || 'Gagal menyimpan catatan.');
     } finally {
       setSubmitting(false);
     }
@@ -113,6 +116,7 @@ export default function StudentNoteList({
 
   return (
     <div className="space-y-6">
+      <InlineAlert message={errorMsg} onDismiss={() => setErrorMsg('')} />
       {success && (
         <div className="p-4 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center gap-2 text-xs font-medium">
           <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
@@ -186,7 +190,7 @@ export default function StudentNoteList({
                 </div>
                 <button
                   onClick={() => setDeleteTarget({ id: n.id, title: n.title })}
-                  className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors shrink-0"
+                  className="p-3.5 text-red-500 hover:bg-red-50 rounded-xl transition-colors active:scale-90 shrink-0"
                   title="Hapus Catatan"
                   aria-label="Hapus Catatan"
                 >

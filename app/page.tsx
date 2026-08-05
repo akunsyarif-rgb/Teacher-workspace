@@ -33,6 +33,7 @@ import {
   HeartHandshake,
   Trophy,
   Phone,
+  RefreshCw,
 } from "lucide-react";
 
 const HOMEROOM_MENU_ITEMS = [
@@ -154,10 +155,11 @@ export default function DashboardPage() {
       }, 2000);
     } catch (err) {
       console.error("Gagal menyimpan catatan:", err);
+      // Beda dari status "saved" (auto-hilang), status "error" sengaja
+      // dibiarkan menetap sampai guru menekan "Coba lagi" — badge yang
+      // hilang otomatis dalam 3 detik tanpa aksi retry membuat guru tidak
+      // sempat menyadari catatannya gagal tersimpan.
       setSyncStatus("error");
-      setTimeout(() => {
-        setSyncStatus((prev) => (prev === "error" ? "idle" : prev));
-      }, 3000);
     }
   }
 
@@ -253,10 +255,16 @@ export default function DashboardPage() {
     }
     if (syncStatus === "error") {
       return (
-        <span className="flex items-center gap-1.5 text-[10px] font-bold text-red-600 bg-red-50 px-3 py-1.5 rounded-full border border-red-200">
+        <button
+          type="button"
+          onClick={() => saveQuickNoteToFirestore(quickNote)}
+          className="flex items-center gap-1.5 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-full border border-red-200 transition-colors active:scale-95"
+          aria-label="Gagal simpan catatan, tap untuk coba lagi"
+        >
           <WifiOff className="w-3.5 h-3.5" />
-          Gagal simpan
-        </span>
+          Gagal simpan — Coba lagi
+          <RefreshCw className="w-3 h-3" />
+        </button>
       );
     }
     return (
@@ -378,7 +386,7 @@ export default function DashboardPage() {
               </span>
               <Link
                 href="/profile"
-                className="text-gray-400 hover:text-blue-600 transition-colors p-1"
+                className="text-gray-400 hover:text-blue-600 transition-colors active:scale-90 p-2.5 -m-1.5"
                 title="Ubah Profil"
                 aria-label="Ubah Profil"
               >
@@ -390,7 +398,7 @@ export default function DashboardPage() {
             <SyncIndicator />
             <Link
               href="/analytics"
-              className="flex items-center gap-1.5 px-3 py-2 bg-gray-50 hover:bg-blue-50 text-gray-600 hover:text-blue-600 rounded-xl text-xs font-bold transition-all border border-gray-200 hover:border-blue-200 shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-3 bg-gray-50 hover:bg-blue-50 text-gray-600 hover:text-blue-600 rounded-xl text-xs font-bold transition-all active:scale-95 border border-gray-200 hover:border-blue-200 shadow-sm"
               title="Lihat Statistik"
               aria-label="Lihat Statistik"
             >
@@ -399,7 +407,7 @@ export default function DashboardPage() {
             </Link>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1.5 px-3 py-2 bg-gray-50 hover:bg-red-50 text-gray-600 hover:text-red-600 rounded-xl text-xs font-bold transition-all border border-gray-200 hover:border-red-200 shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-3 bg-gray-50 hover:bg-red-50 text-gray-600 hover:text-red-600 rounded-xl text-xs font-bold transition-all active:scale-95 border border-gray-200 hover:border-red-200 shadow-sm"
               aria-label="Keluar"
             >
               <LogOut className="w-3.5 h-3.5" />

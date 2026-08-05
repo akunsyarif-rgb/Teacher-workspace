@@ -51,7 +51,7 @@ export default function GradesTable({ students, columns, grades, onScoreChange, 
                     <Badge label={col.type} />
                     <button
                       onClick={() => onDeleteColumn(col.id)}
-                      className="p-1 text-red-400 hover:text-red-600 rounded"
+                      className="p-2 -m-1 text-red-400 hover:text-red-600 rounded active:scale-90 transition-transform"
                       title="Hapus Kolom"
                       aria-label={`Hapus Kolom ${col.title}`}
                     >

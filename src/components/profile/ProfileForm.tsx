@@ -5,6 +5,7 @@ import { User as UserIcon, CheckCircle2 } from 'lucide-react';
 import Card from '../ui/Card';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
+import InlineAlert from '../ui/InlineAlert';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as classController from '@/lib/controllers/classController';
 import * as teacherProfileController from '@/lib/controllers/teacherProfileController';
@@ -17,6 +18,7 @@ export default function ProfileForm() {
   const [classesList, setClassesList] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     setName(teacherProfile?.name || '');
@@ -43,6 +45,7 @@ export default function ProfileForm() {
     if (!user) return;
     setLoading(true);
     setSuccess(false);
+    setErrorMsg('');
     try {
       await teacherProfileController.saveTeacherName(user.uid, name);
       await teacherProfileController.saveTeacherSubject(user.uid, subject);
@@ -50,7 +53,7 @@ export default function ProfileForm() {
       await refreshProfile();
       setSuccess(true);
     } catch (error: any) {
-      alert(error.message || 'Gagal menyimpan profil.');
+      setErrorMsg(error.message || 'Gagal menyimpan profil.');
     } finally {
       setLoading(false);
     }
@@ -67,6 +70,8 @@ export default function ProfileForm() {
           <p className="text-xs text-gray-500">Kelola data diri dan penugasan wali kelas</p>
         </div>
       </div>
+
+      <InlineAlert message={errorMsg} onDismiss={() => setErrorMsg('')} />
 
       {success && (
         <div className="p-4 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center gap-2 text-xs font-medium">

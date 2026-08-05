@@ -47,7 +47,7 @@ export default function JournalHistoryList({ entries, onDelete }: JournalHistory
               </div>
               <button
                 onClick={() => onDelete(item.id)}
-                className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors self-end md:self-auto"
+                className="p-3.5 text-red-500 hover:bg-red-50 rounded-xl transition-colors active:scale-90 self-end md:self-auto"
                 title="Hapus Jurnal"
                 aria-label="Hapus Jurnal"
               >
