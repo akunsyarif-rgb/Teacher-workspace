@@ -57,6 +57,7 @@ export default function ScheduleDayCard({ day, items, onRequestDelete }: Schedul
                   onClick={() => onRequestDelete(item.id)}
                   className="p-1.5 text-red-400 hover:text-red-600 rounded-lg transition-colors"
                   title="Hapus Jadwal"
+                  aria-label="Hapus Jadwal"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>

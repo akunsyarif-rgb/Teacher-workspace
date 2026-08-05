@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
+import { signInWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "@/src/config/firebase";
 import { useRouter } from "next/navigation";
 import { GraduationCap, Lock, Mail, ArrowRight } from "lucide-react";
@@ -10,7 +10,9 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [resetMessage, setResetMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const router = useRouter();
 
@@ -31,6 +33,7 @@ export default function LoginPage() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setResetMessage("");
 
     if (!email || !password) {
       setError("Email dan kata sandi wajib diisi.");
@@ -46,6 +49,27 @@ export default function LoginPage() {
       setError("Email atau kata sandi salah. Silakan periksa kembali.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleForgotPassword() {
+    setError("");
+    setResetMessage("");
+
+    if (!email) {
+      setError("Isi email Anda dulu, lalu tap \"Lupa kata sandi?\" lagi.");
+      return;
+    }
+
+    setResetLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      setResetMessage("Link reset kata sandi sudah dikirim ke email Anda. Cek juga folder Spam.");
+    } catch (err: any) {
+      console.error("Gagal mengirim reset password:", err);
+      setError("Gagal mengirim email reset. Periksa kembali alamat email Anda.");
+    } finally {
+      setResetLoading(false);
     }
   }
 
@@ -84,6 +108,12 @@ export default function LoginPage() {
           </div>
         )}
 
+        {resetMessage && (
+          <div className="p-3.5 bg-emerald-50 border border-emerald-100 rounded-2xl text-xs font-bold text-emerald-700 text-center">
+            {resetMessage}
+          </div>
+        )}
+
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Email Akun</label>
@@ -101,7 +131,17 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Kata Sandi</label>
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Kata Sandi</label>
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                disabled={resetLoading}
+                className="text-[10px] font-bold text-blue-600 hover:underline disabled:text-blue-300"
+              >
+                {resetLoading ? "Mengirim..." : "Lupa kata sandi?"}
+              </button>
+            </div>
             <div className="relative">
               <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
               <input

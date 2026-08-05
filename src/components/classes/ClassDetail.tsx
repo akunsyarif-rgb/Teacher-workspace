@@ -83,7 +83,7 @@ export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke
                   {idx + 1}
                 </span>
                 <div>
-                  <p className="text-xs font-extrabold text-gray-900">{student.name}</p>
+                  <p className="text-sm font-extrabold text-gray-900">{student.name}</p>
                   <p className="text-[10px] font-bold text-gray-500 mt-0.5">NIS: {student.nis || '-'}</p>
                 </div>
               </div>
@@ -91,6 +91,7 @@ export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke
                 onClick={() => setDeleteTarget({ id: student.id, name: student.name, nis: student.nis || '-' })}
                 className="p-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl transition-colors shrink-0"
                 title="Hapus Siswa"
+                aria-label={`Hapus Siswa ${student.name}`}
               >
                 <Trash2 className="w-4 h-4" />
               </button>

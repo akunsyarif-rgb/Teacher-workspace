@@ -15,6 +15,7 @@ export default function SignupPage() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [workspaceName, setWorkspaceName] = useState('');
   const [inviteCode, setInviteCode] = useState('');
 
@@ -37,6 +38,10 @@ export default function SignupPage() {
     }
     if (password.length < 6) {
       setError('Kata sandi minimal 6 karakter.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Konfirmasi kata sandi tidak cocok.');
       return;
     }
     if (mode === 'individual' && !workspaceName.trim()) {
@@ -142,6 +147,21 @@ export default function SignupPage() {
                 placeholder="Minimal 6 karakter"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-extrabold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Konfirmasi Kata Sandi</label>
+            <div className="relative">
+              <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
+              <input
+                type="password"
+                placeholder="Ulangi kata sandi"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-extrabold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
               />

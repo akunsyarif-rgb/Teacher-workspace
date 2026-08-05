@@ -271,6 +271,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
                   onClick={() => setDeleteTarget({ id: item.id, date: item.date })}
                   className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors self-end md:self-auto"
                   title="Hapus Rekap Presensi"
+                  aria-label="Hapus Rekap Presensi"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>

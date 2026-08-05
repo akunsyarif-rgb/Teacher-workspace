@@ -158,6 +158,7 @@ export default function InventoryPage() {
                     onClick={() => setDeleteTarget({ id: item.id, name: item.name })}
                     className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
                     title="Hapus Barang"
+                    aria-label="Hapus Barang"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

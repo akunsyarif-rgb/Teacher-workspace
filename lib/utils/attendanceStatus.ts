@@ -10,11 +10,14 @@ export const STATUS_LETTER: Record<string, string> = {
   Alpa: 'A',
 };
 
+// Shade 600/700 (bukan 500) supaya kontras teks putih di dalamnya lolos
+// WCAG AA (>=4.5:1) — badge huruf status ini berukuran kecil & tebal,
+// tidak masuk kategori "teks besar" yang ambang kontrasnya lebih longgar.
 export const STATUS_COLOR: Record<string, string> = {
-  Hadir: 'bg-blue-500',
-  Terlambat: 'bg-orange-500',
-  Sakit: 'bg-amber-500',
-  Izin: 'bg-purple-500',
-  Dispensasi: 'bg-teal-500',
-  Alpa: 'bg-red-500',
+  Hadir: 'bg-blue-600',
+  Terlambat: 'bg-orange-700',
+  Sakit: 'bg-amber-700',
+  Izin: 'bg-purple-600',
+  Dispensasi: 'bg-teal-700',
+  Alpa: 'bg-red-700',
 };

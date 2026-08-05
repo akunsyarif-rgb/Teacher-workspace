@@ -193,6 +193,7 @@ export default function ClassFundPage() {
                     onClick={() => setDeleteTarget({ id: t.id, description: t.description })}
                     className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
                     title="Hapus Transaksi"
+                    aria-label="Hapus Transaksi"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

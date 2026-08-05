@@ -12,13 +12,16 @@ type StudentAttendanceRowProps = {
   recentHistory?: { date: string; status: string }[];
 };
 
+// Warna dinaikkan ke shade 600/700 (bukan 500) di kombinasi teks putih —
+// shade 500 gagal rasio kontras WCAG AA (di bawah 4.5:1) untuk teks kecil
+// tebal seperti label tombol status ini.
 const ACTIVE_COLOR: Record<string, string> = {
   Hadir: 'bg-blue-600 text-white shadow-sm',
-  Terlambat: 'bg-orange-500 text-white shadow-sm',
-  Sakit: 'bg-amber-500 text-white shadow-sm',
+  Terlambat: 'bg-orange-700 text-white shadow-sm',
+  Sakit: 'bg-amber-700 text-white shadow-sm',
   Izin: 'bg-purple-600 text-white shadow-sm',
-  Dispensasi: 'bg-teal-600 text-white shadow-sm',
-  Alpa: 'bg-red-600 text-white shadow-sm',
+  Dispensasi: 'bg-teal-700 text-white shadow-sm',
+  Alpa: 'bg-red-700 text-white shadow-sm',
 };
 
 const HISTORY_SLOTS = 5;
@@ -40,7 +43,11 @@ function RecentHistoryStrip({ recentHistory }: { recentHistory: { date: string; 
   );
 
   return (
-    <div className="flex items-end gap-1" title="Riwayat presensi 5 pertemuan terakhir">
+    <div
+      className="flex items-end gap-1"
+      title="Riwayat presensi 5 pertemuan terakhir"
+      aria-label="Riwayat presensi 5 pertemuan terakhir"
+    >
       {padded.map((h, i) => (
         <div key={i} className="flex flex-col items-center gap-0.5">
           <span className="text-[7px] leading-none text-gray-400">{h ? formatShortDate(h.date) : ''}</span>
@@ -49,6 +56,7 @@ function RecentHistoryStrip({ recentHistory }: { recentHistory: { date: string; 
               h ? `${DOT_COLOR[h.status] || 'bg-gray-400'} text-white` : 'bg-gray-50 text-gray-300 border border-gray-200'
             }`}
             title={h ? `${h.date}: ${h.status}` : 'Belum ada data'}
+            aria-label={h ? `${h.date}: ${h.status}` : 'Belum ada data'}
           >
             {h ? STATUS_LETTER[h.status] || '?' : '·'}
           </span>
@@ -72,7 +80,7 @@ export default function StudentAttendanceRow({
           {index + 1}
         </span>
         <div className="space-y-1">
-          <p className="text-xs font-bold text-gray-900">{student.name}</p>
+          <p className="text-sm font-bold text-gray-900">{student.name}</p>
           <p className="text-[10px] text-gray-400">NIS: {student.nis || '-'}</p>
           <RecentHistoryStrip recentHistory={recentHistory} />
         </div>
@@ -86,7 +94,7 @@ export default function StudentAttendanceRow({
               key={option}
               type="button"
               onClick={() => onStatusChange(student.id, option)}
-              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              className={`px-2.5 py-1.5 rounded-xl text-sm font-bold transition-all ${
                 isActive ? ACTIVE_COLOR[option] : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'
               }`}
             >

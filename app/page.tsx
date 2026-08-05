@@ -380,6 +380,7 @@ export default function DashboardPage() {
                 href="/profile"
                 className="text-gray-400 hover:text-blue-600 transition-colors p-1"
                 title="Ubah Profil"
+                aria-label="Ubah Profil"
               >
                 <Settings className="w-3.5 h-3.5" />
               </Link>
@@ -391,6 +392,7 @@ export default function DashboardPage() {
               href="/analytics"
               className="flex items-center gap-1.5 px-3 py-2 bg-gray-50 hover:bg-blue-50 text-gray-600 hover:text-blue-600 rounded-xl text-xs font-bold transition-all border border-gray-200 hover:border-blue-200 shadow-sm"
               title="Lihat Statistik"
+              aria-label="Lihat Statistik"
             >
               <BarChart3 className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Statistik</span>
@@ -398,6 +400,7 @@ export default function DashboardPage() {
             <button
               onClick={handleLogout}
               className="flex items-center gap-1.5 px-3 py-2 bg-gray-50 hover:bg-red-50 text-gray-600 hover:text-red-600 rounded-xl text-xs font-bold transition-all border border-gray-200 hover:border-red-200 shadow-sm"
+              aria-label="Keluar"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Keluar</span>

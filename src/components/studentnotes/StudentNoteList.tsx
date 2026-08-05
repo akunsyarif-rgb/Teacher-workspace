@@ -188,6 +188,7 @@ export default function StudentNoteList({
                   onClick={() => setDeleteTarget({ id: n.id, title: n.title })}
                   className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors shrink-0"
                   title="Hapus Catatan"
+                  aria-label="Hapus Catatan"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
