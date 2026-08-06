@@ -41,6 +41,8 @@ export async function getAssignments({ workspaceId, className, studentId }: Stud
         ...assignment,
         status: submission?.status || SUBMISSION_STATUS.BELUM_MENGUMPULKAN,
         textAnswer: submission?.textAnswer || '',
+        fileUrl: submission?.fileUrl || null,
+        fileName: submission?.fileName || null,
         feedback: submission?.feedback || '',
         submittedAt: submission?.submittedAt || null,
       };

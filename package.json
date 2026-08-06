@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:rules": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only firestore \"vitest run\""
+    "test:rules": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only firestore,storage \"vitest run\""
   },
   "dependencies": {
     "chart.js": "^4.5.1",

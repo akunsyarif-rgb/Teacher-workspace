@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, Circle, Clock, Send } from "lucide-react";
+import { CheckCircle2, Circle, Clock, Send, Paperclip, FileText, X } from "lucide-react";
 import StudentShell from "@/src/components/student/StudentShell";
 import { SkeletonCard } from "@/src/components/ui/Skeleton";
 import * as studentPortalController from "@/lib/controllers/studentPortalController";
 import * as submissionController from "@/lib/controllers/submissionController";
+import { uploadSubmissionFile, validateUploadFile } from "@/lib/adapters/storageAdapter";
 import { SUBMISSION_STATUS } from "@/lib/config/constants";
 import type { StudentProfile } from "@/src/context/StudentAuthContext";
 
@@ -20,7 +21,9 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
   const [answer, setAnswer] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const scope = {
     workspaceId: profile.workspaceId,
@@ -50,28 +53,57 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
   function openForm(assignment: any) {
     setOpenId(assignment.id);
     setAnswer(assignment.textAnswer || "");
+    setFile(null);
   }
 
-  async function handleSubmit(assignmentId: string) {
-    if (!answer.trim()) {
-      alert("Jawaban belum diisi.");
+  function handlePickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = e.target.files?.[0];
+    if (!picked) return;
+    try {
+      // Dicek di sini juga supaya siswa tahu file-nya ditolak sebelum
+      // menunggu unggahan besar selesai lalu gagal di Storage rules.
+      validateUploadFile(picked);
+      setFile(picked);
+    } catch (error: any) {
+      alert(error.message);
+      e.target.value = "";
+    }
+  }
+
+  async function handleSubmit(assignment: any) {
+    // Salah satu boleh kosong, tapi tidak keduanya — sebagian tugas cukup
+    // dijawab teks, sebagian lain berupa foto pekerjaan.
+    if (!answer.trim() && !file && !assignment.fileUrl) {
+      alert("Isi jawaban atau lampirkan file dulu.");
       return;
     }
     setSaving(true);
     try {
+      let attachment: { fileUrl?: string; fileName?: string; filePath?: string } = {};
+      if (file) {
+        setUploading(true);
+        attachment = await uploadSubmissionFile(scope.workspaceId, assignment.id, file);
+      } else if (assignment.fileUrl) {
+        // Tidak memilih file baru = pertahankan lampiran sebelumnya,
+        // jangan sampai terhapus hanya karena teksnya yang diperbaiki.
+        attachment = { fileUrl: assignment.fileUrl, fileName: assignment.fileName };
+      }
+
       await submissionController.submitAssignment(
         scope.workspaceId,
-        assignmentId,
+        assignment.id,
         scope.studentId,
         scope.className,
-        { textAnswer: answer }
+        { textAnswer: answer, ...attachment }
       );
       setOpenId(null);
       setAnswer("");
+      setFile(null);
       await loadAssignments();
     } catch (error: any) {
       alert(error.message || "Gagal mengumpulkan tugas.");
     } finally {
+      setUploading(false);
       setSaving(false);
     }
   }
@@ -144,6 +176,35 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                   placeholder="Tulis jawabanmu di sini"
                   className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
                 />
+                {file ? (
+                  <div className="flex items-center justify-between gap-2 p-2.5 bg-blue-50 rounded-xl">
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span className="text-[11px] font-bold text-blue-800 truncate">{file.name}</span>
+                    </span>
+                    <button
+                      onClick={() => setFile(null)}
+                      className="p-1 text-blue-400 hover:text-red-500 transition-colors shrink-0"
+                      title="Hapus pilihan file"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex items-center justify-center gap-1.5 p-2.5 border border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-blue-400 transition-colors">
+                    <Paperclip className="w-3.5 h-3.5 text-gray-400" />
+                    <span className="text-[11px] font-bold text-gray-500">
+                      {assignment.fileUrl ? "Ganti lampiran" : "Lampirkan foto / PDF (opsional)"}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf,.doc,.docx"
+                      onChange={handlePickFile}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+
                 <div className="flex gap-2">
                   <button
                     onClick={() => setOpenId(null)}
@@ -152,21 +213,34 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                     Batal
                   </button>
                   <button
-                    onClick={() => handleSubmit(assignment.id)}
+                    onClick={() => handleSubmit(assignment)}
                     disabled={saving}
                     className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white shadow-sm transition-colors flex items-center justify-center gap-1.5"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    {saving ? "Mengirim..." : "Kumpulkan"}
+                    {uploading ? "Mengunggah..." : saving ? "Mengirim..." : "Kumpulkan"}
                   </button>
                 </div>
               </div>
             )}
 
-            {!isOpen && assignment.textAnswer && (
-              <div className="p-3 bg-gray-50 rounded-xl">
+            {!isOpen && (assignment.textAnswer || assignment.fileUrl) && (
+              <div className="p-3 bg-gray-50 rounded-xl space-y-1.5">
                 <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">Jawabanmu</p>
-                <p className="text-[11px] text-gray-700 mt-0.5 whitespace-pre-wrap">{assignment.textAnswer}</p>
+                {assignment.textAnswer && (
+                  <p className="text-[11px] text-gray-700 whitespace-pre-wrap">{assignment.textAnswer}</p>
+                )}
+                {assignment.fileUrl && (
+                  <a
+                    href={assignment.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    {assignment.fileName || "Lihat lampiran"}
+                  </a>
+                )}
               </div>
             )}
           </div>

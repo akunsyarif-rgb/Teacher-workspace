@@ -37,7 +37,7 @@ export async function submitAssignment(
   assignmentId: string,
   studentId: string,
   className: string,
-  answer: { textAnswer?: string; fileUrl?: string; fileName?: string }
+  answer: { textAnswer?: string; fileUrl?: string; fileName?: string; filePath?: string }
 ) {
   if (!workspaceId || !assignmentId || !studentId) throw new Error('Data submission tidak valid.');
   if (!answer.textAnswer?.trim() && !answer.fileUrl) {
@@ -49,6 +49,10 @@ export async function submitAssignment(
     textAnswer: answer.textAnswer?.trim() || '',
     fileUrl: answer.fileUrl || null,
     fileName: answer.fileName || null,
+    // filePath disimpan terpisah dari fileUrl: URL-nya bertoken dan bisa
+    // berubah kalau file diunggah ulang, sedangkan path-nya stabil —
+    // berguna untuk menelusuri file di bucket saat ada masalah.
+    filePath: answer.filePath || null,
     status: SUBMISSION_STATUS.MENUNGGU_PENILAIAN,
     submittedAt: new Date().toISOString(),
   });

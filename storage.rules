@@ -1,0 +1,50 @@
+rules_version = '2';
+
+// Aturan file upload (lampiran jawaban tugas siswa).
+//
+// Path memuat UID pengunggah:
+//   submissions/{workspaceId}/{assignmentId}/{userId}/{fileName}
+// sehingga kepemilikan bisa dibuktikan langsung dari request.auth.uid,
+// tanpa perlu melihat Firestore sama sekali.
+//
+// Kenapa bukan pakai studentId + cross-service rules (firestore.get)?
+// Sudah dicoba dan tidak bisa diuji: di Storage emulator, firestore.get/
+// exists selalu mengembalikan null walau dokumennya ada (lihat riwayat
+// tests/storage-rules.test.ts). Aturan keamanan yang tidak bisa diuji
+// lebih berbahaya daripada aturan sederhana yang terbukti jalan, jadi
+// dipilih bentuk yang bisa diverifikasi penuh oleh test.
+//
+// Konsekuensinya guru TIDAK membaca file lewat aturan ini, melainkan
+// lewat download URL bertoken yang disimpan di dokumen submission —
+// URL itu sendiri yang menjadi kuncinya, dan akses ke dokumen submission
+// sudah dibatasi firestore.rules (guru seworkspace + siswa pemiliknya).
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Batas ukuran & tipe: cukup untuk foto pekerjaan tulis tangan atau
+    // PDF, tapi menutup penyalahgunaan Storage sebagai tempat menaruh
+    // file besar sembarangan (video, arsip).
+    function isAllowedUpload() {
+      return request.resource.size < 10 * 1024 * 1024 &&
+        (request.resource.contentType.matches('image/.*') ||
+         request.resource.contentType.matches('application/pdf') ||
+         request.resource.contentType.matches('application/msword') ||
+         request.resource.contentType.matches('application/vnd.openxmlformats-officedocument.*'));
+    }
+
+    match /submissions/{workspaceId}/{assignmentId}/{userId}/{fileName} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      allow write: if request.auth != null && request.auth.uid == userId && isAllowedUpload();
+
+      // Lampiran adalah bukti pengumpulan — tidak boleh dihapus diam-diam
+      // dari sisi client oleh pihak mana pun.
+      allow delete: if false;
+    }
+
+    // Path lain di bucket ini belum dipakai aplikasi — tutup semuanya.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

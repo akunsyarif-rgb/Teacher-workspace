@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Circle, Clock, Star } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Circle, Clock, Star, FileText } from 'lucide-react';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import { SkeletonText } from '../ui/Skeleton';
@@ -132,6 +132,25 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
                     </Button>
                   )}
                 </div>
+
+                {(row.textAnswer || row.fileUrl) && (
+                  <div className="p-3 bg-gray-50 rounded-xl space-y-1.5">
+                    {row.textAnswer && (
+                      <p className="text-[11px] text-gray-700 whitespace-pre-wrap">{row.textAnswer}</p>
+                    )}
+                    {row.fileUrl && (
+                      <a
+                        href={row.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        {row.fileName || 'Lihat lampiran'}
+                      </a>
+                    )}
+                  </div>
+                )}
 
                 {isGrading && (
                   <div className="flex flex-col sm:flex-row gap-2 pt-1">
