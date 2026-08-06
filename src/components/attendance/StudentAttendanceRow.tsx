@@ -26,16 +26,11 @@ const ACTIVE_COLOR: Record<string, string> = {
 
 const HISTORY_SLOTS = 5;
 
-function formatShortDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return '';
-  return `${d.getDate()}/${d.getMonth() + 1}`;
-}
-
 // Selalu tampilkan 5 slot (terisi atau kosong) supaya strip ini konsisten
-// terlihat sebagai elemen baru. Kode huruf (H/S/I/D/A) + tanggal kecil di
-// atasnya, meniru format rekap kehadiran (siswa x pertemuan) yang biasa
-// dipakai guru, tapi tetap ringkas untuk ditaruh di layar presensi harian.
+// terlihat sebagai elemen baru. Hanya simbol huruf berwarna (H/S/I/D/A),
+// tanpa tanggal di atasnya, supaya ringkas dan tidak makan tempat di layar
+// HP — tanggal & status lengkap tetap tersedia lewat title/aria-label saat
+// ditekan/di-hover.
 function RecentHistoryStrip({ recentHistory }: { recentHistory: { date: string; status: string }[] }) {
   const padded = Array.from(
     { length: HISTORY_SLOTS },
@@ -44,23 +39,21 @@ function RecentHistoryStrip({ recentHistory }: { recentHistory: { date: string; 
 
   return (
     <div
-      className="flex items-end gap-1"
+      className="flex items-center gap-1"
       title="Riwayat presensi 5 pertemuan terakhir"
       aria-label="Riwayat presensi 5 pertemuan terakhir"
     >
       {padded.map((h, i) => (
-        <div key={i} className="flex flex-col items-center gap-0.5">
-          <span className="text-[7px] leading-none text-gray-400">{h ? formatShortDate(h.date) : ''}</span>
-          <span
-            className={`w-4 h-4 rounded flex items-center justify-center text-[9px] font-extrabold leading-none ${
-              h ? `${DOT_COLOR[h.status] || 'bg-gray-400'} text-white` : 'bg-gray-50 text-gray-300 border border-gray-200'
-            }`}
-            title={h ? `${h.date}: ${h.status}` : 'Belum ada data'}
-            aria-label={h ? `${h.date}: ${h.status}` : 'Belum ada data'}
-          >
-            {h ? STATUS_LETTER[h.status] || '?' : '·'}
-          </span>
-        </div>
+        <span
+          key={i}
+          className={`w-4 h-4 rounded flex items-center justify-center text-[9px] font-extrabold leading-none ${
+            h ? `${DOT_COLOR[h.status] || 'bg-gray-400'} text-white` : 'bg-gray-50 text-gray-300 border border-gray-200'
+          }`}
+          title={h ? `${h.date}: ${h.status}` : 'Belum ada data'}
+          aria-label={h ? `${h.date}: ${h.status}` : 'Belum ada data'}
+        >
+          {h ? STATUS_LETTER[h.status] || '?' : '·'}
+        </span>
       ))}
     </div>
   );

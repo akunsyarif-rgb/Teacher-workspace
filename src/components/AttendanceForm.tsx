@@ -113,7 +113,7 @@ export default function AttendanceForm() {
   const tabs = [
     { key: 'jurnal', label: 'Jurnal Mengajar', icon: BookOpen },
     { key: 'presensi', label: 'Presensi', icon: UserCheck },
-    { key: 'nilai', label: 'Daftar Nilai', icon: Table },
+    { key: 'nilai', label: 'Nilai', icon: Table },
     { key: 'riwayat', label: 'Riwayat', icon: History },
   ] as const;
 
@@ -134,12 +134,12 @@ export default function AttendanceForm() {
             <h2 className="text-lg font-bold text-gray-900">Pusat Kegiatan Kelas & Penilaian</h2>
             <p className="text-xs text-gray-500">Kelola jurnal, presensi, nilai, dan riwayat dalam satu layar</p>
           </div>
-          <div className="flex bg-gray-100 p-1.5 rounded-2xl w-full md:w-auto">
+          <div className="grid grid-cols-2 gap-1.5 md:flex md:gap-0 bg-gray-100 p-1.5 rounded-2xl w-full md:w-auto">
             {tabs.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
                 onClick={() => setActiveTab(key)}
-                className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                className={`md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap active:scale-95 ${
                   activeTab === key ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'
                 }`}
               >
