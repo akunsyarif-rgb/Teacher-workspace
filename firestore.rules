@@ -50,10 +50,16 @@ service cloud.firestore {
       // User bisa membaca profilnya sendiri
       allow read: if isAuthenticated() && request.auth.uid == userId;
 
-      // User bisa membuat/mengupdate profilnya sendiri
+      // User bisa membuat/mengupdate profilnya sendiri. workspaceId hanya
+      // boleh diisi SEKALI (dari kosong ke suatu workspace, saat daftar
+      // atau gabung pakai kode undangan) — setelah itu terkunci, tidak
+      // bisa diam-diam diganti ke workspace lain lewat write biasa.
+      // (resource == null saat operasi create — profil belum pernah
+      // ada, jadi belum py workspaceId sama sekali.)
       allow write: if isAuthenticated() && request.auth.uid == userId
-        && (request.resource.data.workspaceId == null || 
-            request.resource.data.workspaceId == getWorkspaceId(request.auth.uid));
+        && (request.resource.data.workspaceId ==
+              (resource == null ? null : resource.data.workspaceId) ||
+            (resource == null || resource.data.workspaceId == null));
 
       // OWNER bisa membaca semua profil di workspace-nya (untuk manajemen)
       allow read: if isAuthenticated() && 

@@ -1,0 +1,32 @@
+name: Test Firestore Rules
+
+# Jalan di setiap PR yang menyentuh rules atau testnya, supaya perubahan
+# rules yang merusak alur (seperti bug "user tidak bisa gabung workspace"
+# yang ditemukan test ini) ketahuan sebelum merge, bukan setelah rilis.
+on:
+  pull_request:
+    paths:
+      - "firestore.rules"
+      - "firebase.json"
+      - "tests/firestore-rules.test.ts"
+      - "vitest.config.ts"
+      - "package.json"
+  workflow_dispatch: {}
+
+jobs:
+  test-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Firestore rules tests
+        run: npm run test:rules
