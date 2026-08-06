@@ -13,6 +13,10 @@ export const COLLECTIONS = {
   ANNOUNCEMENTS: 'announcements',
   STUDENT_LOGIN_CODES: 'student_login_codes',
   STUDENT_PROFILES: 'student_profiles',
+  // Prestasi sengaja TIDAK ikut student_notes. Lihat komentar panjang di
+  // firestore.rules: student_notes memuat catatan konseling, dan prestasi
+  // adalah satu-satunya kategori yang perlu dibaca siswa.
+  STUDENT_ACHIEVEMENTS: 'student_achievements',
 };
 
 // Status pengumpulan tugas seorang siswa untuk satu assignment. Tidak ada

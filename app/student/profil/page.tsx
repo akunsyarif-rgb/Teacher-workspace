@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/src/config/firebase";
 import { useRouter } from "next/navigation";
-import { LogOut, FileText, Trophy, IdCard } from "lucide-react";
+import { LogOut, FileText, Trophy, IdCard, Award } from "lucide-react";
 import StudentShell from "@/src/components/student/StudentShell";
 import { SkeletonCard } from "@/src/components/ui/Skeleton";
 import * as studentPortalController from "@/lib/controllers/studentPortalController";
@@ -13,19 +13,25 @@ import type { StudentProfile } from "@/src/context/StudentAuthContext";
 function ProfileContent({ profile }: { profile: StudentProfile }) {
   const router = useRouter();
   const [portfolio, setPortfolio] = useState<any[]>([]);
+  const [achievements, setAchievements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
+      const scope = {
+        workspaceId: profile.workspaceId,
+        className: profile.className,
+        studentId: profile.studentId,
+      };
       try {
-        const result = await studentPortalController.fetchPortfolio({
-          workspaceId: profile.workspaceId,
-          className: profile.className,
-          studentId: profile.studentId,
-        });
-        setPortfolio(result);
+        const [portfolioResult, achievementResult] = await Promise.all([
+          studentPortalController.fetchPortfolio(scope),
+          studentPortalController.fetchAchievements(scope),
+        ]);
+        setPortfolio(portfolioResult);
+        setAchievements(achievementResult);
       } catch (error) {
-        console.error("Gagal memuat portofolio:", error);
+        console.error("Gagal memuat profil:", error);
       } finally {
         setLoading(false);
       }
@@ -63,6 +69,39 @@ function ProfileContent({ profile }: { profile: StudentProfile }) {
           <IdCard className="w-3.5 h-3.5 text-gray-400" />
           <p className="text-[11px] font-bold text-gray-500">NIS: {profile.nis || "-"}</p>
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+          <Award className="w-3.5 h-3.5" />
+          Prestasi
+        </p>
+
+        {loading ? (
+          <SkeletonCard />
+        ) : achievements.length === 0 ? (
+          <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+            <p className="text-[11px] text-gray-400 text-center py-2">
+              Belum ada prestasi tercatat. Prestasi yang dicatat wali kelasmu akan muncul di sini.
+            </p>
+          </div>
+        ) : (
+          achievements.map((item) => (
+            <div
+              key={item.id}
+              className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-start gap-3"
+            >
+              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <Award className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-gray-900">{item.title}</p>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">{item.date}</p>
+                {item.notes && <p className="text-[11px] text-gray-600 mt-1">{item.notes}</p>}
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       <div className="space-y-2">

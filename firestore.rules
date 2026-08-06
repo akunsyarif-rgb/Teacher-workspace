@@ -67,8 +67,13 @@ service cloud.firestore {
       return isStudentInWorkspace(workspaceId) && studentProfileData().className == className;
     }
 
-    function isOwnStudentData(studentId) {
-      return isStudentAuthed() && studentProfileData().studentId == studentId;
+    // workspaceId WAJIB ikut diperiksa, bukan hanya studentId. Tanpa itu,
+    // siswa di workspace lain yang kebetulan punya studentId sama bisa
+    // membaca data milik siswa di workspace ini. studentId memang id acak
+    // Firestore sehingga tabrakan sangat tidak mungkin — tapi keamanan
+    // yang bersandar pada "id-nya sulit ditebak" bukan keamanan.
+    function isOwnStudentData(workspaceId, studentId) {
+      return isStudentInWorkspace(workspaceId) && studentProfileData().studentId == studentId;
     }
 
     // ============================================================
@@ -202,7 +207,7 @@ service cloud.firestore {
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
 
       // Siswa cuma boleh baca nilainya sendiri, bukan nilai sekelas.
-      allow read: if isOwnStudentData(resource.data.studentId);
+      allow read: if isOwnStudentData(resource.data.workspaceId, resource.data.studentId);
 
       allow create: if isAuthenticated() &&
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
@@ -290,19 +295,19 @@ service cloud.firestore {
       allow read: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
 
-      allow read: if isOwnStudentData(resource.data.studentId);
+      allow read: if isOwnStudentData(resource.data.workspaceId, resource.data.studentId);
 
       allow create: if isAuthenticated() &&
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
 
-      allow create: if isOwnStudentData(request.resource.data.studentId) &&
+      allow create: if isOwnStudentData(request.resource.data.workspaceId, request.resource.data.studentId) &&
         request.resource.data.status == 'menunggu_penilaian';
 
       allow update: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
 
-      allow update: if isOwnStudentData(resource.data.studentId) &&
-        isOwnStudentData(request.resource.data.studentId) &&
+      allow update: if isOwnStudentData(resource.data.workspaceId, resource.data.studentId) &&
+        isOwnStudentData(request.resource.data.workspaceId, request.resource.data.studentId) &&
         request.resource.data.status == 'menunggu_penilaian' &&
         resource.data.status != 'dinilai';
 
@@ -391,12 +396,54 @@ service cloud.firestore {
     // pribadi siswa, jadi baca DIBATASI ke wali kelas kelas itu atau
     // admin/owner — tidak untuk seluruh guru di workspace.
     // ============================================================
+    // CATATAN PENTING: koleksi ini TIDAK PERNAH dibuka untuk siswa, dan
+    // tidak boleh dibuka. Prestasi — satu-satunya kategori yang perlu
+    // dilihat siswa — sudah dipindah ke koleksi student_achievements di
+    // bawah. Menambahkan aturan baca untuk siswa di sini, walau dibatasi
+    // category == 'prestasi', berarti satu salah ketik memisahkan siswa
+    // dari catatan konselingnya sendiri.
     match /student_notes/{docId} {
       allow read: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
         (isHomeroomOf(resource.data.className) ||
          isAdminOrOwner(getWorkspaceId(request.auth.uid)));
 
+      allow create: if isAuthenticated() &&
+        request.resource.data.workspaceId == getWorkspaceId(request.auth.uid) &&
+        isHomeroomOf(request.resource.data.className);
+
+      allow update, delete: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        isHomeroomOf(resource.data.className);
+    }
+
+    // ============================================================
+    // KOLEKSI: student_achievements (Prestasi siswa)
+    //
+    // Kenapa koleksi sendiri, bukan student_notes dengan filter kategori?
+    // Karena student_notes juga menyimpan catatan konseling. Kalau siswa
+    // diberi akses baca ke sana — sekalipun dibatasi category ==
+    // 'prestasi' — maka satu kondisi yang keliru, satu dokumen konseling
+    // yang kelupaan diisi category-nya, atau satu kategori sensitif baru
+    // di masa depan, langsung berarti kebocoran catatan konseling.
+    //
+    // Dengan koleksi terpisah, kesalahan apa pun pada aturan di bawah ini
+    // secara struktural tidak bisa menyentuh data konseling: koleksi itu
+    // tidak punya satu pun aturan yang memberi siswa akses.
+    // ============================================================
+    match /student_achievements/{docId} {
+      // Guru: sama seperti prestasi sebelumnya — wali kelas kelas itu,
+      // atau admin/owner workspace.
+      allow read: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        (isHomeroomOf(resource.data.className) ||
+         isAdminOrOwner(getWorkspaceId(request.auth.uid)));
+
+      // Siswa: HANYA prestasi miliknya sendiri — bukan sekelas.
+      allow read: if isOwnStudentData(resource.data.workspaceId, resource.data.studentId);
+
+      // Menulis tetap hak wali kelas; siswa tidak bisa mencatat prestasi
+      // untuk dirinya sendiri.
       allow create: if isAuthenticated() &&
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid) &&
         isHomeroomOf(request.resource.data.className);

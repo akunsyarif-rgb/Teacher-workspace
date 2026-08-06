@@ -23,6 +23,13 @@ export async function fetchAssignments(scope: StudentScope) {
   );
 }
 
+export async function fetchAchievements(scope: StudentScope) {
+  if (!scope.workspaceId || !scope.studentId) return [];
+  return withCache(`studentAchievements:${scope.workspaceId}:${scope.studentId}`, () =>
+    studentPortalService.getAchievements(scope)
+  );
+}
+
 export async function fetchPortfolio(scope: StudentScope) {
   if (!scope.workspaceId || !scope.className || !scope.studentId) return [];
   return withCache(`studentPortfolio:${scope.workspaceId}:${scope.studentId}`, () =>

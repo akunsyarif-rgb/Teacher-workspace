@@ -5,6 +5,7 @@ import * as gradeRepository from '../repositories/gradeRepository';
 import * as gradeColumnRepository from '../repositories/gradeColumnRepository';
 import * as attendanceRepository from '../repositories/attendanceRepository';
 import * as announcementService from './announcementService';
+import * as achievementService from './achievementService';
 import { SUBMISSION_STATUS, SCHOOL_DAYS_6 } from '../config/constants';
 
 export type StudentScope = {
@@ -55,6 +56,12 @@ export async function getAssignments({ workspaceId, className, studentId }: Stud
       };
     })
     .sort((a: any, b: any) => (a.dueDate || '').localeCompare(b.dueDate || ''));
+}
+
+// Hanya prestasi milik siswa ini — bukan sekelas. Dibatasi juga oleh
+// rules, jadi filter di sini bukan satu-satunya penjaga.
+export async function getAchievements({ workspaceId, studentId }: StudentScope) {
+  return achievementService.listAchievementsForStudent(workspaceId, studentId);
 }
 
 // Portofolio = tugas yang sudah dinilai guru, lengkap dengan skor dan

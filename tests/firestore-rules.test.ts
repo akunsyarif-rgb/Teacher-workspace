@@ -586,3 +586,308 @@ describe('alur klaim kode akses — semua baca yang dibutuhkan harus lolos', () 
     await assertSucceeds(getDoc(doc(db, 'schedules/sc1')));
   });
 });
+
+describe('student_achievements — prestasi boleh dilihat siswa, konseling tidak ikut terbuka', () => {
+  it('lets a student read their own achievement', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    await seed((db) =>
+      setDoc(doc(db, 'student_achievements/a1'), {
+        workspaceId: 'ws1',
+        className: 'XI-A',
+        studentId: 's1',
+        title: 'Juara 1 Debat',
+      })
+    );
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertSucceeds(getDoc(doc(db, 'student_achievements/a1')));
+  });
+
+  it('lets a student list their own achievements', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(db, 'student_achievements'),
+          where('workspaceId', '==', 'ws1'),
+          where('studentId', '==', 's1')
+        )
+      )
+    );
+  });
+
+  it('denies a student reading a classmate\'s achievement', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    await seed((db) =>
+      setDoc(doc(db, 'student_achievements/a2'), {
+        workspaceId: 'ws1',
+        className: 'XI-A',
+        studentId: 's2',
+        title: 'Juara 2 Sains',
+      })
+    );
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertFails(getDoc(doc(db, 'student_achievements/a2')));
+  });
+
+  it('denies a student listing achievements of the whole class', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertFails(
+      getDocs(
+        query(
+          collection(db, 'student_achievements'),
+          where('workspaceId', '==', 'ws1'),
+          where('className', '==', 'XI-A')
+        )
+      )
+    );
+  });
+
+  it('denies a student recording an achievement for themselves', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertFails(
+      setDoc(doc(db, 'student_achievements/a3'), {
+        workspaceId: 'ws1',
+        className: 'XI-A',
+        studentId: 's1',
+        title: 'Juara 1 (mengaku sendiri)',
+      })
+    );
+  });
+
+  it('denies a student from another workspace reading an achievement', async () => {
+    await seedStudentProfile('studentUidX', 's1', 'ws2', 'XI-A');
+    await seed((db) =>
+      setDoc(doc(db, 'student_achievements/a1'), {
+        workspaceId: 'ws1',
+        className: 'XI-A',
+        studentId: 's1',
+        title: 'Juara 1 Debat',
+      })
+    );
+    const db = testEnv.authenticatedContext('studentUidX').firestore();
+    await assertFails(getDoc(doc(db, 'student_achievements/a1')));
+  });
+
+  it('lets the homeroom teacher create and read achievements', async () => {
+    await seedProfile('teacherA', 'ws1', 'TEACHER', 'XI-A');
+    const db = testEnv.authenticatedContext('teacherA').firestore();
+    await assertSucceeds(
+      setDoc(doc(db, 'student_achievements/a1'), {
+        workspaceId: 'ws1',
+        className: 'XI-A',
+        studentId: 's1',
+        title: 'Juara 1 Debat',
+      })
+    );
+    await assertSucceeds(getDoc(doc(db, 'student_achievements/a1')));
+  });
+
+  it('denies a non-homeroom teacher creating an achievement', async () => {
+    await seedProfile('teacherB', 'ws1', 'TEACHER', 'XI-B');
+    const db = testEnv.authenticatedContext('teacherB').firestore();
+    await assertFails(
+      setDoc(doc(db, 'student_achievements/a1'), {
+        workspaceId: 'ws1',
+        className: 'XI-A',
+        studentId: 's1',
+        title: 'Juara 1 Debat',
+      })
+    );
+  });
+
+  // ==== INVARIANT UTAMA: konseling tetap tertutup rapat untuk siswa ====
+
+  it('STILL denies a student reading their OWN counselling note', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    await seed((db) =>
+      setDoc(doc(db, 'student_notes/n1'), {
+        workspaceId: 'ws1',
+        className: 'XI-A',
+        category: 'konseling',
+        studentId: 's1',
+        title: 'rahasia',
+      })
+    );
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertFails(getDoc(doc(db, 'student_notes/n1')));
+  });
+
+  it('STILL denies a student reading a legacy prestasi note left in student_notes', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    await seed((db) =>
+      setDoc(doc(db, 'student_notes/n2'), {
+        workspaceId: 'ws1',
+        className: 'XI-A',
+        category: 'prestasi',
+        studentId: 's1',
+        title: 'Juara 1 lama',
+      })
+    );
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertFails(getDoc(doc(db, 'student_notes/n2')));
+  });
+
+  it('STILL denies a student listing student_notes by any filter combination', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertFails(
+      getDocs(query(collection(db, 'student_notes'), where('workspaceId', '==', 'ws1')))
+    );
+    await assertFails(
+      getDocs(
+        query(
+          collection(db, 'student_notes'),
+          where('workspaceId', '==', 'ws1'),
+          where('studentId', '==', 's1')
+        )
+      )
+    );
+    await assertFails(
+      getDocs(
+        query(
+          collection(db, 'student_notes'),
+          where('workspaceId', '==', 'ws1'),
+          where('studentId', '==', 's1'),
+          where('category', '==', 'prestasi')
+        )
+      )
+    );
+    await assertFails(
+      getDocs(
+        query(
+          collection(db, 'student_notes'),
+          where('workspaceId', '==', 'ws1'),
+          where('studentId', '==', 's1'),
+          where('category', '==', 'konseling')
+        )
+      )
+    );
+  });
+});
+
+// Regresi untuk lubang yang ditemukan test prestasi: isOwnStudentData
+// dulu hanya mencocokkan studentId tanpa workspaceId, sehingga siswa di
+// workspace lain dengan studentId yang sama bisa membaca data ini.
+describe('isolasi antar-workspace untuk data milik siswa', () => {
+  it('denies a student in another workspace reading grades with the same studentId', async () => {
+    await seedStudentProfile('studentUidX', 's1', 'ws2', 'XI-A');
+    await seed((db) => setDoc(doc(db, 'grades/g1'), { workspaceId: 'ws1', studentId: 's1', score: '90' }));
+    const db = testEnv.authenticatedContext('studentUidX').firestore();
+    await assertFails(getDoc(doc(db, 'grades/g1')));
+  });
+
+  it('denies a student in another workspace reading submissions with the same studentId', async () => {
+    await seedStudentProfile('studentUidX', 's1', 'ws2', 'XI-A');
+    await seed((db) =>
+      setDoc(doc(db, 'submissions/a1_s1'), {
+        workspaceId: 'ws1',
+        assignmentId: 'a1',
+        studentId: 's1',
+        status: 'menunggu_penilaian',
+      })
+    );
+    const db = testEnv.authenticatedContext('studentUidX').firestore();
+    await assertFails(getDoc(doc(db, 'submissions/a1_s1')));
+  });
+
+  it('denies a student creating a submission into another workspace', async () => {
+    await seedStudentProfile('studentUidX', 's1', 'ws2', 'XI-A');
+    const db = testEnv.authenticatedContext('studentUidX').firestore();
+    await assertFails(
+      setDoc(doc(db, 'submissions/a1_s1'), {
+        workspaceId: 'ws1',
+        assignmentId: 'a1',
+        studentId: 's1',
+        status: 'menunggu_penilaian',
+      })
+    );
+  });
+
+  it('still lets a student in the right workspace read and submit as before', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    await seed((db) => setDoc(doc(db, 'grades/g1'), { workspaceId: 'ws1', studentId: 's1', score: '90' }));
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertSucceeds(getDoc(doc(db, 'grades/g1')));
+    await assertSucceeds(
+      setDoc(doc(db, 'submissions/a1_s1'), {
+        workspaceId: 'ws1',
+        assignmentId: 'a1',
+        studentId: 's1',
+        status: 'menunggu_penilaian',
+        textAnswer: 'jawaban',
+      })
+    );
+  });
+});
+
+// Halaman Prestasi guru memuat daftar lewat query, bukan get satu dokumen.
+// Dibedakan eksplisit karena rules list dievaluasi berbeda — inilah jenis
+// celah yang dulu membuat alur login siswa lolos test tapi mati di produksi.
+describe('student_achievements — query (list) dari sisi guru', () => {
+  it('lets the homeroom teacher list achievements of their own class', async () => {
+    await seedProfile('teacherA', 'ws1', 'TEACHER', 'XI-A');
+    await seed((db) =>
+      setDoc(doc(db, 'student_achievements/a1'), {
+        workspaceId: 'ws1',
+        className: 'XI-A',
+        studentId: 's1',
+        title: 'Juara 1 Debat',
+      })
+    );
+    const db = testEnv.authenticatedContext('teacherA').firestore();
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(db, 'student_achievements'),
+          where('workspaceId', '==', 'ws1'),
+          where('className', '==', 'XI-A')
+        )
+      )
+    );
+  });
+
+  it('denies a teacher listing achievements of a class they do not homeroom', async () => {
+    await seedProfile('teacherB', 'ws1', 'TEACHER', 'XI-B');
+    const db = testEnv.authenticatedContext('teacherB').firestore();
+    await assertFails(
+      getDocs(
+        query(
+          collection(db, 'student_achievements'),
+          where('workspaceId', '==', 'ws1'),
+          where('className', '==', 'XI-A')
+        )
+      )
+    );
+  });
+
+  it('lets an OWNER list achievements even without being homeroom', async () => {
+    await seedProfile('owner1', 'ws1', 'OWNER');
+    const db = testEnv.authenticatedContext('owner1').firestore();
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(db, 'student_achievements'),
+          where('workspaceId', '==', 'ws1'),
+          where('className', '==', 'XI-A')
+        )
+      )
+    );
+  });
+
+  it('lets the homeroom teacher delete an achievement', async () => {
+    await seedProfile('teacherA', 'ws1', 'TEACHER', 'XI-A');
+    await seed((db) =>
+      setDoc(doc(db, 'student_achievements/a1'), {
+        workspaceId: 'ws1',
+        className: 'XI-A',
+        studentId: 's1',
+        title: 'Juara 1 Debat',
+      })
+    );
+    const db = testEnv.authenticatedContext('teacherA').firestore();
+    await assertSucceeds(deleteDoc(doc(db, 'student_achievements/a1')));
+  });
+});
