@@ -172,20 +172,26 @@ async function run() {
     pass('Guru mendaftar dan workspace terbuat');
 
     // ---------- 2. Guru menambah siswa ----------
+    // Form "Tambah 1 Siswa" langsung tampil di /classes (tidak ada tombol
+    // pembuka). Karena belum ada kelas sama sekali, field kelas muncul
+    // sebagai input "Nama Kelas (Baru)", bukan dropdown.
     await teacher.goto(`${BASE_URL}/classes`, { waitUntil: 'domcontentloaded' });
-    await teacher.getByText('Tambah Siswa', { exact: false }).first().click({ timeout: 15000 });
-    await teacher.fill('input >> nth=0', STUDENT_NAME);
-    await teacher.getByRole('button', { name: /Simpan|Tambah/i }).last().click();
-    await teacher.waitForTimeout(3000);
-    pass('Guru menambah siswa');
+    const addForm = teacher.locator('form').first();
+    await addForm.locator('input').nth(0).fill(STUDENT_NAME, { timeout: 20000 });
+    await addForm.locator('input').nth(1).fill('12345');
+    await addForm.locator('input[placeholder*="TEKNIK"]').fill(CLASS_NAME);
+    await teacher.getByRole('button', { name: /Simpan Siswa/i }).click();
+    await teacher.waitForTimeout(4000);
+
+    const classCardVisible = await teacher.getByText(`${CLASS_NAME}`, { exact: true }).count();
+    if (classCardVisible > 0) pass('Guru menambah siswa', `kelas ${CLASS_NAME} muncul`);
+    else fail('Guru menambah siswa', 'kartu kelas tidak muncul setelah siswa disimpan');
 
     // ---------- 3. Kode akses tampil & bisa dibaca ----------
-    await teacher.goto(`${BASE_URL}/classes`, { waitUntil: 'domcontentloaded' });
-    await teacher.waitForTimeout(2000);
-    const classCard = teacher.getByText(new RegExp(CLASS_NAME, 'i')).first();
+    const classCard = teacher.getByText(`${CLASS_NAME}`, { exact: true }).first();
     if (await classCard.count()) {
       await classCard.click();
-      await teacher.waitForTimeout(2500);
+      await teacher.waitForTimeout(3000);
     }
     const codeButton = teacher.locator('button[title*="kode akses"]').first();
     if (await codeButton.count()) {
