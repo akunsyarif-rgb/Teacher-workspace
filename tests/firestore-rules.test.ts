@@ -132,6 +132,7 @@ const WORKSPACE_SCOPED_COLLECTIONS = [
   'grades',
   'grade_columns',
   'assignments',
+  'announcements',
 ];
 
 describe.each(WORKSPACE_SCOPED_COLLECTIONS)('%s — isolasi workspace', (collectionName) => {
@@ -424,6 +425,34 @@ describe('Student Companion — query (list) harus lolos rules, bukan cuma get',
     await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
     const db = testEnv.authenticatedContext('studentUidA').firestore();
     await assertFails(getDocs(query(collection(db, 'schedules'), where('workspaceId', '==', 'ws1'))));
+  });
+
+  it('lets a student list announcements for their own class', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    await seed((db) =>
+      setDoc(doc(db, 'announcements/an1'), { workspaceId: 'ws1', className: 'XI-A', title: 'Ulangan Senin' })
+    );
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertSucceeds(
+      getDocs(query(collection(db, 'announcements'), where('workspaceId', '==', 'ws1'), where('className', '==', 'XI-A')))
+    );
+  });
+
+  it('denies a student reading an announcement meant for another class', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    await seed((db) =>
+      setDoc(doc(db, 'announcements/an1'), { workspaceId: 'ws1', className: 'XI-B', title: 'Ulangan Senin' })
+    );
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertFails(getDoc(doc(db, 'announcements/an1')));
+  });
+
+  it('denies a student writing an announcement (teacher-only)', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertFails(
+      setDoc(doc(db, 'announcements/an1'), { workspaceId: 'ws1', className: 'XI-A', title: 'Libur' })
+    );
   });
 
   it('lets a student list assignments filtered by workspaceId + className', async () => {

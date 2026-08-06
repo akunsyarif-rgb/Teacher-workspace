@@ -10,6 +10,7 @@ export const COLLECTIONS = {
   STUDENT_NOTES: 'student_notes',
   ASSIGNMENTS: 'assignments',
   SUBMISSIONS: 'submissions',
+  ANNOUNCEMENTS: 'announcements',
   STUDENT_LOGIN_CODES: 'student_login_codes',
   STUDENT_PROFILES: 'student_profiles',
 };

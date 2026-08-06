@@ -1,12 +1,14 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { signOut } from "firebase/auth";
 import { auth } from "@/src/config/firebase";
 import { useRouter } from "next/navigation";
-import { Calendar, ClipboardList, Table, UserCheck, LogOut, ChevronRight } from "lucide-react";
+import { Calendar, ClipboardList, Table, UserCheck, LogOut, ChevronRight, Megaphone } from "lucide-react";
 import StudentShell from "@/src/components/student/StudentShell";
+import { SkeletonCard } from "@/src/components/ui/Skeleton";
+import * as studentPortalController from "@/lib/controllers/studentPortalController";
 import type { StudentProfile } from "@/src/context/StudentAuthContext";
 
 const MENU_ITEMS = [
@@ -18,6 +20,25 @@ const MENU_ITEMS = [
 
 function HomeContent({ profile }: { profile: StudentProfile }) {
   const router = useRouter();
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const list = await studentPortalController.fetchAnnouncements({
+          workspaceId: profile.workspaceId,
+          className: profile.className,
+          studentId: profile.studentId,
+        });
+        setAnnouncements(list);
+      } catch (error) {
+        console.error("Gagal memuat pengumuman:", error);
+      } finally {
+        setLoadingAnnouncements(false);
+      }
+    })();
+  }, [profile.workspaceId, profile.className, profile.studentId]);
 
   async function handleLogout() {
     await signOut(auth);
@@ -38,6 +59,30 @@ function HomeContent({ profile }: { profile: StudentProfile }) {
         >
           <LogOut className="w-4 h-4" />
         </button>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+          <Megaphone className="w-3.5 h-3.5" />
+          Pengumuman Guru
+        </p>
+        {loadingAnnouncements ? (
+          <SkeletonCard />
+        ) : announcements.length === 0 ? (
+          <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+            <p className="text-[11px] text-gray-400 text-center py-2">Belum ada pengumuman.</p>
+          </div>
+        ) : (
+          announcements.map((announcement) => (
+            <div key={announcement.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-xs font-bold text-gray-900">{announcement.title}</p>
+                <p className="text-[10px] font-bold text-gray-400 shrink-0">{announcement.date}</p>
+              </div>
+              <p className="text-[11px] text-gray-600 mt-1 whitespace-pre-wrap">{announcement.body}</p>
+            </div>
+          ))
+        )}
       </div>
 
       <div className="space-y-2">

@@ -2,6 +2,13 @@ import * as studentPortalService from '../services/studentPortalService';
 import type { StudentScope } from '../services/studentPortalService';
 import { withCache } from '../utils/sessionCache';
 
+export async function fetchAnnouncements(scope: StudentScope) {
+  if (!scope.workspaceId || !scope.className) return [];
+  return withCache(`studentAnnouncements:${scope.workspaceId}:${scope.className}`, () =>
+    studentPortalService.getAnnouncements(scope)
+  );
+}
+
 export async function fetchSchedule(scope: StudentScope) {
   if (!scope.workspaceId || !scope.className) return [];
   return withCache(`studentSchedule:${scope.workspaceId}:${scope.className}`, () =>

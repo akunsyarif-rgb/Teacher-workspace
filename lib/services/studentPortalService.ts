@@ -4,6 +4,7 @@ import * as submissionRepository from '../repositories/submissionRepository';
 import * as gradeRepository from '../repositories/gradeRepository';
 import * as gradeColumnRepository from '../repositories/gradeColumnRepository';
 import * as attendanceRepository from '../repositories/attendanceRepository';
+import * as announcementService from './announcementService';
 import { SUBMISSION_STATUS, SCHOOL_DAYS_6 } from '../config/constants';
 
 export type StudentScope = {
@@ -11,6 +12,12 @@ export type StudentScope = {
   className: string;
   studentId: string;
 };
+
+// Pakai service guru apa adanya: aturan urut & bentuk datanya sama persis,
+// dan pembatasan siapa boleh baca apa sudah dijaga firestore.rules.
+export async function getAnnouncements({ workspaceId, className }: StudentScope) {
+  return announcementService.listAnnouncements(workspaceId, className);
+}
 
 export async function getSchedule({ workspaceId, className }: StudentScope) {
   const schedules = await scheduleRepository.getSchedulesByClass(workspaceId, className);
