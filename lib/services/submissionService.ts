@@ -20,13 +20,16 @@ export async function getSubmissionsForAssignment(
   submissions.forEach((sub: any) => {
     byStudentId[sub.studentId] = sub;
   });
-  return students.map((student: any) => (
-    byStudentId[student.id] || {
-      assignmentId,
-      studentId: student.id,
-      status: SUBMISSION_STATUS.BELUM_MENGUMPULKAN,
-    }
-  ));
+  // studentName/studentNis dipaksa dari data siswa (bukan submission doc,
+  // yang tidak menyimpan nama) supaya UI tidak perlu join terpisah.
+  return students.map((student: any) => ({
+    status: SUBMISSION_STATUS.BELUM_MENGUMPULKAN,
+    ...(byStudentId[student.id] || {}),
+    assignmentId,
+    studentId: student.id,
+    studentName: student.name,
+    studentNis: student.nis,
+  }));
 }
 
 export async function submitAssignment(
