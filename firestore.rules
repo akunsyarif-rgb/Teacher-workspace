@@ -190,6 +190,44 @@ service cloud.firestore {
     }
 
     // ============================================================
+    // KOLEKSI: assignments
+    // ============================================================
+    match /assignments/{docId} {
+      allow read: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
+
+      allow update: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+
+      allow delete: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+    }
+
+    // ============================================================
+    // KOLEKSI: submissions
+    // Untuk saat ini ditulis oleh guru (belum ada login siswa di Student
+    // Companion). Begitu siswa punya auth sendiri, tambahkan aturan create/
+    // update terpisah yang membatasi siswa hanya boleh menulis submission
+    // miliknya sendiri (request.resource.data.studentId == siswa yang login).
+    // ============================================================
+    match /submissions/{docId} {
+      allow read: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
+
+      allow update: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+
+      allow delete: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+    }
+
+    // ============================================================
     // KOLEKSI: class_fund_transactions (Kas Kelas — khusus wali kelas)
     // ============================================================
     match /class_fund_transactions/{docId} {
