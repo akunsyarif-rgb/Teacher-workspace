@@ -1,12 +1,19 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, connectAuthEmulator } from "firebase/auth";
 import {
   initializeFirestore,
   getFirestore,
   persistentLocalCache,
   persistentSingleTabManager,
+  connectFirestoreEmulator,
 } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+import { getStorage, connectStorageEmulator } from "firebase/storage";
+
+// Mode emulator hanya aktif kalau env var ini di-set secara eksplisit
+// (lihat README "Menjalankan dengan emulator"). Tanpa itu, aplikasi selalu
+// menunjuk ke Firebase sungguhan seperti sebelumnya — tidak ada jalan
+// aplikasi produksi diam-diam bicara ke emulator atau sebaliknya.
+const USE_EMULATOR = process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === "true";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -41,7 +48,10 @@ export const db = (() => {
   try {
     return initializeFirestore(app, {
       experimentalAutoDetectLongPolling: true,
-      ...(typeof window !== "undefined"
+      // Cache IndexedDB dimatikan saat memakai emulator: data uji jadi
+      // tidak "menempel" antar-sesi dan hasil test tidak dipengaruhi
+      // sisa percobaan sebelumnya.
+      ...(typeof window !== "undefined" && !USE_EMULATOR
         ? { localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({}) }) }
         : {}),
     });
@@ -51,3 +61,15 @@ export const db = (() => {
 })();
 
 export const storage = getStorage(app);
+
+// Penyambungan ke emulator harus terjadi sebelum operasi baca/tulis
+// pertama, karena itu dilakukan langsung di modul ini (bukan di komponen).
+// Modul hanya dievaluasi sekali per proses, jadi tidak ada risiko
+// tersambung dua kali.
+if (USE_EMULATOR && typeof window !== "undefined") {
+  const host = process.env.NEXT_PUBLIC_FIREBASE_EMULATOR_HOST || "127.0.0.1";
+  connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });
+  connectFirestoreEmulator(db, host, 8080);
+  connectStorageEmulator(storage, host, 9199);
+  console.info("[firebase] Mode emulator aktif — tidak terhubung ke Firebase produksi.");
+}

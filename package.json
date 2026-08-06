@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:rules": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only firestore,storage \"vitest run\""
+    "test:rules": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only firestore,storage \"vitest run\"",
+    "emulators": "npx firebase-tools emulators:start --project demo-teacher-workspace --only auth,firestore,storage",
+    "test:e2e": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only auth,firestore,storage \"node tests/e2e/smoke.mjs\""
   },
   "dependencies": {
     "chart.js": "^4.5.1",
@@ -31,6 +33,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
+    "playwright": "^1.62.1",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.10"
