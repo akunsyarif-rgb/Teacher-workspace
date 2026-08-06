@@ -119,5 +119,32 @@ export async function getAttendance({ workspaceId, className, studentId }: Stude
   const total = history.length;
   const attendanceRate = total > 0 ? Math.round((summary.Hadir / total) * 100) : null;
 
-  return { history, summary, lateCount, total, attendanceRate };
+  return { history, summary, lateCount, total, attendanceRate, monthly: buildMonthlyRates(history) };
+}
+
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+// Persentase kehadiran per bulan, urut lama -> baru, supaya siswa melihat
+// arah perkembangannya (bukan cuma satu angka rata-rata sepanjang masa).
+function buildMonthlyRates(history: any[]) {
+  const buckets: Record<string, { hadir: number; total: number }> = {};
+  history.forEach((record) => {
+    const month = (record.date || '').slice(0, 7); // YYYY-MM
+    if (month.length !== 7) return;
+    if (!buckets[month]) buckets[month] = { hadir: 0, total: 0 };
+    buckets[month].total += 1;
+    if (record.status === 'Hadir') buckets[month].hadir += 1;
+  });
+
+  return Object.keys(buckets)
+    .sort()
+    .map((month) => {
+      const [year, monthNumber] = month.split('-');
+      return {
+        month,
+        label: `${MONTH_LABELS[Number(monthNumber) - 1] || monthNumber} ${year.slice(2)}`,
+        rate: Math.round((buckets[month].hadir / buckets[month].total) * 100),
+        total: buckets[month].total,
+      };
+    });
 }

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { CheckCircle2, Clock } from "lucide-react";
 import StudentShell from "@/src/components/student/StudentShell";
+import AttendanceTrendChart from "@/src/components/student/AttendanceTrendChart";
 import { SkeletonCard } from "@/src/components/ui/Skeleton";
 import * as studentPortalController from "@/lib/controllers/studentPortalController";
 import type { StudentProfile } from "@/src/context/StudentAuthContext";
@@ -84,6 +85,16 @@ function AttendanceContent({ profile }: { profile: StudentProfile }) {
           )}
         </div>
       </div>
+
+      {data.monthly?.length >= 2 && (
+        <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-3">
+          <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">Kehadiran per Bulan</p>
+          <AttendanceTrendChart
+            labels={data.monthly.map((item: any) => item.label)}
+            rates={data.monthly.map((item: any) => item.rate)}
+          />
+        </div>
+      )}
 
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm divide-y divide-gray-100 overflow-hidden">
         {data.history.map((record: any) => (

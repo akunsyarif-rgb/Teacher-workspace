@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import StudentShell from "@/src/components/student/StudentShell";
+import GradeTrendChart from "@/src/components/student/GradeTrendChart";
 import { SkeletonCard } from "@/src/components/ui/Skeleton";
 import * as studentPortalController from "@/lib/controllers/studentPortalController";
 import type { StudentProfile } from "@/src/context/StudentAuthContext";
@@ -44,6 +45,12 @@ function GradesContent({ profile }: { profile: StudentProfile }) {
     );
   }
 
+  // Hanya komponen yang sudah dinilai yang masuk grafik — titik kosong
+  // akan terbaca sebagai nilai nol.
+  const scored = data.items.filter(
+    (item: any) => item.score !== null && String(item.score).trim() !== "" && Number.isFinite(Number(item.score))
+  );
+
   return (
     <div className="space-y-4">
       <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
@@ -57,6 +64,17 @@ function GradesContent({ profile }: { profile: StudentProfile }) {
             : "Dihitung dari komponen yang sudah dinilai saja"}
         </p>
       </div>
+
+      {scored.length >= 2 && (
+        <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-3">
+          <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">Perkembangan Nilai</p>
+          <GradeTrendChart
+            labels={scored.map((item: any) => item.title)}
+            scores={scored.map((item: any) => Number(item.score))}
+          />
+          <p className="text-[10px] text-gray-400 text-center">Urut sesuai komponen penilaian</p>
+        </div>
+      )}
 
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm divide-y divide-gray-100 overflow-hidden">
         {data.items.map((item: any) => (
