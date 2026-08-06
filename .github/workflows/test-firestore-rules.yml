@@ -25,6 +25,15 @@ jobs:
         with:
           node-version: "20"
 
+      # Firestore Emulator (dipakai npm run test:rules) jalan di atas JDK,
+      # dan butuh versi 21+ — runner ubuntu-latest bawaan tidak selalu
+      # punya versi itu tersedia.
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
       - name: Install dependencies
         run: npm ci
 
