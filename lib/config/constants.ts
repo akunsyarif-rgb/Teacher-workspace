@@ -10,6 +10,8 @@ export const COLLECTIONS = {
   STUDENT_NOTES: 'student_notes',
   ASSIGNMENTS: 'assignments',
   SUBMISSIONS: 'submissions',
+  STUDENT_LOGIN_CODES: 'student_login_codes',
+  STUDENT_PROFILES: 'student_profiles',
 };
 
 // Status pengumpulan tugas seorang siswa untuk satu assignment. Tidak ada
