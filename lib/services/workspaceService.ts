@@ -25,8 +25,11 @@ async function assertNoExistingWorkspace(uid: string) {
 // Batas kelas per paket. null = tak terbatas.
 // Angka ini sengaja dipusatkan di satu tempat supaya gampang diubah nanti
 // berdasarkan data pemakaian nyata, tanpa perlu cari-cari di banyak file.
+// individual_lifetime = tier gratis: 3 kelas sengaja dibuat pas-pasan
+// (bukan 10) supaya guru dengan beban mengajar normal tetap punya alasan
+// upgrade ke paket berbayar, bukan malah cukup selamanya di tier gratis.
 export const PLAN_CLASS_LIMITS: Record<WorkspacePlan, number | null> = {
-  individual_lifetime: 10,
+  individual_lifetime: 3,
   individual_monthly: null,
   school_annual: null,
 };
