@@ -4,14 +4,14 @@ import React, { useState, useEffect } from "react";
 import { CheckCircle2, CloudOff, Calendar, UserCheck, History, Trash2, FileDown } from "lucide-react";
 import Card from "../ui/Card";
 import Button from "../ui/Button";
-import StudentAttendanceRow from "./StudentAttendanceRow";
+import AttendanceGrid, { TodayEntry } from "./AttendanceGrid";
 import ConfirmDeleteModal from "@/src/components/ui/ConfirmDeleteModal";
 import * as attendanceController from "@/lib/controllers/attendanceController";
 import * as studentController from "@/lib/controllers/classController";
 import { useWorkspace } from "@/src/context/WorkspaceContext";
 import { useOnlineStatus } from "@/src/hooks/useOnlineStatus";
 import { exportAttendanceRecapPdf } from "@/lib/utils/attendancePdf";
-import { SkeletonText, SkeletonCard, SkeletonTable } from "../ui/Skeleton";
+import { SkeletonCard, SkeletonTable } from "../ui/Skeleton";
 
 type AttendanceTabProps = {
   className: string;
@@ -23,7 +23,7 @@ type AttendanceTabProps = {
 export default function AttendanceTab({ className, subject, scheduleId, onSubmitted }: AttendanceTabProps) {
   const { workspaceId } = useWorkspace();
   const isOnline = useOnlineStatus();
-  const [statusMap, setStatusMap] = useState<Record<string, string>>({});
+  const [statusMap, setStatusMap] = useState<Record<string, TodayEntry>>({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
@@ -55,9 +55,9 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
     try {
       const list = await studentController.fetchStudentsInClass(workspaceId, className);
       setStudents(list);
-      const initial: Record<string, string> = {};
+      const initial: Record<string, TodayEntry> = {};
       list.forEach((s: any) => {
-        initial[s.id] = "Hadir";
+        initial[s.id] = { status: "Hadir", late: false };
       });
       setStatusMap(initial);
     } catch (error) {
@@ -75,27 +75,14 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
     }
   }
 
-  // Strip riwayat singkat per siswa — dirakit dari sesi presensi yang
-  // sudah tersimpan (history), bukan data/kolom baru. Membantu guru melihat
-  // pola kehadiran tanpa mengubah cara mengisi presensi hari ini.
-  function getRecentHistory(studentId: string, limit = 5): { date: string; status: string }[] {
-    const sorted = [...history].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-    const result: { date: string; status: string }[] = [];
-    sorted.forEach((session) => {
-      const detail = (session.details || []).find((d: any) => d.studentId === studentId);
-      if (detail) result.push({ date: session.date, status: detail.status });
-    });
-    return result.slice(-limit);
-  }
-
-  function handleStatusChange(studentId: string, status: string) {
-    setStatusMap((prev) => ({ ...prev, [studentId]: status }));
+  function handleEntryChange(studentId: string, next: TodayEntry) {
+    setStatusMap((prev) => ({ ...prev, [studentId]: next }));
   }
 
   function handleSetAllHadir() {
-    const updated: Record<string, string> = {};
+    const updated: Record<string, TodayEntry> = {};
     students.forEach((s) => {
-      updated[s.id] = "Hadir";
+      updated[s.id] = { status: "Hadir", late: false };
     });
     setStatusMap(updated);
   }
@@ -177,8 +164,8 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
           )}
         </Card>
 
-        <Card className="space-y-4">
-          <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+        <Card className="space-y-4 !p-3 sm:!p-4">
+          <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2 px-1">
             <UserCheck className="w-4 h-4 text-blue-600" />
             Daftar Absen ({loadingData ? '...' : students.length} Siswa)
           </h3>
@@ -190,18 +177,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
           ) : students.length === 0 ? (
             <p className="text-xs text-gray-500 text-center py-12">Belum ada siswa di kelas ini.</p>
           ) : (
-            <div className="divide-y divide-gray-100">
-              {students.map((student, idx) => (
-                <StudentAttendanceRow
-                  key={student.id}
-                  student={student}
-                  index={idx}
-                  status={statusMap[student.id] || "Hadir"}
-                  onStatusChange={handleStatusChange}
-                  recentHistory={getRecentHistory(student.id)}
-                />
-              ))}
-            </div>
+            <AttendanceGrid students={students} history={history} statusMap={statusMap} onChange={handleEntryChange} />
           )}
         </Card>
 
@@ -256,14 +232,14 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
                     <span className="text-xs font-bold text-gray-900">• {item.subject}</span>
                   </div>
                   <div className="flex flex-wrap gap-2 pt-1 text-[11px] font-semibold">
-                    <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded">Hadir: {item.summary?.hadir || 0}</span>
+                    <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">Hadir: {item.summary?.hadir || 0}</span>
                     {(item.summary?.terlambat || 0) > 0 && (
                       <span className="text-orange-600 bg-orange-50 px-2 py-0.5 rounded">
                         (Terlambat: {item.summary.terlambat})
                       </span>
                     )}
-                    <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded">Sakit: {item.summary?.sakit || 0}</span>
-                    <span className="text-purple-600 bg-purple-50 px-2 py-0.5 rounded">Izin: {item.summary?.izin || 0}</span>
+                    <span className="text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded">Sakit: {item.summary?.sakit || 0}</span>
+                    <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded">Izin: {item.summary?.izin || 0}</span>
                     <span className="text-red-600 bg-red-50 px-2 py-0.5 rounded">Alpa: {item.summary?.alpa || 0}</span>
                   </div>
                 </div>

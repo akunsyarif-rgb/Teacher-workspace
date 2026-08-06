@@ -111,10 +111,10 @@ export default function AttendanceForm() {
   }
 
   const tabs = [
-    { key: 'jurnal', label: 'Jurnal Mengajar', icon: BookOpen },
-    { key: 'presensi', label: 'Presensi', icon: UserCheck },
-    { key: 'nilai', label: 'Daftar Nilai', icon: Table },
-    { key: 'riwayat', label: 'Riwayat', icon: History },
+    { key: 'jurnal', label: 'Jurnal Mengajar', icon: BookOpen, hideLabelOnMobile: false },
+    { key: 'presensi', label: 'Presensi', icon: UserCheck, hideLabelOnMobile: false },
+    { key: 'nilai', label: 'Nilai', icon: Table, hideLabelOnMobile: false },
+    { key: 'riwayat', label: 'Riwayat', icon: History, hideLabelOnMobile: true },
   ] as const;
 
   if (loading) {
@@ -135,16 +135,17 @@ export default function AttendanceForm() {
             <p className="text-xs text-gray-500">Kelola jurnal, presensi, nilai, dan riwayat dalam satu layar</p>
           </div>
           <div className="flex bg-gray-100 p-1.5 rounded-2xl w-full md:w-auto">
-            {tabs.map(({ key, label, icon: Icon }) => (
+            {tabs.map(({ key, label, icon: Icon, hideLabelOnMobile }) => (
               <button
                 key={key}
                 onClick={() => setActiveTab(key)}
-                className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                title={label}
+                className={`flex-1 md:flex-none min-w-0 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all ${
                   activeTab === key ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'
                 }`}
               >
-                <Icon className="w-4 h-4" />
-                <span>{label}</span>
+                <Icon className="w-4 h-4 shrink-0" />
+                <span className={`truncate ${hideLabelOnMobile ? 'hidden sm:inline' : ''}`}>{label}</span>
               </button>
             ))}
           </div>
