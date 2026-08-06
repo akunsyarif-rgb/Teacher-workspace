@@ -1,8 +1,9 @@
 import {
   getAllStudentsForSummary,
-  getAllJournalsForSummary,
+  getJournalsInRange,
   getAllSchedulesForSummary,
-  getAllAttendancesForSummary,
+  getAttendancesInRange,
+  getJournalCount,
 } from '../repositories/dashboardRepository';
 import { getScheduleStartMinutes } from '../utils/scheduleTime';
 
@@ -78,19 +79,21 @@ export async function loadDashboardSummary(workspaceId: string): Promise<Dashboa
     };
   }
 
-  const [students, journals, schedules, attendances] = await Promise.all([
+  const currentDayName = getCurrentDayName();
+  const todayDate = getTodayDate();
+  const sevenDaysAgo = getDaysAgo(6); // 6 hari lalu s/d hari ini = 7 hari
+
+  const [students, journals, schedules, attendances, totalJournalsCount] = await Promise.all([
     getAllStudentsForSummary(workspaceId),
-    getAllJournalsForSummary(workspaceId),
+    getJournalsInRange(workspaceId, sevenDaysAgo, todayDate),
     getAllSchedulesForSummary(workspaceId),
-    getAllAttendancesForSummary(workspaceId),
+    getAttendancesInRange(workspaceId, sevenDaysAgo, todayDate),
+    getJournalCount(workspaceId),
   ]);
 
   const uniqueClasses = Array.from(
     new Set(students.map((s: any) => s.className?.trim()).filter(Boolean))
   ) as string[];
-
-  const currentDayName = getCurrentDayName();
-  const todayDate = getTodayDate();
 
   // Jadwal hari ini, diurutkan berdasarkan jam mulai
   const todaySchedules = schedules
@@ -152,7 +155,7 @@ export async function loadDashboardSummary(workspaceId: string): Promise<Dashboa
 
   return {
     uniqueClasses,
-    totalJournals: journals.length,
+    totalJournals: totalJournalsCount,
     todaySchedules,
     currentDayName,
     todayProgress: {

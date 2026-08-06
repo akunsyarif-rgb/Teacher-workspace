@@ -1,14 +1,18 @@
-name: Deploy Firestore Rules
+name: Deploy Firestore Rules & Indexes
 
-# Deploy firestore.rules ke Firebase secara otomatis begitu berubah di
-# main — supaya rules tidak lagi pernah ditempel manual ke Firebase
-# Console (proses manual itu yang sebelumnya menyebabkan rules aplikasi
-# ini tertimpa oleh rules aplikasi lain tanpa disadari).
+# Deploy firestore.rules DAN firestore.indexes.json ke Firebase secara
+# otomatis begitu berubah di main — supaya rules/index tidak lagi pernah
+# ditempel manual ke Firebase Console (proses manual itu yang sebelumnya
+# menyebabkan rules aplikasi ini tertimpa oleh rules aplikasi lain tanpa
+# disadari). Index baru butuh waktu build di sisi Firebase (tidak instan)
+# terutama kalau koleksinya sudah besar — query yang butuh index itu akan
+# gagal sementara sampai build-nya selesai.
 on:
   push:
     branches: [main]
     paths:
       - "firestore.rules"
+      - "firestore.indexes.json"
       - "firebase.json"
   workflow_dispatch: {}
 
@@ -27,10 +31,10 @@ jobs:
       - name: Write service account credentials
         run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$RUNNER_TEMP/firebase-sa.json"
 
-      - name: Deploy Firestore rules
+      - name: Deploy Firestore rules and indexes
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-sa.json
-        run: npx firebase-tools deploy --only firestore:rules --project ${{ secrets.FIREBASE_PROJECT_ID }} --non-interactive
+        run: npx firebase-tools deploy --only firestore --project ${{ secrets.FIREBASE_PROJECT_ID }} --non-interactive
 
       - name: Clean up credentials
         if: always()
