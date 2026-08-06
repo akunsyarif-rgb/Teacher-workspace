@@ -12,6 +12,7 @@
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
+import net from 'node:net';
 
 const BASE_URL = 'http://127.0.0.1:3100';
 const TEACHER_EMAIL = `guru${Date.now()}@contoh.sch.id`;
@@ -65,12 +66,42 @@ async function buildApp() {
   });
 }
 
+function isPortTaken(port) {
+  return new Promise((resolve) => {
+    const socket = net.connect(port, '127.0.0.1');
+    socket.on('connect', () => {
+      socket.end();
+      resolve(true);
+    });
+    socket.on('error', () => resolve(false));
+    socket.setTimeout(2000, () => {
+      socket.destroy();
+      resolve(false);
+    });
+  });
+}
+
 async function startAppServer() {
+  // Kalau port sudah dipakai proses lain, JANGAN diteruskan: server baru
+  // gagal bind, tapi pengecekan kesiapan tetap lolos karena yang menjawab
+  // server lama. Akibatnya uji ini bisa melaporkan hijau padahal yang
+  // diuji kode lama — kegagalan yang jauh lebih berbahaya daripada macet.
+  if (await isPortTaken(3100)) {
+    throw new Error(
+      'Port 3100 sudah dipakai proses lain. Hentikan dulu (mis. sisa "next dev"/"next start" ' +
+        'dari percobaan sebelumnya), supaya uji ini tidak menguji server yang salah.'
+    );
+  }
+
   await buildApp();
   console.log('→ Menjalankan server...');
+  // detached: true supaya seluruh grup proses (npx -> next -> node) bisa
+  // dimatikan sekaligus. Tanpa ini, SIGTERM hanya membunuh pembungkus npx
+  // dan server aslinya tetap hidup menahan port untuk run berikutnya.
   const server = spawn('npx', ['next', 'start', '--port', '3100', '--hostname', '127.0.0.1'], {
     env: { ...process.env, ...APP_ENV },
     stdio: ['ignore', 'pipe', 'pipe'],
+    detached: true,
   });
 
   server.stdout.on('data', (chunk) => {
@@ -90,6 +121,22 @@ async function startAppServer() {
     await sleep(1000);
   }
   throw new Error('Next.js tidak kunjung siap dalam 90 detik.');
+}
+
+// Mematikan seluruh grup proses, bukan hanya pembungkus npx — kalau server
+// aslinya lolos hidup, ia akan menahan port 3100 dan membuat percobaan
+// berikutnya diam-diam menguji server yang salah.
+function stopServer(server) {
+  if (!server?.pid) return;
+  try {
+    process.kill(-server.pid, 'SIGTERM');
+  } catch {
+    try {
+      server.kill('SIGKILL');
+    } catch {
+      // proses memang sudah mati
+    }
+  }
 }
 
 async function run() {
@@ -272,7 +319,7 @@ async function run() {
     fail('Alur uji berhenti karena error tak terduga', error.message);
   } finally {
     await browser.close();
-    server.kill('SIGTERM');
+    stopServer(server);
   }
 
   // ---------- Ringkasan ----------
