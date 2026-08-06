@@ -1,5 +1,6 @@
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/src/config/firebase';
+import { countDocuments } from '../adapters/firestoreAdapter';
 
 const TEACHER_PROFILES_COLLECTION = 'teacher_profiles';
 
@@ -37,4 +38,11 @@ export async function setTeacherWorkspace(
 export async function updateTeacherQuickNote(uid: string, quickNote: string) {
   await updateDoc(doc(db, TEACHER_PROFILES_COLLECTION, uid), { quickNote });
   return { quickNote };
+}
+
+// Dipakai untuk menegakkan seatLimit (kuota kursi guru) paket school_annual
+// sebelum guru baru diizinkan gabung lewat kode undangan.
+export async function countTeachersInWorkspace(workspaceId: string) {
+  if (!workspaceId) return 0;
+  return countDocuments(TEACHER_PROFILES_COLLECTION, [['workspaceId', '==', workspaceId]]);
 }

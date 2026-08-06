@@ -3,6 +3,7 @@ import {
   saveTeacherProfile,
   setTeacherWorkspace,
   updateTeacherQuickNote,
+  countTeachersInWorkspace,
   TeacherProfile,
   TeacherRole,
 } from '../repositories/teacherProfileRepository';
@@ -43,4 +44,8 @@ export async function assignTeacherToWorkspace(
   role: TeacherRole
 ) {
   return setTeacherWorkspace(uid, workspaceId, role);
+}
+
+export async function countWorkspaceMembers(workspaceId: string) {
+  return countTeachersInWorkspace(workspaceId);
 }

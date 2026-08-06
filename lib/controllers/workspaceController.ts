@@ -6,6 +6,10 @@ import {
   loadWorkspace,
   isClassLimitReached,
   assertClassLimitNotReached,
+  isSeatLimitReached,
+  assertSeatLimitNotReached,
+  PLAN_CLASS_LIMITS,
+  PLAN_PRICES,
 } from '../services/workspaceService';
 import { loadTeacherProfile } from '../services/teacherProfileService';
 
@@ -37,4 +41,11 @@ export async function fetchTeacherProfileForSession(uid: string) {
   return loadTeacherProfile(uid);
 }
 
-export { isClassLimitReached, assertClassLimitNotReached };
+export {
+  isClassLimitReached,
+  assertClassLimitNotReached,
+  isSeatLimitReached,
+  assertSeatLimitNotReached,
+  PLAN_CLASS_LIMITS,
+  PLAN_PRICES,
+};
