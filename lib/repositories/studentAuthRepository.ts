@@ -13,7 +13,7 @@ export async function getStudentProfile(authUid: string) {
 
 export async function saveStudentProfile(
   authUid: string,
-  data: { studentId: string; workspaceId: string; className: string; name: string }
+  data: { studentId: string; workspaceId: string; className: string; name: string; nis: string }
 ) {
   const operations: BatchOperation[] = [
     { type: 'set', collectionName: COLLECTIONS.STUDENT_PROFILES, id: authUid, data },

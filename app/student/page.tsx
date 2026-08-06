@@ -47,14 +47,23 @@ function HomeContent({ profile }: { profile: StudentProfile }) {
 
   return (
     <div className="space-y-4">
+      {/* Kartu identitas sekaligus pintu ke Profil — supaya bottom nav
+          tetap 5 item dan tidak sesak di layar HP kecil. */}
       <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-extrabold text-gray-900">{profile.name}</p>
-          <p className="text-xs text-gray-500">Kelas {profile.className}</p>
-        </div>
+        <Link href="/student/profil" className="flex items-center gap-3 min-w-0 group">
+          <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-extrabold shrink-0">
+            {profile.name.charAt(0).toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-extrabold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
+              {profile.name}
+            </p>
+            <p className="text-xs text-gray-500">Kelas {profile.className} • Lihat profil</p>
+          </div>
+        </Link>
         <button
           onClick={handleLogout}
-          className="p-2.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+          className="p-2.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
           title="Keluar"
         >
           <LogOut className="w-4 h-4" />

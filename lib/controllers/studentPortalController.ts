@@ -23,6 +23,13 @@ export async function fetchAssignments(scope: StudentScope) {
   );
 }
 
+export async function fetchPortfolio(scope: StudentScope) {
+  if (!scope.workspaceId || !scope.className || !scope.studentId) return [];
+  return withCache(`studentPortfolio:${scope.workspaceId}:${scope.studentId}`, () =>
+    studentPortalService.getPortfolio(scope)
+  );
+}
+
 export async function fetchGrades(scope: StudentScope) {
   if (!scope.workspaceId || !scope.className || !scope.studentId) {
     return { items: [], average: null };

@@ -11,6 +11,7 @@ export type StudentProfile = {
   workspaceId: string;
   className: string;
   name: string;
+  nis?: string;
 };
 
 type StudentAuthContextValue = {

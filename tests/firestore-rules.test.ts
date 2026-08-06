@@ -528,3 +528,61 @@ describe('Student Companion — query (list) harus lolos rules, bukan cuma get',
     );
   });
 });
+
+// Alur klaim kode akses (studentAuthService.claimAccessCode) berjalan
+// sebagai siswa yang BELUM punya student_profiles. Test ini memastikan
+// setiap baca yang dilakukan alur itu memang diizinkan rules — kalau ada
+// satu saja yang ditolak, siswa tidak akan pernah bisa masuk.
+describe('alur klaim kode akses — semua baca yang dibutuhkan harus lolos', () => {
+  it('lets a not-yet-claimed user read the login code document', async () => {
+    await seed((db) =>
+      setDoc(doc(db, 'student_login_codes/ABC123'), { studentId: 's1', workspaceId: 'ws1' })
+    );
+    const db = testEnv.authenticatedContext('freshAnon').firestore();
+    await assertSucceeds(getDoc(doc(db, 'student_login_codes/ABC123')));
+  });
+
+  // Justru karena baca ini SELALU ditolak, dokumen kode akses harus
+  // memuat sendiri identitas siswa — bukan sekadar studentId. Test ini
+  // mengunci alasan itu supaya tidak ada yang "menyederhanakan" kembali
+  // ke pola baca students dan diam-diam mematikan login siswa.
+  it('CANNOT read the students document during claim (no teacher profile, no student profile yet)', async () => {
+    await seed((db) =>
+      setDoc(doc(db, 'students/s1'), { workspaceId: 'ws1', className: 'XI-A', name: 'Budi', nis: '123' })
+    );
+    const db = testEnv.authenticatedContext('freshAnon').firestore();
+    await assertFails(getDoc(doc(db, 'students/s1')));
+  });
+
+  it('completes the whole claim flow using only the login code document', async () => {
+    await seed((db) =>
+      setDoc(doc(db, 'student_login_codes/ABC123'), {
+        studentId: 's1',
+        workspaceId: 'ws1',
+        name: 'Budi',
+        className: 'XI-A',
+        nis: '123',
+      })
+    );
+    const db = testEnv.authenticatedContext('freshAnon').firestore();
+
+    const codeSnap = await getDoc(doc(db, 'student_login_codes/ABC123'));
+    const code = codeSnap.data()!;
+    expect(code.className).toBe('XI-A');
+    expect(code.name).toBe('Budi');
+
+    await assertSucceeds(
+      setDoc(doc(db, 'student_profiles/freshAnon'), {
+        studentId: code.studentId,
+        workspaceId: code.workspaceId,
+        className: code.className,
+        name: code.name,
+        nis: code.nis,
+      })
+    );
+
+    // Dan setelah klaim, data akademiknya langsung terbaca.
+    await seed((d) => setDoc(doc(d, 'schedules/sc1'), { workspaceId: 'ws1', className: 'XI-A' }));
+    await assertSucceeds(getDoc(doc(db, 'schedules/sc1')));
+  });
+});

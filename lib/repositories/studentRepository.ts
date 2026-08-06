@@ -1,4 +1,4 @@
-import { getDocuments, getDocument, deleteDocument, batchWrite, generateId, BatchOperation } from '../adapters/firestoreAdapter';
+import { getDocuments, deleteDocument, batchWrite, generateId, BatchOperation } from '../adapters/firestoreAdapter';
 import { COLLECTIONS } from '../config/constants';
 import { generateAccessCode } from '../utils/accessCode';
 
@@ -16,9 +16,24 @@ export async function getStudentsByClass(workspaceId: string, className: string)
   return students.sort((a: any, b: any) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
 }
 
-export async function getStudentById(id: string) {
-  if (!id) return null;
-  return getDocument(COLLECTIONS.STUDENTS, id);
+// Dokumen kode akses memuat SALINAN identitas siswa (nama, kelas, NIS),
+// bukan cuma studentId. Bukan denormalisasi demi kecepatan: saat siswa
+// menukar kode, ia belum punya student_profiles maupun teacher_profiles,
+// sehingga rules menolak semua bacaan ke koleksi students. Dokumen inilah
+// satu-satunya yang boleh ia baca, jadi seluruh data yang dibutuhkan alur
+// klaim harus ada di sini. Lihat test "alur klaim kode akses".
+function buildLoginCodeDoc(
+  studentId: string,
+  workspaceId: string,
+  student: { name: string; className: string; nis?: string }
+) {
+  return {
+    studentId,
+    workspaceId,
+    name: student.name,
+    className: student.className,
+    nis: student.nis || '-',
+  };
 }
 
 // Setiap siswa dapat accessCode unik untuk login ke Student Companion —
@@ -43,7 +58,7 @@ export async function createStudent(
       type: 'set',
       collectionName: COLLECTIONS.STUDENT_LOGIN_CODES,
       id: accessCode,
-      data: { studentId: id, workspaceId },
+      data: buildLoginCodeDoc(id, workspaceId, data),
     },
   ];
   await batchWrite(operations);
@@ -69,7 +84,7 @@ export async function createStudentsBatch(
       type: 'set',
       collectionName: COLLECTIONS.STUDENT_LOGIN_CODES,
       id: accessCode,
-      data: { studentId: id, workspaceId },
+      data: buildLoginCodeDoc(id, workspaceId, student),
     });
   });
 
@@ -81,7 +96,10 @@ export async function createStudentsBatch(
 // accessCode sama sekali, jadi tidak bisa login. Ini mengisikannya
 // menyusul, dan aman dijalankan berulang: siswa yang sudah punya kode
 // dilewati supaya kode yang terlanjur dibagikan tidak berubah.
-export async function backfillAccessCodes(students: { id: string; accessCode?: string }[], workspaceId: string) {
+export async function backfillAccessCodes(
+  students: { id: string; accessCode?: string; name: string; className: string; nis?: string }[],
+  workspaceId: string
+) {
   const missing = students.filter((student) => !student.accessCode);
   if (missing.length === 0) return 0;
 
@@ -98,7 +116,7 @@ export async function backfillAccessCodes(students: { id: string; accessCode?: s
       type: 'set',
       collectionName: COLLECTIONS.STUDENT_LOGIN_CODES,
       id: accessCode,
-      data: { studentId: student.id, workspaceId },
+      data: buildLoginCodeDoc(student.id, workspaceId, student),
     });
   });
 

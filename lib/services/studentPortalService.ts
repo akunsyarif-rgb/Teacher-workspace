@@ -57,6 +57,36 @@ export async function getAssignments({ workspaceId, className, studentId }: Stud
     .sort((a: any, b: any) => (a.dueDate || '').localeCompare(b.dueDate || ''));
 }
 
+// Portofolio = tugas yang sudah dinilai guru, lengkap dengan skor dan
+// lampirannya. Skornya diambil dari collection grades lewat gradeColumnId
+// milik tugas itu — bukan disalin ke dokumen submission — supaya angkanya
+// selalu sama dengan yang ada di gradebook.
+export async function getPortfolio(scope: StudentScope) {
+  const [assignments, grades] = await Promise.all([
+    getAssignments(scope),
+    gradeRepository.getGradesByStudent(scope.workspaceId, scope.studentId),
+  ]);
+
+  const scoreByColumnId: Record<string, string> = {};
+  grades.forEach((grade: any) => {
+    scoreByColumnId[grade.columnId] = grade.score;
+  });
+
+  return assignments
+    .filter((assignment: any) => assignment.status === SUBMISSION_STATUS.DINILAI)
+    .map((assignment: any) => ({
+      id: assignment.id,
+      title: assignment.title,
+      dueDate: assignment.dueDate,
+      score: scoreByColumnId[assignment.gradeColumnId] ?? null,
+      feedback: assignment.feedback,
+      fileUrl: assignment.fileUrl,
+      fileName: assignment.fileName,
+      submittedAt: assignment.submittedAt,
+    }))
+    .sort((a: any, b: any) => (b.dueDate || '').localeCompare(a.dueDate || ''));
+}
+
 // Nilai siswa ini dipasangkan dengan judul kolomnya. Kolom yang belum
 // dinilai tetap ditampilkan (score null) supaya siswa tahu komponen apa
 // saja yang ada dan mana yang masih kosong.
