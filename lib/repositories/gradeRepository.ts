@@ -9,6 +9,17 @@ export async function getGradesByClass(workspaceId: string, className: string) {
   ]);
 }
 
+// Dipakai Student Companion. Filter studentId wajib (bukan className):
+// rules siswa hanya mengizinkan baca nilai miliknya sendiri, dan query
+// list baru lolos kalau filternya menjamin hal itu.
+export async function getGradesByStudent(workspaceId: string, studentId: string) {
+  if (!workspaceId || !studentId) return [];
+  return getDocuments(COLLECTIONS.GRADES, [
+    ['workspaceId', '==', workspaceId],
+    ['studentId', '==', studentId],
+  ]);
+}
+
 export async function saveGradesBatch(
   workspaceId: string,
   className: string,

@@ -77,6 +77,35 @@ export async function createStudentsBatch(
   return students.length;
 }
 
+// Siswa yang dibuat sebelum fitur Student Companion ada belum punya
+// accessCode sama sekali, jadi tidak bisa login. Ini mengisikannya
+// menyusul, dan aman dijalankan berulang: siswa yang sudah punya kode
+// dilewati supaya kode yang terlanjur dibagikan tidak berubah.
+export async function backfillAccessCodes(students: { id: string; accessCode?: string }[], workspaceId: string) {
+  const missing = students.filter((student) => !student.accessCode);
+  if (missing.length === 0) return 0;
+
+  const operations: BatchOperation[] = [];
+  missing.forEach((student) => {
+    const accessCode = generateAccessCode();
+    operations.push({
+      type: 'set',
+      collectionName: COLLECTIONS.STUDENTS,
+      id: student.id,
+      data: { accessCode },
+    });
+    operations.push({
+      type: 'set',
+      collectionName: COLLECTIONS.STUDENT_LOGIN_CODES,
+      id: accessCode,
+      data: { studentId: student.id, workspaceId },
+    });
+  });
+
+  await batchWrite(operations);
+  return missing.length;
+}
+
 export async function deleteStudent(id: string) {
   return deleteDocument(COLLECTIONS.STUDENTS, id);
 }

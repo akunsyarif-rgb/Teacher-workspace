@@ -6,7 +6,7 @@ import {
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import { readFileSync } from 'node:fs';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where } from 'firebase/firestore';
 
 // Test keamanan firestore.rules lewat Firestore Emulator (bukan Firestore
 // asli — tidak butuh kredensial/project sungguhan). Fokus pada invariant
@@ -400,6 +400,102 @@ describe('submissions — siswa hanya boleh baca/tulis submission miliknya sendi
     const db = testEnv.authenticatedContext('studentUidA').firestore();
     await assertFails(
       updateDoc(doc(db, 'submissions/a1_s1'), { status: 'menunggu_penilaian', textAnswer: 'revisi' })
+    );
+  });
+});
+
+// Rules dievaluasi berbeda untuk `get` (satu dokumen) dan `list` (query):
+// pada list, Firestore menolak kalau filter query tidak MENJAMIN semua
+// dokumen hasilnya lolos rule. Halaman-halaman Student Companion semuanya
+// pakai query, jadi bagian ini menguji query persis seperti yang dipakai
+// repository — sekali filternya salah, halamannya blank walau rule get-nya
+// benar.
+describe('Student Companion — query (list) harus lolos rules, bukan cuma get', () => {
+  it('lets a student list schedules filtered by workspaceId + className', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    await seed((db) => setDoc(doc(db, 'schedules/sc1'), { workspaceId: 'ws1', className: 'XI-A', day: 'Senin' }));
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertSucceeds(
+      getDocs(query(collection(db, 'schedules'), where('workspaceId', '==', 'ws1'), where('className', '==', 'XI-A')))
+    );
+  });
+
+  it('denies a student listing schedules by workspaceId alone (would leak other classes)', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertFails(getDocs(query(collection(db, 'schedules'), where('workspaceId', '==', 'ws1'))));
+  });
+
+  it('lets a student list assignments filtered by workspaceId + className', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertSucceeds(
+      getDocs(query(collection(db, 'assignments'), where('workspaceId', '==', 'ws1'), where('className', '==', 'XI-A')))
+    );
+  });
+
+  it('lets a student list grade_columns filtered by workspaceId + className', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertSucceeds(
+      getDocs(query(collection(db, 'grade_columns'), where('workspaceId', '==', 'ws1'), where('className', '==', 'XI-A')))
+    );
+  });
+
+  it('lets a student list attendances filtered by workspaceId + className', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertSucceeds(
+      getDocs(query(collection(db, 'attendances'), where('workspaceId', '==', 'ws1'), where('className', '==', 'XI-A')))
+    );
+  });
+
+  it('lets a student list their own grades filtered by workspaceId + studentId', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    await seed((db) => setDoc(doc(db, 'grades/g1'), { workspaceId: 'ws1', studentId: 's1', score: '90' }));
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertSucceeds(
+      getDocs(query(collection(db, 'grades'), where('workspaceId', '==', 'ws1'), where('studentId', '==', 's1')))
+    );
+  });
+
+  it('denies a student listing grades by className (would expose the whole class)', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertFails(
+      getDocs(query(collection(db, 'grades'), where('workspaceId', '==', 'ws1'), where('className', '==', 'XI-A')))
+    );
+  });
+
+  it('denies a student listing grades belonging to another student', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertFails(
+      getDocs(query(collection(db, 'grades'), where('workspaceId', '==', 'ws1'), where('studentId', '==', 's2')))
+    );
+  });
+
+  it('lets a student list their own submissions filtered by workspaceId + studentId', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertSucceeds(
+      getDocs(query(collection(db, 'submissions'), where('workspaceId', '==', 'ws1'), where('studentId', '==', 's1')))
+    );
+  });
+
+  it('denies a student listing every submission for an assignment (classmates\' answers)', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertFails(
+      getDocs(query(collection(db, 'submissions'), where('workspaceId', '==', 'ws1'), where('assignmentId', '==', 'a1')))
+    );
+  });
+
+  it('still lets a teacher list submissions for an assignment (grading view)', async () => {
+    await seedProfile('teacherA', 'ws1');
+    const db = testEnv.authenticatedContext('teacherA').firestore();
+    await assertSucceeds(
+      getDocs(query(collection(db, 'submissions'), where('workspaceId', '==', 'ws1'), where('assignmentId', '==', 'a1')))
     );
   });
 });
