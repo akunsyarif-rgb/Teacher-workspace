@@ -891,3 +891,36 @@ describe('student_achievements — query (list) dari sisi guru', () => {
     await assertSucceeds(deleteDoc(doc(db, 'student_achievements/a1')));
   });
 });
+
+// Halaman Analitik memuat assignments & submissions se-workspace sekaligus
+// (satu query, bukan per kelas). Query list punya aturan evaluasi sendiri,
+// jadi bentuk persis yang dipakai analyticsRepository diuji di sini.
+describe('Analitik — query se-workspace dari sisi guru', () => {
+  it('lets a teacher list all assignments in their workspace', async () => {
+    await seedProfile('teacherA', 'ws1');
+    await seed((db) => setDoc(doc(db, 'assignments/a1'), { workspaceId: 'ws1', className: 'XI-A' }));
+    const db = testEnv.authenticatedContext('teacherA').firestore();
+    await assertSucceeds(getDocs(query(collection(db, 'assignments'), where('workspaceId', '==', 'ws1'))));
+  });
+
+  it('lets a teacher list all submissions in their workspace', async () => {
+    await seedProfile('teacherA', 'ws1');
+    await seed((db) =>
+      setDoc(doc(db, 'submissions/s1'), { workspaceId: 'ws1', assignmentId: 'a1', studentId: 'st1' })
+    );
+    const db = testEnv.authenticatedContext('teacherA').firestore();
+    await assertSucceeds(getDocs(query(collection(db, 'submissions'), where('workspaceId', '==', 'ws1'))));
+  });
+
+  it('denies listing assignments of another workspace', async () => {
+    await seedProfile('teacherA', 'ws1');
+    const db = testEnv.authenticatedContext('teacherA').firestore();
+    await assertFails(getDocs(query(collection(db, 'assignments'), where('workspaceId', '==', 'ws2'))));
+  });
+
+  it('denies a student listing every submission in the workspace', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertFails(getDocs(query(collection(db, 'submissions'), where('workspaceId', '==', 'ws1'))));
+  });
+});
