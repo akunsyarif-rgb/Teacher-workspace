@@ -40,6 +40,52 @@ memakai fitur tertentu), lewati langkah ini.
 
 ---
 
+## 0.5 Memastikan tetap Rp0 di skala satu sekolah
+
+Wajar kalau diminta kartu terasa seperti "jadi berbayar". Faktanya: kuota
+gratis Blaze *persis sama* dengan Spark — kartu itu jaring pengaman Google
+kalau suatu saat lewat kuota, bukan tagihan otomatis. Untuk satu sekolah,
+berikut perkiraan konkret supaya Anda bisa menilai sendiri:
+
+- Kuota gratis: **5 GB penyimpanan** + **1 GB/hari unduhan (download)**
+- 1 foto tugas tulisan tangan ≈ 0,5–2 MB. `storage.rules` di repo ini sudah
+  membatasi tiap file maksimal 10 MB dan hanya menerima gambar/PDF/dokumen —
+  jadi tidak mungkin ada satu file raksasa yang menghabiskan kuota sendirian.
+- Andaikan 100 siswa × 5 tugas berlampiran per bulan × 1 MB rata-rata = **500
+  MB/bulan** — sekitar 10% dari kuota penyimpanan, dan itu terus menumpuk
+  (bukan terpakai habis lalu reset), jadi bertahun-tahun pun masih jauh dari
+  5 GB kalau sekolahnya tetap seukuran ini.
+- Unduhan (setiap kali lampiran dibuka guru/siswa) baru jadi risiko kalau
+  ratusan orang membuka lampiran besar berkali-kali di hari yang sama — tidak
+  realistis untuk satu sekolah.
+
+Supaya ada **jaminan**, bukan cuma perkiraan, lakukan dua hal ini setelah
+Blaze aktif:
+
+1. **Budget alert ketat.** Google Cloud Console → **Billing** → **Budgets &
+   alerts** → **Create budget**. Set jumlah kecil, misal **Rp15.000**, dengan
+   ambang notifikasi di 50%, 90%, 100%. Karena pemakaian di dalam kuota
+   gratis **tidak dihitung sebagai biaya sama sekali**, alert ini hanya akan
+   berbunyi kalau Anda benar-benar mulai melewati kuota — jauh sebelum
+   tagihan bulanan terbit, sehingga masih ada waktu bereaksi (hapus lampiran
+   lama, atau sekadar mengonfirmasi itu memang wajar karena sekolah sudah
+   berkembang).
+2. **Cek pemakaian nyata setelah 2–4 minggu pertama.** Firebase Console →
+   ikon **Usage and billing** (dekat nama project) → tab **Details &
+   settings** menampilkan grafik pemakaian Storage vs kuota gratis secara
+   langsung. Ini lebih akurat daripada perkiraan mana pun di atas.
+
+**Kalau ingin jaminan mutlak Rp0** (bukan cuma peringatan dini): Google
+menyediakan pola resmi mematikan billing otomatis begitu budget tercapai,
+lewat Cloud Function yang dipicu Pub/Sub dari budget alert
+([panduan resmi Google](https://cloud.google.com/billing/docs/how-to/notify)).
+Efeknya cukup drastis — seluruh project Firebase (bukan cuma Storage) akan
+berhenti berfungsi sampai Anda menyalakannya manual lagi — jadi ini opsional
+dan baru masuk akal kalau Anda benar-benar tidak mau ambil risiko sepeser
+pun. Untuk skala satu sekolah, budget alert di atas biasanya sudah cukup.
+
+---
+
 ## 1. Buat bucket Storage
 
 1. Di Firebase Console, menu kiri → **Build → Storage**
