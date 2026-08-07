@@ -21,6 +21,13 @@ const CLASS_NAME = 'XI-A';
 const STUDENT_NAME = 'Budi Santoso';
 const ASSIGNMENT_TITLE = 'Latihan Soal Bab 3';
 
+// PNG 1x1 asli (bukan byte acak): Storage rules menyaring berdasarkan
+// contentType, dan browser menentukannya dari isi berkas.
+const ONE_PIXEL_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  'base64'
+);
+
 const steps = [];
 function pass(name, detail = '') {
   steps.push({ name, ok: true, detail });
@@ -297,6 +304,40 @@ async function run() {
         fail('Siswa mengumpulkan jawaban', 'tombol Kumpulkan tidak ditemukan');
       }
 
+      // ---------- 7b. Siswa melampirkan file ----------
+      // Sengaja sebagai pengumpulan KEDUA (mengubah jawaban), bukan
+      // digabung ke langkah di atas: dengan begitu jalur "kumpul teks
+      // saja" dan jalur "unggah file" dua-duanya terlewati, termasuk
+      // aturan bahwa lampiran lama tidak hilang saat jawaban diperbaiki.
+      const editButton = student.getByRole('button', { name: /Ubah Jawaban/i }).first();
+      if (await editButton.count()) {
+        await editButton.click();
+        await student.waitForTimeout(600);
+        // File dibuat di memori, tidak menyentuh disk. PNG 1x1 asli
+        // supaya contentType-nya benar-benar lolos Storage rules.
+        await student.locator('input[type="file"]').first().setInputFiles({
+          name: 'jawaban-tulis-tangan.png',
+          mimeType: 'image/png',
+          buffer: ONE_PIXEL_PNG,
+        });
+        await student.waitForTimeout(500);
+        await student.getByRole('button', { name: /^Kumpulkan$/i }).last().click();
+        // Unggah + getDownloadURL butuh waktu lebih lama daripada tulis
+        // Firestore biasa.
+        await student.waitForTimeout(8000);
+
+        const attachmentVisible = await student.getByText(/jawaban-tulis-tangan\.png/i).count();
+        if (attachmentVisible > 0) pass('Siswa melampirkan file dan lampirannya tersimpan');
+        else
+          await failWithEvidence(
+            student,
+            'Siswa melampirkan file dan lampirannya tersimpan',
+            'nama lampiran tidak muncul setelah dikumpulkan'
+          );
+      } else {
+        fail('Siswa melampirkan file dan lampirannya tersimpan', 'tombol "Ubah Jawaban" tidak ditemukan');
+      }
+
       // ---------- 8. Siswa melihat halaman lain tanpa error ----------
       for (const [path, label] of [
         ['/student/jadwal', 'Jadwal'],
@@ -325,6 +366,27 @@ async function run() {
       const answerVisible = await teacher.getByText(/Ini jawaban saya/i).count();
       if (answerVisible > 0) pass('Guru melihat jawaban siswa');
       else fail('Guru melihat jawaban siswa', 'teks jawaban tidak muncul di panel penilaian');
+
+      // Lampiran harus bisa dibuka guru, bukan sekadar tersimpan. Guru
+      // membacanya lewat download URL bertoken (bukan lewat Storage
+      // rules), jadi bagian ini yang membuktikan rantai itu utuh.
+      const attachmentLink = teacher.getByRole('link', { name: /jawaban-tulis-tangan\.png/i }).first();
+      if (await attachmentLink.count()) {
+        const href = await attachmentLink.getAttribute('href');
+        try {
+          const res = await fetch(href);
+          if (res.ok) pass('Guru bisa membuka lampiran siswa', `HTTP ${res.status}`);
+          else fail('Guru bisa membuka lampiran siswa', `unduhan gagal: HTTP ${res.status}`);
+        } catch (err) {
+          fail('Guru bisa membuka lampiran siswa', `unduhan error: ${err.message}`);
+        }
+      } else {
+        await failWithEvidence(
+          teacher,
+          'Guru bisa membuka lampiran siswa',
+          'tautan lampiran tidak muncul di panel penilaian'
+        );
+      }
 
       const gradeButton = teacher.getByRole('button', { name: /Beri Nilai/i }).first();
       if (await gradeButton.count()) {
