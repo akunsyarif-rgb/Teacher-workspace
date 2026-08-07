@@ -115,6 +115,9 @@ lebih berbahaya daripada aturan sederhana yang terbukti jalan.
   ada di [`docs/BACKUP.md`](docs/BACKUP.md).
 - **Utang teknis** yang sengaja ditunda tercatat di
   [`docs/TECHNICAL_DEBT.md`](docs/TECHNICAL_DEBT.md).
+- **Langkah setup yang butuh akses pemilik project** (aktifkan Storage, API key
+  AI Copilot, merge & rilis) ada di
+  [`docs/PANDUAN-LANGKAH-ANDA.md`](docs/PANDUAN-LANGKAH-ANDA.md).
 
 ### Sekali di awal
 
