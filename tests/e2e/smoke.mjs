@@ -31,6 +31,24 @@ function fail(name, detail) {
   console.log(`  ✗ ${name} — ${detail}`);
 }
 
+/**
+ * Saat sebuah langkah gagal, "tidak ditemukan" saja tidak cukup untuk tahu
+ * apakah yang salah aplikasinya atau selektor di uji ini. Tangkapan layar
+ * dan cuplikan teks halaman membuat bedanya langsung terlihat.
+ */
+async function failWithEvidence(page, name, detail) {
+  let evidence = detail;
+  try {
+    const file = `/tmp/e2e-gagal-${name.replace(/[^a-zA-Z0-9]/g, '-').slice(0, 40)}.png`;
+    await page.screenshot({ path: file, fullPage: true });
+    const text = (await page.locator('body').innerText()).replace(/\s+/g, ' ').slice(0, 300);
+    evidence = `${detail} | layar: ${file} | teks halaman: "${text}"`;
+  } catch {
+    // halaman mungkin sudah tertutup — pakai detail apa adanya
+  }
+  fail(name, evidence);
+}
+
 // Sengaja memakai build produksi, bukan `next dev`: overlay error milik
 // mode dev menutupi halaman dan membuat klik gagal, dan yang ingin diuji
 // memang versi yang benar-benar dipakai pengguna. NEXT_PUBLIC_* ditanam
@@ -231,7 +249,20 @@ async function run() {
       await student.getByRole('button', { name: /Masuk/i }).click();
       try {
         await student.waitForURL(`${BASE_URL}/student`, { timeout: 25000 });
-        pass('Siswa masuk dengan kode akses');
+        // Sampai di /student saja belum cukup: pernah terjadi siswa masuk,
+        // muncul sekejap di beranda, lalu dilempar balik ke halaman login
+        // karena profilnya belum termuat. Jadi dicek juga bahwa ia BERTAHAN
+        // di sana.
+        await student.waitForTimeout(3000);
+        if (student.url().includes('/student/login')) {
+          await failWithEvidence(
+            student,
+            'Siswa masuk dengan kode akses',
+            'sempat masuk lalu dilempar balik ke halaman login'
+          );
+        } else {
+          pass('Siswa masuk dengan kode akses');
+        }
       } catch {
         const errorText = await student.locator('.text-red-600').first().innerText().catch(() => '');
         fail('Siswa masuk dengan kode akses', errorText || 'tidak diarahkan ke /student');
@@ -243,7 +274,7 @@ async function run() {
       await student.waitForTimeout(2500);
       const nameShown = await student.getByText(STUDENT_NAME).count();
       if (nameShown > 0) pass('Beranda siswa menampilkan identitasnya');
-      else fail('Beranda siswa menampilkan identitasnya', 'nama siswa tidak muncul');
+      else await failWithEvidence(student, 'Beranda siswa menampilkan identitasnya', 'nama siswa tidak muncul');
 
       await student.goto(`${BASE_URL}/student/tugas`, { waitUntil: 'domcontentloaded' });
       await student.waitForTimeout(3000);

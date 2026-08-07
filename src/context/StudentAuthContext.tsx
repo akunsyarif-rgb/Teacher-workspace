@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '@src/config/firebase';
 import { fetchCurrentStudentProfile } from '../../lib/controllers/studentAuthController';
@@ -30,37 +30,50 @@ const defaultState: StudentAuthContextValue = {
 
 const StudentAuthContext = createContext<StudentAuthContextValue>(defaultState);
 
-export function StudentAuthProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<StudentAuthContextValue>(defaultState);
+type StudentAuthState = {
+  user: User | null;
+  profile: StudentProfile | null;
+  loading: boolean;
+};
 
-  async function loadForUser(user: User) {
+export function StudentAuthProvider({ children }: { children: React.ReactNode }) {
+  const [state, setState] = useState<StudentAuthState>({ user: null, profile: null, loading: true });
+
+  // refreshProfile membaca auth.currentUser sendiri dan identitasnya tidak
+  // pernah berubah (useCallback tanpa dependency). Sebelumnya fungsi ini
+  // ikut disimpan di dalam state dan bernilai no-op selama belum ada user
+  // — halaman login menangkap versi no-op itu di closure-nya, sehingga
+  // setelah kode akses ditukar profilnya tidak pernah dimuat ulang dan
+  // siswa langsung dilempar balik ke halaman login. Lihat langkah
+  // "Beranda siswa menampilkan identitasnya" di tests/e2e/smoke.mjs.
+  const refreshProfile = useCallback(async () => {
+    const user = auth.currentUser;
+    if (!user) {
+      setState({ user: null, profile: null, loading: false });
+      return;
+    }
     try {
       const profile = await fetchCurrentStudentProfile(user.uid);
-      setState({
-        user,
-        profile: profile as StudentProfile | null,
-        loading: false,
-        refreshProfile: () => loadForUser(user),
-      });
+      setState({ user, profile: profile as StudentProfile | null, loading: false });
     } catch (err) {
       console.error('Gagal memuat profil siswa:', err);
       setState((prev) => ({ ...prev, user, loading: false }));
     }
-  }
+  }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        setState({ user: null, profile: null, loading: false, refreshProfile: async () => {} });
-        return;
-      }
-      await loadForUser(user);
+    const unsubscribe = onAuthStateChanged(auth, () => {
+      // Sengaja tidak memakai `user` dari callback: refreshProfile selalu
+      // membaca auth.currentUser terbaru, jadi hanya ada satu jalur pemuatan.
+      refreshProfile();
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [refreshProfile]);
 
-  return <StudentAuthContext.Provider value={state}>{children}</StudentAuthContext.Provider>;
+  const value = useMemo(() => ({ ...state, refreshProfile }), [state, refreshProfile]);
+
+  return <StudentAuthContext.Provider value={value}>{children}</StudentAuthContext.Provider>;
 }
 
 export function useStudentAuth() {
