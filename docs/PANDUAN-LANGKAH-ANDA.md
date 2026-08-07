@@ -28,20 +28,28 @@ enak dipakai. Itu penilaian yang hanya bisa Anda buat.
 bucket-nya belum pernah dibuat, deploy `storage.rules` akan gagal dan fitur
 unggah lampiran mati — walau kodenya sudah siap.
 
-**Cara:**
+**Panduan lengkap, langkah demi langkah, termasuk soal paket Blaze yang kini
+wajib untuk bucket Storage baru:**
+[`docs/AKTIFKAN-STORAGE.md`](AKTIFKAN-STORAGE.md).
 
-1. Buka [Firebase Console](https://console.firebase.google.com) → pilih project
+Ringkasnya:
+
+1. Upgrade ke paket **Blaze** kalau project masih Spark (wajib sejak Okt 2024
+   untuk bucket baru — tapi kuota gratis bulanan tetap sama, kemungkinan besar
+   tidak ada tagihan untuk skala satu sekolah)
+2. Buka [Firebase Console](https://console.firebase.google.com) → pilih project
    Teacher Workspace
-2. Menu kiri → **Build → Storage** → klik **Get started**
-3. Pilih **Start in production mode** (aturannya akan ditimpa oleh
+3. Menu kiri → **Build → Storage** → klik **Get started**
+4. Pilih **Start in production mode** (aturannya akan ditimpa oleh
    `storage.rules` dari repo ini saat deploy — jangan menempel aturan manual di
    sini)
-4. Pilih lokasi bucket. **Samakan dengan lokasi Firestore** Anda (cek di
+5. Pilih lokasi bucket. **Samakan dengan lokasi Firestore** Anda (cek di
    Firestore → Settings). Lokasi tidak bisa diubah setelah dibuat.
 
 **Cara memastikan berhasil:** setelah merge ke `main`, buka tab **Actions** di
 GitHub → workflow **Deploy Firestore & Storage Rules** harus hijau. Kalau merah
-dengan pesan soal bucket, berarti langkah ini terlewat.
+dengan pesan soal bucket, berarti langkah ini terlewat. Tabel troubleshooting
+lebih lengkap ada di panduan detail di atas.
 
 ---
 

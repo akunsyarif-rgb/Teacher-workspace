@@ -117,7 +117,9 @@ lebih berbahaya daripada aturan sederhana yang terbukti jalan.
   [`docs/TECHNICAL_DEBT.md`](docs/TECHNICAL_DEBT.md).
 - **Langkah setup yang butuh akses pemilik project** (aktifkan Storage, API key
   AI Copilot, merge & rilis) ada di
-  [`docs/PANDUAN-LANGKAH-ANDA.md`](docs/PANDUAN-LANGKAH-ANDA.md).
+  [`docs/PANDUAN-LANGKAH-ANDA.md`](docs/PANDUAN-LANGKAH-ANDA.md). Panduan
+  aktivasi Storage secara detail (termasuk paket Blaze) ada di
+  [`docs/AKTIFKAN-STORAGE.md`](docs/AKTIFKAN-STORAGE.md).
 
 ### Sekali di awal
 
