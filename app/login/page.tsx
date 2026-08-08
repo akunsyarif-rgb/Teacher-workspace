@@ -164,6 +164,13 @@ export default function LoginPage() {
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
+
+        <p className="text-center text-xs text-gray-400 pt-2 border-t border-gray-100">
+          Siswa?{" "}
+          <a href="/student/login" className="text-blue-600 font-bold hover:underline">
+            Masuk ke Student Companion
+          </a>
+        </p>
       </div>
     </div>
   );
