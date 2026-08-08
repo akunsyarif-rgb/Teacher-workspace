@@ -137,20 +137,25 @@ export default function AttendanceGrid({ students, history, statusMap, onChange 
           return (
             <div key={student.id} className="flex border-t border-gray-100">
               <div
-                className={`sticky left-0 z-10 bg-white px-2 sm:px-3 py-2 font-bold text-[13px] sm:text-sm text-gray-900 whitespace-normal break-words leading-tight ${NAME_COL}`}
+                className={`sticky left-0 z-10 bg-white px-2 sm:px-3 py-2.5 ${NAME_COL}`}
               >
-                <span className="text-gray-400 font-normal mr-1 sm:mr-1.5">{idx + 1}.</span>
-                {student.name}
+                <p className="font-bold text-[13px] sm:text-sm text-gray-900 whitespace-normal break-words leading-tight">
+                  <span className="text-gray-400 font-normal mr-1 sm:mr-1.5">{idx + 1}.</span>
+                  {student.name}
+                </p>
+                {student.nis && (
+                  <p className="mt-0.5 text-[10px] font-medium text-gray-400">NIS: {student.nis}</p>
+                )}
               </div>
               {sortedHistory.map((session) => {
                 const detail = (session.details || []).find((d) => d.studentId === student.id);
                 return (
-                  <div key={session.id} className={`flex items-center justify-center py-2 ${HISTORY_COL}`}>
+                  <div key={session.id} className={`flex items-center justify-center py-2.5 ${HISTORY_COL}`}>
                     <HistoryBadge detail={detail} />
                   </div>
                 );
               })}
-              <div className={`sticky right-0 z-10 bg-white border-l-2 border-gray-200 px-1.5 sm:px-2.5 py-2 flex items-center ${TODAY_COL}`}>
+              <div className={`sticky right-0 z-10 bg-white border-l-2 border-gray-200 px-1.5 sm:px-2.5 py-2.5 flex items-center ${TODAY_COL}`}>
                 <TodayStatusControl value={entry} onChange={(next) => onChange(student.id, next)} />
               </div>
             </div>
