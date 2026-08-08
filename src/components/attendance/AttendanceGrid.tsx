@@ -20,33 +20,27 @@ type AttendanceGridProps = {
   onChange: (studentId: string, next: TodayEntry) => void;
 };
 
-// Lebar kolom tetap (mobile / sm+) — dipakai konsisten oleh header & baris
-// data supaya kolomnya sejajar. Pakai flex row biasa (bukan <table>):
-// table-layout browser (auto maupun fixed) terbukti tidak bisa diandalkan
-// untuk mempertahankan lebar kolom yang presisi saat ada sel sticky +
-// konten yang tidak bisa dipotong (nama siswa panjang) — kolom sticky
-// jadi ikut membengkak dan menutupi kolom riwayat di layar sempit. Flex
-// row dengan shrink-0 di tiap sel memberi kontrol lebar yang deterministik.
-const NAME_COL = 'w-[96px] sm:w-[180px] shrink-0';
-const HISTORY_COL = 'w-[30px] sm:w-[36px] shrink-0';
-const TODAY_COL = 'w-[232px] sm:w-[272px] shrink-0';
-
 function formatShortDate(dateStr: string): string {
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return dateStr;
   return `${d.getDate()}/${d.getMonth() + 1}`;
 }
 
-function HistoryBadge({ detail }: { detail?: { status: string; late?: boolean } }) {
+function HistoryBadge({ detail, date }: { detail?: { status: string; late?: boolean }; date: string }) {
   if (!detail) {
-    return <span className="inline-flex w-6 h-6 sm:w-7 sm:h-7 rounded-lg border border-dashed border-gray-200" />;
+    return (
+      <span
+        className="inline-flex shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-lg border border-dashed border-gray-200"
+        title={date}
+      />
+    );
   }
   const bg = STATUS_COLOR[detail.status] || 'bg-gray-300';
   return (
     <span
-      className="relative inline-flex w-6 h-6 sm:w-7 sm:h-7 shrink-0"
-      title={`${detail.status}${detail.late ? ' (Terlambat)' : ''}`}
-      aria-label={`${detail.status}${detail.late ? ' (Terlambat)' : ''}`}
+      className="relative inline-flex shrink-0 w-6 h-6 sm:w-7 sm:h-7"
+      title={`${formatShortDate(date)} — ${detail.status}${detail.late ? ' (Terlambat)' : ''}`}
+      aria-label={`${formatShortDate(date)}: ${detail.status}${detail.late ? ' (Terlambat)' : ''}`}
     >
       <span
         className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center text-[10px] sm:text-[11px] font-extrabold text-white ${bg}`}
@@ -64,7 +58,7 @@ function HistoryBadge({ detail }: { detail?: { status: string; late?: boolean } 
 
 function TodayStatusControl({ value, onChange }: { value: TodayEntry; onChange: (next: TodayEntry) => void }) {
   return (
-    <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
+    <div className="flex items-center gap-1.5 flex-wrap">
       {ATTENDANCE_STATUS_OPTIONS.map((option) => {
         const isActive = value.status === option;
         return (
@@ -74,7 +68,7 @@ function TodayStatusControl({ value, onChange }: { value: TodayEntry; onChange: 
             onClick={() => onChange({ status: option, late: option === 'Hadir' ? value.late : false })}
             title={option}
             aria-label={option}
-            className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center text-[10px] sm:text-xs font-extrabold transition-all active:scale-90 ${
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center text-xs font-extrabold transition-all active:scale-90 ${
               isActive ? `${STATUS_COLOR[option]} text-white shadow-sm` : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
             }`}
           >
@@ -88,7 +82,7 @@ function TodayStatusControl({ value, onChange }: { value: TodayEntry; onChange: 
         onClick={() => onChange({ ...value, late: !value.late })}
         title="Terlambat (hanya berlaku untuk Hadir)"
         aria-label="Terlambat (hanya berlaku untuk Hadir)"
-        className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center transition-all active:scale-90 ${
+        className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center transition-all active:scale-90 ${
           value.status !== 'Hadir'
             ? 'bg-gray-50 text-gray-200 cursor-not-allowed'
             : value.late
@@ -96,65 +90,59 @@ function TodayStatusControl({ value, onChange }: { value: TodayEntry; onChange: 
             : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
         }`}
       >
-        <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+        <Clock className="w-4 h-4" />
       </button>
     </div>
   );
 }
 
-// Grid presensi: nama siswa (sticky kiri) -> riwayat kehadiran penuh
-// (scroll horizontal, jumlah kolom mengikuti jumlah pertemuan yang sudah
-// berlangsung, bukan slot tetap) -> input hari ini (sticky kanan). Ini
-// gabungan spreadsheet (riwayat lengkap sekali lihat) dan input cepat
-// satu-tap ala aplikasi mobile, sesuai konsep yang didiskusikan.
+// Satu kartu per siswa — nama di atas, riwayat kehadiran tepat di
+// bawahnya (strip badge yang bisa discroll horizontal sendiri kalau
+// riwayatnya panjang), lalu status hari ini di baris paling bawah.
+//
+// Sebelumnya nama/riwayat/status-hari-ini disusun sebagai satu baris
+// spreadsheet dengan nama & status-hari-ini sticky di kiri-kanan.
+// Itu ternyata cacat: `position: sticky` di kedua sisi tidak saling
+// menyisakan ruang untuk kolom riwayat di tengah — pada scroll awal,
+// tombol status hari ini (sticky kanan) selalu menumpuk tepat di
+// belakang kolom riwayat pertama (background putihnya menutupi badge
+// riwayat), bukan cuma pada kelas dengan sedikit pertemuan seperti
+// dugaan awal. Layout kartu ini tidak pakai sticky sama sekali —
+// tidak ada dua elemen yang berebut ruang horizontal yang sama,
+// jadi tidak mungkin tumpang tindih lagi.
 export default function AttendanceGrid({ students, history, statusMap, onChange }: AttendanceGridProps) {
   const sortedHistory = [...history].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-gray-100 -mx-1 text-xs">
-      <div className="w-fit min-w-full">
-        <div className="flex bg-gray-50">
-          <div className={`sticky left-0 z-20 bg-gray-50 text-left px-2 sm:px-3 py-2.5 font-bold text-gray-500 ${NAME_COL}`}>
-            Nama Siswa
-          </div>
-          {sortedHistory.map((session, i) => (
-            <div
-              key={session.id}
-              className={`px-0.5 sm:px-1 py-2.5 text-center font-bold text-gray-400 ${HISTORY_COL}`}
-              title={session.date}
-            >
-              <div>{i + 1}</div>
-              <div className="text-[8px] font-medium text-gray-300">{formatShortDate(session.date)}</div>
-            </div>
-          ))}
-          <div className={`sticky right-0 z-20 bg-gray-50 border-l-2 border-gray-200 px-1.5 sm:px-2.5 py-2.5 text-center font-bold text-gray-500 ${TODAY_COL}`}>
-            Hari Ini
-          </div>
-        </div>
+    <div className="space-y-2.5">
+      {students.map((student, idx) => {
+        const entry = statusMap[student.id] || { status: 'Hadir', late: false };
+        return (
+          <div key={student.id} className="bg-white rounded-2xl border border-gray-100 p-3 space-y-2.5">
+            <p className="font-bold text-sm text-gray-900">
+              <span className="text-gray-400 font-normal mr-1.5">{idx + 1}.</span>
+              {student.name}
+            </p>
 
-        {students.map((student, idx) => {
-          const entry = statusMap[student.id] || { status: 'Hadir', late: false };
-          return (
-            <div key={student.id} className="flex border-t border-gray-100">
-              <div className={`sticky left-0 z-10 bg-white px-2 sm:px-3 py-2 font-bold text-sm text-gray-900 truncate ${NAME_COL}`}>
-                <span className="text-gray-400 font-normal mr-1 sm:mr-1.5">{idx + 1}.</span>
-                {student.name}
+            {sortedHistory.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="shrink-0 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Riwayat</span>
+                <div className="flex items-center gap-1.5 overflow-x-auto">
+                  {sortedHistory.map((session) => {
+                    const detail = (session.details || []).find((d) => d.studentId === student.id);
+                    return <HistoryBadge key={session.id} detail={detail} date={session.date} />;
+                  })}
+                </div>
               </div>
-              {sortedHistory.map((session) => {
-                const detail = (session.details || []).find((d) => d.studentId === student.id);
-                return (
-                  <div key={session.id} className={`flex items-center justify-center py-2 ${HISTORY_COL}`}>
-                    <HistoryBadge detail={detail} />
-                  </div>
-                );
-              })}
-              <div className={`sticky right-0 z-10 bg-white border-l-2 border-gray-200 px-1.5 sm:px-2.5 py-2 flex items-center ${TODAY_COL}`}>
-                <TodayStatusControl value={entry} onChange={(next) => onChange(student.id, next)} />
-              </div>
+            )}
+
+            <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+              <span className="shrink-0 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Hari Ini</span>
+              <TodayStatusControl value={entry} onChange={(next) => onChange(student.id, next)} />
             </div>
-          );
-        })}
-      </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
