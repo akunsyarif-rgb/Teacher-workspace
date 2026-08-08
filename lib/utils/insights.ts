@@ -102,7 +102,7 @@ export function buildInsights(input: {
         s.alpa >= THRESHOLDS.ALPA_COUNT
           ? 'Hubungi orang tua dan catat hasilnya di Komunikasi Ortu.'
           : 'Tanyakan langsung penyebabnya, lalu catat di Konseling bila perlu.',
-      href: s.alpa >= THRESHOLDS.ALPA_COUNT ? '/komunikasi-ortu' : '/konseling',
+      href: s.alpa >= THRESHOLDS.ALPA_COUNT ? '/wali-kelas/komunikasi-ortu' : '/wali-kelas/konseling',
     });
   });
 
