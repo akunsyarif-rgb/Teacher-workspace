@@ -11,23 +11,39 @@ import * as classController from '@/lib/controllers/classController';
 import * as studentNoteController from '@/lib/controllers/studentNoteController';
 import { SkeletonCard } from '../ui/Skeleton';
 
+export type NoteEntry = { studentId: string; studentName: string; title: string; notes: string };
+
+// Sumber data bisa ditukar karena Prestasi kini tinggal di koleksinya
+// sendiri (student_achievements), sementara Konseling dan Komunikasi Ortu
+// tetap di student_notes. Bentuk tampilan & formnya identik, jadi hanya
+// lapisan datanya yang dibedakan — bukan komponennya digandakan.
+export type NoteDataSource = {
+  fetch: (workspaceId: string, className: string) => Promise<any[]>;
+  submit: (workspaceId: string, className: string, data: NoteEntry) => Promise<any>;
+  remove: (id: string) => Promise<any>;
+};
+
 type StudentNoteListProps = {
   category: string;
   titleLabel: string;
   titlePlaceholder: string;
   emptyMessage: string;
   successMessage: string;
+  dataSource?: NoteDataSource;
 };
 
 // Komponen bersama untuk Konseling, Prestasi, dan Komunikasi Orang Tua —
-// bentuk datanya sama persis (siswa + judul/topik + tanggal + keterangan),
-// dibedakan lewat field `category` di collection student_notes yang sama.
+// bentuk datanya sama persis (siswa + judul/topik + tanggal + keterangan).
+// Konseling & Komunikasi Ortu memakai collection student_notes (dibedakan
+// lewat field `category`); Prestasi memakai koleksi terpisah lewat prop
+// dataSource.
 export default function StudentNoteList({
   category,
   titleLabel,
   titlePlaceholder,
   emptyMessage,
   successMessage,
+  dataSource,
 }: StudentNoteListProps) {
   const { workspaceId, teacherProfile } = useWorkspace();
   const className = teacherProfile?.homeroomClassName || '';
@@ -41,6 +57,18 @@ export default function StudentNoteList({
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
+
+  // Dihitung saat dipakai (bukan disimpan di state/memo) supaya tidak ada
+  // dependency effect baru yang bisa memicu render berulang.
+  function source(): NoteDataSource {
+    return (
+      dataSource ?? {
+        fetch: (ws, cls) => studentNoteController.fetchStudentNotes(ws, cls, category),
+        submit: (ws, cls, data) => studentNoteController.submitStudentNote(ws, cls, category, data),
+        remove: (id) => studentNoteController.deleteStudentNote(id),
+      }
+    );
+  }
 
   useEffect(() => {
     if (workspaceId && className) {
@@ -56,7 +84,7 @@ export default function StudentNoteList({
     try {
       const [studentList, noteList] = await Promise.all([
         classController.fetchStudentsInClass(workspaceId, className),
-        studentNoteController.fetchStudentNotes(workspaceId, className, category),
+        source().fetch(workspaceId, className),
       ]);
       setStudents(studentList);
       setNotes(noteList);
@@ -78,7 +106,7 @@ export default function StudentNoteList({
     setSubmitting(true);
     setSuccess(false);
     try {
-      await studentNoteController.submitStudentNote(workspaceId, className, category, {
+      await source().submit(workspaceId, className, {
         studentId: student.id,
         studentName: student.name,
         title,
@@ -97,7 +125,7 @@ export default function StudentNoteList({
 
   async function handleDelete() {
     if (!deleteTarget) return;
-    await studentNoteController.deleteStudentNote(deleteTarget.id);
+    await source().remove(deleteTarget.id);
     await loadData();
     setDeleteTarget(null);
   }

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Copy, Check } from 'lucide-react';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as classController from '@/lib/controllers/classController';
 import ConfirmDeleteModal from '@/src/components/ui/ConfirmDeleteModal';
@@ -17,6 +17,8 @@ export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke
   const [students, setStudents] = useState<any[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; nis: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     if (workspaceId && className) {
@@ -42,6 +44,34 @@ export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke
     await loadStudents();
     setDeleteTarget(null);
   }
+
+  async function handleGenerateMissingCodes() {
+    if (!workspaceId) return;
+    setGenerating(true);
+    try {
+      const count = await classController.generateMissingAccessCodes(workspaceId, className);
+      await loadStudents();
+      alert(`${count} kode akses dibuat. Bagikan ke siswa untuk masuk ke Student Companion.`);
+    } catch (error: any) {
+      alert(error.message || 'Gagal membuat kode akses.');
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function handleCopyCode(student: any) {
+    try {
+      await navigator.clipboard.writeText(student.accessCode);
+      setCopiedId(student.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      // Clipboard API diblokir (mis. halaman non-HTTPS di HP) — kodenya
+      // tetap terlihat di layar, jadi guru masih bisa menyalin manual.
+      alert(`Kode akses ${student.name}: ${student.accessCode}`);
+    }
+  }
+
+  const missingCodeCount = students.filter((student) => !student.accessCode).length;
 
   if (loading) {
     return (
@@ -69,6 +99,21 @@ export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke
         </button>
       </div>
 
+      {missingCodeCount > 0 && (
+        <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <p className="text-[11px] font-bold text-blue-800">
+            {missingCodeCount} siswa belum punya kode akses Student Companion.
+          </p>
+          <button
+            onClick={handleGenerateMissingCodes}
+            disabled={generating}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-xl text-[11px] font-bold transition-colors shadow-sm shrink-0"
+          >
+            {generating ? 'Membuat...' : 'Buatkan Kode'}
+          </button>
+        </div>
+      )}
+
       {students.length === 0 ? (
         <p className="text-xs font-bold text-gray-400 text-center py-10">Belum ada siswa di kelas ini.</p>
       ) : (
@@ -85,6 +130,22 @@ export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke
                 <div>
                   <p className="text-xs font-extrabold text-gray-900">{student.name}</p>
                   <p className="text-[10px] font-bold text-gray-500 mt-0.5">NIS: {student.nis || '-'}</p>
+                  {student.accessCode && (
+                    <button
+                      onClick={() => handleCopyCode(student)}
+                      className="mt-1.5 inline-flex items-center gap-1.5 px-2 py-1 bg-white border border-gray-200 hover:border-blue-300 rounded-lg transition-colors"
+                      title="Salin kode akses Student Companion"
+                    >
+                      <span className="text-[10px] font-extrabold tracking-widest text-blue-600">
+                        {student.accessCode}
+                      </span>
+                      {copiedId === student.id ? (
+                        <Check className="w-3 h-3 text-emerald-600" />
+                      ) : (
+                        <Copy className="w-3 h-3 text-gray-400" />
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
               <button

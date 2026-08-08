@@ -8,7 +8,25 @@ export const COLLECTIONS = {
   CLASS_FUND: 'class_fund_transactions',
   CLASS_INVENTORY: 'class_inventory',
   STUDENT_NOTES: 'student_notes',
+  ASSIGNMENTS: 'assignments',
+  SUBMISSIONS: 'submissions',
+  ANNOUNCEMENTS: 'announcements',
+  STUDENT_LOGIN_CODES: 'student_login_codes',
+  STUDENT_PROFILES: 'student_profiles',
+  // Prestasi sengaja TIDAK ikut student_notes. Lihat komentar panjang di
+  // firestore.rules: student_notes memuat catatan konseling, dan prestasi
+  // adalah satu-satunya kategori yang perlu dibaca siswa.
+  STUDENT_ACHIEVEMENTS: 'student_achievements',
 };
+
+// Status pengumpulan tugas seorang siswa untuk satu assignment. Tidak ada
+// dokumen submission = otomatis BELUM_MENGUMPULKAN (tidak perlu pre-create
+// dokumen kosong untuk tiap siswa).
+export const SUBMISSION_STATUS = {
+  BELUM_MENGUMPULKAN: 'belum_mengumpulkan',
+  MENUNGGU_PENILAIAN: 'menunggu_penilaian',
+  DINILAI: 'dinilai',
+} as const;
 
 // Kategori catatan siswa (Konseling, Prestasi, Komunikasi Orang Tua) —
 // satu collection dipakai bersama karena bentuk datanya sama persis,

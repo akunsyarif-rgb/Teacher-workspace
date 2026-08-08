@@ -2,6 +2,7 @@ import { db } from '@/src/config/firebase';
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   getCountFromServer,
   addDoc,
@@ -24,6 +25,11 @@ function buildQuery(collectionName: string, filters: [string, any, any][]) {
 export async function getDocuments(collectionName: string, filters: [string, any, any][] = []) {
   const snapshot = await getDocs(buildQuery(collectionName, filters));
   return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+}
+
+export async function getDocument(collectionName: string, id: string) {
+  const snap = await getDoc(doc(db, collectionName, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 // Hitung jumlah dokumen lewat aggregation query Firestore (getCountFromServer)

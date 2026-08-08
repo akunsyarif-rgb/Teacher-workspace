@@ -33,6 +33,9 @@ build.log
 build-error.log
 *.patch
 firestore-debug.log
+firebase-debug.log
+storage-debug.log
+ui-debug.log
 .firebase/
 
 # env files (can opt-in for committing if needed)

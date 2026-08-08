@@ -92,3 +92,9 @@ export async function addBulkStudents(
 export async function removeStudent(id: string) {
   return studentRepository.deleteStudent(id);
 }
+
+export async function generateMissingAccessCodes(workspaceId: string, className: string) {
+  if (!workspaceId || !className) throw new Error('Kelas tidak valid.');
+  const students = await studentRepository.getStudentsByClass(workspaceId, className);
+  return studentRepository.backfillAccessCodes(students as any, workspaceId);
+}
