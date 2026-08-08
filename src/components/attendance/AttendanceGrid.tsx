@@ -27,7 +27,7 @@ type AttendanceGridProps = {
 // konten yang tidak bisa dipotong (nama siswa panjang) — kolom sticky
 // jadi ikut membengkak dan menutupi kolom riwayat di layar sempit. Flex
 // row dengan shrink-0 di tiap sel memberi kontrol lebar yang deterministik.
-const NAME_COL = 'w-[96px] sm:w-[180px] shrink-0';
+const NAME_COL = 'w-[124px] sm:w-[200px] shrink-0';
 const HISTORY_COL = 'w-[30px] sm:w-[36px] shrink-0';
 const TODAY_COL = 'w-[232px] sm:w-[272px] shrink-0';
 
@@ -136,7 +136,9 @@ export default function AttendanceGrid({ students, history, statusMap, onChange 
           const entry = statusMap[student.id] || { status: 'Hadir', late: false };
           return (
             <div key={student.id} className="flex border-t border-gray-100">
-              <div className={`sticky left-0 z-10 bg-white px-2 sm:px-3 py-2 font-bold text-sm text-gray-900 truncate ${NAME_COL}`}>
+              <div
+                className={`sticky left-0 z-10 bg-white px-2 sm:px-3 py-2 font-bold text-[13px] sm:text-sm text-gray-900 whitespace-normal break-words leading-tight ${NAME_COL}`}
+              >
                 <span className="text-gray-400 font-normal mr-1 sm:mr-1.5">{idx + 1}.</span>
                 {student.name}
               </div>
