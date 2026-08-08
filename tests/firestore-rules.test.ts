@@ -119,6 +119,52 @@ describe('workspaces', () => {
     const db = testEnv.authenticatedContext('teacherA').firestore();
     await assertFails(deleteDoc(doc(db, 'workspaces/ws1')));
   });
+
+  it('lets the owner update unrelated fields like name or invite code', async () => {
+    await seed((db) =>
+      setDoc(doc(db, 'workspaces/ws1'), { ownerUid: 'teacherA', name: 'Sekolah A', plan: 'individual_lifetime', classLimit: 3 })
+    );
+    const db = testEnv.authenticatedContext('teacherA').firestore();
+    await assertSucceeds(updateDoc(doc(db, 'workspaces/ws1'), { name: 'Sekolah A (baru)' }));
+    await assertSucceeds(updateDoc(doc(db, 'workspaces/ws1'), { inviteCode: 'ABC123', inviteCodeExpiresAt: 123 }));
+  });
+
+  it('denies the owner changing plan/classLimit/seatLimit/planExpiresAt directly (payment-only fields)', async () => {
+    await seed((db) =>
+      setDoc(doc(db, 'workspaces/ws1'), { ownerUid: 'teacherA', name: 'Sekolah A', plan: 'individual_lifetime', classLimit: 3 })
+    );
+    const db = testEnv.authenticatedContext('teacherA').firestore();
+    await assertFails(updateDoc(doc(db, 'workspaces/ws1'), { plan: 'individual_monthly' }));
+    await assertFails(updateDoc(doc(db, 'workspaces/ws1'), { classLimit: 999 }));
+    await assertFails(updateDoc(doc(db, 'workspaces/ws1'), { seatLimit: 999 }));
+    await assertFails(updateDoc(doc(db, 'workspaces/ws1'), { planExpiresAt: 9999999999999 }));
+    // Bahkan kalau dicampur dengan field yang sah, tetap ditolak seluruhnya.
+    await assertFails(updateDoc(doc(db, 'workspaces/ws1'), { name: 'Sekolah A (baru)', classLimit: 999 }));
+  });
+});
+
+describe('payments', () => {
+  it('lets the workspace owner read their own payment history', async () => {
+    await seed((db) => setDoc(doc(db, 'workspaces/ws1'), { ownerUid: 'teacherA', name: 'Sekolah A' }));
+    await seed((db) => setDoc(doc(db, 'payments/order1'), { workspaceId: 'ws1', plan: 'individual_onetime', status: 'settled' }));
+    const db = testEnv.authenticatedContext('teacherA').firestore();
+    await assertSucceeds(getDoc(doc(db, 'payments/order1')));
+  });
+
+  it('denies a non-owner from reading payment history', async () => {
+    await seed((db) => setDoc(doc(db, 'workspaces/ws1'), { ownerUid: 'teacherA', name: 'Sekolah A' }));
+    await seed((db) => setDoc(doc(db, 'payments/order1'), { workspaceId: 'ws1', plan: 'individual_onetime', status: 'settled' }));
+    const db = testEnv.authenticatedContext('teacherB').firestore();
+    await assertFails(getDoc(doc(db, 'payments/order1')));
+  });
+
+  it('denies any client write, even from the workspace owner', async () => {
+    await seed((db) => setDoc(doc(db, 'workspaces/ws1'), { ownerUid: 'teacherA', name: 'Sekolah A' }));
+    const db = testEnv.authenticatedContext('teacherA').firestore();
+    await assertFails(
+      setDoc(doc(db, 'payments/order1'), { workspaceId: 'ws1', plan: 'individual_onetime', status: 'settled' })
+    );
+  });
 });
 
 // students, schedules, journals, attendances, grades, grade_columns semua

@@ -11,16 +11,19 @@ import {
   limit,
 } from 'firebase/firestore';
 import { db } from '@/src/config/firebase';
+import type { WorkspacePlan } from '../config/plans';
 
 const WORKSPACES_COLLECTION = 'workspaces';
 
-export type WorkspacePlan = 'individual_lifetime' | 'individual_monthly' | 'school_annual';
+export type { WorkspacePlan };
 
 export type WorkspaceDoc = {
   name: string;
   plan: WorkspacePlan;
   ownerUid: string;
   classLimit: number | null; // null = tak terbatas
+  seatLimit?: number | null; // khusus school_annual — batas jumlah guru (termasuk owner). null/tidak ada = tak terbatas.
+  planExpiresAt?: number | null; // epoch ms — khusus paket berlangganan (individual_monthly, school_annual). null/tidak ada = tidak pernah kedaluwarsa.
   inviteCode?: string;
   inviteCodeExpiresAt?: number; // epoch ms
   createdAt?: any;

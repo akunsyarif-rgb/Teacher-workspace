@@ -79,12 +79,33 @@ service cloud.firestore {
         (resource.data.ownerUid == request.auth.uid ||
          getWorkspaceId(request.auth.uid) == workspaceId);
 
-      // Owner bisa mengupdate workspace-nya
+      // Owner bisa mengupdate workspace-nya — TAPI field plan/classLimit/
+      // seatLimit/planExpiresAt DIKUNCI dari client sama sekali. Field-
+      // field itu cuma boleh berubah lewat webhook pembayaran (Admin SDK,
+      // bypass rules) setelah verifikasi signature Midtrans — kalau tidak
+      // dikunci di sini, owner bisa upgrade paketnya sendiri gratis lewat
+      // DevTools/Firestore SDK langsung.
       allow update: if isAuthenticated() &&
-        resource.data.ownerUid == request.auth.uid;
+        resource.data.ownerUid == request.auth.uid &&
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['plan', 'classLimit', 'seatLimit', 'planExpiresAt']);
 
       // 🔴 DILARANG: Tidak boleh menghapus workspace
       allow delete: if false;
+    }
+
+    // ============================================================
+    // KOLEKSI: payments (riwayat transaksi Midtrans)
+    // ============================================================
+    match /payments/{orderId} {
+      // Hanya owner workspace terkait yang boleh melihat riwayat
+      // pembayarannya (informasi billing, bukan untuk seluruh guru).
+      allow read: if isAuthenticated() && isOwner(resource.data.workspaceId);
+
+      // Tidak ada write dari client sama sekali — dokumen ini hanya
+      // ditulis lewat Admin SDK (route pembuatan transaksi & webhook
+      // pembayaran), supaya status pembayaran tidak bisa dipalsukan.
+      allow write: if false;
     }
 
     // ============================================================
