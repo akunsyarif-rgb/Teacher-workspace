@@ -32,13 +32,49 @@ jobs:
       - name: Write service account credentials
         run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$RUNNER_TEMP/firebase-sa.json"
 
-      # Storage rules ikut di sini supaya lampiran tugas siswa tidak
-      # pernah berjalan dengan rules bawaan Firebase (yang menolak semua,
-      # atau — kalau pernah dibuka manual — membiarkan semua).
-      - name: Deploy Firestore and Storage rules
+      # WAJIB — data siswa/guru (students, student_login_codes, dst.)
+      # bergantung langsung pada rules ini. Kalau step ini gagal, job HARUS
+      # gagal (tidak ada continue-on-error): tidak ada gunanya lanjut ke
+      # Storage kalau Firestore rules sendiri belum tentu ter-update.
+      - name: Deploy Firestore rules dan indexes (WAJIB)
+        id: deploy_firestore
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-sa.json
-        run: npx firebase-tools deploy --only firestore,storage --project ${{ secrets.FIREBASE_PROJECT_ID }} --non-interactive
+        run: npx firebase-tools deploy --only firestore --project ${{ secrets.FIREBASE_PROJECT_ID }} --non-interactive
+
+      # OPSIONAL — dipisah dari Firestore supaya masalah izin service
+      # account khusus Storage API (mis. serviceusage.googleapis.com)
+      # tidak lagi ikut menggagalkan deploy Firestore rules yang wajib.
+      # continue-on-error DISENGAJA: kegagalan di sini tetap tercatat
+      # sebagai step "failed" (bukan disembunyikan/di-`|| true`-kan) dan
+      # dilaporkan eksplisit di step berikutnya — hanya tidak menghentikan
+      # job. Diambil sengaja TIDAK memperluas permission service account
+      # cuma demi meloloskan Storage; itu keputusan terpisah yang perlu
+      # ditinjau sendiri, bukan dikerjakan lewat workflow ini.
+      - name: Deploy Storage rules (opsional)
+        id: deploy_storage
+        if: always()
+        continue-on-error: true
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-sa.json
+        run: npx firebase-tools deploy --only storage --project ${{ secrets.FIREBASE_PROJECT_ID }} --non-interactive
+
+      - name: Tandai kegagalan Storage secara eksplisit
+        if: always() && steps.deploy_storage.outcome == 'failure'
+        run: |
+          echo "::warning title=Storage rules gagal ter-deploy::Deploy Storage rules gagal (lihat log step 'Deploy Storage rules (opsional)' di atas). Ini TIDAK menggagalkan job karena Storage bersifat opsional, tapi storage.rules yang aktif sekarang kemungkinan bukan versi terbaru repo ini dan perlu ditindaklanjuti terpisah — jangan diabaikan."
+
+      - name: Ringkasan status deployment
+        if: always()
+        run: |
+          {
+            echo "## Ringkasan Deploy Rules"
+            echo ""
+            echo "| Resource | Wajib? | Status |"
+            echo "|---|---|---|"
+            echo "| Firestore (rules + indexes) | Ya | \`${{ steps.deploy_firestore.outcome }}\` |"
+            echo "| Storage rules | Tidak | \`${{ steps.deploy_storage.outcome }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Clean up credentials
         if: always()
