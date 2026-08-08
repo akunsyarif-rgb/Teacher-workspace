@@ -4,9 +4,13 @@ import { withCache, clearAllCached } from '../utils/sessionCache';
 
 export type { AttendanceEntry };
 
+export function attendanceHistoryCacheKey(workspaceId: string, className: string) {
+  return `attendanceHistory:${workspaceId}:${className}`;
+}
+
 export async function fetchAttendanceHistory(workspaceId: string, className: string) {
   if (!workspaceId || !className) return [];
-  return withCache(`attendanceHistory:${workspaceId}:${className}`, () =>
+  return withCache(attendanceHistoryCacheKey(workspaceId, className), () =>
     attendanceService.listAttendanceHistory(workspaceId, className)
   );
 }

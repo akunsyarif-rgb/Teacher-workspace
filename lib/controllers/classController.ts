@@ -6,9 +6,13 @@ export async function fetchClassSummaries(workspaceId: string) {
   return withCache(`classSummaries:${workspaceId}`, () => studentService.listClassSummaries(workspaceId));
 }
 
+export function studentsInClassCacheKey(workspaceId: string, className: string) {
+  return `studentsInClass:${workspaceId}:${className}`;
+}
+
 export async function fetchStudentsInClass(workspaceId: string, className: string) {
   if (!workspaceId || !className) return [];
-  return withCache(`studentsInClass:${workspaceId}:${className}`, () =>
+  return withCache(studentsInClassCacheKey(workspaceId, className), () =>
     studentService.getStudentsInClass(workspaceId, className)
   );
 }
