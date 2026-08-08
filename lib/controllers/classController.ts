@@ -40,6 +40,12 @@ export async function deleteStudent(id: string) {
   return result;
 }
 
+export async function deleteClass(workspaceId: string, className: string) {
+  const result = await studentService.removeClass(workspaceId, className);
+  clearAllCached();
+  return result;
+}
+
 export async function generateMissingAccessCodes(workspaceId: string, className: string) {
   const result = await studentService.generateMissingAccessCodes(workspaceId, className);
   clearAllCached();
