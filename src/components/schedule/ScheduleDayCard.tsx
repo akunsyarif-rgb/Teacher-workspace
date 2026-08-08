@@ -49,14 +49,15 @@ export default function ScheduleDayCard({ day, items, onRequestDelete }: Schedul
               <div className="flex items-center gap-1">
                 <Link
                   href="/attendance"
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-bold transition-colors shadow-sm"
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-bold transition-colors active:scale-95 shadow-sm"
                 >
                   Mulai
                 </Link>
                 <button
                   onClick={() => onRequestDelete(item.id)}
-                  className="p-1.5 text-red-400 hover:text-red-600 rounded-lg transition-colors"
+                  className="p-3.5 text-red-400 hover:text-red-600 rounded-lg transition-colors active:scale-90"
                   title="Hapus Jadwal"
+                  aria-label="Hapus Jadwal"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>

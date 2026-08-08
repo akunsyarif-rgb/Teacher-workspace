@@ -153,7 +153,7 @@ export default function AttendanceForm() {
                 key={key}
                 onClick={() => setActiveTab(key)}
                 title={label}
-                className={`flex-1 md:flex-none min-w-0 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                className={`flex-1 md:flex-none min-w-0 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
                   activeTab === key ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'
                 }`}
               >

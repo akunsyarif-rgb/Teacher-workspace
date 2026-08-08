@@ -29,7 +29,7 @@ type AttendanceGridProps = {
 // row dengan shrink-0 di tiap sel memberi kontrol lebar yang deterministik.
 const NAME_COL = 'w-[96px] sm:w-[180px] shrink-0';
 const HISTORY_COL = 'w-[30px] sm:w-[36px] shrink-0';
-const TODAY_COL = 'w-[210px] sm:w-[250px] shrink-0';
+const TODAY_COL = 'w-[232px] sm:w-[272px] shrink-0';
 
 function formatShortDate(dateStr: string): string {
   const d = new Date(dateStr);
@@ -46,6 +46,7 @@ function HistoryBadge({ detail }: { detail?: { status: string; late?: boolean } 
     <span
       className="relative inline-flex w-6 h-6 sm:w-7 sm:h-7 shrink-0"
       title={`${detail.status}${detail.late ? ' (Terlambat)' : ''}`}
+      aria-label={`${detail.status}${detail.late ? ' (Terlambat)' : ''}`}
     >
       <span
         className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center text-[10px] sm:text-[11px] font-extrabold text-white ${bg}`}
@@ -72,7 +73,8 @@ function TodayStatusControl({ value, onChange }: { value: TodayEntry; onChange: 
             type="button"
             onClick={() => onChange({ status: option, late: option === 'Hadir' ? value.late : false })}
             title={option}
-            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-[10px] sm:text-xs font-extrabold transition-colors ${
+            aria-label={option}
+            className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center text-[10px] sm:text-xs font-extrabold transition-all active:scale-90 ${
               isActive ? `${STATUS_COLOR[option]} text-white shadow-sm` : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
             }`}
           >
@@ -85,7 +87,8 @@ function TodayStatusControl({ value, onChange }: { value: TodayEntry; onChange: 
         disabled={value.status !== 'Hadir'}
         onClick={() => onChange({ ...value, late: !value.late })}
         title="Terlambat (hanya berlaku untuk Hadir)"
-        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors ${
+        aria-label="Terlambat (hanya berlaku untuk Hadir)"
+        className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center transition-all active:scale-90 ${
           value.status !== 'Hadir'
             ? 'bg-gray-50 text-gray-200 cursor-not-allowed'
             : value.late
@@ -133,7 +136,7 @@ export default function AttendanceGrid({ students, history, statusMap, onChange 
           const entry = statusMap[student.id] || { status: 'Hadir', late: false };
           return (
             <div key={student.id} className="flex border-t border-gray-100">
-              <div className={`sticky left-0 z-10 bg-white px-2 sm:px-3 py-2 font-bold text-gray-900 truncate ${NAME_COL}`}>
+              <div className={`sticky left-0 z-10 bg-white px-2 sm:px-3 py-2 font-bold text-sm text-gray-900 truncate ${NAME_COL}`}>
                 <span className="text-gray-400 font-normal mr-1 sm:mr-1.5">{idx + 1}.</span>
                 {student.name}
               </div>

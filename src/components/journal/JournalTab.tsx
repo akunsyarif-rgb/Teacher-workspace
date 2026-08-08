@@ -8,6 +8,7 @@ import Button from "../ui/Button";
 import Card from "../ui/Card";
 import JournalHistoryList from "./JournalHistoryList";
 import ConfirmDeleteModal from "@/src/components/ui/ConfirmDeleteModal";
+import InlineAlert from "@/src/components/ui/InlineAlert";
 import * as journalController from "@/lib/controllers/journalController";
 import { useWorkspace } from "@/src/context/WorkspaceContext";
 import { useOnlineStatus } from "@/src/hooks/useOnlineStatus";
@@ -27,6 +28,7 @@ export default function JournalTab({ className, subject, scheduleId, onSubmitted
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
   const [history, setHistory] = useState<any[]>([]);
   const [formattedDate, setFormattedDate] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; topic: string } | null>(null);
@@ -60,6 +62,7 @@ export default function JournalTab({ className, subject, scheduleId, onSubmitted
     if (!workspaceId) return;
     setLoading(true);
     setSuccess(false);
+    setErrorMsg("");
     try {
       await journalController.submitJournalEntry(workspaceId, className, subject, { topic, notes }, scheduleId);
       setSuccess(true);
@@ -68,7 +71,7 @@ export default function JournalTab({ className, subject, scheduleId, onSubmitted
       await loadHistory();
       onSubmitted?.();
     } catch (error: any) {
-      alert(error.message || "Gagal menyimpan jurnal.");
+      setErrorMsg(error.message || "Gagal menyimpan jurnal.");
     } finally {
       setLoading(false);
     }
@@ -83,6 +86,7 @@ export default function JournalTab({ className, subject, scheduleId, onSubmitted
 
   return (
     <div className="space-y-6">
+      <InlineAlert message={errorMsg} onDismiss={() => setErrorMsg("")} />
       {success && (
         <div className="p-4 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center gap-2 text-xs font-medium">
           {isOnline ? (

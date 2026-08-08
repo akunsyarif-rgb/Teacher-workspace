@@ -6,6 +6,8 @@ import Card from '../ui/Card';
 import Button from '../ui/Button';
 import GradesTable from './GradesTable';
 import GradeColumnModal from './GradeColumnModal';
+import ConfirmDeleteModal from '@/src/components/ui/ConfirmDeleteModal';
+import InlineAlert from '@/src/components/ui/InlineAlert';
 import * as gradeController from '@/lib/controllers/gradeController';
 import * as studentController from '@/lib/controllers/classController';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
@@ -25,7 +27,9 @@ export default function GradesTab({ className }: GradesTabProps) {
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const [loadingData, setLoadingData] = useState(true);
+  const [deleteColumnTarget, setDeleteColumnTarget] = useState<{ id: string; title: string } | null>(null);
 
   useEffect(() => {
     if (className && workspaceId) {
@@ -71,11 +75,12 @@ export default function GradesTab({ className }: GradesTabProps) {
     if (!workspaceId) return;
     setLoading(true);
     setSuccess(false);
+    setErrorMsg('');
     try {
       await gradeController.saveGrades(workspaceId, className, grades);
       setSuccess(true);
     } catch (error: any) {
-      alert(error.message || 'Gagal menyimpan nilai.');
+      setErrorMsg(error.message || 'Gagal menyimpan nilai.');
     } finally {
       setLoading(false);
     }
@@ -87,10 +92,16 @@ export default function GradesTab({ className }: GradesTabProps) {
     await loadData();
   }
 
-  async function handleDeleteColumn(columnId: string) {
-    if (!confirm('Hapus kolom nilai ini beserta seluruh nilai siswa di dalamnya?')) return;
-    await gradeController.removeColumn(columnId);
+  function handleDeleteColumn(columnId: string) {
+    const col = columns.find((c) => c.id === columnId);
+    setDeleteColumnTarget({ id: columnId, title: col?.title || 'Kolom ini' });
+  }
+
+  async function confirmDeleteColumn() {
+    if (!deleteColumnTarget) return;
+    await gradeController.removeColumn(deleteColumnTarget.id);
     await loadData();
+    setDeleteColumnTarget(null);
   }
 
   return (
@@ -115,6 +126,8 @@ export default function GradesTab({ className }: GradesTabProps) {
         </div>
       </Card>
 
+      <InlineAlert message={errorMsg} onDismiss={() => setErrorMsg('')} />
+
       {success && (
         <div className="p-4 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center gap-2 text-xs font-medium">
           {isOnline ? (
@@ -132,6 +145,17 @@ export default function GradesTab({ className }: GradesTabProps) {
       )}
 
       <GradeColumnModal isOpen={showModal} onClose={() => setShowModal(false)} onSubmit={handleAddColumn} />
+
+      <ConfirmDeleteModal
+        isOpen={!!deleteColumnTarget}
+        onClose={() => setDeleteColumnTarget(null)}
+        onConfirm={confirmDeleteColumn}
+        title="Hapus Kolom Nilai?"
+        itemName={deleteColumnTarget?.title || ''}
+        itemDetail={`Seluruh nilai siswa di kolom ini akan ikut terhapus — Kelas ${className}`}
+        requireTyping={false}
+        type="warning"
+      />
 
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
         {loadingData ? (

@@ -6,6 +6,7 @@ import Card from '../ui/Card';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import ConfirmDeleteModal from '../ui/ConfirmDeleteModal';
+import InlineAlert from '../ui/InlineAlert';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as inventoryController from '@/lib/controllers/inventoryController';
 import { SkeletonCard } from '../ui/Skeleton';
@@ -28,6 +29,7 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
@@ -56,6 +58,7 @@ export default function InventoryPage() {
     if (!workspaceId || !className) return;
     setSubmitting(true);
     setSuccess(false);
+    setErrorMsg('');
     try {
       await inventoryController.submitInventoryItem(workspaceId, className, {
         name,
@@ -69,7 +72,7 @@ export default function InventoryPage() {
       setSuccess(true);
       await loadData();
     } catch (error: any) {
-      alert(error.message || 'Gagal menyimpan barang.');
+      setErrorMsg(error.message || 'Gagal menyimpan barang.');
     } finally {
       setSubmitting(false);
     }
@@ -98,6 +101,7 @@ export default function InventoryPage() {
 
   return (
     <div className="space-y-6">
+      <InlineAlert message={errorMsg} onDismiss={() => setErrorMsg('')} />
       {success && (
         <div className="p-4 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center gap-2 text-xs font-medium">
           <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
@@ -156,8 +160,9 @@ export default function InventoryPage() {
                   </select>
                   <button
                     onClick={() => setDeleteTarget({ id: item.id, name: item.name })}
-                    className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                    className="p-3.5 text-red-500 hover:bg-red-50 rounded-xl transition-colors active:scale-90"
                     title="Hapus Barang"
+                    aria-label="Hapus Barang"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

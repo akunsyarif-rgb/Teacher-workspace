@@ -51,8 +51,9 @@ export default function GradesTable({ students, columns, grades, onScoreChange, 
                     <Badge label={col.type} />
                     <button
                       onClick={() => onDeleteColumn(col.id)}
-                      className="p-1 text-red-400 hover:text-red-600 rounded"
+                      className="p-2 -m-1 text-red-400 hover:text-red-600 rounded active:scale-90 transition-transform"
                       title="Hapus Kolom"
+                      aria-label={`Hapus Kolom ${col.title}`}
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>
@@ -68,7 +69,7 @@ export default function GradesTable({ students, columns, grades, onScoreChange, 
             <tr key={student.id} className="hover:bg-gray-50/50 transition-colors">
               <td className="p-4 text-center text-gray-400 font-bold">{idx + 1}</td>
               <td className="p-4 font-bold text-gray-900 sticky left-0 bg-white z-10">
-                <p>{student.name}</p>
+                <p className="text-sm">{student.name}</p>
                 <p className="text-[10px] text-gray-400 font-normal">NIS: {student.nis || '-'}</p>
               </td>
               {columns.map((col) => (
@@ -80,11 +81,11 @@ export default function GradesTable({ students, columns, grades, onScoreChange, 
                     placeholder="-"
                     value={grades[student.id]?.[col.id] ?? ''}
                     onChange={(e) => onScoreChange(student.id, col.id, e.target.value)}
-                    className="w-16 p-2 text-center bg-gray-50 border border-gray-200 rounded-xl font-bold text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+                    className="w-16 p-2 text-center bg-gray-50 border border-gray-200 rounded-xl font-bold text-sm text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
                   />
                 </td>
               ))}
-              <td className="p-4 text-center font-extrabold text-blue-600 bg-blue-50/30">
+              <td className="p-4 text-center text-sm font-extrabold text-blue-600 bg-blue-50/30">
                 {calculateAverage(student.id)}
               </td>
             </tr>

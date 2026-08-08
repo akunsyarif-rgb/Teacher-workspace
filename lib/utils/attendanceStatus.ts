@@ -21,12 +21,15 @@ export const STATUS_LETTER_PLAIN: Record<string, string> = {
 // Hijau=Hadir, Kuning=Sakit, Biru=Izin, Merah=Alpa, Oranye=Terlambat
 // (atribut, bukan status). Dispensasi tidak diatur di spesifikasi asli,
 // dipertahankan teal supaya tetap beda dari status lain.
+// Shade dinaikkan (bukan 500) supaya kontras teks putih di badge huruf
+// kecil-tebal ini lolos WCAG AA (>=4.5:1) — shade 500 gagal untuk semua
+// warna berikut saat dipasangkan dengan teks putih.
 export const STATUS_COLOR: Record<string, string> = {
-  Hadir: 'bg-emerald-500',
-  Sakit: 'bg-yellow-500',
-  Izin: 'bg-blue-500',
-  Dispensasi: 'bg-teal-500',
-  Alpa: 'bg-red-500',
+  Hadir: 'bg-emerald-700',
+  Sakit: 'bg-yellow-700',
+  Izin: 'bg-blue-600',
+  Dispensasi: 'bg-teal-700',
+  Alpa: 'bg-red-700',
 };
 
 export const STATUS_TEXT_COLOR: Record<string, string> = {
@@ -37,5 +40,5 @@ export const STATUS_TEXT_COLOR: Record<string, string> = {
   Alpa: 'text-red-600',
 };
 
-export const LATE_COLOR = 'bg-orange-500';
+export const LATE_COLOR = 'bg-orange-700';
 export const LATE_TEXT_COLOR = 'text-orange-600';

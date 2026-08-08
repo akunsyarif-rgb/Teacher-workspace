@@ -6,6 +6,7 @@ import Card from '../ui/Card';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import ConfirmDeleteModal from '../ui/ConfirmDeleteModal';
+import InlineAlert from '../ui/InlineAlert';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as classFundController from '@/lib/controllers/classFundController';
 import { SkeletonCard } from '../ui/Skeleton';
@@ -30,6 +31,7 @@ export default function ClassFundPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; description: string } | null>(null);
 
   useEffect(() => {
@@ -59,6 +61,7 @@ export default function ClassFundPage() {
     if (!workspaceId || !className) return;
     setSubmitting(true);
     setSuccess(false);
+    setErrorMsg('');
     try {
       await classFundController.submitClassFundTransaction(workspaceId, className, {
         type,
@@ -70,7 +73,7 @@ export default function ClassFundPage() {
       setSuccess(true);
       await loadData();
     } catch (error: any) {
-      alert(error.message || 'Gagal menyimpan transaksi.');
+      setErrorMsg(error.message || 'Gagal menyimpan transaksi.');
     } finally {
       setSubmitting(false);
     }
@@ -100,6 +103,8 @@ export default function ClassFundPage() {
         </p>
         <p className="text-3xl font-extrabold">{formatRupiah(balance)}</p>
       </div>
+
+      <InlineAlert message={errorMsg} onDismiss={() => setErrorMsg('')} />
 
       {success && (
         <div className="p-4 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center gap-2 text-xs font-medium">
@@ -191,8 +196,9 @@ export default function ClassFundPage() {
                   </span>
                   <button
                     onClick={() => setDeleteTarget({ id: t.id, description: t.description })}
-                    className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                    className="p-3.5 text-red-500 hover:bg-red-50 rounded-xl transition-colors active:scale-90"
                     title="Hapus Transaksi"
+                    aria-label="Hapus Transaksi"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

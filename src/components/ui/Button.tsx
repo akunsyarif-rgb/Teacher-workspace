@@ -22,7 +22,7 @@ export default function Button({
   className = '', // default kosong
 }: ButtonProps) {
   const baseClass =
-    'w-full py-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2';
+    'w-full py-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 active:scale-[0.97]';
   const variantClass =
     variant === 'primary'
       ? 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white shadow-sm'

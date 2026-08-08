@@ -15,6 +15,7 @@ export default function SignupPage() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [workspaceName, setWorkspaceName] = useState('');
   const [inviteCode, setInviteCode] = useState('');
 
@@ -37,6 +38,10 @@ export default function SignupPage() {
     }
     if (password.length < 6) {
       setError('Kata sandi minimal 6 karakter.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Konfirmasi kata sandi tidak cocok.');
       return;
     }
     if (mode === 'individual' && !workspaceName.trim()) {
@@ -101,7 +106,7 @@ export default function SignupPage() {
               key={key}
               type="button"
               onClick={() => setMode(key)}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-[11px] font-bold transition-all ${
+              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-[11px] font-bold transition-all active:scale-95 ${
                 mode === key ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
               }`}
             >
@@ -148,6 +153,21 @@ export default function SignupPage() {
             </div>
           </div>
 
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Konfirmasi Kata Sandi</label>
+            <div className="relative">
+              <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
+              <input
+                type="password"
+                placeholder="Ulangi kata sandi"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-extrabold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+              />
+            </div>
+          </div>
+
           {(mode === 'individual' || mode === 'school') && (
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
@@ -188,7 +208,7 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-blue-200 transition-all flex items-center justify-center gap-2 mt-2"
+            className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-blue-200 transition-all active:scale-[0.97] flex items-center justify-center gap-2 mt-2"
           >
             <span>{loading ? 'Memproses...' : 'Daftar & Masuk'}</span>
             <ArrowRight className="w-4 h-4" />

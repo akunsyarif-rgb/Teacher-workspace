@@ -6,6 +6,7 @@ import Card from "../ui/Card";
 import Button from "../ui/Button";
 import AttendanceGrid, { TodayEntry } from "./AttendanceGrid";
 import ConfirmDeleteModal from "@/src/components/ui/ConfirmDeleteModal";
+import InlineAlert from "@/src/components/ui/InlineAlert";
 import * as attendanceController from "@/lib/controllers/attendanceController";
 import * as studentController from "@/lib/controllers/classController";
 import { useWorkspace } from "@/src/context/WorkspaceContext";
@@ -26,6 +27,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
   const [statusMap, setStatusMap] = useState<Record<string, TodayEntry>>({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
   const [history, setHistory] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [formattedDate, setFormattedDate] = useState("");
@@ -92,6 +94,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
     if (!workspaceId) return;
     setLoading(true);
     setSuccess(false);
+    setErrorMsg("");
     try {
       await attendanceController.submitAttendanceRecord(
         workspaceId,
@@ -105,7 +108,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
       await loadHistory();
       onSubmitted?.();
     } catch (error: any) {
-      alert(error.message || "Gagal menyimpan presensi.");
+      setErrorMsg(error.message || "Gagal menyimpan presensi.");
     } finally {
       setLoading(false);
     }
@@ -124,6 +127,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
 
   return (
     <div className="space-y-6">
+      <InlineAlert message={errorMsg} onDismiss={() => setErrorMsg("")} />
       {success && (
         <div className="p-4 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center gap-2 text-xs font-medium">
           {isOnline ? (
@@ -245,8 +249,9 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
                 </div>
                 <button
                   onClick={() => setDeleteTarget({ id: item.id, date: item.date })}
-                  className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors self-end md:self-auto"
+                  className="p-3.5 text-red-500 hover:bg-red-50 rounded-xl transition-colors active:scale-90 self-end md:self-auto"
                   title="Hapus Rekap Presensi"
+                  aria-label="Hapus Rekap Presensi"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
