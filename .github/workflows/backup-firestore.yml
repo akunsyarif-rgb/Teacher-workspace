@@ -1,0 +1,30 @@
+name: Backup Firestore
+
+# Backup harian otomatis lewat Firestore Managed Export ke Cloud Storage.
+# Ini bukan salinan biasa — format export ini yang bisa langsung
+# di-restore penuh lewat "gcloud firestore import" kalau suatu saat ada
+# data hilang/rusak (salah hapus massal, rules salah, dsb). Lihat
+# docs/BACKUP.md untuk cara restore.
+on:
+  schedule:
+    # 14:00 UTC = 22:00 WITA — setelah jam sekolah selesai.
+    - cron: "0 14 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Export Firestore to Cloud Storage
+        run: |
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H-%M-%SZ)
+          gcloud firestore export "gs://${{ secrets.FIRESTORE_BACKUP_BUCKET }}/firestore-backups/$TIMESTAMP" \
+            --project="${{ secrets.FIREBASE_PROJECT_ID }}"

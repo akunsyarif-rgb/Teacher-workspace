@@ -1,4 +1,22 @@
 import * as studentRepository from '../repositories/studentRepository';
+import { getWorkspaceById } from '../repositories/workspaceRepository';
+import { assertClassLimitNotReached } from './workspaceService';
+
+// Kelas baru (belum ada siswa dengan className ini) kena batas paket;
+// menambah siswa ke kelas yang SUDAH ada tidak dihitung sebagai kelas
+// baru, jadi tidak diblokir walau workspace sudah di batas.
+async function assertCanAddToClass(workspaceId: string, className: string) {
+  const [workspace, students] = await Promise.all([
+    getWorkspaceById(workspaceId),
+    studentRepository.getAllStudents(workspaceId),
+  ]);
+  if (!workspace) return;
+  const existingClasses = new Set(
+    students.map((s: any) => s.className?.trim().toUpperCase()).filter(Boolean)
+  );
+  if (existingClasses.has(className)) return;
+  assertClassLimitNotReached(workspace, existingClasses.size);
+}
 
 export async function listClassSummaries(workspaceId: string) {
   if (!workspaceId) return [];
@@ -33,10 +51,13 @@ export async function addSingleStudent(
     throw new Error('Nama kelas wajib diisi.');
   }
 
+  const className = data.className.trim().toUpperCase();
+  await assertCanAddToClass(workspaceId, className);
+
   return studentRepository.createStudent(workspaceId, {
     name: data.name.trim(),
     nis: data.nis?.trim() || '-',
-    className: data.className.trim().toUpperCase(),
+    className,
   });
 }
 
@@ -60,6 +81,8 @@ export async function addBulkStudents(
   }
 
   const targetClass = className.trim().toUpperCase();
+  await assertCanAddToClass(workspaceId, targetClass);
+
   const students = names.map((name) => ({ name, nis: '-', className: targetClass }));
 
   const savedCount = await studentRepository.createStudentsBatch(workspaceId, students);
@@ -68,4 +91,10 @@ export async function addBulkStudents(
 
 export async function removeStudent(id: string) {
   return studentRepository.deleteStudent(id);
+}
+
+export async function generateMissingAccessCodes(workspaceId: string, className: string) {
+  if (!workspaceId || !className) throw new Error('Kelas tidak valid.');
+  const students = await studentRepository.getStudentsByClass(workspaceId, className);
+  return studentRepository.backfillAccessCodes(students as any, workspaceId);
 }

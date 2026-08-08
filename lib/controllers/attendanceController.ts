@@ -1,5 +1,8 @@
 import * as attendanceService from '../services/attendanceService';
+import type { AttendanceEntry } from '../services/attendanceService';
 import { withCache, clearAllCached } from '../utils/sessionCache';
+
+export type { AttendanceEntry };
 
 export async function fetchAttendanceHistory(workspaceId: string, className: string) {
   if (!workspaceId || !className) return [];
@@ -13,7 +16,7 @@ export async function submitAttendanceRecord(
   className: string,
   subject: string,
   students: { id: string; name: string; nis?: string }[],
-  statusMap: Record<string, string>,
+  statusMap: Record<string, AttendanceEntry>,
   scheduleId?: string | null
 ) {
   const result = await attendanceService.submitAttendance(

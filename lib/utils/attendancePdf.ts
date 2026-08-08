@@ -1,10 +1,10 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { STATUS_LETTER } from './attendanceStatus';
+import { STATUS_LETTER_PLAIN } from './attendanceStatus';
 
 type AttendanceSession = {
   date: string;
-  details?: { studentId: string; status: string }[];
+  details?: { studentId: string; status: string; late?: boolean }[];
 };
 
 type StudentLike = { id: string; name: string; nis?: string };
@@ -42,16 +42,22 @@ export function exportAttendanceRecapPdf(params: {
   );
   doc.setTextColor(0);
 
-  const recapKeys = ['H', 'T', 'S', 'I', 'D', 'A'];
+  const recapKeys = ['H', 'S', 'I', 'D', 'A', 'T'];
   const head = [['No', 'Nama Siswa', ...sortedHistory.map((h) => formatShortDate(h.date)), ...recapKeys]];
 
+  // Terlambat bukan status sendiri — ditandai "*" di belakang huruf H
+  // pada sel riwayat (mis. "H*"), dan direkap terpisah di kolom T.
   const body = students.map((student, idx) => {
-    const counts: Record<string, number> = { H: 0, T: 0, S: 0, I: 0, D: 0, A: 0 };
+    const counts: Record<string, number> = { H: 0, S: 0, I: 0, D: 0, A: 0, T: 0 };
     const cells = sortedHistory.map((session) => {
       const detail = (session.details || []).find((d) => d.studentId === student.id);
       if (!detail) return '-';
-      const letter = STATUS_LETTER[detail.status] || '?';
+      const letter = STATUS_LETTER_PLAIN[detail.status] || '?';
       if (counts[letter] !== undefined) counts[letter] += 1;
+      if (detail.late) {
+        counts.T += 1;
+        return `${letter}*`;
+      }
       return letter;
     });
     return [idx + 1, student.name, ...cells, ...recapKeys.map((k) => counts[k])];
@@ -65,6 +71,11 @@ export function exportAttendanceRecapPdf(params: {
     columnStyles: { 1: { halign: 'left', cellWidth: 35 } },
     headStyles: { fillColor: [37, 99, 235], halign: 'center' },
   });
+
+  const finalY = (doc as any).lastAutoTable?.finalY ?? 32;
+  doc.setFontSize(7);
+  doc.setTextColor(120);
+  doc.text('H=Hadir, S=Sakit, I=Izin, D=Dispensasi, A=Alpa, T=Total Terlambat. Tanda * = hadir tapi terlambat.', 14, finalY + 6);
 
   doc.save(`Rekap-Presensi-${className}-${new Date().toISOString().split('T')[0]}.pdf`);
 }

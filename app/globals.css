@@ -19,6 +19,15 @@
   }
 }
 
+html,
+body {
+  /* Cegah seluruh halaman ikut scroll horizontal di hp saat ada elemen
+     anak yang salah hitung lebarnya (mis. tabel di dalam kontainer
+     overflow-x-auto) — kontainer overflow-x-auto tetap bisa discroll
+     sendiri, tapi body tidak lagi ikut bergeser membuka area kosong. */
+  overflow-x: hidden;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

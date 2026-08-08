@@ -43,6 +43,39 @@ service cloud.firestore {
       return profile != null && profile.data.homeroomClassName == className;
     }
 
+    // --- Siswa (Student Companion) ---
+    // Siswa tidak punya teacher_profiles, jadi getWorkspaceId(uid) di atas
+    // akan gagal (get() pada dokumen yang tidak ada = deny, bukan error) —
+    // itu sudah cukup untuk mengunci siswa dari semua koleksi guru-only di
+    // bawah tanpa perubahan apa pun. Fungsi-fungsi ini khusus dipakai di
+    // koleksi yang MEMANG perlu dibuka untuk siswa (lihat Student Companion
+    // di visi produk: jadwal, tugas, nilai, presensi).
+    function isStudentAuthed() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/student_profiles/$(request.auth.uid));
+    }
+
+    function studentProfileData() {
+      return get(/databases/$(database)/documents/student_profiles/$(request.auth.uid)).data;
+    }
+
+    function isStudentInWorkspace(workspaceId) {
+      return isStudentAuthed() && studentProfileData().workspaceId == workspaceId;
+    }
+
+    function isStudentInClass(workspaceId, className) {
+      return isStudentInWorkspace(workspaceId) && studentProfileData().className == className;
+    }
+
+    // workspaceId WAJIB ikut diperiksa, bukan hanya studentId. Tanpa itu,
+    // siswa di workspace lain yang kebetulan punya studentId sama bisa
+    // membaca data milik siswa di workspace ini. studentId memang id acak
+    // Firestore sehingga tabrakan sangat tidak mungkin — tapi keamanan
+    // yang bersandar pada "id-nya sulit ditebak" bukan keamanan.
+    function isOwnStudentData(workspaceId, studentId) {
+      return isStudentInWorkspace(workspaceId) && studentProfileData().studentId == studentId;
+    }
+
     // ============================================================
     // KOLEKSI: teacher_profiles
     // ============================================================
@@ -50,10 +83,16 @@ service cloud.firestore {
       // User bisa membaca profilnya sendiri
       allow read: if isAuthenticated() && request.auth.uid == userId;
 
-      // User bisa membuat/mengupdate profilnya sendiri
+      // User bisa membuat/mengupdate profilnya sendiri. workspaceId hanya
+      // boleh diisi SEKALI (dari kosong ke suatu workspace, saat daftar
+      // atau gabung pakai kode undangan) — setelah itu terkunci, tidak
+      // bisa diam-diam diganti ke workspace lain lewat write biasa.
+      // (resource == null saat operasi create — profil belum pernah
+      // ada, jadi belum py workspaceId sama sekali.)
       allow write: if isAuthenticated() && request.auth.uid == userId
-        && (request.resource.data.workspaceId == null || 
-            request.resource.data.workspaceId == getWorkspaceId(request.auth.uid));
+        && (request.resource.data.workspaceId ==
+              (resource == null ? null : resource.data.workspaceId) ||
+            (resource == null || resource.data.workspaceId == null));
 
       // OWNER bisa membaca semua profil di workspace-nya (untuk manajemen)
       allow read: if isAuthenticated() && 
@@ -73,12 +112,33 @@ service cloud.firestore {
         (resource.data.ownerUid == request.auth.uid ||
          getWorkspaceId(request.auth.uid) == workspaceId);
 
-      // Owner bisa mengupdate workspace-nya
+      // Owner bisa mengupdate workspace-nya — TAPI field plan/classLimit/
+      // seatLimit/planExpiresAt DIKUNCI dari client sama sekali. Field-
+      // field itu cuma boleh berubah lewat webhook pembayaran (Admin SDK,
+      // bypass rules) setelah verifikasi signature Midtrans — kalau tidak
+      // dikunci di sini, owner bisa upgrade paketnya sendiri gratis lewat
+      // DevTools/Firestore SDK langsung.
       allow update: if isAuthenticated() &&
-        resource.data.ownerUid == request.auth.uid;
+        resource.data.ownerUid == request.auth.uid &&
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['plan', 'classLimit', 'seatLimit', 'planExpiresAt']);
 
       // 🔴 DILARANG: Tidak boleh menghapus workspace
       allow delete: if false;
+    }
+
+    // ============================================================
+    // KOLEKSI: payments (riwayat transaksi Midtrans)
+    // ============================================================
+    match /payments/{orderId} {
+      // Hanya owner workspace terkait yang boleh melihat riwayat
+      // pembayarannya (informasi billing, bukan untuk seluruh guru).
+      allow read: if isAuthenticated() && isOwner(resource.data.workspaceId);
+
+      // Tidak ada write dari client sama sekali — dokumen ini hanya
+      // ditulis lewat Admin SDK (route pembuatan transaksi & webhook
+      // pembayaran), supaya status pembayaran tidak bisa dipalsukan.
+      allow write: if false;
     }
 
     // ============================================================
@@ -104,6 +164,9 @@ service cloud.firestore {
     match /schedules/{docId} {
       allow read: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
+
+      // Siswa boleh baca jadwal kelasnya sendiri (Student Companion).
+      allow read: if isStudentInClass(resource.data.workspaceId, resource.data.className);
 
       allow create: if isAuthenticated() &&
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
@@ -139,6 +202,14 @@ service cloud.firestore {
       allow read: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
 
+      // Siswa boleh baca riwayat presensi kelasnya (Student Companion).
+      // Satu dokumen presensi berisi status SEMUA siswa sekelas dalam satu
+      // sesi (bukan per-siswa) — siswa jadi ikut melihat status teman
+      // sekelasnya, bukan cuma dirinya sendiri. Diterima sebagai trade-off
+      // yang sama seperti Kas Kelas/Inventaris (transparan satu kelas),
+      // karena status hadir bukan data sensitif.
+      allow read: if isStudentInClass(resource.data.workspaceId, resource.data.className);
+
       allow create: if isAuthenticated() &&
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
 
@@ -155,6 +226,9 @@ service cloud.firestore {
     match /grades/{docId} {
       allow read: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
+
+      // Siswa cuma boleh baca nilainya sendiri, bukan nilai sekelas.
+      allow read: if isOwnStudentData(resource.data.workspaceId, resource.data.studentId);
 
       allow create: if isAuthenticated() &&
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
@@ -173,6 +247,10 @@ service cloud.firestore {
       allow read: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
 
+      // Siswa perlu baca kolom nilai kelasnya supaya nilai (di collection
+      // grades) bisa ditampilkan dengan judul komponennya, bukan cuma id.
+      allow read: if isStudentInClass(resource.data.workspaceId, resource.data.className);
+
       allow create: if isAuthenticated() &&
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
 
@@ -181,6 +259,120 @@ service cloud.firestore {
 
       allow delete: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
+    }
+
+    // ============================================================
+    // KOLEKSI: assignments
+    // ============================================================
+    match /assignments/{docId} {
+      allow read: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+
+      // Siswa boleh baca daftar tugas kelasnya (Student Companion).
+      allow read: if isStudentInClass(resource.data.workspaceId, resource.data.className);
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
+
+      allow update: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+
+      allow delete: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+    }
+
+    // ============================================================
+    // KOLEKSI: announcements (Pengumuman guru -> siswa sekelas)
+    // ============================================================
+    match /announcements/{docId} {
+      allow read: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+
+      // Siswa boleh baca pengumuman kelasnya — ini justru tujuan fiturnya.
+      // Tetap dibatasi per kelas supaya pengumuman kelas lain tidak ikut
+      // terbaca.
+      allow read: if isStudentInClass(resource.data.workspaceId, resource.data.className);
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
+
+      allow update: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+
+      allow delete: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+    }
+
+    // ============================================================
+    // KOLEKSI: submissions
+    // Guru baca/tulis semua submission di workspace-nya (untuk menilai).
+    // Siswa cuma boleh baca & tulis submission miliknya sendiri — tidak
+    // bisa melihat atau menulis submission siswa lain, dan tidak bisa
+    // mengubah field `status`/nilai (itu hak guru lewat gradeSubmission,
+    // yang menulis ke collection grades, bukan ke submissions.status
+    // langsung dari client siswa).
+    // ============================================================
+    match /submissions/{docId} {
+      allow read: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+
+      allow read: if isOwnStudentData(resource.data.workspaceId, resource.data.studentId);
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
+
+      allow create: if isOwnStudentData(request.resource.data.workspaceId, request.resource.data.studentId) &&
+        request.resource.data.status == 'menunggu_penilaian';
+
+      allow update: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+
+      allow update: if isOwnStudentData(resource.data.workspaceId, resource.data.studentId) &&
+        isOwnStudentData(request.resource.data.workspaceId, request.resource.data.studentId) &&
+        request.resource.data.status == 'menunggu_penilaian' &&
+        resource.data.status != 'dinilai';
+
+      allow delete: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+    }
+
+    // ============================================================
+    // KOLEKSI: student_login_codes (klaim akun Student Companion)
+    // Dokumen ID = accessCode itu sendiri, isinya cuma {studentId,
+    // workspaceId}. Sengaja HANYA allow get (ambil satu dokumen kalau
+    // sudah tahu kodenya), BUKAN list — supaya tidak ada yang bisa
+    // mengintip/enumerasi semua kode siswa. Keamanan alur klaim
+    // bergantung pada kode yang acak & rahasia, sama seperti kode
+    // kelas di Google Classroom/Kahoot — bukan pada workspace scoping,
+    // karena saat klaim siswa belum py profil apa pun.
+    // ============================================================
+    match /student_login_codes/{code} {
+      allow get: if isAuthenticated();
+      allow list: if false;
+
+      allow create: if isAuthenticated() &&
+        request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
+
+      allow update, delete: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+    }
+
+    // ============================================================
+    // KOLEKSI: student_profiles (identitas akun Student Companion)
+    // Kebalikan dari teacher_profiles: 1 dokumen per akun siswa, ID
+    // dokumen = authUid siswa (bisa anonim). Dibuat sekali saat klaim
+    // accessCode lewat studentAuthService.claimAccessCode, lalu jadi
+    // sumber kebenaran "siswa ini siapa & kelas mana" untuk semua rule
+    // isStudentInClass/isOwnStudentData di atas.
+    // ============================================================
+    match /student_profiles/{authUid} {
+      allow read: if isAuthenticated() && request.auth.uid == authUid;
+
+      // Sekali buat, tidak bisa diubah lagi — identitas siswa terkunci
+      // begitu ter-klaim (kalau kode disebar ke device lain, device itu
+      // dapat dokumen profilnya sendiri, bukan menimpa yang ini).
+      allow create: if isAuthenticated() && request.auth.uid == authUid;
+      allow update, delete: if false;
     }
 
     // ============================================================
@@ -225,12 +417,54 @@ service cloud.firestore {
     // pribadi siswa, jadi baca DIBATASI ke wali kelas kelas itu atau
     // admin/owner — tidak untuk seluruh guru di workspace.
     // ============================================================
+    // CATATAN PENTING: koleksi ini TIDAK PERNAH dibuka untuk siswa, dan
+    // tidak boleh dibuka. Prestasi — satu-satunya kategori yang perlu
+    // dilihat siswa — sudah dipindah ke koleksi student_achievements di
+    // bawah. Menambahkan aturan baca untuk siswa di sini, walau dibatasi
+    // category == 'prestasi', berarti satu salah ketik memisahkan siswa
+    // dari catatan konselingnya sendiri.
     match /student_notes/{docId} {
       allow read: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
         (isHomeroomOf(resource.data.className) ||
          isAdminOrOwner(getWorkspaceId(request.auth.uid)));
 
+      allow create: if isAuthenticated() &&
+        request.resource.data.workspaceId == getWorkspaceId(request.auth.uid) &&
+        isHomeroomOf(request.resource.data.className);
+
+      allow update, delete: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        isHomeroomOf(resource.data.className);
+    }
+
+    // ============================================================
+    // KOLEKSI: student_achievements (Prestasi siswa)
+    //
+    // Kenapa koleksi sendiri, bukan student_notes dengan filter kategori?
+    // Karena student_notes juga menyimpan catatan konseling. Kalau siswa
+    // diberi akses baca ke sana — sekalipun dibatasi category ==
+    // 'prestasi' — maka satu kondisi yang keliru, satu dokumen konseling
+    // yang kelupaan diisi category-nya, atau satu kategori sensitif baru
+    // di masa depan, langsung berarti kebocoran catatan konseling.
+    //
+    // Dengan koleksi terpisah, kesalahan apa pun pada aturan di bawah ini
+    // secara struktural tidak bisa menyentuh data konseling: koleksi itu
+    // tidak punya satu pun aturan yang memberi siswa akses.
+    // ============================================================
+    match /student_achievements/{docId} {
+      // Guru: sama seperti prestasi sebelumnya — wali kelas kelas itu,
+      // atau admin/owner workspace.
+      allow read: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        (isHomeroomOf(resource.data.className) ||
+         isAdminOrOwner(getWorkspaceId(request.auth.uid)));
+
+      // Siswa: HANYA prestasi miliknya sendiri — bukan sekelas.
+      allow read: if isOwnStudentData(resource.data.workspaceId, resource.data.studentId);
+
+      // Menulis tetap hak wali kelas; siswa tidak bisa mencatat prestasi
+      // untuk dirinya sendiri.
       allow create: if isAuthenticated() &&
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid) &&
         isHomeroomOf(request.resource.data.className);

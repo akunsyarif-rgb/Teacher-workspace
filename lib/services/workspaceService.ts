@@ -4,9 +4,15 @@ import {
   findWorkspaceByInviteCode,
   updateWorkspaceInviteCode,
   WorkspaceDoc,
-  WorkspacePlan,
 } from '../repositories/workspaceRepository';
-import { assignTeacherToWorkspace, loadTeacherProfile } from './teacherProfileService';
+import { assignTeacherToWorkspace, loadTeacherProfile, countWorkspaceMembers } from './teacherProfileService';
+import { FREE_CLASS_LIMIT, FREE_SEAT_LIMIT, PLAN_CLASS_LIMITS, PLAN_PRICES, PLAN_DURATION_MS } from '../config/plans';
+
+// Re-export supaya kode lain (controller/UI) yang sudah mengimpor
+// konstanta ini dari workspaceService tidak perlu berubah — sumber
+// aslinya sekarang lib/config/plans.ts (tanpa dependensi Firestore),
+// supaya bisa dipakai juga oleh lib/server/paymentService.ts (server-only).
+export { FREE_CLASS_LIMIT, FREE_SEAT_LIMIT, PLAN_CLASS_LIMITS, PLAN_PRICES, PLAN_DURATION_MS };
 
 const INVITE_CODE_VALID_MS = 7 * 24 * 60 * 60 * 1000; // 7 hari
 
@@ -21,15 +27,6 @@ async function assertNoExistingWorkspace(uid: string) {
     );
   }
 }
-
-// Batas kelas per paket. null = tak terbatas.
-// Angka ini sengaja dipusatkan di satu tempat supaya gampang diubah nanti
-// berdasarkan data pemakaian nyata, tanpa perlu cari-cari di banyak file.
-export const PLAN_CLASS_LIMITS: Record<WorkspacePlan, number | null> = {
-  individual_lifetime: 10,
-  individual_monthly: null,
-  school_annual: null,
-};
 
 function generateInviteCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // tanpa 0/O/1/I biar tidak salah baca
@@ -63,11 +60,17 @@ export async function createSchoolWorkspace(uid: string, schoolName: string) {
   const inviteCode = generateInviteCode();
   const inviteCodeExpiresAt = Date.now() + INVITE_CODE_VALID_MS;
 
+  // Workspace sekolah dibuat dulu dengan batas GRATIS (sama seperti
+  // individual) — classLimit & seatLimit baru terbuka penuh setelah
+  // owner benar-benar membeli kursi guru lewat halaman upgrade. Tanpa
+  // ini, sekolah baru langsung dapat kelas & kursi guru tak terbatas
+  // gratis sejak mendaftar, dan paket berbayar jadi tidak berarti.
   const workspaceId = await createWorkspaceDoc({
     name: schoolName,
     plan: 'school_annual',
     ownerUid: uid,
-    classLimit: PLAN_CLASS_LIMITS.school_annual,
+    classLimit: FREE_CLASS_LIMIT,
+    seatLimit: FREE_SEAT_LIMIT,
     inviteCode,
     inviteCodeExpiresAt,
   });
@@ -91,6 +94,9 @@ export async function joinWorkspaceByCode(uid: string, inviteCode: string) {
     throw new Error('Kode undangan sudah kedaluwarsa. Minta admin sekolah membuat kode baru.');
   }
 
+  const memberCount = await countWorkspaceMembers(workspace.id);
+  assertSeatLimitNotReached(workspace, memberCount);
+
   await assignTeacherToWorkspace(uid, workspace.id, 'TEACHER');
   return workspace;
 }
@@ -113,14 +119,28 @@ export function isClassLimitReached(workspace: WorkspaceDoc, currentClassCount: 
   return currentClassCount >= workspace.classLimit;
 }
 
-// Versi yang langsung menolak (throw) — ini yang sebenarnya dipanggil dari
-// studentService saat guru mencoba menambah siswa ke kelas BARU. Belum
-// terpasang di manapun sampai studentService ikut disesuaikan (menyusul,
-// menunggu isi file repository lama Anda kirimkan).
+// Versi yang langsung menolak (throw) — dipanggil dari studentService
+// saat guru mencoba menambah siswa ke kelas BARU.
 export function assertClassLimitNotReached(workspace: WorkspaceDoc, currentClassCount: number) {
   if (isClassLimitReached(workspace, currentClassCount)) {
     throw new Error(
       `Paket Anda dibatasi maksimal ${workspace.classLimit} kelas. Hubungi admin untuk upgrade paket.`
+    );
+  }
+}
+
+// Sama seperti isClassLimitReached/assertClassLimitNotReached, tapi untuk
+// kuota kursi guru (khusus school_annual) — dicek saat guru baru mau
+// gabung lewat kode undangan.
+export function isSeatLimitReached(workspace: WorkspaceDoc, currentMemberCount: number) {
+  if (workspace.seatLimit === null || workspace.seatLimit === undefined) return false;
+  return currentMemberCount >= workspace.seatLimit;
+}
+
+export function assertSeatLimitNotReached(workspace: WorkspaceDoc, currentMemberCount: number) {
+  if (isSeatLimitReached(workspace, currentMemberCount)) {
+    throw new Error(
+      `Kuota guru workspace ini sudah penuh (maks ${workspace.seatLimit} guru). Admin sekolah perlu membeli kursi tambahan lewat halaman upgrade.`
     );
   }
 }

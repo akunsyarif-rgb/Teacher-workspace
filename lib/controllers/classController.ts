@@ -39,3 +39,9 @@ export async function deleteStudent(id: string) {
   clearAllCached();
   return result;
 }
+
+export async function generateMissingAccessCodes(workspaceId: string, className: string) {
+  const result = await studentService.generateMissingAccessCodes(workspaceId, className);
+  clearAllCached();
+  return result;
+}

@@ -2,7 +2,9 @@ import { db } from '@/src/config/firebase';
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
+  getCountFromServer,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -13,15 +15,30 @@ import {
   QueryConstraint,
 } from 'firebase/firestore';
 
-export async function getDocuments(collectionName: string, filters: [string, any, any][] = []) {
+function buildQuery(collectionName: string, filters: [string, any, any][]) {
   const constraints: QueryConstraint[] = filters.map(([field, op, value]) => where(field, op, value));
-  const q =
-    constraints.length > 0
-      ? query(collection(db, collectionName), ...constraints)
-      : collection(db, collectionName);
+  return constraints.length > 0
+    ? query(collection(db, collectionName), ...constraints)
+    : collection(db, collectionName);
+}
 
-  const snapshot = await getDocs(q);
+export async function getDocuments(collectionName: string, filters: [string, any, any][] = []) {
+  const snapshot = await getDocs(buildQuery(collectionName, filters));
   return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+}
+
+export async function getDocument(collectionName: string, id: string) {
+  const snap = await getDoc(doc(db, collectionName, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+// Hitung jumlah dokumen lewat aggregation query Firestore (getCountFromServer)
+// — tidak mengunduh isi dokumennya sama sekali, jadi tetap murah dan cepat
+// berapa pun banyaknya dokumen di koleksi itu. Dipakai untuk statistik
+// "total" yang cuma butuh angkanya, bukan datanya.
+export async function countDocuments(collectionName: string, filters: [string, any, any][] = []) {
+  const snapshot = await getCountFromServer(buildQuery(collectionName, filters));
+  return snapshot.data().count;
 }
 
 export async function addDocument(collectionName: string, data: Record<string, any>) {

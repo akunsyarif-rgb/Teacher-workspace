@@ -1,12 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { BookOpen, UserCheck, Table, History, CheckCircle2, Circle, PartyPopper } from 'lucide-react';
+import { BookOpen, UserCheck, Table, History, CheckCircle2, Circle, PartyPopper, ClipboardList, Megaphone } from 'lucide-react';
 import Link from 'next/link';
 import Card from './ui/Card';
 import JournalTab from './journal/JournalTab';
 import AttendanceTab from './attendance/AttendanceTab';
 import GradesTab from './grades/GradesTab';
+import AssignmentsTab from './assignments/AssignmentsTab';
+import AnnouncementsTab from './announcements/AnnouncementsTab';
 import TimelineTab from './timeline/TimelineTab';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as classController from '@/lib/controllers/classController';
@@ -17,7 +19,7 @@ import { findActiveScheduleId, resolveCurrentWorkflowStep } from '@/lib/utils/sc
 
 export default function AttendanceForm() {
   const { workspaceId } = useWorkspace();
-  const [activeTab, setActiveTab] = useState<'jurnal' | 'presensi' | 'nilai' | 'riwayat'>('jurnal');
+  const [activeTab, setActiveTab] = useState<'jurnal' | 'presensi' | 'nilai' | 'tugas' | 'pengumuman' | 'riwayat'>('jurnal');
   const [classesList, setClassesList] = useState<string[]>([]);
   const [selectedClass, setSelectedClass] = useState('');
   const [subject, setSubject] = useState('');
@@ -38,7 +40,14 @@ export default function AttendanceForm() {
     const cls = params.get('class');
     const tab = params.get('tab');
     if (cls) setSelectedClass(cls);
-    if (tab === 'jurnal' || tab === 'presensi' || tab === 'nilai' || tab === 'riwayat') {
+    if (
+      tab === 'jurnal' ||
+      tab === 'presensi' ||
+      tab === 'nilai' ||
+      tab === 'tugas' ||
+      tab === 'pengumuman' ||
+      tab === 'riwayat'
+    ) {
       setActiveTab(tab);
     }
   }, []);
@@ -111,10 +120,14 @@ export default function AttendanceForm() {
   }
 
   const tabs = [
-    { key: 'jurnal', label: 'Jurnal Mengajar', icon: BookOpen },
-    { key: 'presensi', label: 'Presensi', icon: UserCheck },
-    { key: 'nilai', label: 'Nilai', icon: Table },
-    { key: 'riwayat', label: 'Riwayat', icon: History },
+    { key: 'jurnal', label: 'Jurnal Mengajar', icon: BookOpen, hideLabelOnMobile: false },
+    { key: 'presensi', label: 'Presensi', icon: UserCheck, hideLabelOnMobile: false },
+    { key: 'nilai', label: 'Nilai', icon: Table, hideLabelOnMobile: false },
+    { key: 'tugas', label: 'Tugas', icon: ClipboardList, hideLabelOnMobile: false },
+    // Dua tab terakhir tampil ikon saja di layar kecil — dengan 6 tab,
+    // memaksakan label membuat semuanya terpotong dan malah sulit dibaca.
+    { key: 'pengumuman', label: 'Pengumuman', icon: Megaphone, hideLabelOnMobile: true },
+    { key: 'riwayat', label: 'Riwayat', icon: History, hideLabelOnMobile: true },
   ] as const;
 
   if (loading) {
@@ -134,17 +147,18 @@ export default function AttendanceForm() {
             <h2 className="text-lg font-bold text-gray-900">Pusat Kegiatan Kelas & Penilaian</h2>
             <p className="text-xs text-gray-500">Kelola jurnal, presensi, nilai, dan riwayat dalam satu layar</p>
           </div>
-          <div className="grid grid-cols-2 gap-1.5 md:flex md:gap-0 bg-gray-100 p-1.5 rounded-2xl w-full md:w-auto">
-            {tabs.map(({ key, label, icon: Icon }) => (
+          <div className="flex bg-gray-100 p-1.5 rounded-2xl w-full md:w-auto">
+            {tabs.map(({ key, label, icon: Icon, hideLabelOnMobile }) => (
               <button
                 key={key}
                 onClick={() => setActiveTab(key)}
-                className={`md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap active:scale-95 ${
+                title={label}
+                className={`flex-1 md:flex-none min-w-0 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
                   activeTab === key ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'
                 }`}
               >
-                <Icon className="w-4 h-4" />
-                <span>{label}</span>
+                <Icon className="w-4 h-4 shrink-0" />
+                <span className={`truncate ${hideLabelOnMobile ? 'hidden sm:inline' : ''}`}>{label}</span>
               </button>
             ))}
           </div>
@@ -228,6 +242,10 @@ export default function AttendanceForm() {
         />
       )}
       {selectedClass && activeTab === 'nilai' && <GradesTab className={selectedClass} />}
+      {selectedClass && activeTab === 'tugas' && <AssignmentsTab className={selectedClass} subject={subject} />}
+      {selectedClass && activeTab === 'pengumuman' && (
+        <AnnouncementsTab className={selectedClass} subject={subject} />
+      )}
       {selectedClass && activeTab === 'riwayat' && <TimelineTab className={selectedClass} />}
     </div>
   );
