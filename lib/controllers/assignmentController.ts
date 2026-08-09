@@ -1,9 +1,13 @@
 import * as assignmentService from '../services/assignmentService';
 import { withCache, clearAllCached } from '../utils/sessionCache';
 
+export function assignmentsCacheKey(workspaceId: string, className: string) {
+  return `assignments:${workspaceId}:${className}`;
+}
+
 export async function fetchAssignments(workspaceId: string, className: string) {
   if (!workspaceId || !className) return [];
-  return withCache(`assignments:${workspaceId}:${className}`, () =>
+  return withCache(assignmentsCacheKey(workspaceId, className), () =>
     assignmentService.listAssignments(workspaceId, className)
   );
 }

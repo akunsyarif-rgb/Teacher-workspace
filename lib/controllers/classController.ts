@@ -1,9 +1,13 @@
 import * as studentService from '../services/studentService';
 import { withCache, clearAllCached } from '../utils/sessionCache';
 
+export function classSummariesCacheKey(workspaceId: string) {
+  return `classSummaries:${workspaceId}`;
+}
+
 export async function fetchClassSummaries(workspaceId: string) {
   if (!workspaceId) return [];
-  return withCache(`classSummaries:${workspaceId}`, () => studentService.listClassSummaries(workspaceId));
+  return withCache(classSummariesCacheKey(workspaceId), () => studentService.listClassSummaries(workspaceId));
 }
 
 export function studentsInClassCacheKey(workspaceId: string, className: string) {

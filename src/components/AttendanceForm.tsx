@@ -17,6 +17,7 @@ import * as scheduleController from '@/lib/controllers/scheduleController';
 import * as dashboardController from '@/lib/controllers/dashboardController';
 import { getCurrentDayName, TodayClassStatus } from '@/lib/services/dashboardService';
 import { findActiveScheduleId, resolveCurrentWorkflowStep } from '@/lib/utils/scheduleTime';
+import { getCached } from '@/lib/utils/sessionCache';
 
 export default function AttendanceForm() {
   const { workspaceId } = useWorkspace();
@@ -62,7 +63,22 @@ export default function AttendanceForm() {
       return;
     }
     (async () => {
-      setLoading(true);
+      // Data ini sudah di-cache (withCache), tapi tanpa cek ini
+      // setLoading(true) selalu menyalakan spinner besar "Memuat data
+      // kelas..." setiap kali guru keluar-masuk /attendance lewat tab
+      // Kelas Aktif — walau ketiga sumbernya sudah hangat, tidak ada
+      // permintaan Firestore baru yang sebenarnya terjadi.
+      const alreadyWarm =
+        getCached(classController.classSummariesCacheKey(workspaceId)) !== undefined &&
+        getCached(scheduleController.schedulesCacheKey(workspaceId)) !== undefined &&
+        getCached(
+          dashboardController.dashboardSummaryCacheKey(workspaceId),
+          dashboardController.DASHBOARD_SUMMARY_TTL_MS
+        ) !== undefined;
+
+      if (!alreadyWarm) {
+        setLoading(true);
+      }
       const [summaries, scheduleList, statuses] = await Promise.all([
         classController.fetchClassSummaries(workspaceId).catch((error) => {
           console.error('Gagal memuat daftar kelas:', error);

@@ -10,6 +10,7 @@ import JournalHistoryList from "./JournalHistoryList";
 import ConfirmDeleteModal from "@/src/components/ui/ConfirmDeleteModal";
 import InlineAlert from "@/src/components/ui/InlineAlert";
 import * as journalController from "@/lib/controllers/journalController";
+import { getCached } from "@/lib/utils/sessionCache";
 import { useWorkspace } from "@/src/context/WorkspaceContext";
 import { useOnlineStatus } from "@/src/hooks/useOnlineStatus";
 import { SkeletonText, SkeletonCard } from "../ui/Skeleton";
@@ -46,7 +47,10 @@ export default function JournalTab({ className, subject, scheduleId, onSubmitted
 
   async function loadHistory() {
     if (!className || !workspaceId) return;
-    setLoadingHistory(true);
+    const alreadyWarm = getCached(journalController.journalHistoryCacheKey(workspaceId, className)) !== undefined;
+    if (!alreadyWarm) {
+      setLoadingHistory(true);
+    }
     try {
       const entries = await journalController.fetchJournalHistory(workspaceId, className);
       setHistory(entries);

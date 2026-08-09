@@ -8,6 +8,7 @@ import Modal from '../ui/Modal';
 import Input from '../ui/Input';
 import { SkeletonCard } from '../ui/Skeleton';
 import * as announcementController from '@/lib/controllers/announcementController';
+import { getCached } from '@/lib/utils/sessionCache';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 
 type AnnouncementsTabProps = {
@@ -30,7 +31,10 @@ export default function AnnouncementsTab({ className, subject }: AnnouncementsTa
 
   async function loadAnnouncements() {
     if (!workspaceId || !className) return;
-    setLoading(true);
+    const alreadyWarm = getCached(announcementController.announcementsCacheKey(workspaceId, className)) !== undefined;
+    if (!alreadyWarm) {
+      setLoading(true);
+    }
     try {
       const list = await announcementController.fetchAnnouncements(workspaceId, className);
       setAnnouncements(list);

@@ -1,9 +1,13 @@
 import * as announcementService from '../services/announcementService';
 import { withCache, clearAllCached } from '../utils/sessionCache';
 
+export function announcementsCacheKey(workspaceId: string, className: string) {
+  return `announcements:${workspaceId}:${className}`;
+}
+
 export async function fetchAnnouncements(workspaceId: string, className: string) {
   if (!workspaceId || !className) return [];
-  return withCache(`announcements:${workspaceId}:${className}`, () =>
+  return withCache(announcementsCacheKey(workspaceId, className), () =>
     announcementService.listAnnouncements(workspaceId, className)
   );
 }
