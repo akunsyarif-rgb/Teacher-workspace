@@ -68,7 +68,7 @@ export default function ClassSelector({ classes, selected, onChange }: ClassSele
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Cari kelas..."
-                className="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+                className="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-xs font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
               />
             </div>
           </div>
