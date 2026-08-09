@@ -93,6 +93,12 @@ export async function removeStudent(id: string) {
   return studentRepository.deleteStudent(id);
 }
 
+export async function removeClass(workspaceId: string, className: string) {
+  if (!workspaceId) throw new Error('workspaceId diperlukan');
+  if (!className) throw new Error('Kelas tidak valid.');
+  return studentRepository.deleteStudentsByClass(workspaceId, className);
+}
+
 export async function generateMissingAccessCodes(workspaceId: string, className: string) {
   if (!workspaceId || !className) throw new Error('Kelas tidak valid.');
   const students = await studentRepository.getStudentsByClass(workspaceId, className);

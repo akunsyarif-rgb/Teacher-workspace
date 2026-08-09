@@ -127,3 +127,19 @@ export async function backfillAccessCodes(
 export async function deleteStudent(id: string) {
   return deleteDocument(COLLECTIONS.STUDENTS, id);
 }
+
+// Hapus seluruh siswa satu kelas sekaligus (mis. kelas percobaan/salah
+// input) — satu batch commit, konsisten dengan pola createStudentsBatch.
+export async function deleteStudentsByClass(workspaceId: string, className: string) {
+  const students = await getStudentsByClass(workspaceId, className);
+  if (students.length === 0) return 0;
+
+  const operations: BatchOperation[] = students.map((student: any) => ({
+    type: 'delete',
+    collectionName: COLLECTIONS.STUDENTS,
+    id: student.id,
+  }));
+
+  await batchWrite(operations);
+  return students.length;
+}
