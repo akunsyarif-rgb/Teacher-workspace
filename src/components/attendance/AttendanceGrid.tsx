@@ -20,6 +20,11 @@ type AttendanceGridProps = {
   onChange: (studentId: string, next: TodayEntry) => void;
 };
 
+// Lebar kolom tetap untuk tampilan spreadsheet (tablet/laptop, md+).
+const NAME_COL = 'w-[200px] shrink-0';
+const HISTORY_COL = 'w-[40px] shrink-0';
+const TODAY_COL = 'w-[300px] shrink-0';
+
 function formatShortDate(dateStr: string): string {
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return dateStr;
@@ -96,53 +101,111 @@ function TodayStatusControl({ value, onChange }: { value: TodayEntry; onChange: 
   );
 }
 
-// Satu kartu per siswa — nama di atas, riwayat kehadiran tepat di
-// bawahnya (strip badge yang bisa discroll horizontal sendiri kalau
-// riwayatnya panjang), lalu status hari ini di baris paling bawah.
+// Dua layout terpisah, bukan satu layout yang dipaksa sama di semua
+// ukuran layar:
 //
-// Sebelumnya nama/riwayat/status-hari-ini disusun sebagai satu baris
-// spreadsheet dengan nama & status-hari-ini sticky di kiri-kanan.
-// Itu ternyata cacat: `position: sticky` di kedua sisi tidak saling
-// menyisakan ruang untuk kolom riwayat di tengah — pada scroll awal,
-// tombol status hari ini (sticky kanan) selalu menumpuk tepat di
-// belakang kolom riwayat pertama (background putihnya menutupi badge
-// riwayat), bukan cuma pada kelas dengan sedikit pertemuan seperti
-// dugaan awal. Layout kartu ini tidak pakai sticky sama sekali —
-// tidak ada dua elemen yang berebut ruang horizontal yang sama,
-// jadi tidak mungkin tumpang tindih lagi.
+// - Mobile (<768px, md:hidden): kartu per siswa — nama, lalu strip
+//   riwayat, lalu status hari ini, ditumpuk vertikal. Tidak ada sticky
+//   sama sekali; paling nyaman ditekan satu tangan.
+//
+// - Tablet/laptop (>=768px, hidden md:block): spreadsheet padat —
+//   nama, riwayat, dan hari ini sejajar dalam satu baris per siswa,
+//   supaya banyak siswa & sesi kelihatan sekaligus (layar cukup lebar
+//   untuk itu). HANYA kolom Nama yang sticky (freeze kolom pertama,
+//   pola spreadsheet standar). Kolom "Hari Ini" SENGAJA tidak dibuat
+//   sticky di sisi kanan seperti desain lama — itu sudah terbukti
+//   (lewat pengukuran DOM, bukan dugaan) SELALU menumpuk begitu total
+//   lebar kolom melebihi lebar viewport, di ukuran layar manapun,
+//   karena sticky kiri & kanan sama-sama menempel ke tepi viewport
+//   yang sedang terlihat tanpa saling menyisakan ruang. Kelas dengan
+//   sedikit sesi kebetulan belum memicu itu di iPad, tapi begitu
+//   sesinya menumpuk sepanjang semester, bug yang sama pasti muncul
+//   lagi kalau kolom kanan tetap dipaksa sticky. Tanpa sticky di
+//   kanan, kolom ini hanya ikut discroll bersama riwayat — perilaku
+//   spreadsheet yang wajar, dan tidak mungkin tumpang tindih.
 export default function AttendanceGrid({ students, history, statusMap, onChange }: AttendanceGridProps) {
   const sortedHistory = [...history].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
   return (
-    <div className="space-y-2.5">
-      {students.map((student, idx) => {
-        const entry = statusMap[student.id] || { status: 'Hadir', late: false };
-        return (
-          <div key={student.id} className="bg-white rounded-2xl border border-gray-100 p-3 space-y-2.5">
-            <p className="font-bold text-sm text-gray-900">
-              <span className="text-gray-400 font-normal mr-1.5">{idx + 1}.</span>
-              {student.name}
-            </p>
+    <>
+      {/* Mobile: kartu per siswa */}
+      <div className="md:hidden space-y-2.5">
+        {students.map((student, idx) => {
+          const entry = statusMap[student.id] || { status: 'Hadir', late: false };
+          return (
+            <div key={student.id} className="bg-white rounded-2xl border border-gray-100 p-3 space-y-2.5">
+              <p className="font-bold text-sm text-gray-900">
+                <span className="text-gray-400 font-normal mr-1.5">{idx + 1}.</span>
+                {student.name}
+              </p>
 
-            {sortedHistory.length > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="shrink-0 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Riwayat</span>
-                <div className="flex items-center gap-1.5 overflow-x-auto">
-                  {sortedHistory.map((session) => {
-                    const detail = (session.details || []).find((d) => d.studentId === student.id);
-                    return <HistoryBadge key={session.id} detail={detail} date={session.date} />;
-                  })}
+              {sortedHistory.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="shrink-0 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Riwayat</span>
+                  <div className="flex items-center gap-1.5 overflow-x-auto">
+                    {sortedHistory.map((session) => {
+                      const detail = (session.details || []).find((d) => d.studentId === student.id);
+                      return <HistoryBadge key={session.id} detail={detail} date={session.date} />;
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-              <span className="shrink-0 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Hari Ini</span>
-              <TodayStatusControl value={entry} onChange={(next) => onChange(student.id, next)} />
+              <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                <span className="shrink-0 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Hari Ini</span>
+                <TodayStatusControl value={entry} onChange={(next) => onChange(student.id, next)} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Tablet/laptop: spreadsheet, nama di-freeze */}
+      <div className="hidden md:block overflow-x-auto rounded-2xl border border-gray-100 text-xs">
+        <div className="w-fit min-w-full">
+          <div className="flex bg-gray-50">
+            <div className={`sticky left-0 z-20 bg-gray-50 text-left px-3 py-2.5 font-bold text-gray-500 ${NAME_COL}`}>
+              Nama Siswa
+            </div>
+            {sortedHistory.map((session, i) => (
+              <div
+                key={session.id}
+                className={`px-1 py-2.5 text-center font-bold text-gray-400 ${HISTORY_COL}`}
+                title={session.date}
+              >
+                <div>{i + 1}</div>
+                <div className="text-[9px] font-medium text-gray-300">{formatShortDate(session.date)}</div>
+              </div>
+            ))}
+            <div className={`border-l-2 border-gray-200 px-3 py-2.5 text-center font-bold text-gray-500 ${TODAY_COL}`}>
+              Hari Ini
             </div>
           </div>
-        );
-      })}
-    </div>
+
+          {students.map((student, idx) => {
+            const entry = statusMap[student.id] || { status: 'Hadir', late: false };
+            return (
+              <div key={student.id} className="flex border-t border-gray-100">
+                <div className={`sticky left-0 z-10 bg-white px-3 py-2.5 font-bold text-sm text-gray-900 ${NAME_COL}`}>
+                  <span className="text-gray-400 font-normal mr-1.5">{idx + 1}.</span>
+                  {student.name}
+                </div>
+                {sortedHistory.map((session) => {
+                  const detail = (session.details || []).find((d) => d.studentId === student.id);
+                  return (
+                    <div key={session.id} className={`flex items-center justify-center py-2.5 ${HISTORY_COL}`}>
+                      <HistoryBadge detail={detail} date={session.date} />
+                    </div>
+                  );
+                })}
+                <div className={`border-l-2 border-gray-200 px-3 py-2.5 flex items-center ${TODAY_COL}`}>
+                  <TodayStatusControl value={entry} onChange={(next) => onChange(student.id, next)} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </>
   );
 }
