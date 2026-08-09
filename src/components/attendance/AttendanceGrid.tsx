@@ -61,6 +61,18 @@ function HistoryBadge({ detail, date }: { detail?: { status: string; late?: bool
   );
 }
 
+// Nomor urut + nama dalam flex row (bukan teks inline biasa) supaya nama
+// yang wrap ke baris kedua sejajar dengan huruf pertama nama — bukan
+// jatuh rata ke tepi kiri di bawah nomornya (default reflow teks inline).
+function StudentName({ idx, name, className }: { idx: number; name: string; className?: string }) {
+  return (
+    <p className={`flex gap-1.5 font-bold text-gray-900 ${className || ''}`}>
+      <span className="shrink-0 text-gray-400 font-normal">{idx + 1}.</span>
+      <span>{name}</span>
+    </p>
+  );
+}
+
 function TodayStatusControl({ value, onChange }: { value: TodayEntry; onChange: (next: TodayEntry) => void }) {
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
@@ -134,10 +146,7 @@ export default function AttendanceGrid({ students, history, statusMap, onChange 
           const entry = statusMap[student.id] || { status: 'Hadir', late: false };
           return (
             <div key={student.id} className="bg-white rounded-2xl border border-gray-100 p-3 space-y-2.5">
-              <p className="font-bold text-sm text-gray-900">
-                <span className="text-gray-400 font-normal mr-1.5">{idx + 1}.</span>
-                {student.name}
-              </p>
+              <StudentName idx={idx} name={student.name} className="text-sm" />
 
               {sortedHistory.length > 0 && (
                 <div className="flex items-center gap-2">
@@ -186,9 +195,8 @@ export default function AttendanceGrid({ students, history, statusMap, onChange 
             const entry = statusMap[student.id] || { status: 'Hadir', late: false };
             return (
               <div key={student.id} className="flex border-t border-gray-100">
-                <div className={`sticky left-0 z-10 bg-white px-3 py-2.5 font-bold text-sm text-gray-900 ${NAME_COL}`}>
-                  <span className="text-gray-400 font-normal mr-1.5">{idx + 1}.</span>
-                  {student.name}
+                <div className={`sticky left-0 z-10 bg-white px-3 py-2.5 ${NAME_COL}`}>
+                  <StudentName idx={idx} name={student.name} className="text-sm" />
                 </div>
                 {sortedHistory.map((session) => {
                   const detail = (session.details || []).find((d) => d.studentId === student.id);
