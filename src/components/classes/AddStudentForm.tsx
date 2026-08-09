@@ -11,13 +11,18 @@ import * as classController from '@/lib/controllers/classController';
 type AddStudentFormProps = {
   onAdded: () => void;
   existingClasses: string[];
+  // Dipakai dari ClassDetail: kelas sudah pasti (siswa ditambahkan ke kelas
+  // yang sedang dibuka), jadi form tidak perlu menawarkan pilihan/mengetik
+  // nama kelas — memisahkan alur "Tambah Siswa" dari "Tambah Kelas Baru"
+  // (lihat ClassManagement, yang selalu memulai kelas baru).
+  lockedClassName?: string;
 };
 
-export default function AddStudentForm({ onAdded, existingClasses }: AddStudentFormProps) {
+export default function AddStudentForm({ onAdded, existingClasses, lockedClassName }: AddStudentFormProps) {
   const { workspaceId } = useWorkspace();
   const [name, setName] = useState('');
   const [nis, setNis] = useState('');
-  const [className, setClassName] = useState('');
+  const [className, setClassName] = useState(lockedClassName || '');
   const [isNewClass, setIsNewClass] = useState(existingClasses.length === 0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -43,8 +48,10 @@ export default function AddStudentForm({ onAdded, existingClasses }: AddStudentF
       await classController.submitSingleStudent(workspaceId, { name, nis, className });
       setName('');
       setNis('');
-      setClassName('');
-      setIsNewClass(existingClasses.length === 0);
+      if (!lockedClassName) {
+        setClassName('');
+        setIsNewClass(existingClasses.length === 0);
+      }
       onAdded();
     } catch (error: any) {
       setError(error.message || 'Gagal menambah siswa.');
@@ -73,7 +80,14 @@ export default function AddStudentForm({ onAdded, existingClasses }: AddStudentF
           <Input label="Nama Lengkap Siswa" value={name} onChange={setName} required />
           <Input label="NIS (Opsional)" value={nis} onChange={setNis} />
 
-          {isNewClass ? (
+          {lockedClassName ? (
+            <div>
+              <label className="text-xs font-bold text-gray-700 block mb-1">Kelas</label>
+              <p className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-extrabold text-gray-700">
+                {lockedClassName}
+              </p>
+            </div>
+          ) : isNewClass ? (
             <div>
               <Input
                 label="Nama Kelas (Baru)"

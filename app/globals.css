@@ -33,3 +33,16 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Dipakai pada baris yang sengaja discroll horizontal (mis. tab Class
+   Workspace) supaya terasa seperti kontrol navigasi, bukan tabel yang
+   "bocor" — scroll tetap berfungsi penuh lewat swipe/drag, cuma track
+   scrollbar-nya yang disembunyikan. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

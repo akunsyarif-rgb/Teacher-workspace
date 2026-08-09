@@ -1,10 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Trash2, Copy, Check } from 'lucide-react';
+import { Trash2, Copy, Check, Plus } from 'lucide-react';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as classController from '@/lib/controllers/classController';
 import ConfirmDeleteModal from '@/src/components/ui/ConfirmDeleteModal';
+import Modal from '@/src/components/ui/Modal';
+import AddStudentForm from './AddStudentForm';
+import BulkImportForm from './BulkImportForm';
 
 type ClassDetailProps = {
   className: string;
@@ -19,6 +22,7 @@ export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [showAddStudent, setShowAddStudent] = useState(false);
 
   useEffect(() => {
     if (workspaceId && className) {
@@ -91,12 +95,21 @@ export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke
           <h3 className="text-sm font-extrabold text-gray-900 uppercase tracking-wider">Kelas {className}</h3>
           <p className="text-xs font-bold text-gray-400 mt-0.5">Total {students.length} Siswa</p>
         </div>
-        <button
-          onClick={onBack}
-          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all"
-        >
-          {backLabel}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowAddStudent(true)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Tambah Siswa
+          </button>
+          <button
+            onClick={onBack}
+            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all"
+          >
+            {backLabel}
+          </button>
+        </div>
       </div>
 
       {missingCodeCount > 0 && (
@@ -171,6 +184,30 @@ export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke
         requireTyping={true}
         type="danger"
       />
+
+      <Modal
+        isOpen={showAddStudent}
+        onClose={() => setShowAddStudent(false)}
+        title={`Tambah Siswa ke Kelas ${className}`}
+      >
+        <div className="space-y-6">
+          <AddStudentForm
+            onAdded={() => {
+              setShowAddStudent(false);
+              loadStudents();
+            }}
+            existingClasses={[]}
+            lockedClassName={className}
+          />
+          <BulkImportForm
+            onAdded={() => {
+              setShowAddStudent(false);
+              loadStudents();
+            }}
+            lockedClassName={className}
+          />
+        </div>
+      </Modal>
     </div>
   );
 }

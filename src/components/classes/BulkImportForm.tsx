@@ -11,11 +11,15 @@ import * as classController from '@/lib/controllers/classController';
 
 type BulkImportFormProps = {
   onAdded: () => void;
+  // Dipakai dari ClassDetail: kelas tujuan sudah pasti (kelas yang sedang
+  // dibuka), jadi field nama kelas dikunci — memisahkan alur "Tambah Siswa"
+  // dari "Tambah Kelas Baru" (lihat ClassManagement).
+  lockedClassName?: string;
 };
 
-export default function BulkImportForm({ onAdded }: BulkImportFormProps) {
+export default function BulkImportForm({ onAdded, lockedClassName }: BulkImportFormProps) {
   const { workspaceId } = useWorkspace();
-  const [className, setClassName] = useState('');
+  const [className, setClassName] = useState(lockedClassName || '');
   const [namesText, setNamesText] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -31,7 +35,9 @@ export default function BulkImportForm({ onAdded }: BulkImportFormProps) {
     try {
       const result = await classController.submitBulkStudents(workspaceId, className, namesText);
       alert(`✅ Berhasil menambahkan ${result.savedCount} siswa ke kelas ${result.targetClass}!`);
-      setClassName('');
+      if (!lockedClassName) {
+        setClassName('');
+      }
       setNamesText('');
       onAdded();
     } catch (error: any) {
@@ -61,13 +67,22 @@ export default function BulkImportForm({ onAdded }: BulkImportFormProps) {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-3">
-          <Input
-            label="Nama Kelas Tujuan"
-            value={className}
-            onChange={setClassName}
-            placeholder="Contoh: XI F TEKNIK 2"
-            required
-          />
+          {lockedClassName ? (
+            <div>
+              <label className="text-xs font-bold text-gray-700 block mb-1">Kelas Tujuan</label>
+              <p className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-extrabold text-gray-700">
+                {lockedClassName}
+              </p>
+            </div>
+          ) : (
+            <Input
+              label="Nama Kelas Tujuan"
+              value={className}
+              onChange={setClassName}
+              placeholder="Contoh: XI F TEKNIK 2"
+              required
+            />
+          )}
           <Textarea
             label="Daftar Nama Siswa"
             value={namesText}
