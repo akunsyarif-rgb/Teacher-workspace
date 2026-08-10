@@ -45,16 +45,30 @@ export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke
   }
 
   async function handleDelete(id: string) {
-    await classController.deleteStudent(id);
-    await loadStudents();
-    setDeleteTarget(null);
+    try {
+      await classController.deleteStudent(id);
+      await loadStudents();
+      setDeleteTarget(null);
+    } catch (error: any) {
+      // ConfirmDeleteModal tidak menangkap error dari onConfirm sendiri —
+      // tanpa alert di sini, kegagalan hapus gagal secara senyap. Re-throw
+      // supaya modal tahu untuk tetap terbuka (bukan ikut onClose seolah
+      // berhasil), mengikuti pola handleGenerateMissingCodes di file ini.
+      alert(error.message || 'Gagal menghapus siswa.');
+      throw error;
+    }
   }
 
   async function handleDeleteClass() {
     if (!workspaceId) return;
-    await classController.deleteClass(workspaceId, className);
-    setConfirmDeleteClass(false);
-    onBack();
+    try {
+      await classController.deleteClass(workspaceId, className);
+      setConfirmDeleteClass(false);
+      onBack();
+    } catch (error: any) {
+      alert(error.message || 'Gagal menghapus kelas.');
+      throw error;
+    }
   }
 
   async function handleGenerateMissingCodes() {
@@ -213,7 +227,6 @@ export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke
               setShowAddStudent(false);
               loadStudents();
             }}
-            existingClasses={[]}
             lockedClassName={className}
           />
           <BulkImportForm
