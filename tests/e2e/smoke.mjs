@@ -243,13 +243,21 @@ async function run() {
       await teacher.waitForTimeout(800);
       await teacher.fill('input[placeholder*="Latihan Soal"]', ASSIGNMENT_TITLE);
       await teacher.fill('input[type="date"]', '2026-12-31');
+      // Materi soal sekaligus jadi bukti storage.rules path baru
+      // (assignment-materials/) benar-benar bisa ditulis guru, bukan cuma
+      // lolos compile.
+      await teacher.locator('input[type="file"]').first().setInputFiles({
+        name: 'soal-bab-3.png',
+        mimeType: 'image/png',
+        buffer: ONE_PIXEL_PNG,
+      });
       await teacher.getByRole('button', { name: /^Buat Tugas$/i }).last().click();
-      await teacher.waitForTimeout(3000);
+      await teacher.waitForTimeout(4000);
       const created = await teacher.getByText(ASSIGNMENT_TITLE).count();
-      if (created > 0) pass('Guru membuat tugas');
-      else fail('Guru membuat tugas', 'tugas tidak muncul di daftar setelah disimpan');
+      if (created > 0) pass('Guru membuat tugas dengan materi terlampir');
+      else fail('Guru membuat tugas dengan materi terlampir', 'tugas tidak muncul di daftar setelah disimpan');
     } else {
-      fail('Guru membuat tugas', 'tombol "Buat Tugas" tidak ditemukan');
+      fail('Guru membuat tugas dengan materi terlampir', 'tombol "Buat Tugas" tidak ditemukan');
     }
 
     // ---------- 5. Siswa masuk pakai kode akses ----------
@@ -294,6 +302,24 @@ async function run() {
       const assignmentVisible = await student.getByText(ASSIGNMENT_TITLE).count();
       if (assignmentVisible > 0) pass('Siswa melihat tugas yang dibuat guru');
       else fail('Siswa melihat tugas yang dibuat guru', 'tugas tidak muncul di aplikasi siswa');
+
+      const materialLink = student.getByRole('link', { name: /soal-bab-3\.png/i }).first();
+      if (await materialLink.count()) {
+        const href = await materialLink.getAttribute('href');
+        try {
+          const res = await fetch(href);
+          if (res.ok) pass('Siswa bisa membuka materi soal dari guru', `HTTP ${res.status}`);
+          else fail('Siswa bisa membuka materi soal dari guru', `unduhan gagal: HTTP ${res.status}`);
+        } catch (err) {
+          fail('Siswa bisa membuka materi soal dari guru', `unduhan error: ${err.message}`);
+        }
+      } else {
+        await failWithEvidence(
+          student,
+          'Siswa bisa membuka materi soal dari guru',
+          'tautan materi tidak muncul di halaman tugas siswa'
+        );
+      }
 
       // ---------- 7. Siswa mengumpulkan jawaban ----------
       const submitButton = student.getByRole('button', { name: /Kumpulkan/i }).first();

@@ -42,6 +42,20 @@ service firebase.storage {
       allow delete: if false;
     }
 
+    // Materi/lampiran tugas dari guru (foto/PDF/Word soal, bukan jawaban
+    // siswa). Sama seperti submissions di atas: siswa TIDAK membaca file
+    // ini lewat aturan read di sini, melainkan lewat download URL bertoken
+    // yang disimpan di dokumen tugas (firestore.rules yang membatasi siapa
+    // boleh melihat dokumen itu). Aturan read di sini hanya untuk guru
+    // pengunggahnya sendiri, mis. saat perlu getDownloadURL() ulang.
+    match /assignment-materials/{workspaceId}/{assignmentId}/{teacherUid}/{fileName} {
+      allow read: if request.auth != null && request.auth.uid == teacherUid;
+
+      allow write: if request.auth != null && request.auth.uid == teacherUid && isAllowedUpload();
+
+      allow delete: if false;
+    }
+
     // Path lain di bucket ini belum dipakai aplikasi — tutup semuanya.
     match /{allPaths=**} {
       allow read, write: if false;

@@ -104,3 +104,62 @@ describe('storage.rules — lampiran tugas', () => {
     await assertFails(uploadBytes(ref(storage, 'random/file.png'), PNG, META));
   });
 });
+
+const materialPath = (teacherUid: string, workspaceId = 'ws1', assignmentId = 'a1') =>
+  `assignment-materials/${workspaceId}/${assignmentId}/${teacherUid}/soal.png`;
+
+describe('storage.rules — materi tugas dari guru', () => {
+  it('lets the teacher upload into their own folder', async () => {
+    const storage = testEnv.authenticatedContext('teacherUidA').storage();
+    await assertSucceeds(uploadBytes(ref(storage, materialPath('teacherUidA')), PNG, META));
+  });
+
+  it("denies uploading into someone else's folder", async () => {
+    const storage = testEnv.authenticatedContext('teacherUidA').storage();
+    await assertFails(uploadBytes(ref(storage, materialPath('teacherUidB')), PNG, META));
+  });
+
+  it('denies unauthenticated uploads', async () => {
+    const storage = testEnv.unauthenticatedContext().storage();
+    await assertFails(uploadBytes(ref(storage, materialPath('teacherUidA')), PNG, META));
+  });
+
+  it('denies a disallowed content type (e.g. video)', async () => {
+    const storage = testEnv.authenticatedContext('teacherUidA').storage();
+    await assertFails(
+      uploadBytes(ref(storage, materialPath('teacherUidA')), PNG, { contentType: 'video/mp4' })
+    );
+  });
+
+  it('accepts a Word document (.docx)', async () => {
+    const storage = testEnv.authenticatedContext('teacherUidA').storage();
+    await assertSucceeds(
+      uploadBytes(ref(storage, `assignment-materials/ws1/a1/teacherUidA/soal.docx`), PNG, {
+        contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      })
+    );
+  });
+
+  it('lets the uploader read their own file back', async () => {
+    const storage = testEnv.authenticatedContext('teacherUidA').storage();
+    await uploadBytes(ref(storage, materialPath('teacherUidA')), PNG, META);
+    await assertSucceeds(getBytes(ref(storage, materialPath('teacherUidA'))));
+  });
+
+  it("denies a student reading the file through the rules path", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await uploadBytes(ref(ctx.storage(), materialPath('teacherUidA')), PNG, META);
+    });
+    const storage = testEnv.authenticatedContext('studentUidA').storage();
+    await assertFails(getBytes(ref(storage, materialPath('teacherUidA'))));
+  });
+
+  it('never allows deleting an uploaded material file', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await uploadBytes(ref(ctx.storage(), materialPath('teacherUidA')), PNG, META);
+    });
+    const storage = testEnv.authenticatedContext('teacherUidA').storage();
+    const { deleteObject } = await import('firebase/storage');
+    await assertFails(deleteObject(ref(storage, materialPath('teacherUidA'))));
+  });
+});

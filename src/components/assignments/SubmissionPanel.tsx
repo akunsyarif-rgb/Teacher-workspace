@@ -18,7 +18,15 @@ const STATUS_LABEL: Record<string, { label: string; className: string; icon: any
 type SubmissionPanelProps = {
   workspaceId: string;
   className: string;
-  assignment: { id: string; title: string; dueDate: string; description?: string; gradeColumnId: string };
+  assignment: {
+    id: string;
+    title: string;
+    dueDate: string;
+    description?: string;
+    gradeColumnId: string;
+    materialFileUrl?: string;
+    materialFileName?: string;
+  };
   onBack: () => void;
 };
 
@@ -100,6 +108,17 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
           Tenggat {assignment.dueDate}
         </p>
+        {assignment.materialFileUrl && (
+          <a
+            href={assignment.materialFileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline pt-1"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            {assignment.materialFileName || 'Lihat materi soal'}
+          </a>
+        )}
       </Card>
 
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm divide-y divide-gray-100 overflow-hidden">

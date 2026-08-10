@@ -40,3 +40,10 @@ export async function createAssignment(
 export async function removeAssignment(id: string) {
   return assignmentRepository.deleteAssignment(id);
 }
+
+export async function attachAssignmentMaterial(
+  id: string,
+  data: { materialFileUrl: string; materialFileName: string; materialFilePath: string }
+) {
+  return assignmentRepository.updateAssignment(id, data);
+}
