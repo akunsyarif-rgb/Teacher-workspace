@@ -143,6 +143,17 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">
                 Tenggat {assignment.dueDate}
               </p>
+              {assignment.materialFileUrl && (
+                <a
+                  href={assignment.materialFileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline mt-1.5"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  {assignment.materialFileName || 'Lihat materi soal'}
+                </a>
+              )}
             </div>
 
             <div className="flex items-center justify-between gap-3 pt-2 border-t border-gray-100">

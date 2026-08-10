@@ -8,3 +8,7 @@ export async function fetchCurrentStudentProfile(authUid: string) {
 export async function claimAccessCode(accessCode: string, authUid: string) {
   return studentAuthService.claimAccessCode(accessCode, authUid);
 }
+
+export async function warmupConnection() {
+  return studentAuthService.warmupConnection();
+}

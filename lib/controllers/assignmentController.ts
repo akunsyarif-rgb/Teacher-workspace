@@ -28,3 +28,12 @@ export async function removeAssignment(id: string) {
   clearAllCached();
   return result;
 }
+
+export async function attachAssignmentMaterial(
+  id: string,
+  data: { materialFileUrl: string; materialFileName: string; materialFilePath: string }
+) {
+  const result = await assignmentService.attachAssignmentMaterial(id, data);
+  clearAllCached();
+  return result;
+}

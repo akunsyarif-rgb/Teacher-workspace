@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { ClipboardList, Plus, ChevronRight, Trash2 } from 'lucide-react';
+import { ClipboardList, Plus, ChevronRight, Trash2, Paperclip } from 'lucide-react';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import { SkeletonCard } from '../ui/Skeleton';
 import AssignmentFormModal from './AssignmentFormModal';
 import SubmissionPanel from './SubmissionPanel';
 import * as assignmentController from '@/lib/controllers/assignmentController';
+import { uploadAssignmentFile } from '@/lib/adapters/storageAdapter';
 import { getCached } from '@/lib/utils/sessionCache';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 
@@ -43,9 +44,17 @@ export default function AssignmentsTab({ className, subject }: AssignmentsTabPro
     }
   }
 
-  async function handleCreate(data: { title: string; description: string; dueDate: string }) {
+  async function handleCreate(data: { title: string; description: string; dueDate: string; file: File | null }) {
     if (!workspaceId) return;
-    await assignmentController.createAssignment(workspaceId, className, subject, data);
+    const { file, ...fields } = data;
+    const created: any = await assignmentController.createAssignment(workspaceId, className, subject, fields);
+    if (file) {
+      // Tugas sudah tersimpan meski unggahan materinya nanti gagal — guru
+      // tetap bisa menandai file lewat "Buat Tugas" lagi kalau perlu,
+      // daripada seluruh tugas batal hanya karena lampirannya bermasalah.
+      const material = await uploadAssignmentFile(workspaceId, created.id, file);
+      await assignmentController.attachAssignmentMaterial(created.id, material);
+    }
     await loadAssignments();
   }
 
@@ -105,7 +114,12 @@ export default function AssignmentsTab({ className, subject }: AssignmentsTabPro
               className="w-full bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between gap-3 text-left hover:border-blue-200 transition-colors"
             >
               <div>
-                <p className="text-xs font-bold text-gray-900">{assignment.title}</p>
+                <p className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                  {assignment.title}
+                  {assignment.materialFileUrl && (
+                    <Paperclip className="w-3 h-3 text-gray-400 shrink-0" aria-label="Ada lampiran materi" />
+                  )}
+                </p>
                 <p className="text-[11px] text-gray-500">Tenggat {assignment.dueDate}</p>
               </div>
               <div className="flex items-center gap-2">

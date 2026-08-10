@@ -1,4 +1,4 @@
-import { getDocuments, addDocument, deleteDocument } from '../adapters/firestoreAdapter';
+import { getDocuments, addDocument, updateDocument, deleteDocument } from '../adapters/firestoreAdapter';
 import { COLLECTIONS } from '../config/constants';
 
 export async function getAssignmentsByClass(workspaceId: string, className: string) {
@@ -11,6 +11,10 @@ export async function getAssignmentsByClass(workspaceId: string, className: stri
 
 export async function createAssignment(data: Record<string, any>) {
   return addDocument(COLLECTIONS.ASSIGNMENTS, data);
+}
+
+export async function updateAssignment(id: string, data: Record<string, any>) {
+  return updateDocument(COLLECTIONS.ASSIGNMENTS, id, data);
 }
 
 export async function deleteAssignment(id: string) {

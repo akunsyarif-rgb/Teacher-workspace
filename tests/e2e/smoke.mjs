@@ -190,17 +190,23 @@ async function run() {
     console.log('\n→ Alur guru');
     await teacher.goto(`${BASE_URL}/signup`, { waitUntil: 'domcontentloaded' });
     await teacher.fill('input[type="email"]', TEACHER_EMAIL);
-    await teacher.fill('input[type="password"]', TEACHER_PASSWORD);
+    // Ada dua field password (Kata Sandi + Konfirmasi) sejak audit UX — pakai
+    // placeholder, bukan `input[type="password"]`, supaya tidak diam-diam
+    // hanya mengisi field pertama dan lolos validasi konfirmasi kosong.
+    await teacher.fill('input[placeholder="Minimal 6 karakter"]', TEACHER_PASSWORD);
+    await teacher.fill('input[placeholder="Ulangi kata sandi"]', TEACHER_PASSWORD);
     await teacher.fill('input[placeholder*="Kelas Pak"]', 'Workspace Uji');
     await teacher.click('button[type="submit"]');
     await teacher.waitForURL(`${BASE_URL}/`, { timeout: 30000 });
     pass('Guru mendaftar dan workspace terbuat');
 
     // ---------- 2. Guru menambah siswa ----------
-    // Form "Tambah 1 Siswa" langsung tampil di /classes (tidak ada tombol
-    // pembuka). Karena belum ada kelas sama sekali, field kelas muncul
-    // sebagai input "Nama Kelas (Baru)", bukan dropdown.
+    // Sejak pemisahan UI Tambah Kelas/Tambah Siswa, form "Tambah 1 Siswa"
+    // ada di dalam modal "Tambah Kelas Baru", bukan langsung tampil di
+    // /classes. Karena belum ada kelas sama sekali, field kelas di dalam
+    // modal ini muncul sebagai input "Nama Kelas (Baru)", bukan dropdown.
     await teacher.goto(`${BASE_URL}/classes`, { waitUntil: 'domcontentloaded' });
+    await teacher.getByRole('button', { name: /Tambah Kelas Baru/i }).click();
     const addForm = teacher.locator('form').first();
     await addForm.locator('input').nth(0).fill(STUDENT_NAME, { timeout: 20000 });
     await addForm.locator('input').nth(1).fill('12345');
@@ -237,13 +243,21 @@ async function run() {
       await teacher.waitForTimeout(800);
       await teacher.fill('input[placeholder*="Latihan Soal"]', ASSIGNMENT_TITLE);
       await teacher.fill('input[type="date"]', '2026-12-31');
+      // Materi soal sekaligus jadi bukti storage.rules path baru
+      // (assignment-materials/) benar-benar bisa ditulis guru, bukan cuma
+      // lolos compile.
+      await teacher.locator('input[type="file"]').first().setInputFiles({
+        name: 'soal-bab-3.png',
+        mimeType: 'image/png',
+        buffer: ONE_PIXEL_PNG,
+      });
       await teacher.getByRole('button', { name: /^Buat Tugas$/i }).last().click();
-      await teacher.waitForTimeout(3000);
+      await teacher.waitForTimeout(4000);
       const created = await teacher.getByText(ASSIGNMENT_TITLE).count();
-      if (created > 0) pass('Guru membuat tugas');
-      else fail('Guru membuat tugas', 'tugas tidak muncul di daftar setelah disimpan');
+      if (created > 0) pass('Guru membuat tugas dengan materi terlampir');
+      else fail('Guru membuat tugas dengan materi terlampir', 'tugas tidak muncul di daftar setelah disimpan');
     } else {
-      fail('Guru membuat tugas', 'tombol "Buat Tugas" tidak ditemukan');
+      fail('Guru membuat tugas dengan materi terlampir', 'tombol "Buat Tugas" tidak ditemukan');
     }
 
     // ---------- 5. Siswa masuk pakai kode akses ----------
@@ -283,11 +297,47 @@ async function run() {
       if (nameShown > 0) pass('Beranda siswa menampilkan identitasnya');
       else await failWithEvidence(student, 'Beranda siswa menampilkan identitasnya', 'nama siswa tidak muncul');
 
+      // Navigasi lewat bottom nav sungguhan (bukan goto langsung ke URL) —
+      // "Profil" adalah satu-satunya jalan siswa menjangkau tombol Keluar,
+      // jadi kalau item ini hilang lagi dari StudentBottomNav, test ini
+      // yang menangkap (bukan cuma ketahuan lewat laporan pengguna).
+      await student.getByRole('link', { name: /^Profil$/i }).click();
+      await student.waitForURL(`${BASE_URL}/student/profil`, { timeout: 10000 }).catch(() => {});
+      if (student.url().includes('/student/profil')) {
+        const logoutButton = student.getByTitle(/Keluar/i).first();
+        if (await logoutButton.count()) pass('Siswa bisa menjangkau tombol Keluar lewat bottom nav');
+        else fail('Siswa bisa menjangkau tombol Keluar lewat bottom nav', 'halaman Profil terbuka tapi tombol Keluar tidak ditemukan');
+      } else {
+        await failWithEvidence(
+          student,
+          'Siswa bisa menjangkau tombol Keluar lewat bottom nav',
+          'klik "Profil" di bottom nav tidak membuka /student/profil'
+        );
+      }
+
       await student.goto(`${BASE_URL}/student/tugas`, { waitUntil: 'domcontentloaded' });
       await student.waitForTimeout(3000);
       const assignmentVisible = await student.getByText(ASSIGNMENT_TITLE).count();
       if (assignmentVisible > 0) pass('Siswa melihat tugas yang dibuat guru');
       else fail('Siswa melihat tugas yang dibuat guru', 'tugas tidak muncul di aplikasi siswa');
+
+      const materialLink = student.getByRole('link', { name: /soal-bab-3\.png/i }).first();
+      if (await materialLink.count()) {
+        const href = await materialLink.getAttribute('href');
+        try {
+          const res = await fetch(href);
+          if (res.ok) pass('Siswa bisa membuka materi soal dari guru', `HTTP ${res.status}`);
+          else fail('Siswa bisa membuka materi soal dari guru', `unduhan gagal: HTTP ${res.status}`);
+        } catch (err) {
+          fail('Siswa bisa membuka materi soal dari guru', `unduhan error: ${err.message}`);
+        }
+      } else {
+        await failWithEvidence(
+          student,
+          'Siswa bisa membuka materi soal dari guru',
+          'tautan materi tidak muncul di halaman tugas siswa'
+        );
+      }
 
       // ---------- 7. Siswa mengumpulkan jawaban ----------
       const submitButton = student.getByRole('button', { name: /Kumpulkan/i }).first();

@@ -19,6 +19,7 @@ type StudentAuthContextValue = {
   profile: StudentProfile | null;
   loading: boolean;
   refreshProfile: () => Promise<void>;
+  applyProfile: (user: User, profile: StudentProfile) => void;
 };
 
 const defaultState: StudentAuthContextValue = {
@@ -26,6 +27,7 @@ const defaultState: StudentAuthContextValue = {
   profile: null,
   loading: true,
   refreshProfile: async () => {},
+  applyProfile: () => {},
 };
 
 const StudentAuthContext = createContext<StudentAuthContextValue>(defaultState);
@@ -71,7 +73,15 @@ export function StudentAuthProvider({ children }: { children: React.ReactNode })
     return () => unsubscribe();
   }, [refreshProfile]);
 
-  const value = useMemo(() => ({ ...state, refreshProfile }), [state, refreshProfile]);
+  // Dipakai setelah claimAccessCode(): repository sudah mengembalikan
+  // persis dokumen yang baru ditulis, jadi state bisa diisi langsung tanpa
+  // baca ulang ke Firestore (round-trip itu yang bikin login siswa terasa
+  // lama — lihat app/student/login/page.tsx).
+  const applyProfile = useCallback((user: User, profile: StudentProfile) => {
+    setState({ user, profile, loading: false });
+  }, []);
+
+  const value = useMemo(() => ({ ...state, refreshProfile, applyProfile }), [state, refreshProfile, applyProfile]);
 
   return <StudentAuthContext.Provider value={value}>{children}</StudentAuthContext.Provider>;
 }

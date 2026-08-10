@@ -1,25 +1,43 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { signInAnonymously } from "firebase/auth";
 import { auth } from "@/src/config/firebase";
 import { useRouter } from "next/navigation";
-import { GraduationCap, KeyRound, ArrowRight } from "lucide-react";
-import { useStudentAuth } from "@/src/context/StudentAuthContext";
+import { GraduationCap, KeyRound, ArrowRight, ArrowLeft } from "lucide-react";
+import { useStudentAuth, StudentProfile } from "@/src/context/StudentAuthContext";
 import * as studentAuthController from "@/lib/controllers/studentAuthController";
 
 export default function StudentLoginPage() {
-  const { user, profile, loading, refreshProfile } = useStudentAuth();
+  const { user, profile, loading, applyProfile } = useStudentAuth();
   const [accessCode, setAccessCode] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
+  const warmupRef = useRef<ReturnType<typeof signInAnonymously> | null>(null);
 
   useEffect(() => {
     if (!loading && profile) {
       router.push("/student");
     }
   }, [loading, profile, router]);
+
+  useEffect(() => {
+    // Sign-in anonim + negosiasi transport Firestore pertama kali bisa
+    // berat di WiFi sekolah/data seluler (lihat komentar di
+    // src/config/firebase.ts). Mulai di sini, sambil siswa masih mengetik
+    // kode akses, supaya waktunya tidak menumpuk semua di titik klik
+    // "Masuk" — itulah yang bikin tombolnya terasa berputar amat lama.
+    if (auth.currentUser || warmupRef.current) return;
+    const signInPromise = signInAnonymously(auth);
+    warmupRef.current = signInPromise;
+    signInPromise
+      .then(() => studentAuthController.warmupConnection())
+      .catch(() => {
+        // Diamkan — handleSubmit yang mencoba lagi nanti akan
+        // menampilkan error sesungguhnya kalau memang gagal.
+      });
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -39,13 +57,14 @@ export default function StudentLoginPage() {
 
     setSubmitting(true);
     try {
-      const currentUser = auth.currentUser ?? (await signInAnonymously(auth)).user;
-      await studentAuthController.claimAccessCode(accessCode, currentUser.uid);
-      await refreshProfile();
+      const currentUser = auth.currentUser ?? (await (warmupRef.current ?? signInAnonymously(auth))).user;
+      const claimedProfile = await studentAuthController.claimAccessCode(accessCode, currentUser.uid);
+      applyProfile(currentUser, claimedProfile as StudentProfile);
       router.push("/student");
     } catch (err: any) {
       console.error("Gagal masuk sebagai siswa:", err);
       setError(err.message || "Gagal masuk. Periksa kembali kode akses dari gurumu.");
+      warmupRef.current = null;
     } finally {
       setSubmitting(false);
     }
@@ -65,6 +84,11 @@ export default function StudentLoginPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6">
       <div className="w-full max-w-sm space-y-6">
+        <a href="/login" className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-gray-900">
+          <ArrowLeft className="w-4 h-4" />
+          Kembali
+        </a>
+
         <div className="text-center space-y-2">
           <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-blue-200">
             <GraduationCap className="w-7 h-7 text-white" />

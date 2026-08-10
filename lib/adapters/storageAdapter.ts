@@ -53,3 +53,29 @@ export async function uploadSubmissionFile(
 
   return { fileUrl: url, fileName: file.name, filePath: path };
 }
+
+/**
+ * Mengunggah materi/lampiran tugas dari guru (bukan jawaban siswa). Path
+ * memuat UID guru dengan alasan sama seperti uploadSubmissionFile: itulah
+ * yang dipakai storage.rules untuk membuktikan kepemilikan tanpa perlu
+ * firestore.get (terbukti tidak bisa diuji di Storage emulator).
+ */
+export async function uploadAssignmentFile(
+  workspaceId: string,
+  assignmentId: string,
+  file: File
+) {
+  validateUploadFile(file);
+
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Sesi tidak valid, coba muat ulang halaman.');
+
+  const fileName = sanitizeFileName(file.name);
+  const path = `assignment-materials/${workspaceId}/${assignmentId}/${uid}/${fileName}`;
+  const fileRef = ref(storage, path);
+
+  await uploadBytes(fileRef, file, { contentType: file.type });
+  const url = await getDownloadURL(fileRef);
+
+  return { materialFileUrl: url, materialFileName: file.name, materialFilePath: path };
+}
