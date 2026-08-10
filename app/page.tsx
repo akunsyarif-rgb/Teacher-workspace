@@ -45,6 +45,53 @@ function getCompleteDateLabel(date: Date = new Date()) {
 
 type SyncStatus = "idle" | "saving" | "saved" | "error" | "offline";
 
+function SyncIndicator({ status, onRetry }: { status: SyncStatus; onRetry: () => void }) {
+  if (status === "offline") {
+    return (
+      <span className="flex items-center gap-1.5 text-[10px] font-bold text-red-600 bg-red-50 px-3 py-1.5 rounded-full border border-red-200">
+        <WifiOff className="w-3.5 h-3.5" />
+        Offline
+      </span>
+    );
+  }
+  if (status === "saving") {
+    return (
+      <span className="flex items-center gap-1.5 text-[10px] font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-200 animate-pulse">
+        <Wifi className="w-3.5 h-3.5" />
+        Menyimpan...
+      </span>
+    );
+  }
+  if (status === "saved") {
+    return (
+      <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
+        <Wifi className="w-3.5 h-3.5" />
+        Tersimpan
+      </span>
+    );
+  }
+  if (status === "error") {
+    return (
+      <button
+        type="button"
+        onClick={onRetry}
+        className="flex items-center gap-1.5 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-full border border-red-200 transition-colors active:scale-95"
+        aria-label="Gagal simpan catatan, tap untuk coba lagi"
+      >
+        <WifiOff className="w-3.5 h-3.5" />
+        Gagal simpan — Coba lagi
+        <RefreshCw className="w-3 h-3" />
+      </button>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-50/60 px-3 py-1.5 rounded-full border border-emerald-200/50">
+      <Wifi className="w-3.5 h-3.5" />
+      Tersinkron
+    </span>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const { user, teacherProfile, workspaceId, loading: profileLoading } = useWorkspace();
@@ -210,53 +257,6 @@ export default function DashboardPage() {
     );
   }
 
-  const SyncIndicator = () => {
-    if (syncStatus === "offline") {
-      return (
-        <span className="flex items-center gap-1.5 text-[10px] font-bold text-red-600 bg-red-50 px-3 py-1.5 rounded-full border border-red-200">
-          <WifiOff className="w-3.5 h-3.5" />
-          Offline
-        </span>
-      );
-    }
-    if (syncStatus === "saving") {
-      return (
-        <span className="flex items-center gap-1.5 text-[10px] font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-200 animate-pulse">
-          <Wifi className="w-3.5 h-3.5" />
-          Menyimpan...
-        </span>
-      );
-    }
-    if (syncStatus === "saved") {
-      return (
-        <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
-          <Wifi className="w-3.5 h-3.5" />
-          Tersimpan
-        </span>
-      );
-    }
-    if (syncStatus === "error") {
-      return (
-        <button
-          type="button"
-          onClick={() => saveQuickNoteToFirestore(quickNote)}
-          className="flex items-center gap-1.5 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-full border border-red-200 transition-colors active:scale-95"
-          aria-label="Gagal simpan catatan, tap untuk coba lagi"
-        >
-          <WifiOff className="w-3.5 h-3.5" />
-          Gagal simpan — Coba lagi
-          <RefreshCw className="w-3 h-3" />
-        </button>
-      );
-    }
-    return (
-      <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-50/60 px-3 py-1.5 rounded-full border border-emerald-200/50">
-        <Wifi className="w-3.5 h-3.5" />
-        Tersinkron
-      </span>
-    );
-  };
-
   const hasPending = pendingClasses.length > 0;
   const workflowStep = resolveCurrentWorkflowStep(todayClassStatuses);
   const { total: todayTotal, journalsDone, attendancesDone, percentage } = todayProgress;
@@ -292,7 +292,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="flex items-center gap-2 self-end sm:self-auto">
-            <SyncIndicator />
+            <SyncIndicator status={syncStatus} onRetry={() => saveQuickNoteToFirestore(quickNote)} />
             <Link
               href="/analytics"
               className="flex items-center gap-1.5 px-3 py-3 bg-gray-50 hover:bg-blue-50 text-gray-600 hover:text-blue-600 rounded-xl text-xs font-bold transition-all active:scale-95 border border-gray-200 hover:border-blue-200 shadow-sm"
