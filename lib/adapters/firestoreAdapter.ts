@@ -71,22 +71,32 @@ export type BatchOperation =
   | { type: 'set'; collectionName: string; id: string; data: Record<string, any> }
   | { type: 'delete'; collectionName: string; id: string };
 
+// Firestore menolak commit dengan lebih dari 500 operasi dalam satu batch.
+// Impor massal siswa (2 operasi/siswa: dokumen siswa + kode akses) dan hapus
+// seluruh kelas bisa saja melebihi itu untuk kelas besar, jadi dipecah jadi
+// beberapa batch berurutan alih-alih satu batch yang bisa gagal total.
+const MAX_BATCH_OPERATIONS = 500;
+
 /**
- * Satu commit untuk banyak perubahan sekaligus. Dipakai gradeRepository
- * (simpan nilai) dan sekarang studentRepository (impor massal siswa).
+ * Banyak perubahan sekaligus, dipecah otomatis jika melebihi batas 500
+ * operasi per batch Firestore. Dipakai gradeRepository (simpan nilai) dan
+ * studentRepository (impor massal siswa, hapus seluruh kelas).
  */
 export async function batchWrite(operations: BatchOperation[]) {
-  const batch = writeBatch(db);
+  for (let i = 0; i < operations.length; i += MAX_BATCH_OPERATIONS) {
+    const chunk = operations.slice(i, i + MAX_BATCH_OPERATIONS);
+    const batch = writeBatch(db);
 
-  operations.forEach((op) => {
-    const ref = doc(db, op.collectionName, op.id);
-    if (op.type === 'set') {
-      batch.set(ref, op.data, { merge: true });
-    } else {
-      batch.delete(ref);
-    }
-  });
+    chunk.forEach((op) => {
+      const ref = doc(db, op.collectionName, op.id);
+      if (op.type === 'set') {
+        batch.set(ref, op.data, { merge: true });
+      } else {
+        batch.delete(ref);
+      }
+    });
 
-  await batch.commit();
+    await batch.commit();
+  }
   return true;
 }

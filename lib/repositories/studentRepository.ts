@@ -1,4 +1,4 @@
-import { getDocuments, deleteDocument, batchWrite, generateId, BatchOperation } from '../adapters/firestoreAdapter';
+import { getDocument, getDocuments, deleteDocument, batchWrite, generateId, BatchOperation } from '../adapters/firestoreAdapter';
 import { COLLECTIONS } from '../config/constants';
 import { generateAccessCode } from '../utils/accessCode';
 
@@ -124,21 +124,45 @@ export async function backfillAccessCodes(
   return missing.length;
 }
 
+// Menghapus dokumen siswa saja TIDAK cukup: kode aksesnya (student_login_
+// codes, id dokumen = accessCode itu sendiri) tetap valid dan bisa dipakai
+// klaim akun Student Companion baru yang menunjuk ke siswa yang sudah
+// tidak ada — claimAccessCode() di studentAuthService sengaja tidak
+// membaca koleksi students sama sekali (lihat komentarnya), jadi cuma
+// menghapus dokumen kode akses ini yang benar-benar mencegahnya.
+// firestore.rules sengaja melarang `list` pada student_login_codes (supaya
+// kode tidak bisa dienumerasi) — makanya di sini TIDAK query koleksi itu,
+// cukup pakai accessCode yang sudah tersimpan di dokumen siswa sendiri.
 export async function deleteStudent(id: string) {
-  return deleteDocument(COLLECTIONS.STUDENTS, id);
+  const student: any = await getDocument(COLLECTIONS.STUDENTS, id);
+  if (!student?.accessCode) {
+    return deleteDocument(COLLECTIONS.STUDENTS, id);
+  }
+  await batchWrite([
+    { type: 'delete', collectionName: COLLECTIONS.STUDENTS, id },
+    { type: 'delete', collectionName: COLLECTIONS.STUDENT_LOGIN_CODES, id: student.accessCode },
+  ]);
+  return true;
 }
 
 // Hapus seluruh siswa satu kelas sekaligus (mis. kelas percobaan/salah
 // input) — satu batch commit, konsisten dengan pola createStudentsBatch.
+// Kode akses tiap siswa ikut dihapus (lihat catatan di deleteStudent).
 export async function deleteStudentsByClass(workspaceId: string, className: string) {
   const students = await getStudentsByClass(workspaceId, className);
   if (students.length === 0) return 0;
 
-  const operations: BatchOperation[] = students.map((student: any) => ({
-    type: 'delete',
-    collectionName: COLLECTIONS.STUDENTS,
-    id: student.id,
-  }));
+  const operations: BatchOperation[] = [];
+  students.forEach((student: any) => {
+    operations.push({ type: 'delete', collectionName: COLLECTIONS.STUDENTS, id: student.id });
+    if (student.accessCode) {
+      operations.push({
+        type: 'delete',
+        collectionName: COLLECTIONS.STUDENT_LOGIN_CODES,
+        id: student.accessCode,
+      });
+    }
+  });
 
   await batchWrite(operations);
   return students.length;
