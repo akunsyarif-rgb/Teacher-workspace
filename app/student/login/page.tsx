@@ -4,12 +4,12 @@ import React, { useEffect, useState } from "react";
 import { signInAnonymously } from "firebase/auth";
 import { auth } from "@/src/config/firebase";
 import { useRouter } from "next/navigation";
-import { GraduationCap, KeyRound, ArrowRight } from "lucide-react";
-import { useStudentAuth } from "@/src/context/StudentAuthContext";
+import { GraduationCap, KeyRound, ArrowRight, ArrowLeft } from "lucide-react";
+import { useStudentAuth, StudentProfile } from "@/src/context/StudentAuthContext";
 import * as studentAuthController from "@/lib/controllers/studentAuthController";
 
 export default function StudentLoginPage() {
-  const { user, profile, loading, refreshProfile } = useStudentAuth();
+  const { user, profile, loading, applyProfile } = useStudentAuth();
   const [accessCode, setAccessCode] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -40,8 +40,8 @@ export default function StudentLoginPage() {
     setSubmitting(true);
     try {
       const currentUser = auth.currentUser ?? (await signInAnonymously(auth)).user;
-      await studentAuthController.claimAccessCode(accessCode, currentUser.uid);
-      await refreshProfile();
+      const claimedProfile = await studentAuthController.claimAccessCode(accessCode, currentUser.uid);
+      applyProfile(currentUser, claimedProfile as StudentProfile);
       router.push("/student");
     } catch (err: any) {
       console.error("Gagal masuk sebagai siswa:", err);
@@ -65,6 +65,11 @@ export default function StudentLoginPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6">
       <div className="w-full max-w-sm space-y-6">
+        <a href="/login" className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-gray-900">
+          <ArrowLeft className="w-4 h-4" />
+          Kembali
+        </a>
+
         <div className="text-center space-y-2">
           <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-blue-200">
             <GraduationCap className="w-7 h-7 text-white" />
