@@ -190,17 +190,23 @@ async function run() {
     console.log('\n→ Alur guru');
     await teacher.goto(`${BASE_URL}/signup`, { waitUntil: 'domcontentloaded' });
     await teacher.fill('input[type="email"]', TEACHER_EMAIL);
-    await teacher.fill('input[type="password"]', TEACHER_PASSWORD);
+    // Ada dua field password (Kata Sandi + Konfirmasi) sejak audit UX — pakai
+    // placeholder, bukan `input[type="password"]`, supaya tidak diam-diam
+    // hanya mengisi field pertama dan lolos validasi konfirmasi kosong.
+    await teacher.fill('input[placeholder="Minimal 6 karakter"]', TEACHER_PASSWORD);
+    await teacher.fill('input[placeholder="Ulangi kata sandi"]', TEACHER_PASSWORD);
     await teacher.fill('input[placeholder*="Kelas Pak"]', 'Workspace Uji');
     await teacher.click('button[type="submit"]');
     await teacher.waitForURL(`${BASE_URL}/`, { timeout: 30000 });
     pass('Guru mendaftar dan workspace terbuat');
 
     // ---------- 2. Guru menambah siswa ----------
-    // Form "Tambah 1 Siswa" langsung tampil di /classes (tidak ada tombol
-    // pembuka). Karena belum ada kelas sama sekali, field kelas muncul
-    // sebagai input "Nama Kelas (Baru)", bukan dropdown.
+    // Sejak pemisahan UI Tambah Kelas/Tambah Siswa, form "Tambah 1 Siswa"
+    // ada di dalam modal "Tambah Kelas Baru", bukan langsung tampil di
+    // /classes. Karena belum ada kelas sama sekali, field kelas di dalam
+    // modal ini muncul sebagai input "Nama Kelas (Baru)", bukan dropdown.
     await teacher.goto(`${BASE_URL}/classes`, { waitUntil: 'domcontentloaded' });
+    await teacher.getByRole('button', { name: /Tambah Kelas Baru/i }).click();
     const addForm = teacher.locator('form').first();
     await addForm.locator('input').nth(0).fill(STUDENT_NAME, { timeout: 20000 });
     await addForm.locator('input').nth(1).fill('12345');
