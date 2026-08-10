@@ -10,31 +10,21 @@ import * as classController from '@/lib/controllers/classController';
 
 type AddStudentFormProps = {
   onAdded: () => void;
-  existingClasses: string[];
   // Dipakai dari ClassDetail: kelas sudah pasti (siswa ditambahkan ke kelas
   // yang sedang dibuka), jadi form tidak perlu menawarkan pilihan/mengetik
   // nama kelas — memisahkan alur "Tambah Siswa" dari "Tambah Kelas Baru"
-  // (lihat ClassManagement, yang selalu memulai kelas baru).
+  // (lihat ClassManagement, yang selalu memulai kelas baru dan tidak pernah
+  // mengunci nama kelas).
   lockedClassName?: string;
 };
 
-export default function AddStudentForm({ onAdded, existingClasses, lockedClassName }: AddStudentFormProps) {
+export default function AddStudentForm({ onAdded, lockedClassName }: AddStudentFormProps) {
   const { workspaceId } = useWorkspace();
   const [name, setName] = useState('');
   const [nis, setNis] = useState('');
   const [className, setClassName] = useState(lockedClassName || '');
-  const [isNewClass, setIsNewClass] = useState(existingClasses.length === 0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  function handleClassSelectChange(value: string) {
-    if (value === '__new__') {
-      setIsNewClass(true);
-      setClassName('');
-    } else {
-      setClassName(value);
-    }
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -50,7 +40,6 @@ export default function AddStudentForm({ onAdded, existingClasses, lockedClassNa
       setNis('');
       if (!lockedClassName) {
         setClassName('');
-        setIsNewClass(existingClasses.length === 0);
       }
       onAdded();
     } catch (error: any) {
@@ -87,43 +76,14 @@ export default function AddStudentForm({ onAdded, existingClasses, lockedClassNa
                 {lockedClassName}
               </p>
             </div>
-          ) : isNewClass ? (
-            <div>
-              <Input
-                label="Nama Kelas (Baru)"
-                value={className}
-                onChange={setClassName}
-                placeholder="Contoh: XI F TEKNIK 2"
-                required
-              />
-              {existingClasses.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => handleClassSelectChange(existingClasses[0])}
-                  className="mt-1.5 text-[11px] font-bold text-blue-600 hover:text-blue-700"
-                >
-                  Pilih dari kelas yang sudah ada
-                </button>
-              )}
-            </div>
           ) : (
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Nama Kelas</label>
-              <select
-                value={className}
-                onChange={(e) => handleClassSelectChange(e.target.value)}
-                required
-                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
-              >
-                <option value="" disabled>Pilih kelas...</option>
-                {existingClasses.map((cls) => (
-                  <option key={cls} value={cls}>
-                    Kelas {cls}
-                  </option>
-                ))}
-                <option value="__new__">+ Kelas Baru...</option>
-              </select>
-            </div>
+            <Input
+              label="Nama Kelas (Baru)"
+              value={className}
+              onChange={setClassName}
+              placeholder="Contoh: XI F TEKNIK 2"
+              required
+            />
           )}
 
           <Button type="submit" loading={loading}>

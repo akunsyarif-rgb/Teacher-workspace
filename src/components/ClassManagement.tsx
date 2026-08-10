@@ -101,7 +101,6 @@ export default function ClassManagement() {
               setShowAddClass(false);
               loadSummaries();
             }}
-            existingClasses={[]}
           />
           <BulkImportForm
             onAdded={() => {
