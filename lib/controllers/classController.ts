@@ -1,14 +1,22 @@
 import * as studentService from '../services/studentService';
 import { withCache, clearAllCached } from '../utils/sessionCache';
 
+export function classSummariesCacheKey(workspaceId: string) {
+  return `classSummaries:${workspaceId}`;
+}
+
 export async function fetchClassSummaries(workspaceId: string) {
   if (!workspaceId) return [];
-  return withCache(`classSummaries:${workspaceId}`, () => studentService.listClassSummaries(workspaceId));
+  return withCache(classSummariesCacheKey(workspaceId), () => studentService.listClassSummaries(workspaceId));
+}
+
+export function studentsInClassCacheKey(workspaceId: string, className: string) {
+  return `studentsInClass:${workspaceId}:${className}`;
 }
 
 export async function fetchStudentsInClass(workspaceId: string, className: string) {
   if (!workspaceId || !className) return [];
-  return withCache(`studentsInClass:${workspaceId}:${className}`, () =>
+  return withCache(studentsInClassCacheKey(workspaceId, className), () =>
     studentService.getStudentsInClass(workspaceId, className)
   );
 }
@@ -36,6 +44,12 @@ export async function submitBulkStudents(
 
 export async function deleteStudent(id: string) {
   const result = await studentService.removeStudent(id);
+  clearAllCached();
+  return result;
+}
+
+export async function deleteClass(workspaceId: string, className: string) {
+  const result = await studentService.removeClass(workspaceId, className);
   clearAllCached();
   return result;
 }

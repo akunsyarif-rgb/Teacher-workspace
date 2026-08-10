@@ -1,9 +1,13 @@
 import * as gradeService from '../services/gradeService';
 import { withCache, clearAllCached } from '../utils/sessionCache';
 
+export function gradeDataCacheKey(workspaceId: string, className: string) {
+  return `gradeData:${workspaceId}:${className}`;
+}
+
 export async function fetchGradeData(workspaceId: string, className: string) {
   if (!workspaceId || !className) return { columns: [], grades: {} };
-  return withCache(`gradeData:${workspaceId}:${className}`, () => gradeService.loadGradeData(workspaceId, className));
+  return withCache(gradeDataCacheKey(workspaceId, className), () => gradeService.loadGradeData(workspaceId, className));
 }
 
 export async function saveGrades(

@@ -13,36 +13,18 @@ import type { TodayClassStatus } from "@/lib/services/dashboardService";
 import { useOnlineStatus } from "@/src/hooks/useOnlineStatus";
 import {
   GraduationCap,
-  LogOut,
   BookOpen,
   Calendar,
   Clock,
   Settings,
   Users,
   FileText,
-  ChevronRight,
   Wifi,
   WifiOff,
-  CheckCircle2,
-  Circle,
-  AlertCircle,
   BarChart3,
   ArrowRight,
-  Wallet,
-  Package,
-  HeartHandshake,
-  Trophy,
-  Phone,
   RefreshCw,
 } from "lucide-react";
-
-const HOMEROOM_MENU_ITEMS = [
-  { href: "/kas-kelas", label: "Kas Kelas", icon: Wallet },
-  { href: "/inventaris", label: "Inventaris", icon: Package },
-  { href: "/konseling", label: "Konseling", icon: HeartHandshake },
-  { href: "/prestasi", label: "Prestasi", icon: Trophy },
-  { href: "/komunikasi-ortu", label: "Komunikasi Ortu", icon: Phone },
-];
 
 function getGreeting(date: Date = new Date()) {
   const hour = date.getHours();
@@ -275,96 +257,11 @@ export default function DashboardPage() {
     );
   };
 
-  const ProgressCard = () => {
-    const { total, journalsDone, attendancesDone, percentage } = todayProgress;
-
-    if (total === 0) {
-      return (
-        <div className="bg-white p-4 md:p-5 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 space-y-2">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 md:w-5 md:h-5 text-blue-500" />
-            <h3 className="text-[10px] md:text-xs font-extrabold text-gray-700 uppercase tracking-wider">
-              Progress Hari Ini
-            </h3>
-          </div>
-          <p className="text-xs md:text-sm font-medium text-gray-500">
-            Tidak ada jadwal mengajar hari ini. Santai dulu 😊
-          </p>
-        </div>
-      );
-    }
-
-    const isComplete = journalsDone === total && attendancesDone === total;
-    const isPartial = journalsDone > 0 || attendancesDone > 0;
-
-    return (
-      <div className={`p-4 md:p-5 rounded-2xl md:rounded-3xl shadow-sm border transition-all ${
-        isComplete 
-          ? 'bg-emerald-50 border-emerald-200' 
-          : isPartial 
-            ? 'bg-amber-50 border-amber-200' 
-            : 'bg-gray-50 border-gray-200'
-      }`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {isComplete ? (
-              <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 text-emerald-600" />
-            ) : (
-              <Clock className="w-4 h-4 md:w-5 md:h-5 text-amber-600" />
-            )}
-            <h3 className="text-[10px] md:text-xs font-extrabold text-gray-700 uppercase tracking-wider">
-              Progress Hari Ini
-            </h3>
-          </div>
-          <span className={`text-[10px] md:text-xs font-extrabold ${
-            isComplete ? 'text-emerald-600' : isPartial ? 'text-amber-600' : 'text-gray-400'
-          }`}>
-            {journalsDone + attendancesDone} dari {total * 2} tugas
-          </span>
-        </div>
-
-        <div className="mt-2 h-2 md:h-2.5 bg-gray-200 rounded-full overflow-hidden">
-          <div 
-            className={`h-full rounded-full transition-all duration-500 ${
-              isComplete ? 'bg-emerald-500' : 'bg-amber-500'
-            }`}
-            style={{ width: `${Math.min(percentage, 100)}%` }}
-          />
-        </div>
-
-        <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] md:text-xs font-medium">
-          <div className="flex items-center gap-1.5">
-            {journalsDone === total ? (
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            ) : journalsDone > 0 ? (
-              <CheckCircle2 className="w-3.5 h-3.5 text-amber-500" />
-            ) : (
-              <Circle className="w-3.5 h-3.5 text-gray-300" />
-            )}
-            <span className={journalsDone === total ? 'text-emerald-700' : 'text-gray-600'}>
-              Jurnal: {journalsDone}/{total}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            {attendancesDone === total ? (
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            ) : attendancesDone > 0 ? (
-              <CheckCircle2 className="w-3.5 h-3.5 text-amber-500" />
-            ) : (
-              <Circle className="w-3.5 h-3.5 text-gray-300" />
-            )}
-            <span className={attendancesDone === total ? 'text-emerald-700' : 'text-gray-600'}>
-              Presensi: {attendancesDone}/{total}
-            </span>
-          </div>
-        </div>
-
-      </div>
-    );
-  };
-
   const hasPending = pendingClasses.length > 0;
   const workflowStep = resolveCurrentWorkflowStep(todayClassStatuses);
+  const { total: todayTotal, journalsDone, attendancesDone, percentage } = todayProgress;
+  const isDayComplete = todayTotal > 0 && journalsDone === todayTotal && attendancesDone === todayTotal;
+  const isDayPartial = journalsDone > 0 || attendancesDone > 0;
 
   return (
     <div className="min-h-screen bg-gray-50 p-3 sm:p-4 md:p-6 lg:p-8 space-y-4 md:space-y-6">
@@ -385,10 +282,10 @@ export default function DashboardPage() {
                 <strong className="text-blue-600">{subject || "Belum diatur"}</strong>
               </span>
               <Link
-                href="/profile"
+                href="/account"
                 className="text-gray-400 hover:text-blue-600 transition-colors active:scale-90 p-2.5 -m-1.5"
-                title="Ubah Profil"
-                aria-label="Ubah Profil"
+                title="Akun"
+                aria-label="Akun"
               >
                 <Settings className="w-3.5 h-3.5" />
               </Link>
@@ -405,62 +302,23 @@ export default function DashboardPage() {
               <BarChart3 className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Statistik</span>
             </Link>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-1.5 px-3 py-3 bg-gray-50 hover:bg-red-50 text-gray-600 hover:text-red-600 rounded-xl text-xs font-bold transition-all active:scale-95 border border-gray-200 hover:border-red-200 shadow-sm"
-              aria-label="Keluar"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Keluar</span>
-            </button>
           </div>
         </div>
 
-        {/* Statistik */}
-        <div className="grid grid-cols-3 gap-3 md:gap-4">
-          <Link
-            href="/classes"
-            className="bg-white p-3 md:p-5 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 hover:border-emerald-300 hover:shadow-md transition-all flex items-center gap-3 group cursor-pointer"
-          >
-            <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <Users className="w-4 h-4 md:w-5 md:h-5" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-wider truncate">Kelas Diampu</p>
-              <p className="text-xl md:text-2xl font-extrabold text-gray-900">{uniqueClasses.length}</p>
-            </div>
-            <ChevronRight className="w-3 h-3 md:w-4 md:h-4 text-gray-300 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all" />
-          </Link>
-
-          <Link
-            href="/attendance"
-            className="bg-white p-3 md:p-5 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 hover:border-emerald-300 hover:shadow-md transition-all flex items-center gap-3 group cursor-pointer relative"
-          >
-            {hasPending && (
-              <span className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 bg-red-500 text-white text-[9px] font-extrabold rounded-full shadow-md animate-pulse">
-                {pendingClasses.length}
-              </span>
-            )}
-            <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <BookOpen className="w-4 h-4 md:w-5 md:h-5" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-wider truncate">Jurnal Terisi</p>
-              <p className="text-xl md:text-2xl font-extrabold text-gray-900">{totalJournals}</p>
-            </div>
-            <ChevronRight className="w-3 h-3 md:w-4 md:h-4 text-gray-300 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all" />
-          </Link>
-
-          <div className="bg-white p-3 md:p-5 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 flex items-center gap-3">
-            <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-              <Clock className="w-4 h-4 md:w-5 md:h-5" />
-            </div>
-            <div>
-              <p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-wider">Hari Ini</p>
-              <p className="text-xs md:text-sm font-extrabold text-gray-900">{currentDayName || '-'}</p>
-            </div>
-          </div>
-        </div>
+        {/* Summary: statistik jadi info sekunder, bukan CTA utama —
+            detail lengkap ada di /analytics. */}
+        <Link
+          href="/analytics"
+          className="flex items-center justify-between gap-2 px-4 py-2.5 bg-white rounded-2xl border border-gray-100 shadow-sm text-[11px] md:text-xs font-bold text-gray-500 hover:border-blue-200 hover:text-blue-600 transition-colors"
+        >
+          <span>
+            {uniqueClasses.length} Kelas &middot; {totalJournals} Jurnal Terisi
+          </span>
+          <span className="flex items-center gap-1 text-blue-600 shrink-0">
+            Lihat Statistik
+            <ArrowRight className="w-3 h-3" />
+          </span>
+        </Link>
 
         {/* Workflow Engine: satu langkah paling relevan sekarang, dipilihkan otomatis */}
         {workflowStep && (
@@ -492,17 +350,35 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Progress Card */}
-        <ProgressCard />
-
-        {/* Action Center: Yang Perlu Diselesaikan Hari Ini */}
+        {/* Perlu Diselesaikan Hari Ini — gabungan Progress + Action Center,
+            satu kartu, satu empty state (sebelumnya duplikat di dua kartu). */}
         <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 space-y-3 md:space-y-4">
-          <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4 md:w-5 md:h-5 text-blue-600" />
-            <h3 className="text-[10px] md:text-xs font-extrabold text-gray-700 uppercase tracking-wider">
-              Yang Perlu Diselesaikan Hari Ini ({currentDayName})
-            </h3>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 md:w-5 md:h-5 text-blue-600" />
+              <h3 className="text-[10px] md:text-xs font-extrabold text-gray-700 uppercase tracking-wider">
+                Perlu Diselesaikan Hari Ini ({currentDayName})
+              </h3>
+            </div>
+            {todayTotal > 0 && (
+              <span className={`text-[10px] md:text-xs font-extrabold shrink-0 ${
+                isDayComplete ? 'text-emerald-600' : isDayPartial ? 'text-amber-600' : 'text-gray-400'
+              }`}>
+                {journalsDone + attendancesDone} dari {todayTotal * 2} tugas
+              </span>
+            )}
           </div>
+
+          {todayTotal > 0 && (
+            <div className="h-2 md:h-2.5 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  isDayComplete ? 'bg-emerald-500' : 'bg-amber-500'
+                }`}
+                style={{ width: `${Math.min(percentage, 100)}%` }}
+              />
+            </div>
+          )}
 
           {todayClassStatuses.length === 0 ? (
             <div className="p-4 md:p-6 bg-gray-50 rounded-xl md:rounded-2xl border border-dashed border-gray-200 text-center space-y-1">
@@ -643,39 +519,6 @@ export default function DashboardPage() {
             </Link>
           </div>
         </div>
-
-        {/* Menu Wali Kelas — hanya tampil untuk guru yang jadi wali kelas.
-            Semua fitur khusus wali kelas (Kas Kelas, dan lainnya nanti)
-            masuk ke satu kartu ini, bukan menambah item BottomNav baru. */}
-        {teacherProfile?.homeroomClassName && (
-          <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 space-y-3 md:space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 md:w-9 md:h-9 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                <GraduationCap className="w-4 h-4 md:w-4.5 md:h-4.5" />
-              </div>
-              <div>
-                <p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                  Menu Wali Kelas
-                </p>
-                <p className="text-xs font-bold text-gray-700">Kelas {teacherProfile.homeroomClassName}</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {HOMEROOM_MENU_ITEMS.map(({ href, label, icon: Icon }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  className="bg-gray-50 hover:bg-blue-50 border border-gray-100 hover:border-blue-200 rounded-2xl p-3 flex flex-col items-center gap-2 text-center transition-colors"
-                >
-                  <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center">
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  <span className="text-[11px] font-bold text-gray-700">{label}</span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

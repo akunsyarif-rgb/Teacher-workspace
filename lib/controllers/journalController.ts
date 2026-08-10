@@ -1,9 +1,13 @@
 import * as journalService from '../services/journalService';
 import { withCache, clearAllCached } from '../utils/sessionCache';
 
+export function journalHistoryCacheKey(workspaceId: string, className: string) {
+  return `journalHistory:${workspaceId}:${className}`;
+}
+
 export async function fetchJournalHistory(workspaceId: string, className: string) {
   if (!workspaceId || !className) return [];
-  return withCache(`journalHistory:${workspaceId}:${className}`, () =>
+  return withCache(journalHistoryCacheKey(workspaceId, className), () =>
     journalService.listJournalEntries(workspaceId, className)
   );
 }

@@ -10,6 +10,7 @@ import ConfirmDeleteModal from '@/src/components/ui/ConfirmDeleteModal';
 import InlineAlert from '@/src/components/ui/InlineAlert';
 import * as gradeController from '@/lib/controllers/gradeController';
 import * as studentController from '@/lib/controllers/classController';
+import { getCached } from '@/lib/utils/sessionCache';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import { useOnlineStatus } from '@/src/hooks/useOnlineStatus';
 import { SkeletonTable, SkeletonText } from '../ui/Skeleton';
@@ -38,7 +39,14 @@ export default function GradesTab({ className }: GradesTabProps) {
   }, [className, workspaceId]);
 
   async function loadAllData() {
-    setLoadingData(true);
+    const alreadyWarm =
+      !!workspaceId &&
+      getCached(gradeController.gradeDataCacheKey(workspaceId, className)) !== undefined &&
+      getCached(studentController.studentsInClassCacheKey(workspaceId, className)) !== undefined;
+
+    if (!alreadyWarm) {
+      setLoadingData(true);
+    }
     await Promise.all([loadData(), loadStudents()]);
     setLoadingData(false);
   }

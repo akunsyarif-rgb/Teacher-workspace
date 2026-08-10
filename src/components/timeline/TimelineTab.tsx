@@ -6,6 +6,7 @@ import Card from '../ui/Card';
 import { SkeletonText, SkeletonCard } from '../ui/Skeleton';
 import * as journalController from '@/lib/controllers/journalController';
 import * as attendanceController from '@/lib/controllers/attendanceController';
+import { getCached } from '@/lib/utils/sessionCache';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 
 type TimelineEvent = {
@@ -56,7 +57,12 @@ export default function TimelineTab({ className }: TimelineTabProps) {
 
   async function loadTimeline() {
     if (!workspaceId || !className) return;
-    setLoading(true);
+    const alreadyWarm =
+      getCached(journalController.journalHistoryCacheKey(workspaceId, className)) !== undefined &&
+      getCached(attendanceController.attendanceHistoryCacheKey(workspaceId, className)) !== undefined;
+    if (!alreadyWarm) {
+      setLoading(true);
+    }
     try {
       const [journals, attendances] = await Promise.all([
         journalController.fetchJournalHistory(workspaceId, className),

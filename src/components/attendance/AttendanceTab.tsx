@@ -9,6 +9,7 @@ import ConfirmDeleteModal from "@/src/components/ui/ConfirmDeleteModal";
 import InlineAlert from "@/src/components/ui/InlineAlert";
 import * as attendanceController from "@/lib/controllers/attendanceController";
 import * as studentController from "@/lib/controllers/classController";
+import { getCached } from "@/lib/utils/sessionCache";
 import { useWorkspace } from "@/src/context/WorkspaceContext";
 import { useOnlineStatus } from "@/src/hooks/useOnlineStatus";
 import { exportAttendanceRecapPdf } from "@/lib/utils/attendancePdf";
@@ -47,7 +48,18 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
   }, [className, workspaceId]);
 
   async function loadAllData() {
-    setLoadingData(true);
+    // Data kelas ini mungkin sudah hangat di sessionCache (dipakai semua
+    // tab, TTL 60 detik) — kalau iya, jangan nyalakan skeleton loading:
+    // guru yang gonta-ganti kelas/tab berulang dalam waktu singkat langsung
+    // lihat data lama tanpa kedipan "memuat" padahal tidak ada request baru.
+    const alreadyWarm =
+      !!workspaceId &&
+      getCached(studentController.studentsInClassCacheKey(workspaceId, className)) !== undefined &&
+      getCached(attendanceController.attendanceHistoryCacheKey(workspaceId, className)) !== undefined;
+
+    if (!alreadyWarm) {
+      setLoadingData(true);
+    }
     await Promise.all([loadStudents(), loadHistory()]);
     setLoadingData(false);
   }

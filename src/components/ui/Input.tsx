@@ -21,7 +21,7 @@ export default function Input({ label, value, onChange, type = 'text', placehold
         placeholder={placeholder}
         required={required}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
       />
     </div>
   );

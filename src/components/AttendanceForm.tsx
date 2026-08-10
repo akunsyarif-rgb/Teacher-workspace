@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { BookOpen, UserCheck, Table, History, CheckCircle2, Circle, PartyPopper, ClipboardList, Megaphone } from 'lucide-react';
 import Link from 'next/link';
 import Card from './ui/Card';
+import ClassSelector from './attendance/ClassSelector';
 import JournalTab from './journal/JournalTab';
 import AttendanceTab from './attendance/AttendanceTab';
 import GradesTab from './grades/GradesTab';
@@ -16,6 +17,7 @@ import * as scheduleController from '@/lib/controllers/scheduleController';
 import * as dashboardController from '@/lib/controllers/dashboardController';
 import { getCurrentDayName, TodayClassStatus } from '@/lib/services/dashboardService';
 import { findActiveScheduleId, resolveCurrentWorkflowStep } from '@/lib/utils/scheduleTime';
+import { getCached } from '@/lib/utils/sessionCache';
 
 export default function AttendanceForm() {
   const { workspaceId } = useWorkspace();
@@ -61,7 +63,22 @@ export default function AttendanceForm() {
       return;
     }
     (async () => {
-      setLoading(true);
+      // Data ini sudah di-cache (withCache), tapi tanpa cek ini
+      // setLoading(true) selalu menyalakan spinner besar "Memuat data
+      // kelas..." setiap kali guru keluar-masuk /attendance lewat tab
+      // Kelas Aktif — walau ketiga sumbernya sudah hangat, tidak ada
+      // permintaan Firestore baru yang sebenarnya terjadi.
+      const alreadyWarm =
+        getCached(classController.classSummariesCacheKey(workspaceId)) !== undefined &&
+        getCached(scheduleController.schedulesCacheKey(workspaceId)) !== undefined &&
+        getCached(
+          dashboardController.dashboardSummaryCacheKey(workspaceId),
+          dashboardController.DASHBOARD_SUMMARY_TTL_MS
+        ) !== undefined;
+
+      if (!alreadyWarm) {
+        setLoading(true);
+      }
       const [summaries, scheduleList, statuses] = await Promise.all([
         classController.fetchClassSummaries(workspaceId).catch((error) => {
           console.error('Gagal memuat daftar kelas:', error);
@@ -120,14 +137,12 @@ export default function AttendanceForm() {
   }
 
   const tabs = [
-    { key: 'jurnal', label: 'Jurnal Mengajar', icon: BookOpen, hideLabelOnMobile: false },
-    { key: 'presensi', label: 'Presensi', icon: UserCheck, hideLabelOnMobile: false },
-    { key: 'nilai', label: 'Nilai', icon: Table, hideLabelOnMobile: false },
-    { key: 'tugas', label: 'Tugas', icon: ClipboardList, hideLabelOnMobile: false },
-    // Dua tab terakhir tampil ikon saja di layar kecil — dengan 6 tab,
-    // memaksakan label membuat semuanya terpotong dan malah sulit dibaca.
-    { key: 'pengumuman', label: 'Pengumuman', icon: Megaphone, hideLabelOnMobile: true },
-    { key: 'riwayat', label: 'Riwayat', icon: History, hideLabelOnMobile: true },
+    { key: 'jurnal', label: 'Jurnal Mengajar', icon: BookOpen },
+    { key: 'presensi', label: 'Presensi', icon: UserCheck },
+    { key: 'nilai', label: 'Nilai', icon: Table },
+    { key: 'tugas', label: 'Tugas', icon: ClipboardList },
+    { key: 'pengumuman', label: 'Pengumuman', icon: Megaphone },
+    { key: 'riwayat', label: 'Riwayat', icon: History },
   ] as const;
 
   if (loading) {
@@ -142,43 +157,34 @@ export default function AttendanceForm() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <Card className="space-y-4">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900">Pusat Kegiatan Kelas & Penilaian</h2>
-            <p className="text-xs text-gray-500">Kelola jurnal, presensi, nilai, dan riwayat dalam satu layar</p>
-          </div>
-          <div className="flex bg-gray-100 p-1.5 rounded-2xl w-full md:w-auto">
-            {tabs.map(({ key, label, icon: Icon, hideLabelOnMobile }) => (
-              <button
-                key={key}
-                onClick={() => setActiveTab(key)}
-                title={label}
-                className={`flex-1 md:flex-none min-w-0 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
-                  activeTab === key ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'
-                }`}
-              >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span className={`truncate ${hideLabelOnMobile ? 'hidden sm:inline' : ''}`}>{label}</span>
-              </button>
-            ))}
-          </div>
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">Pusat Kegiatan Kelas & Penilaian</h2>
+          <p className="text-xs text-gray-500">Kelola jurnal, presensi, nilai, dan riwayat dalam satu layar</p>
         </div>
 
-        <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
+        {/* Baris tab di-scroll horizontal (bukan disempitkan/disingkat)
+            supaya label tetap terbaca penuh walau ada 6 tab di layar HP. */}
+        <div className="flex gap-1.5 bg-gray-100 p-1.5 rounded-2xl overflow-x-auto no-scrollbar">
+          {tabs.map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              title={label}
+              className={`shrink-0 flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all active:scale-95 ${
+                activeTab === key ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              <Icon className="w-4 h-4 shrink-0" />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="pt-2 border-t border-gray-100">
           {classesList.length === 0 ? (
             <p className="text-xs text-gray-400">Belum ada data kelas atau siswa di database.</p>
           ) : (
-            classesList.map((cls) => (
-              <button
-                key={cls}
-                onClick={() => setSelectedClass(cls)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
-                  selectedClass === cls ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                Kelas {cls}
-              </button>
-            ))
+            <ClassSelector classes={classesList} selected={selectedClass} onChange={setSelectedClass} />
           )}
         </div>
       </Card>

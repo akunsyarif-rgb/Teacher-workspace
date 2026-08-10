@@ -1,9 +1,13 @@
 import { loadSchedules, addSchedule, removeSchedule, ScheduleInput } from '../services/scheduleService';
 import { withCache, clearAllCached } from '../utils/sessionCache';
 
+export function schedulesCacheKey(workspaceId: string) {
+  return `schedules:${workspaceId}`;
+}
+
 export async function fetchSchedules(workspaceId: string) {
   if (!workspaceId) return [];
-  return withCache(`schedules:${workspaceId}`, () => loadSchedules(workspaceId));
+  return withCache(schedulesCacheKey(workspaceId), () => loadSchedules(workspaceId));
 }
 
 export async function submitSchedule(workspaceId: string, input: ScheduleInput) {

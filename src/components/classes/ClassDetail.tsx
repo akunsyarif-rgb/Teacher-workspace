@@ -1,10 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Trash2, Copy, Check } from 'lucide-react';
+import { Trash2, Copy, Check, Plus } from 'lucide-react';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as classController from '@/lib/controllers/classController';
 import ConfirmDeleteModal from '@/src/components/ui/ConfirmDeleteModal';
+import Modal from '@/src/components/ui/Modal';
+import AddStudentForm from './AddStudentForm';
+import BulkImportForm from './BulkImportForm';
 
 type ClassDetailProps = {
   className: string;
@@ -19,6 +22,8 @@ export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [showAddStudent, setShowAddStudent] = useState(false);
+  const [confirmDeleteClass, setConfirmDeleteClass] = useState(false);
 
   useEffect(() => {
     if (workspaceId && className) {
@@ -40,9 +45,30 @@ export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke
   }
 
   async function handleDelete(id: string) {
-    await classController.deleteStudent(id);
-    await loadStudents();
-    setDeleteTarget(null);
+    try {
+      await classController.deleteStudent(id);
+      await loadStudents();
+      setDeleteTarget(null);
+    } catch (error: any) {
+      // ConfirmDeleteModal tidak menangkap error dari onConfirm sendiri —
+      // tanpa alert di sini, kegagalan hapus gagal secara senyap. Re-throw
+      // supaya modal tahu untuk tetap terbuka (bukan ikut onClose seolah
+      // berhasil), mengikuti pola handleGenerateMissingCodes di file ini.
+      alert(error.message || 'Gagal menghapus siswa.');
+      throw error;
+    }
+  }
+
+  async function handleDeleteClass() {
+    if (!workspaceId) return;
+    try {
+      await classController.deleteClass(workspaceId, className);
+      setConfirmDeleteClass(false);
+      onBack();
+    } catch (error: any) {
+      alert(error.message || 'Gagal menghapus kelas.');
+      throw error;
+    }
   }
 
   async function handleGenerateMissingCodes() {
@@ -86,17 +112,35 @@ export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke
 
   return (
     <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
           <h3 className="text-sm font-extrabold text-gray-900 uppercase tracking-wider">Kelas {className}</h3>
           <p className="text-xs font-bold text-gray-400 mt-0.5">Total {students.length} Siswa</p>
         </div>
-        <button
-          onClick={onBack}
-          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all"
-        >
-          {backLabel}
-        </button>
+        <div className="flex items-center gap-2 self-end sm:self-auto">
+          <button
+            onClick={() => setShowAddStudent(true)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Tambah Siswa
+          </button>
+          {students.length > 0 && (
+            <button
+              onClick={() => setConfirmDeleteClass(true)}
+              className="flex items-center gap-1.5 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-bold transition-all active:scale-95"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Hapus Kelas Ini
+            </button>
+          )}
+          <button
+            onClick={onBack}
+            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all"
+          >
+            {backLabel}
+          </button>
+        </div>
       </div>
 
       {missingCodeCount > 0 && (
@@ -168,6 +212,40 @@ export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke
         title="Hapus Siswa?"
         itemName={deleteTarget?.name || ""}
         itemDetail={`Kelas ${className} • NIS: ${deleteTarget?.nis || "-"}`}
+        requireTyping={true}
+        type="danger"
+      />
+
+      <Modal
+        isOpen={showAddStudent}
+        onClose={() => setShowAddStudent(false)}
+        title={`Tambah Siswa ke Kelas ${className}`}
+      >
+        <div className="space-y-6">
+          <AddStudentForm
+            onAdded={() => {
+              setShowAddStudent(false);
+              loadStudents();
+            }}
+            lockedClassName={className}
+          />
+          <BulkImportForm
+            onAdded={() => {
+              setShowAddStudent(false);
+              loadStudents();
+            }}
+            lockedClassName={className}
+          />
+        </div>
+      </Modal>
+
+      <ConfirmDeleteModal
+        isOpen={confirmDeleteClass}
+        onClose={() => setConfirmDeleteClass(false)}
+        onConfirm={handleDeleteClass}
+        title="Hapus Seluruh Kelas Ini?"
+        itemName={`Kelas ${className}`}
+        itemDetail={`${students.length} siswa di kelas ini akan ikut terhapus semua, termasuk data presensi/nilai yang mereferensikan mereka tidak bisa dipulihkan.`}
         requireTyping={true}
         type="danger"
       />

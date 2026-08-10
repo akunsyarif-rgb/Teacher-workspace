@@ -8,6 +8,7 @@ import { SkeletonCard } from '../ui/Skeleton';
 import AssignmentFormModal from './AssignmentFormModal';
 import SubmissionPanel from './SubmissionPanel';
 import * as assignmentController from '@/lib/controllers/assignmentController';
+import { getCached } from '@/lib/utils/sessionCache';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 
 type AssignmentsTabProps = {
@@ -28,7 +29,10 @@ export default function AssignmentsTab({ className, subject }: AssignmentsTabPro
 
   async function loadAssignments() {
     if (!workspaceId || !className) return;
-    setLoading(true);
+    const alreadyWarm = getCached(assignmentController.assignmentsCacheKey(workspaceId, className)) !== undefined;
+    if (!alreadyWarm) {
+      setLoading(true);
+    }
     try {
       const list = await assignmentController.fetchAssignments(workspaceId, className);
       setAssignments(list);
