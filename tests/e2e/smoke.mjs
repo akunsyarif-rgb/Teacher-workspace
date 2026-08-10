@@ -297,6 +297,24 @@ async function run() {
       if (nameShown > 0) pass('Beranda siswa menampilkan identitasnya');
       else await failWithEvidence(student, 'Beranda siswa menampilkan identitasnya', 'nama siswa tidak muncul');
 
+      // Navigasi lewat bottom nav sungguhan (bukan goto langsung ke URL) —
+      // "Profil" adalah satu-satunya jalan siswa menjangkau tombol Keluar,
+      // jadi kalau item ini hilang lagi dari StudentBottomNav, test ini
+      // yang menangkap (bukan cuma ketahuan lewat laporan pengguna).
+      await student.getByRole('link', { name: /^Profil$/i }).click();
+      await student.waitForURL(`${BASE_URL}/student/profil`, { timeout: 10000 }).catch(() => {});
+      if (student.url().includes('/student/profil')) {
+        const logoutButton = student.getByTitle(/Keluar/i).first();
+        if (await logoutButton.count()) pass('Siswa bisa menjangkau tombol Keluar lewat bottom nav');
+        else fail('Siswa bisa menjangkau tombol Keluar lewat bottom nav', 'halaman Profil terbuka tapi tombol Keluar tidak ditemukan');
+      } else {
+        await failWithEvidence(
+          student,
+          'Siswa bisa menjangkau tombol Keluar lewat bottom nav',
+          'klik "Profil" di bottom nav tidak membuka /student/profil'
+        );
+      }
+
       await student.goto(`${BASE_URL}/student/tugas`, { waitUntil: 'domcontentloaded' });
       await student.waitForTimeout(3000);
       const assignmentVisible = await student.getByText(ASSIGNMENT_TITLE).count();
