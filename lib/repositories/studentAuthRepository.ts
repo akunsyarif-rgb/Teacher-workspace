@@ -6,6 +6,13 @@ export async function getLoginCode(accessCode: string) {
   return getDocument(COLLECTIONS.STUDENT_LOGIN_CODES, accessCode);
 }
 
+// Dipakai murni untuk memicu koneksi Firestore lebih awal (lihat
+// studentAuthService.warmupConnection) — hasilnya (null, kode ini memang
+// tidak pernah ada) tidak dipakai sama sekali.
+export async function warmupConnection() {
+  await getDocument(COLLECTIONS.STUDENT_LOGIN_CODES, '__warmup__');
+}
+
 export async function getStudentProfile(authUid: string) {
   if (!authUid) return null;
   return getDocument(COLLECTIONS.STUDENT_PROFILES, authUid);

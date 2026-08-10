@@ -4,6 +4,15 @@ export async function getCurrentStudentProfile(authUid: string) {
   return studentAuthRepository.getStudentProfile(authUid);
 }
 
+// Dipanggil sedini mungkin di halaman login siswa (bukan untuk hasilnya) —
+// tujuannya cuma memaksa Firestore menyelesaikan negosiasi transport
+// (WebChannel vs long-polling; lihat komentar experimentalAutoDetectLongPolling
+// di src/config/firebase.ts) sambil siswa masih mengetik kode akses, supaya
+// waktunya tidak menumpuk di titik klik "Masuk" nanti.
+export async function warmupConnection() {
+  await studentAuthRepository.warmupConnection();
+}
+
 // Menautkan akun (anonim) yang baru login ke satu siswa lewat kode akses
 // dari guru. Boleh dipanggil ulang dari perangkat lain dengan kode yang
 // sama — tiap perangkat dapat dokumen student_profiles sendiri yang
