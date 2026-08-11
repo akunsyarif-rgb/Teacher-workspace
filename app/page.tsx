@@ -8,9 +8,11 @@ import Link from "next/link";
 import { useWorkspace } from "@/src/context/WorkspaceContext";
 import { fetchDashboardSummary } from "@/lib/controllers/dashboardController";
 import { saveTeacherQuickNote } from "@/lib/controllers/teacherProfileController";
-import { isScheduleOngoing, resolveCurrentWorkflowStep } from "@/lib/utils/scheduleTime";
+import { submitSkipReason } from "@/lib/controllers/sessionSkipReasonController";
+import { resolveCurrentWorkflowStep } from "@/lib/utils/scheduleTime";
 import type { TodayClassStatus } from "@/lib/services/dashboardService";
 import { useOnlineStatus } from "@/src/hooks/useOnlineStatus";
+import SkipReasonModal from "@/src/components/SkipReasonModal";
 import {
   GraduationCap,
   BookOpen,
@@ -24,6 +26,7 @@ import {
   BarChart3,
   ArrowRight,
   RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
 
 function getGreeting(date: Date = new Date()) {
@@ -65,6 +68,7 @@ export default function DashboardPage() {
   }>({ total: 0, journalsDone: 0, attendancesDone: 0, percentage: 0 });
   const [pendingClasses, setPendingClasses] = useState<string[]>([]);
   const [todayClassStatuses, setTodayClassStatuses] = useState<TodayClassStatus[]>([]);
+  const [skipReasonTarget, setSkipReasonTarget] = useState<TodayClassStatus | null>(null);
 
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
   const teacherName = teacherProfile?.name || "Guru Pengajar";
@@ -120,6 +124,12 @@ export default function DashboardPage() {
     } catch (err) {
       console.error("Gagal memuat ringkasan:", err);
     }
+  }
+
+  async function handleSaveSkipReason(reason: string, note: string) {
+    if (!workspaceId || !skipReasonTarget) return;
+    await submitSkipReason(workspaceId, skipReasonTarget.scheduleId, skipReasonTarget.className, reason, note);
+    await loadSummary();
   }
 
   async function saveQuickNoteToFirestore(note: string) {
@@ -263,6 +273,14 @@ export default function DashboardPage() {
   const isDayComplete = todayTotal > 0 && journalsDone === todayTotal && attendancesDone === todayTotal;
   const isDayPartial = journalsDone > 0 || attendancesDone > 0;
 
+  // "Penyesuaian Workflow Jadwal — Final" #5: sesi yang jam pelajarannya
+  // sudah lewat tanpa presensi/jurnal dipisah ke kartu "Perlu Konfirmasi"
+  // tersendiri di bawah, bukan dicampur dengan daftar kronologis biasa —
+  // supaya guru tidak perlu menyisir seluruh daftar hari ini untuk sadar
+  // ada sesi yang terlewat.
+  const mainClassStatuses = todayClassStatuses.filter((s) => s.sessionState !== 'needs_confirmation');
+  const needsConfirmationStatuses = todayClassStatuses.filter((s) => s.sessionState === 'needs_confirmation');
+
   return (
     <div className="min-h-screen bg-gray-50 p-3 sm:p-4 md:p-6 lg:p-8 space-y-4 md:space-y-6">
       <div className="max-w-6xl mx-auto space-y-4 md:space-y-6">
@@ -394,8 +412,7 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {todayClassStatuses.map((status) => {
-                const isOngoing = isScheduleOngoing(status.timeSlot || '');
+              {mainClassStatuses.map((status) => {
                 const nextTab = !status.hasAttendance ? 'presensi' : 'jurnal';
                 const label = status.isDone
                   ? `Selesai • ${status.subject || subject}`
@@ -404,17 +421,22 @@ export default function DashboardPage() {
                   : !status.hasAttendance
                   ? `Presensi belum diisi • ${status.timeSlot}`
                   : `Jurnal belum diisi • ${status.timeSlot}`;
+                // Badge otomatis dari jadwal + waktu aktual, bukan lagi
+                // ditebak dari hasJournal/hasAttendance saja (lihat
+                // classifySessionState) — 🔵 belum waktunya, 🟢 sedang
+                // berlangsung, ✅ kewajiban sudah lengkap.
+                const badge = status.isDone ? '✅' : status.sessionState === 'ongoing' ? '🟢' : '🔵';
 
                 return (
                   <div key={status.scheduleId} className="py-3 md:py-4 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
                       <span className="text-lg md:text-xl shrink-0" aria-hidden>
-                        {status.isDone ? '✅' : status.hasJournal || status.hasAttendance ? '🟢' : '🟡'}
+                        {badge}
                       </span>
                       <div className="min-w-0">
                         <p className="text-sm font-extrabold text-gray-900 truncate flex items-center gap-2">
                           Kelas {status.className}
-                          {isOngoing && !status.isDone && (
+                          {status.sessionState === 'ongoing' && (
                             <span className="text-[9px] font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full whitespace-nowrap">
                               Berlangsung
                             </span>
@@ -438,6 +460,51 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+
+        {/* Perlu Konfirmasi — sesi yang jam pelajarannya sudah lewat tanpa
+            presensi/jurnal. Dipisah dari daftar di atas (bukan sekadar
+            dikasih badge) supaya guru tidak perlu menyisir seluruh daftar
+            hari ini untuk sadar ada sesi yang terlewat. Mencatat alasan di
+            sini TIDAK menandai sesi selesai — itu murni lewat presensi/jurnal
+            (lihat "Prinsip utama" di spec). */}
+        {needsConfirmationStatuses.length > 0 && (
+          <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-amber-200 space-y-3 md:space-y-4">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 md:w-5 md:h-5 text-amber-500" />
+              <h3 className="text-[10px] md:text-xs font-extrabold text-gray-700 uppercase tracking-wider">
+                Perlu Konfirmasi
+              </h3>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {needsConfirmationStatuses.map((status) => (
+                <div key={status.scheduleId} className="py-3 md:py-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-lg md:text-xl shrink-0" aria-hidden>
+                      ⚠️
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-extrabold text-gray-900 truncate">
+                        Kelas {status.className} • {status.timeSlot}
+                      </p>
+                      <p className="text-[10px] md:text-xs text-gray-500 truncate">
+                        {status.skipReason
+                          ? `${status.skipReason.reason}${status.skipReason.note ? ` — ${status.skipReason.note}` : ''}`
+                          : 'Presensi/jurnal belum tercatat untuk sesi ini'}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSkipReasonTarget(status)}
+                    className="shrink-0 px-3 py-1.5 md:px-4 md:py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl text-[10px] md:text-xs font-bold transition-colors"
+                  >
+                    {status.skipReason ? 'Ubah' : 'Konfirmasi'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Catatan Cepat + Menu Utama */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
@@ -520,6 +587,18 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {skipReasonTarget && (
+        <SkipReasonModal
+          isOpen={!!skipReasonTarget}
+          onClose={() => setSkipReasonTarget(null)}
+          onConfirm={handleSaveSkipReason}
+          className={skipReasonTarget.className}
+          timeSlot={skipReasonTarget.timeSlot}
+          initialReason={skipReasonTarget.skipReason?.reason || null}
+          initialNote={skipReasonTarget.skipReason?.note || ''}
+        />
+      )}
     </div>
   );
 }
