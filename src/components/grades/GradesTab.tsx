@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { CheckCircle2, CloudOff, Table, Plus, Save } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { CheckCircle2, CloudOff, Table, Plus, Save, Circle, Lock } from 'lucide-react';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
-import GradesTable from './GradesTable';
+import GradesTable, { cellKey } from './GradesTable';
+import GradesReviewModal, { GradeChange } from './GradesReviewModal';
 import GradeColumnModal from './GradeColumnModal';
 import ConfirmDeleteModal from '@/src/components/ui/ConfirmDeleteModal';
 import InlineAlert from '@/src/components/ui/InlineAlert';
@@ -23,10 +24,18 @@ export default function GradesTab({ className }: GradesTabProps) {
   const { workspaceId } = useWorkspace();
   const isOnline = useOnlineStatus();
   const [columns, setColumns] = useState<any[]>([]);
+  // `grades` = nilai yang sedang ditampilkan/bisa diketik (draft lokal
+  // untuk sel yang belum/sedang diedit). `savedGrades` = salinan terakhir
+  // yang benar-benar tersimpan di Firestore — dipakai sebagai acuan status
+  // tiap sel (Belum diisi/Draft/Tersimpan) DAN sebagai isi modal Review.
+  // Proteksi Tinggi: keduanya HANYA disamakan lagi setelah guru menekan
+  // konfirmasi di GradesReviewModal — tidak pernah oleh onChange/onBlur.
   const [grades, setGrades] = useState<Record<string, Record<string, string>>>({});
+  const [savedGrades, setSavedGrades] = useState<Record<string, Record<string, string>>>({});
+  const [unlockedCells, setUnlockedCells] = useState<Set<string>>(new Set());
   const [students, setStudents] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [success, setSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [loadingData, setLoadingData] = useState(true);
@@ -36,6 +45,7 @@ export default function GradesTab({ className }: GradesTabProps) {
     if (className && workspaceId) {
       loadAllData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [className, workspaceId]);
 
   async function loadAllData() {
@@ -57,6 +67,8 @@ export default function GradesTab({ className }: GradesTabProps) {
       const data = await gradeController.fetchGradeData(workspaceId, className);
       setColumns(data.columns);
       setGrades(data.grades);
+      setSavedGrades(data.grades);
+      setUnlockedCells(new Set());
     } catch (error) {
       console.error('Gagal memuat data nilai:', error);
     }
@@ -79,18 +91,44 @@ export default function GradesTab({ className }: GradesTabProps) {
     }));
   }
 
-  async function handleSaveAll() {
+  function handleRequestUnlock(studentId: string, columnId: string) {
+    setUnlockedCells((prev) => new Set(prev).add(cellKey(studentId, columnId)));
+  }
+
+  // Sel dianggap "berubah & siap direview" kalau nilainya beda dari
+  // savedGrades — mencakup baik sel kosong yang baru diisi maupun sel
+  // terkunci yang sudah dibuka lewat Edit lalu diubah.
+  const pendingChanges: GradeChange[] = useMemo(() => {
+    const changes: GradeChange[] = [];
+    students.forEach((student) => {
+      columns.forEach((col) => {
+        const savedValue = savedGrades[student.id]?.[col.id] ?? '';
+        const currentValue = grades[student.id]?.[col.id] ?? '';
+        if (currentValue !== savedValue) {
+          changes.push({
+            studentName: student.name,
+            columnTitle: col.title,
+            oldValue: savedValue,
+            newValue: currentValue,
+          });
+        }
+      });
+    });
+    return changes;
+  }, [students, columns, grades, savedGrades]);
+
+  async function handleConfirmSave() {
     if (!workspaceId) return;
-    setLoading(true);
-    setSuccess(false);
     setErrorMsg('');
     try {
       await gradeController.saveGrades(workspaceId, className, grades);
+      setSavedGrades(grades);
+      setUnlockedCells(new Set());
       setSuccess(true);
+      setReviewOpen(false);
     } catch (error: any) {
       setErrorMsg(error.message || 'Gagal menyimpan nilai.');
-    } finally {
-      setLoading(false);
+      throw error;
     }
   }
 
@@ -121,15 +159,28 @@ export default function GradesTab({ className }: GradesTabProps) {
             Matriks Daftar Nilai Kelas {className}
           </h3>
           <p className="text-xs text-gray-500">Kelola komponen nilai tugas, ulangan, dan rekap rata-rata</p>
+          <div className="flex items-center gap-3 pt-2 text-[10px] font-bold text-gray-400">
+            <span className="flex items-center gap-1">
+              <Circle className="w-3 h-3" /> Belum diisi
+            </span>
+            <span className="flex items-center gap-1 text-amber-600">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" /> Draft
+            </span>
+            <span className="flex items-center gap-1 text-emerald-600">
+              <Lock className="w-3 h-3" /> Tersimpan
+            </span>
+          </div>
         </div>
         <div className="flex gap-2 w-full md:w-auto">
           <Button variant="secondary" onClick={() => setShowModal(true)}>
             <Plus className="w-4 h-4" />
             <span>Tambah Kolom</span>
           </Button>
-          <Button onClick={handleSaveAll} loading={loading}>
+          <Button onClick={() => setReviewOpen(true)} disabled={pendingChanges.length === 0}>
             <Save className="w-4 h-4" />
-            <span>{loading ? 'Menyimpan...' : 'Simpan Semua Nilai'}</span>
+            <span>
+              {pendingChanges.length > 0 ? `Review & Simpan (${pendingChanges.length})` : 'Tidak Ada Perubahan'}
+            </span>
           </Button>
         </div>
       </Card>
@@ -141,7 +192,7 @@ export default function GradesTab({ className }: GradesTabProps) {
           {isOnline ? (
             <>
               <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-              <span>Semua perubahan nilai berhasil disimpan!</span>
+              <span>Nilai berhasil disimpan &amp; terkunci — tekan ikon pensil di sel untuk mengoreksi.</span>
             </>
           ) : (
             <>
@@ -153,6 +204,13 @@ export default function GradesTab({ className }: GradesTabProps) {
       )}
 
       <GradeColumnModal isOpen={showModal} onClose={() => setShowModal(false)} onSubmit={handleAddColumn} />
+
+      <GradesReviewModal
+        isOpen={reviewOpen}
+        onClose={() => setReviewOpen(false)}
+        onConfirm={handleConfirmSave}
+        changes={pendingChanges}
+      />
 
       <ConfirmDeleteModal
         isOpen={!!deleteColumnTarget}
@@ -175,7 +233,10 @@ export default function GradesTab({ className }: GradesTabProps) {
             students={students}
             columns={columns}
             grades={grades}
+            savedGrades={savedGrades}
+            unlockedCells={unlockedCells}
             onScoreChange={handleScoreChange}
+            onRequestUnlock={handleRequestUnlock}
             onDeleteColumn={handleDeleteColumn}
           />
         )}
