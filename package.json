@@ -10,7 +10,8 @@
     "test:rules": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only firestore,storage \"vitest run\"",
     "emulators": "npx firebase-tools emulators:start --project demo-teacher-workspace --only auth,firestore,storage",
     "test:e2e": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only auth,firestore,storage \"node tests/e2e/smoke.mjs\"",
-    "test:e2e:onboarding": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only auth,firestore,storage \"node tests/e2e/onboarding.mjs\""
+    "test:e2e:onboarding": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only auth,firestore,storage \"node tests/e2e/onboarding.mjs\"",
+    "test:e2e:rename-class": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only auth,firestore,storage \"node tests/e2e/rename-class.mjs\""
   },
   "dependencies": {
     "chart.js": "^4.5.1",

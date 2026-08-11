@@ -1,4 +1,5 @@
 import { getAdminDb } from './firebaseAdmin';
+import { normalizeClassName, validateClassName } from '../utils/classNameValidation';
 
 // Semua koleksi yang punya field className langsung, TERMASUK
 // student_profiles — satu-satunya alasan operasi ini harus lewat Admin
@@ -12,6 +13,13 @@ import { getAdminDb } from './firebaseAdmin';
 const CLASS_SCOPED_COLLECTIONS = [
   'students',
   'student_profiles',
+  // student_login_codes menyimpan SALINAN className (lihat buildLoginCodeDoc
+  // di studentRepository.ts) yang dipakai claimAccessCode() saat siswa
+  // pertama kali klaim kodenya — bukan referensi ke dokumen students. Tanpa
+  // ikut dirapikan di sini, siswa yang belum pernah login saat rename terjadi
+  // akan mendapat student_profiles.className yang sudah basi begitu ia
+  // akhirnya login, walau dokumen students-nya sendiri sudah benar.
+  'student_login_codes',
   'journals',
   'attendances',
   'grades',
@@ -41,10 +49,20 @@ export async function renameClassServer(uid: string, oldNameInput: string, newNa
     throw new Error('Akun ini belum terhubung ke workspace mana pun.');
   }
 
-  const oldName = oldNameInput.trim();
-  const newName = newNameInput.trim();
+  // oldName cuma dipakai untuk mencari dokumen existing (nilai className
+  // yang sudah tersimpan, apa pun bentuknya) — bukan input baru dari guru,
+  // jadi cukup dirapikan spasinya, tidak perlu divalidasi ulang.
+  const oldName = normalizeClassName(oldNameInput);
   if (!oldName) throw new Error('Kelas asal tidak valid.');
-  if (!newName) throw new Error('Nama kelas baru wajib diisi.');
+
+  // newName ADALAH input guru — validasi penuh di sini sebagai pertahanan
+  // kedua (client sudah validasi juga), bukan cuma trim. Sengaja TIDAK ada
+  // whitelist karakter: className bukan identifier/slug, boleh mengandung
+  // spasi dan angka apa pun ("XI A KESEHATAN 1", "XI F TEKNIK 2", dst).
+  const validation = validateClassName(newNameInput);
+  if (!validation.valid) throw new Error(validation.error);
+  const newName = validation.value;
+
   if (oldName === newName) throw new Error('Nama kelas baru sama dengan nama sekarang.');
 
   const collisionSnap = await adminDb

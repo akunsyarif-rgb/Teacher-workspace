@@ -12,6 +12,7 @@ import Input from '@/src/components/ui/Input';
 import Button from '@/src/components/ui/Button';
 import AddStudentForm from './AddStudentForm';
 import BulkImportForm from './BulkImportForm';
+import { CLASS_NAME_MAX_LENGTH, normalizeClassName, validateClassName } from '@/lib/utils/classNameValidation';
 
 type ClassDetailProps = {
   className: string;
@@ -102,9 +103,14 @@ export default function ClassDetail({
   }
 
   async function handleRenameClass() {
-    const trimmed = renameValue.trim();
-    if (!trimmed || trimmed === className) {
+    const normalized = normalizeClassName(renameValue);
+    if (!normalized || normalized === className) {
       setShowSettings(false);
+      return;
+    }
+    const validation = validateClassName(renameValue);
+    if (!validation.valid) {
+      setRenameError(validation.error);
       return;
     }
     if (!auth.currentUser) return;
@@ -112,9 +118,9 @@ export default function ClassDetail({
     setRenameError('');
     try {
       const idToken = await auth.currentUser.getIdToken();
-      await classController.submitRenameClass(idToken, className, trimmed);
+      await classController.submitRenameClass(idToken, className, validation.value);
       setShowSettings(false);
-      onRenamed?.(trimmed);
+      onRenamed?.(validation.value);
     } catch (error: any) {
       setRenameError(error.message || 'Gagal mengganti nama kelas.');
     } finally {
@@ -312,10 +318,21 @@ export default function ClassDetail({
       <Modal isOpen={showSettings} onClose={() => setShowSettings(false)} title="Pengaturan Kelas">
         <div className="space-y-4">
           <div>
-            <Input label="Nama Kelas" value={renameValue} onChange={setRenameValue} placeholder="Contoh: XI F TEKNIK 2" />
+            <Input
+              label="Nama Kelas"
+              value={renameValue}
+              onChange={setRenameValue}
+              placeholder="Contoh: XI F TEKNIK 2"
+              maxLength={CLASS_NAME_MAX_LENGTH}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+            />
             <p className="text-[10px] text-gray-400 mt-1.5">
-              Mengganti nama akan otomatis merapikan seluruh data terkait kelas ini (siswa, jurnal, presensi, nilai,
-              tugas, pengumuman, jadwal) — termasuk akun Student Companion siswa, supaya mereka tidak kehilangan akses.
+              Boleh mengandung spasi dan angka, mis. &quot;XI A KESEHATAN 1&quot;. Mengganti nama akan otomatis
+              merapikan seluruh data terkait kelas ini (siswa, jurnal, presensi, nilai, tugas, pengumuman, jadwal) —
+              termasuk akun Student Companion siswa, supaya mereka tidak kehilangan akses.
             </p>
           </div>
           {renameError && <p className="text-xs font-bold text-red-600">{renameError}</p>}
@@ -329,7 +346,11 @@ export default function ClassDetail({
               Batal
             </button>
             <div className="flex-1">
-              <Button onClick={handleRenameClass} loading={renaming} disabled={!renameValue.trim() || renameValue.trim() === className}>
+              <Button
+                onClick={handleRenameClass}
+                loading={renaming}
+                disabled={!normalizeClassName(renameValue) || normalizeClassName(renameValue) === className}
+              >
                 {renaming ? 'Menyimpan...' : 'Simpan Nama Baru'}
               </Button>
             </div>
