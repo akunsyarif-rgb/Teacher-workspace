@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Paperclip, FileText, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Paperclip, FileText, X, ArrowLeft, Calendar } from 'lucide-react';
 import Modal from '../ui/Modal';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
@@ -14,11 +14,18 @@ type AssignmentFormModalProps = {
 };
 
 export default function AssignmentFormModal({ isOpen, onClose, onSubmit }: AssignmentFormModalProps) {
+  const [step, setStep] = useState<'form' | 'preview'>('form');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Reset ke langkah form setiap modal dibuka lagi — supaya guru tidak
+  // pernah terdampar di layar Preview tugas sebelumnya.
+  useEffect(() => {
+    if (isOpen) setStep('form');
+  }, [isOpen]);
 
   function handlePickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const picked = e.target.files?.[0];
@@ -34,8 +41,12 @@ export default function AssignmentFormModal({ isOpen, onClose, onSubmit }: Assig
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleContinueToPreview(e: React.FormEvent) {
     e.preventDefault();
+    setStep('preview');
+  }
+
+  async function handlePublish() {
     setSaving(true);
     try {
       await onSubmit({ title, description, dueDate, file });
@@ -43,6 +54,7 @@ export default function AssignmentFormModal({ isOpen, onClose, onSubmit }: Assig
       setDescription('');
       setDueDate('');
       setFile(null);
+      setStep('form');
       onClose();
     } catch (error: any) {
       alert(error.message || 'Gagal membuat tugas.');
@@ -51,9 +63,51 @@ export default function AssignmentFormModal({ isOpen, onClose, onSubmit }: Assig
     }
   }
 
+  if (step === 'preview') {
+    return (
+      <Modal isOpen={isOpen} onClose={onClose} title="Preview Tugas">
+        <div className="space-y-4">
+          <p className="text-xs text-gray-500">
+            Periksa sekali lagi sebelum Publish — begitu dipublish, tugas langsung tampil di Student Companion.
+          </p>
+          <div className="p-4 bg-gray-50 border border-gray-200 rounded-2xl space-y-2">
+            <p className="text-sm font-extrabold text-gray-900">{title}</p>
+            {description && <p className="text-xs text-gray-600 whitespace-pre-wrap">{description}</p>}
+            <p className="flex items-center gap-1.5 text-[11px] font-bold text-gray-500">
+              <Calendar className="w-3.5 h-3.5" />
+              Tenggat {dueDate}
+            </p>
+            {file && (
+              <p className="flex items-center gap-1.5 text-[11px] font-bold text-blue-700">
+                <FileText className="w-3.5 h-3.5" />
+                {file.name}
+              </p>
+            )}
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => setStep('form')}
+              disabled={saving}
+              className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 rounded-xl text-xs font-bold transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Kembali
+            </button>
+            <div className="flex-1">
+              <Button onClick={handlePublish} loading={saving}>
+                {saving ? 'Mempublish...' : 'Publish Tugas'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Buat Tugas Baru">
-      <form onSubmit={handleSubmit} className="space-y-3">
+      <form onSubmit={handleContinueToPreview} className="space-y-3">
         <Input
           label="Judul Tugas"
           value={title}
@@ -110,9 +164,7 @@ export default function AssignmentFormModal({ isOpen, onClose, onSubmit }: Assig
           <Button type="button" variant="secondary" onClick={onClose}>
             Batal
           </Button>
-          <Button type="submit" loading={saving}>
-            {saving ? 'Menyimpan...' : 'Buat Tugas'}
-          </Button>
+          <Button type="submit">Preview</Button>
         </div>
       </form>
     </Modal>

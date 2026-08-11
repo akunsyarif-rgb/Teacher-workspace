@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, MutableRefObject } from 'react';
 import { CheckCircle2, CloudOff, Table, Plus, Save, Circle, Lock } from 'lucide-react';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
@@ -18,9 +18,17 @@ import { SkeletonTable, SkeletonText } from '../ui/Skeleton';
 
 type GradesTabProps = {
   className: string;
+  // Dipakai AttendanceForm untuk exit guard "Unsaved Changes" & ringkasan
+  // "Selesai Mengajar" — jumlah sel yang berubah tapi belum direview&simpan.
+  onDraftChange?: (count: number) => void;
+  // AttendanceForm memicu ini dari dialog Unsaved Changes / Selesai
+  // Mengajar untuk membuka modal Review — BUKAN langsung menyimpan nilai,
+  // supaya "Proteksi Tinggi" (guru harus lihat & konfirmasi dulu) tetap
+  // berlaku walau lewat jalur keluar-kelas, bukan cuma tombol Review biasa.
+  openReviewRef?: MutableRefObject<(() => void) | null>;
 };
 
-export default function GradesTab({ className }: GradesTabProps) {
+export default function GradesTab({ className, onDraftChange, openReviewRef }: GradesTabProps) {
   const { workspaceId } = useWorkspace();
   const isOnline = useOnlineStatus();
   const [columns, setColumns] = useState<any[]>([]);
@@ -116,6 +124,27 @@ export default function GradesTab({ className }: GradesTabProps) {
     });
     return changes;
   }, [students, columns, grades, savedGrades]);
+
+  useEffect(() => {
+    onDraftChange?.(pendingChanges.length);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingChanges.length]);
+
+  useEffect(() => {
+    if (!openReviewRef) return;
+    openReviewRef.current = () => setReviewOpen(true);
+    return () => {
+      if (openReviewRef.current) openReviewRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openReviewRef]);
+
+  useEffect(() => {
+    return () => {
+      onDraftChange?.(0);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleConfirmSave() {
     if (!workspaceId) return;

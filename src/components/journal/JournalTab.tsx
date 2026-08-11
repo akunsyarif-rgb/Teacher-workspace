@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, MutableRefObject } from "react";
 import { CheckCircle2, CloudOff, Calendar, Circle, Pencil, X } from "lucide-react";
 import Input from "../ui/Input";
 import Textarea from "../ui/Textarea";
@@ -20,9 +20,23 @@ type JournalTabProps = {
   subject: string;
   scheduleId?: string | null;
   onSubmitted?: () => void;
+  // Dipakai AttendanceForm untuk exit guard "Unsaved Changes": true kalau
+  // sedang mode edit dengan isi berbeda dari yang tersimpan terakhir.
+  onDirtyChange?: (dirty: boolean) => void;
+  // AttendanceForm menaruh fungsi save ke ref ini supaya tombol "Simpan &
+  // Keluar" di dialog Unsaved Changes bisa memicu simpan jurnal yang
+  // sesungguhnya (bukan cuma menutup tab begitu saja).
+  saveHandleRef?: MutableRefObject<(() => Promise<void>) | null>;
 };
 
-export default function JournalTab({ className, subject, scheduleId, onSubmitted }: JournalTabProps) {
+export default function JournalTab({
+  className,
+  subject,
+  scheduleId,
+  onSubmitted,
+  onDirtyChange,
+  saveHandleRef,
+}: JournalTabProps) {
   const { workspaceId } = useWorkspace();
   const isOnline = useOnlineStatus();
   const [topic, setTopic] = useState("");
@@ -115,9 +129,8 @@ export default function JournalTab({ className, subject, scheduleId, onSubmitted
     setMode("view");
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!workspaceId) return;
+  async function doSubmit() {
+    if (!workspaceId || !topic.trim()) return;
     setLoading(true);
     setSuccess(false);
     setErrorMsg("");
@@ -139,10 +152,42 @@ export default function JournalTab({ className, subject, scheduleId, onSubmitted
       onSubmitted?.();
     } catch (error: any) {
       setErrorMsg(error.message || "Gagal menyimpan jurnal.");
+      throw error;
     } finally {
       setLoading(false);
     }
   }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await doSubmit().catch(() => {});
+  }
+
+  // Sinyal "ada perubahan belum tersimpan" ke AttendanceForm — hanya di
+  // mode edit dan hanya kalau isinya benar-benar beda dari yang tersimpan
+  // (mode "view" tidak pernah dianggap dirty karena isinya persis salinan
+  // savedTopic/savedNotes).
+  useEffect(() => {
+    const dirty = mode === "edit" && (topic.trim() !== savedTopic.trim() || notes.trim() !== (savedNotes === "-" ? "" : savedNotes.trim()));
+    onDirtyChange?.(dirty);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, topic, notes, savedTopic, savedNotes]);
+
+  useEffect(() => {
+    if (!saveHandleRef) return;
+    saveHandleRef.current = doSubmit;
+    return () => {
+      if (saveHandleRef.current === doSubmit) saveHandleRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+
+  useEffect(() => {
+    return () => {
+      onDirtyChange?.(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleDelete() {
     if (!deleteTarget) return;

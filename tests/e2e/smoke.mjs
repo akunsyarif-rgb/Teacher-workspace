@@ -251,7 +251,13 @@ async function run() {
         mimeType: 'image/png',
         buffer: ONE_PIXEL_PNG,
       });
-      await teacher.getByRole('button', { name: /^Buat Tugas$/i }).last().click();
+      // Sejak Draft→Preview→Publish (spec "Workflow Mengajar — Rencana
+      // Lanjutan"), submit form tidak langsung menyimpan — ada layar
+      // Preview dulu sebelum tombol "Publish Tugas" benar-benar menulis
+      // ke Firestore.
+      await teacher.getByRole('button', { name: /^Preview$/i }).click();
+      await teacher.waitForTimeout(500);
+      await teacher.getByRole('button', { name: /^Publish Tugas$/i }).click();
       await teacher.waitForTimeout(4000);
       const created = await teacher.getByText(ASSIGNMENT_TITLE).count();
       if (created > 0) pass('Guru membuat tugas dengan materi terlampir');

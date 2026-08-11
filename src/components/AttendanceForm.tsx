@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { BookOpen, UserCheck, Table, History, CheckCircle2, Circle, PartyPopper, ClipboardList, Megaphone } from 'lucide-react';
-import Link from 'next/link';
+import { BookOpen, UserCheck, Table, History, CheckCircle2, Circle, PartyPopper, ClipboardList, Megaphone, Flag } from 'lucide-react';
 import Card from './ui/Card';
 import ClassSelector from './attendance/ClassSelector';
 import JournalTab from './journal/JournalTab';
@@ -12,6 +11,8 @@ import GradesTab from './grades/GradesTab';
 import AssignmentsTab from './assignments/AssignmentsTab';
 import AnnouncementsTab from './announcements/AnnouncementsTab';
 import TimelineTab from './timeline/TimelineTab';
+import UnsavedChangesModal from './UnsavedChangesModal';
+import SessionFinishModal from './SessionFinishModal';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as classController from '@/lib/controllers/classController';
 import * as scheduleController from '@/lib/controllers/scheduleController';
@@ -51,6 +52,75 @@ export default function AttendanceForm() {
   // kelas lain. JANGAN ganti balik ke window.location manual atau ke cek
   // `!selectedClass` di closure state.
   const classResolvedRef = useRef(false);
+
+  // Sinyal "ada perubahan belum tersimpan" dari Jurnal/Nilai — hanya salah
+  // satu yang bisa true di satu waktu karena tab lain unmount saat pindah
+  // (lihat render tab di bawah, masing-masing dibungkus `activeTab === ...`).
+  const [journalDirty, setJournalDirty] = useState(false);
+  const [gradesDraftCount, setGradesDraftCount] = useState(0);
+  const journalSaveRef = useRef<(() => Promise<void>) | null>(null);
+  const gradesOpenReviewRef = useRef<(() => void) | null>(null);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+  const [showFinishModal, setShowFinishModal] = useState(false);
+  const hasUnsavedChanges = journalDirty || gradesDraftCount > 0;
+
+  // Cegah tab/browser ditutup begitu saja saat ada draft Jurnal/Nilai yang
+  // belum tersimpan — pelengkap requestLeave() di bawah yang menjaga
+  // navigasi DI DALAM aplikasi (ganti tab/kelas/Beranda).
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      if (!hasUnsavedChanges) return;
+      e.preventDefault();
+      e.returnValue = '';
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  // Titik tunggal semua navigasi "berpindah konteks" (ganti tab, ganti
+  // kelas, ke Beranda) harus lewat sini — supaya guard Unsaved Changes
+  // tidak bisa terlewat kalau nanti ditambah titik navigasi baru.
+  function requestLeave(action: () => void) {
+    if (hasUnsavedChanges) {
+      setPendingAction(() => action);
+    } else {
+      action();
+    }
+  }
+
+  function handleCancelLeave() {
+    setPendingAction(null);
+  }
+
+  function handleLeaveWithoutSaving() {
+    const action = pendingAction;
+    setJournalDirty(false);
+    setGradesDraftCount(0);
+    setPendingAction(null);
+    action?.();
+  }
+
+  async function handleSaveAndLeave() {
+    try {
+      if (journalDirty) {
+        await journalSaveRef.current?.();
+        setJournalDirty(false);
+        const action = pendingAction;
+        setPendingAction(null);
+        action?.();
+      } else if (gradesDraftCount > 0) {
+        // Nilai "Proteksi Tinggi": tidak langsung tersimpan lewat sini —
+        // cukup buka modal Review yang sudah ada, guru tetap harus
+        // menekan konfirmasi eksplisit di sana. Navigasi yang tertunda
+        // dibatalkan; guru bisa coba pindah lagi setelah nilai tersimpan.
+        gradesOpenReviewRef.current?.();
+        setPendingAction(null);
+      }
+    } catch {
+      // JournalTab sudah menampilkan errorMsg-nya sendiri; biarkan dialog
+      // tetap terbuka supaya guru bisa coba lagi atau batal.
+    }
+  }
 
   // Dukung deep-link dari Action Center Beranda (?class=XI+A&tab=presensi)
   // — pakai useSearchParams() (reaktif terhadap navigasi App Router),
@@ -203,7 +273,10 @@ export default function AttendanceForm() {
           {tabs.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
-              onClick={() => setActiveTab(key)}
+              onClick={() => {
+                if (key === activeTab) return;
+                requestLeave(() => setActiveTab(key));
+              }}
               title={label}
               className={`shrink-0 flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all active:scale-95 ${
                 activeTab === key ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'
@@ -219,7 +292,14 @@ export default function AttendanceForm() {
           {classesList.length === 0 ? (
             <p className="text-xs text-gray-400">Belum ada data kelas atau siswa di database.</p>
           ) : (
-            <ClassSelector classes={classesList} selected={selectedClass} onChange={setSelectedClass} />
+            <ClassSelector
+              classes={classesList}
+              selected={selectedClass}
+              onChange={(cls) => {
+                if (cls === selectedClass) return;
+                requestLeave(() => setSelectedClass(cls));
+              }}
+            />
           )}
         </div>
       </Card>
@@ -249,6 +329,14 @@ export default function AttendanceForm() {
                 {currentSession.hasJournal ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
                 Jurnal
               </span>
+              <button
+                type="button"
+                onClick={() => setShowFinishModal(true)}
+                className="flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-gray-900 transition-colors"
+              >
+                <Flag className="w-4 h-4" />
+                Selesai Mengajar
+              </button>
             </div>
           </div>
 
@@ -258,9 +346,13 @@ export default function AttendanceForm() {
                 <PartyPopper className="w-4 h-4" />
                 Sesi ini sudah selesai — kerja bagus!
               </p>
-              <Link href="/" className="text-xs font-bold text-blue-600 hover:underline">
+              <button
+                type="button"
+                onClick={() => requestLeave(() => router.push('/'))}
+                className="text-xs font-bold text-blue-600 hover:underline"
+              >
                 Kembali ke Beranda →
-              </Link>
+              </button>
             </div>
           )}
         </div>
@@ -272,6 +364,8 @@ export default function AttendanceForm() {
           subject={subject}
           scheduleId={activeScheduleId}
           onSubmitted={handleJournalSubmitted}
+          onDirtyChange={setJournalDirty}
+          saveHandleRef={journalSaveRef}
         />
       )}
       {selectedClass && activeTab === 'presensi' && (
@@ -282,12 +376,39 @@ export default function AttendanceForm() {
           onSubmitted={handleAttendanceSubmitted}
         />
       )}
-      {selectedClass && activeTab === 'nilai' && <GradesTab className={selectedClass} />}
+      {selectedClass && activeTab === 'nilai' && (
+        <GradesTab className={selectedClass} onDraftChange={setGradesDraftCount} openReviewRef={gradesOpenReviewRef} />
+      )}
       {selectedClass && activeTab === 'tugas' && <AssignmentsTab className={selectedClass} subject={subject} />}
       {selectedClass && activeTab === 'pengumuman' && (
         <AnnouncementsTab className={selectedClass} subject={subject} />
       )}
       {selectedClass && activeTab === 'riwayat' && <TimelineTab className={selectedClass} />}
+
+      <UnsavedChangesModal
+        isOpen={!!pendingAction}
+        onCancel={handleCancelLeave}
+        onLeaveWithoutSaving={handleLeaveWithoutSaving}
+        primaryAction={{
+          label: journalDirty ? 'Simpan & Keluar' : 'Review Dulu',
+          onClick: handleSaveAndLeave,
+        }}
+      />
+
+      {currentSession && (
+        <SessionFinishModal
+          isOpen={showFinishModal}
+          onClose={() => setShowFinishModal(false)}
+          onGoHome={() => {
+            setShowFinishModal(false);
+            requestLeave(() => router.push('/'));
+          }}
+          className={currentSession.className}
+          hasAttendance={currentSession.hasAttendance}
+          hasJournal={currentSession.hasJournal}
+          gradesDraftCount={gradesDraftCount}
+        />
+      )}
     </div>
   );
 }
