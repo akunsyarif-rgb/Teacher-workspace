@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { BookOpen, UserCheck, Table, History, CheckCircle2, Circle, PartyPopper, ClipboardList, Megaphone } from 'lucide-react';
 import Link from 'next/link';
 import Card from './ui/Card';
@@ -19,9 +20,14 @@ import { getCurrentDayName, TodayClassStatus } from '@/lib/services/dashboardSer
 import { findActiveScheduleId, resolveCurrentWorkflowStep } from '@/lib/utils/scheduleTime';
 import { getCached } from '@/lib/utils/sessionCache';
 
+type WorkspaceTab = 'jurnal' | 'presensi' | 'nilai' | 'tugas' | 'pengumuman' | 'riwayat';
+const VALID_TABS: WorkspaceTab[] = ['jurnal', 'presensi', 'nilai', 'tugas', 'pengumuman', 'riwayat'];
+
 export default function AttendanceForm() {
   const { workspaceId } = useWorkspace();
-  const [activeTab, setActiveTab] = useState<'jurnal' | 'presensi' | 'nilai' | 'tugas' | 'pengumuman' | 'riwayat'>('jurnal');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>('jurnal');
   const [classesList, setClassesList] = useState<string[]>([]);
   const [selectedClass, setSelectedClass] = useState('');
   const [subject, setSubject] = useState('');
@@ -29,30 +35,56 @@ export default function AttendanceForm() {
   const [todayClassStatuses, setTodayClassStatuses] = useState<TodayClassStatus[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // true begitu selectedClass sudah ditentukan (dari deep-link ?class= ATAU
+  // dari fallback Workflow Engine di bawah) — REF, bukan dicek lewat
+  // `!selectedClass` pada closure state seperti sebelumnya. Kenapa: waktu
+  // navigasi client-side (klik <Link> dari Beranda) window.location.search
+  // belum ter-update di render PERTAMA komponen ini — jadi kalau deep-link
+  // dibaca langsung dari window.location (baik lewat lazy initializer
+  // useState maupun efek terpisah), nilainya masih kosong saat itu.
+  // useSearchParams() akhirnya benar juga, tapi baru di render berikutnya —
+  // closure effect fallback di bawah tetap bisa menangkap selectedClass
+  // versi lama (kosong) kalau dicek lewat state biasa. Ref dibaca LIVE
+  // (`.current`), jadi begitu efek deep-link di bawah sempat commit — kapan
+  // pun itu — fallback tidak akan pernah menimpanya lagi. Ini pernah jadi
+  // bug nyata: klik "XI F Teknik 2" dari Beranda diam-diam berakhir di
+  // kelas lain. JANGAN ganti balik ke window.location manual atau ke cek
+  // `!selectedClass` di closure state.
+  const classResolvedRef = useRef(false);
+
+  // Dukung deep-link dari Action Center Beranda (?class=XI+A&tab=presensi)
+  // — pakai useSearchParams() (reaktif terhadap navigasi App Router),
+  // BUKAN window.location.search manual.
+  useEffect(() => {
+    const cls = searchParams.get('class');
+    const tab = searchParams.get('tab');
+    if (cls) {
+      setSelectedClass(cls);
+      classResolvedRef.current = true;
+    }
+    if ((VALID_TABS as string[]).includes(tab || '')) {
+      setActiveTab(tab as WorkspaceTab);
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     const savedSubject = localStorage.getItem('teacher_main_subject');
     setSubject(savedSubject || '');
   }, []);
 
-  // Dukung deep-link dari Action Center di Dashboard (?class=XI+A&tab=presensi)
-  // supaya guru langsung diarahkan ke tugas yang tepat, bukan harus pilih ulang.
+  // Jaga URL selalu sinkron dengan kelas yang sedang ditampilkan — baik
+  // saat dipilih otomatis (fallback Workflow Engine di bawah) maupun saat
+  // guru ganti kelas lewat ClassSelector. Ini yang membuat "kelas yang
+  // baru saja dipilih" bertahan kalau halaman di-refresh/dibagikan, DAN
+  // yang membuat regresi seperti di atas langsung kelihatan lewat address
+  // bar (bukan cuma di state React yang tidak terlihat).
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (!selectedClass || typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
-    const cls = params.get('class');
-    const tab = params.get('tab');
-    if (cls) setSelectedClass(cls);
-    if (
-      tab === 'jurnal' ||
-      tab === 'presensi' ||
-      tab === 'nilai' ||
-      tab === 'tugas' ||
-      tab === 'pengumuman' ||
-      tab === 'riwayat'
-    ) {
-      setActiveTab(tab);
-    }
-  }, []);
+    if (params.get('class') === selectedClass) return;
+    params.set('class', selectedClass);
+    router.replace(`/attendance?${params.toString()}`, { scroll: false });
+  }, [selectedClass, router]);
 
   // Muat kelas, jadwal, dan status sesi bersamaan — Workflow Engine perlu
   // ketiganya sekaligus untuk memilihkan kelas default yang paling relevan
@@ -93,7 +125,8 @@ export default function AttendanceForm() {
       const classNames = summaries.map((s: any) => s.className);
       setClassesList(classNames);
       setSchedules(scheduleList);
-      if (classNames.length > 0 && !selectedClass) {
+      if (classNames.length > 0 && !classResolvedRef.current) {
+        classResolvedRef.current = true;
         const step = resolveCurrentWorkflowStep(statuses);
         setSelectedClass(step && classNames.includes(step.status.className) ? step.status.className : classNames[0]);
       }
@@ -158,7 +191,9 @@ export default function AttendanceForm() {
     <div className="max-w-4xl mx-auto space-y-6">
       <Card className="space-y-4">
         <div>
-          <h2 className="text-lg font-bold text-gray-900">Pusat Kegiatan Kelas & Penilaian</h2>
+          <h2 className="text-lg font-bold text-gray-900">
+            {selectedClass ? `Kelas ${selectedClass}` : 'Pusat Kegiatan Kelas & Penilaian'}
+          </h2>
           <p className="text-xs text-gray-500">Kelola jurnal, presensi, nilai, dan riwayat dalam satu layar</p>
         </div>
 
