@@ -155,8 +155,15 @@ service cloud.firestore {
         (request.resource.data.get('homeroomClassName', null) == resource.data.get('homeroomClassName', null) ||
          resource.data.get('role', null) in ['OWNER', 'ADMIN']);
 
-      // OWNER bisa membaca semua profil di workspace-nya (untuk manajemen)
+      // OWNER bisa membaca semua profil di workspace-nya (untuk manajemen).
+      // exists() dicek dulu sebelum getWorkspaceId() (yang men-dot-access
+      // .data pada dokumen profil milik requester sendiri) — tanpa ini,
+      // pengguna yang BELUM PERNAH punya teacher_profiles sama sekali
+      // (mis. guru baru di tengah alur join-by-code, sebelum profilnya
+      // sendiri tertulis) memicu evaluation error saat rule ini dievaluasi
+      // untuk operasi list/count, bukan sekadar ditolak dengan bersih.
       allow read: if isAuthenticated() &&
+        exists(/databases/$(database)/documents/teacher_profiles/$(request.auth.uid)) &&
         isAdminOrOwner(getWorkspaceId(request.auth.uid));
     }
 

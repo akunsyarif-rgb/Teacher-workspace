@@ -1,18 +1,34 @@
 import {
   createWorkspaceDoc,
   getWorkspaceById,
-  findWorkspaceByInviteCode,
   updateWorkspaceInviteCode,
   WorkspaceDoc,
 } from '../repositories/workspaceRepository';
-import { assignTeacherToWorkspace, loadTeacherProfile, countWorkspaceMembers } from './teacherProfileService';
-import { FREE_CLASS_LIMIT, FREE_SEAT_LIMIT, PLAN_CLASS_LIMITS, PLAN_PRICES, PLAN_DURATION_MS } from '../config/plans';
+import { assignTeacherToWorkspace, loadTeacherProfile } from './teacherProfileService';
+import {
+  FREE_CLASS_LIMIT,
+  FREE_SEAT_LIMIT,
+  PLAN_CLASS_LIMITS,
+  PLAN_PRICES,
+  PLAN_DURATION_MS,
+  isSeatLimitReached,
+  assertSeatLimitNotReached,
+} from '../config/plans';
 
 // Re-export supaya kode lain (controller/UI) yang sudah mengimpor
 // konstanta ini dari workspaceService tidak perlu berubah — sumber
 // aslinya sekarang lib/config/plans.ts (tanpa dependensi Firestore),
-// supaya bisa dipakai juga oleh lib/server/paymentService.ts (server-only).
-export { FREE_CLASS_LIMIT, FREE_SEAT_LIMIT, PLAN_CLASS_LIMITS, PLAN_PRICES, PLAN_DURATION_MS };
+// supaya bisa dipakai juga oleh lib/server/paymentService.ts &
+// lib/server/workspaceAdminService.ts (server-only).
+export {
+  FREE_CLASS_LIMIT,
+  FREE_SEAT_LIMIT,
+  PLAN_CLASS_LIMITS,
+  PLAN_PRICES,
+  PLAN_DURATION_MS,
+  isSeatLimitReached,
+  assertSeatLimitNotReached,
+};
 
 const INVITE_CODE_VALID_MS = 7 * 24 * 60 * 60 * 1000; // 7 hari
 
@@ -78,28 +94,17 @@ export async function createSchoolWorkspace(uid: string, schoolName: string) {
   return getWorkspaceById(workspaceId);
 }
 
-export async function joinWorkspaceByCode(uid: string, inviteCode: string) {
-  await assertNoExistingWorkspace(uid);
-
-  const trimmedCode = inviteCode.trim().toUpperCase();
-  if (!trimmedCode) {
-    throw new Error('Mohon masukkan kode undangan.');
-  }
-
-  const workspace = await findWorkspaceByInviteCode(trimmedCode);
-  if (!workspace) {
-    throw new Error('Kode undangan tidak ditemukan.');
-  }
-  if (workspace.inviteCodeExpiresAt && workspace.inviteCodeExpiresAt < Date.now()) {
-    throw new Error('Kode undangan sudah kedaluwarsa. Minta admin sekolah membuat kode baru.');
-  }
-
-  const memberCount = await countWorkspaceMembers(workspace.id);
-  assertSeatLimitNotReached(workspace, memberCount);
-
-  await assignTeacherToWorkspace(uid, workspace.id, 'TEACHER');
-  return workspace;
-}
+// Catatan: TIDAK ada joinWorkspaceByCode client-side di sini (sengaja).
+// Sebelumnya ada, tapi seat-limit check di dalamnya butuh count() query ke
+// teacher_profiles filtered by workspaceId — Firestore TIDAK BISA
+// mengevaluasi list/count semacam itu untuk guru yang belum punya
+// hubungan apa pun ke workspace tujuan (belum OWNER/ADMIN, belum py
+// profil sendiri) tanpa membuka akses list teacher_profiles ke siapa pun
+// yang cuma menebak workspaceId — bukan cuma soal rule yang salah tulis,
+// tapi celah struktural (dibuktikan lewat reproduksi langsung ke
+// emulator, gagal bahkan untuk OWNER yang sudah py profil sekalipun).
+// Alur join sekarang sepenuhnya lewat app/api/workspace/join/route.ts
+// (Admin SDK, bypass rules) — lihat lib/server/workspaceAdminService.ts.
 
 export async function regenerateInviteCode(workspaceId: string) {
   const inviteCode = generateInviteCode();
@@ -125,22 +130,6 @@ export function assertClassLimitNotReached(workspace: WorkspaceDoc, currentClass
   if (isClassLimitReached(workspace, currentClassCount)) {
     throw new Error(
       `Paket Anda dibatasi maksimal ${workspace.classLimit} kelas. Hubungi admin untuk upgrade paket.`
-    );
-  }
-}
-
-// Sama seperti isClassLimitReached/assertClassLimitNotReached, tapi untuk
-// kuota kursi guru (khusus school_annual) — dicek saat guru baru mau
-// gabung lewat kode undangan.
-export function isSeatLimitReached(workspace: WorkspaceDoc, currentMemberCount: number) {
-  if (workspace.seatLimit === null || workspace.seatLimit === undefined) return false;
-  return currentMemberCount >= workspace.seatLimit;
-}
-
-export function assertSeatLimitNotReached(workspace: WorkspaceDoc, currentMemberCount: number) {
-  if (isSeatLimitReached(workspace, currentMemberCount)) {
-    throw new Error(
-      `Kuota guru workspace ini sudah penuh (maks ${workspace.seatLimit} guru). Admin sekolah perlu membeli kursi tambahan lewat halaman upgrade.`
     );
   }
 }

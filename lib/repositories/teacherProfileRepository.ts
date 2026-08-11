@@ -1,4 +1,4 @@
-import { getDocument, setDocument, updateDocument, countDocuments } from '../adapters/firestoreAdapter';
+import { getDocument, setDocument, updateDocument } from '../adapters/firestoreAdapter';
 
 const TEACHER_PROFILES_COLLECTION = 'teacher_profiles';
 
@@ -37,9 +37,13 @@ export async function updateTeacherQuickNote(uid: string, quickNote: string) {
   return { quickNote };
 }
 
-// Dipakai untuk menegakkan seatLimit (kuota kursi guru) paket school_annual
-// sebelum guru baru diizinkan gabung lewat kode undangan.
-export async function countTeachersInWorkspace(workspaceId: string) {
-  if (!workspaceId) return 0;
-  return countDocuments(TEACHER_PROFILES_COLLECTION, [['workspaceId', '==', workspaceId]]);
-}
+// CATATAN: sengaja TIDAK ADA countTeachersInWorkspace di sini lagi. Count
+// query client-side yang difilter workspaceId ke collection ini TIDAK BISA
+// dibuat aman untuk kasus "guru baru mau join lewat kode undangan" — pada
+// titik itu mereka belum py hubungan apa pun ke workspace tujuan, jadi
+// tidak ada rule realistis yang bisa memberi mereka izin list/count tanpa
+// membuka data anggota workspace ke siapa pun yang menebak workspaceId.
+// Terbukti gagal bahkan untuk OWNER yang sudah py profil (lihat commit
+// yang memindahkan seat-limit check ke app/api/workspace/join/route.ts).
+// Kalau butuh hitung anggota workspace lagi nanti, lakukan lewat Admin SDK
+// di server (lib/server/workspaceAdminService.ts), bukan di sini.

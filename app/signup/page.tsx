@@ -71,7 +71,8 @@ export default function SignupPage() {
       } else if (mode === 'school') {
         await workspaceController.submitCreateSchoolWorkspace(uid, workspaceName.trim());
       } else {
-        await workspaceController.submitJoinWorkspaceByCode(uid, inviteCode.trim());
+        const idToken = await credential.user.getIdToken();
+        await workspaceController.submitJoinWorkspaceByCode(idToken, inviteCode.trim());
       }
 
       router.push('/');
