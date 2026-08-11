@@ -1,10 +1,11 @@
 import * as sessionSkipReasonRepository from '../repositories/sessionSkipReasonRepository';
 import { SESSION_SKIP_REASONS } from '../config/constants';
+import { getWitaDateString } from '../utils/witaDate';
 
 const VALID_REASONS = Object.values(SESSION_SKIP_REASONS) as string[];
 
 function todayDateString() {
-  return new Date().toISOString().split('T')[0];
+  return getWitaDateString();
 }
 
 export async function listTodaySkipReasons(workspaceId: string) {

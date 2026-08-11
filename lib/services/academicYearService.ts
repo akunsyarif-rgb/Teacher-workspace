@@ -1,4 +1,5 @@
 import * as academicYearRepository from '../repositories/academicYearRepository';
+import { shiftWitaDateString } from '../utils/witaDate';
 
 export type AcademicYear = {
   id: string;
@@ -23,9 +24,7 @@ export async function getActiveAcademicYear(workspaceId: string): Promise<Academ
 }
 
 function dayBefore(dateStr: string): string {
-  const d = new Date(dateStr);
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().split('T')[0];
+  return shiftWitaDateString(dateStr, -1);
 }
 
 // Tahun Ajaran murni batas tanggal (lihat COLLECTIONS.ACADEMIC_YEARS) —

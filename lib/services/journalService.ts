@@ -1,4 +1,5 @@
 import * as journalRepository from '../repositories/journalRepository';
+import { getWitaDateString } from '../utils/witaDate';
 
 export async function listJournalEntries(workspaceId: string, className: string) {
   if (!workspaceId || !className) return [];
@@ -6,7 +7,7 @@ export async function listJournalEntries(workspaceId: string, className: string)
 }
 
 function todayDateString() {
-  return new Date().toISOString().split('T')[0];
+  return getWitaDateString();
 }
 
 // Dipanggil saat tab Jurnal dibuka — menentukan status "○ Belum diisi" vs

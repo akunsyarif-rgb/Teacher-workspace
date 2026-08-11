@@ -1,5 +1,6 @@
 import * as attendanceRepository from '../repositories/attendanceRepository';
 import { ATTENDANCE_STATUS_OPTIONS } from '../config/constants';
+import { getWitaDateString } from '../utils/witaDate';
 
 export async function listAttendanceHistory(workspaceId: string, className: string) {
   if (!workspaceId || !className) return [];
@@ -9,7 +10,7 @@ export async function listAttendanceHistory(workspaceId: string, className: stri
 export type AttendanceEntry = { status: string; late?: boolean };
 
 function todayDateString() {
-  return new Date().toISOString().split('T')[0];
+  return getWitaDateString();
 }
 
 // "Terlambat" bukan status sendiri — cuma atribut tambahan di atas Hadir

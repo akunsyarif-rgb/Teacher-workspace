@@ -1,4 +1,5 @@
 import * as studentNoteRepository from '../repositories/studentNoteRepository';
+import { getWitaDateString } from '../utils/witaDate';
 
 export async function loadNotes(workspaceId: string, className: string, category: string) {
   if (!workspaceId || !className || !category) return [];
@@ -24,7 +25,7 @@ export async function addNote(
     studentName: data.studentName,
     title: data.title.trim(),
     notes: data.notes?.trim() || '',
-    date: new Date().toISOString().split('T')[0],
+    date: getWitaDateString(),
   });
 }
 

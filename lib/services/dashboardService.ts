@@ -7,6 +7,13 @@ import {
 } from '../repositories/dashboardRepository';
 import { getByDate as getSkipReasonsByDate } from '../repositories/sessionSkipReasonRepository';
 import { getScheduleStartMinutes, classifySessionState, SessionState } from '../utils/scheduleTime';
+import {
+  getWitaDateString,
+  getWitaDayName,
+  getWitaDaysAgo,
+  getDayNameFromDateString,
+  shiftWitaDateString,
+} from '../utils/witaDate';
 
 export type TodayClassStatus = {
   scheduleId: string;
@@ -46,32 +53,16 @@ export type DashboardSummary = {
   todayClassStatuses: TodayClassStatus[]; // Status per slot jadwal hari ini — dasar Action Center
 };
 
-const DAY_NAMES: Record<number, string> = {
-  0: 'Minggu',
-  1: 'Senin',
-  2: 'Selasa',
-  3: 'Rabu',
-  4: 'Kamis',
-  5: 'Jumat',
-  6: 'Sabtu',
-};
-
 export function getCurrentDayName(date: Date = new Date()) {
-  return DAY_NAMES[date.getDay()];
+  return getWitaDayName(date);
 }
 
 function getTodayDate(): string {
-  return new Date().toISOString().split('T')[0];
-}
-
-function getDateString(date: Date): string {
-  return date.toISOString().split('T')[0];
+  return getWitaDateString();
 }
 
 function getDaysAgo(days: number): string {
-  const date = new Date();
-  date.setDate(date.getDate() - days);
-  return getDateString(date);
+  return getWitaDaysAgo(days);
 }
 
 export async function loadDashboardSummary(workspaceId: string): Promise<DashboardSummary> {
@@ -153,10 +144,8 @@ export async function loadDashboardSummary(workspaceId: string): Promise<Dashboa
   const weeklyAttendanceCounts: number[] = [];
 
   for (let i = 6; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    const dateStr = getDateString(date);
-    const dayName = DAY_NAMES[date.getDay()];
+    const dateStr = shiftWitaDateString(todayDate, -i);
+    const dayName = getDayNameFromDateString(dateStr);
 
     // Jumlah jurnal pada hari itu
     const journalCount = journals.filter((j: any) => j.date === dateStr).length;

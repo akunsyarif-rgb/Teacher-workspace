@@ -2,8 +2,10 @@ import * as dataArchiveRepository from '../repositories/dataArchiveRepository';
 import * as studentRepository from '../repositories/studentRepository';
 import * as studentService from '../services/studentService';
 import * as gradeService from '../services/gradeService';
+import * as scheduleRepository from '../repositories/scheduleRepository';
 import { DATA_LIFECYCLE_COLLECTIONS } from '../config/dataLifecycleCollections';
 import { DateRange } from '../utils/periodRange';
+import { getDayNameFromDateString } from '../utils/witaDate';
 
 export type ExportScope = { type: 'all' } | { type: 'class'; className: string };
 
@@ -94,10 +96,75 @@ export async function gatherExportData(
         result.grades = await gatherGrades(workspaceId, scope);
         return;
       }
+      if (key === 'schedules') {
+        result.schedules = await gatherSchedules(workspaceId, scope);
+        return;
+      }
     })
   );
 
+  // Rekap Aktivitas diturunkan dari koleksi lain, jadi dihitung setelah
+  // pengumpulan selesai — dan koleksi yang dibutuhkannya diambil sendiri
+  // kalau guru tidak ikut mencentangnya sebagai jenis data terpisah.
+  if (dataTypeKeys.includes('activityRecap')) {
+    result.activityRecap = await gatherActivityRecap(workspaceId, range, className);
+  }
+
   return result;
+}
+
+// Jadwal tidak punya field tanggal (hanya hari + jam berulang), jadi
+// SENGAJA tidak difilter periode — yang diekspor adalah jadwal yang
+// berlaku sekarang, dipersempit ke satu kelas kalau scope-nya kelas.
+async function gatherSchedules(workspaceId: string, scope: ExportScope) {
+  const schedules =
+    scope.type === 'class'
+      ? await scheduleRepository.getSchedulesByClass(workspaceId, scope.className)
+      : await scheduleRepository.getAllSchedules(workspaceId);
+
+  return schedules.map((s: any) => ({
+    day: s.day || '-',
+    timeSlot: s.timeSlot || '-',
+    className: s.className || '-',
+    subject: s.subject || '-',
+  }));
+}
+
+// Rekap Aktivitas = satu baris per hari dalam periode, berisi jumlah
+// kegiatan yang tercatat hari itu. Hanya hari yang benar-benar punya
+// kegiatan yang dimunculkan — kalau tidak, rekap setahun jadi ratusan
+// baris nol yang tidak memberi tahu apa pun.
+async function gatherActivityRecap(workspaceId: string, range: DateRange, className?: string) {
+  const [journals, attendances, announcements, assignments] = await Promise.all([
+    dataArchiveRepository.listLifecycleData('journals', workspaceId, range, className),
+    dataArchiveRepository.listLifecycleData('attendances', workspaceId, range, className),
+    dataArchiveRepository.listLifecycleData('announcements', workspaceId, range, className),
+    dataArchiveRepository.listLifecycleData('assignments', workspaceId, range, className),
+  ]);
+
+  const byDate: Record<string, any> = {};
+  function bump(dateStr: string, field: string) {
+    const date = (dateStr || '').split('T')[0];
+    if (!date) return;
+    if (!byDate[date]) {
+      byDate[date] = {
+        date,
+        dayName: getDayNameFromDateString(date),
+        journalCount: 0,
+        attendanceCount: 0,
+        announcementCount: 0,
+        assignmentCount: 0,
+      };
+    }
+    byDate[date][field] += 1;
+  }
+
+  journals.forEach((j: any) => bump(j.date, 'journalCount'));
+  attendances.forEach((a: any) => bump(a.date, 'attendanceCount'));
+  announcements.forEach((a: any) => bump(a.date, 'announcementCount'));
+  assignments.forEach((a: any) => bump(a.dueDate, 'assignmentCount'));
+
+  return Object.values(byDate).sort((a: any, b: any) => a.date.localeCompare(b.date));
 }
 
 // Nilai TIDAK difilter periode (lihat dataLifecycleCollections.ts) — hasil

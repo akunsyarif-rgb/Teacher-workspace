@@ -1,3 +1,5 @@
+import { getWitaMinutesOfDay } from './witaDate';
+
 export type ScheduleLike = {
   id: string;
   className: string;
@@ -41,7 +43,7 @@ function parseScheduleRange(timeSlot: string): { startMinutes: number; endMinute
 export function isScheduleOngoing(timeSlot: string, now: Date = new Date()): boolean {
   const range = parseScheduleRange(timeSlot);
   if (!range) return false;
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const currentMinutes = getWitaMinutesOfDay(now);
   return currentMinutes >= range.startMinutes && currentMinutes <= range.endMinutes;
 }
 
@@ -76,7 +78,7 @@ export function classifySessionState(
   const range = parseScheduleRange(timeSlot);
   if (!range) return 'upcoming';
 
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const currentMinutes = getWitaMinutesOfDay(now);
   return currentMinutes < range.startMinutes ? 'upcoming' : 'needs_confirmation';
 }
 

@@ -8,6 +8,8 @@ export const EXPORT_DATA_TYPE_LABELS: Record<string, string> = {
   assignments: 'Tugas',
   submissions: 'Pengumpulan Tugas',
   announcements: 'Pengumuman',
+  schedules: 'Jadwal Mengajar',
+  activityRecap: 'Rekap Aktivitas',
 };
 
 export const EXPORT_COLUMNS: Record<string, ExportColumn[]> = {
@@ -62,5 +64,19 @@ export const EXPORT_COLUMNS: Record<string, ExportColumn[]> = {
     { key: 'subject', label: 'Mapel' },
     { key: 'title', label: 'Judul' },
     { key: 'body', label: 'Isi' },
+  ],
+  schedules: [
+    { key: 'day', label: 'Hari' },
+    { key: 'timeSlot', label: 'Jam' },
+    { key: 'className', label: 'Kelas' },
+    { key: 'subject', label: 'Mapel' },
+  ],
+  activityRecap: [
+    { key: 'date', label: 'Tanggal' },
+    { key: 'dayName', label: 'Hari' },
+    { key: 'journalCount', label: 'Jurnal' },
+    { key: 'attendanceCount', label: 'Presensi' },
+    { key: 'announcementCount', label: 'Pengumuman' },
+    { key: 'assignmentCount', label: 'Tugas' },
   ],
 };

@@ -1,3 +1,4 @@
+import { getWitaDateString, shiftWitaMonths } from './witaDate';
 export type PeriodPreset = 'month' | 'two_months' | 'semester' | 'academic_year' | 'custom' | 'all';
 
 export type DateRange = {
@@ -8,13 +9,11 @@ export type DateRange = {
 };
 
 function todayDateString(): string {
-  return new Date().toISOString().split('T')[0];
+  return getWitaDateString();
 }
 
 function monthsAgo(months: number): string {
-  const d = new Date();
-  d.setMonth(d.getMonth() - months);
-  return d.toISOString().split('T')[0];
+  return shiftWitaMonths(todayDateString(), -months);
 }
 
 /**

@@ -8,6 +8,7 @@ import GradesTable, { cellKey } from './GradesTable';
 import GradesReviewModal, { GradeChange } from './GradesReviewModal';
 import GradeColumnModal from './GradeColumnModal';
 import ConfirmDeleteModal from '@/src/components/ui/ConfirmDeleteModal';
+import Modal from '@/src/components/ui/Modal';
 import InlineAlert from '@/src/components/ui/InlineAlert';
 import * as gradeController from '@/lib/controllers/gradeController';
 import * as studentController from '@/lib/controllers/classController';
@@ -54,6 +55,16 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
   const [errorMsg, setErrorMsg] = useState('');
   const [loadingData, setLoadingData] = useState(true);
   const [deleteColumnTarget, setDeleteColumnTarget] = useState<{ id: string; title: string } | null>(null);
+  // Sel terkunci yang pensilnya baru ditekan, menunggu jawaban "Ubah nilai?".
+  // Tanpa gerbang ini satu sentuhan tak sengaja di layar sentuh langsung
+  // membuka nilai yang sudah terkunci untuk diketik ulang.
+  const [unlockTarget, setUnlockTarget] = useState<{
+    studentId: string;
+    columnId: string;
+    studentName: string;
+    columnTitle: string;
+    currentValue: string;
+  } | null>(null);
 
   useEffect(() => {
     if (className && workspaceId) {
@@ -106,7 +117,21 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
   }
 
   function handleRequestUnlock(studentId: string, columnId: string) {
-    setUnlockedCells((prev) => new Set(prev).add(cellKey(studentId, columnId)));
+    const student = students.find((s) => s.id === studentId);
+    const column = columns.find((c) => c.id === columnId);
+    setUnlockTarget({
+      studentId,
+      columnId,
+      studentName: student?.name ?? '',
+      columnTitle: column?.title ?? '',
+      currentValue: savedGrades[studentId]?.[columnId] ?? '',
+    });
+  }
+
+  function confirmUnlock() {
+    if (!unlockTarget) return;
+    setUnlockedCells((prev) => new Set(prev).add(cellKey(unlockTarget.studentId, unlockTarget.columnId)));
+    setUnlockTarget(null);
   }
 
   // Sel dianggap "berubah & siap direview" kalau nilainya beda dari
@@ -247,6 +272,30 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
         onConfirm={handleConfirmSave}
         changes={pendingChanges}
       />
+
+      <Modal isOpen={!!unlockTarget} onClose={() => setUnlockTarget(null)} title="Ubah nilai?">
+        <div className="space-y-4">
+          <p className="text-xs text-gray-600">
+            Nilai ini sudah terkunci. Kalau dilanjutkan, selnya dibuka untuk diketik ulang — nilai baru
+            tetap harus melewati Review sebelum tersimpan.
+          </p>
+          <div className="p-3 bg-gray-50 border border-gray-100 rounded-2xl space-y-0.5">
+            <p className="text-xs font-bold text-gray-900">{unlockTarget?.studentName}</p>
+            <p className="text-[11px] text-gray-500">
+              {unlockTarget?.columnTitle} — nilai sekarang{' '}
+              <span className="font-bold text-emerald-700">{unlockTarget?.currentValue}</span>
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setUnlockTarget(null)} className="flex-1">
+              Batal
+            </Button>
+            <Button onClick={confirmUnlock} className="flex-1">
+              Lanjutkan
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <ConfirmDeleteModal
         isOpen={!!deleteColumnTarget}

@@ -1,6 +1,7 @@
 import * as achievementRepository from '../repositories/achievementRepository';
 import * as studentNoteRepository from '../repositories/studentNoteRepository';
 import { STUDENT_NOTE_CATEGORIES } from '../config/constants';
+import { getWitaDateString } from '../utils/witaDate';
 
 function sortNewestFirst(items: any[]) {
   return items.sort((a: any, b: any) => (b.date || '').localeCompare(a.date || ''));
@@ -34,7 +35,7 @@ export async function addAchievement(
     studentName: data.studentName,
     title: data.title.trim(),
     notes: data.notes?.trim() || '',
-    date: new Date().toISOString().split('T')[0],
+    date: getWitaDateString(),
   });
 }
 

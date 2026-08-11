@@ -1,4 +1,5 @@
 import * as classFundRepository from '../repositories/classFundRepository';
+import { getWitaDateString } from '../utils/witaDate';
 
 export type ClassFundTransactionType = 'masuk' | 'keluar';
 
@@ -32,7 +33,7 @@ export async function addTransaction(
     type: data.type,
     amount: data.amount,
     description: data.description.trim(),
-    date: new Date().toISOString().split('T')[0],
+    date: getWitaDateString(),
   });
 }
 

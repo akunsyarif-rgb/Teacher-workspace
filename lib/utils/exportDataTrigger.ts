@@ -5,6 +5,7 @@ import { EXPORT_COLUMNS, EXPORT_DATA_TYPE_LABELS } from './exportColumns';
 import { downloadCsv } from './csvExport';
 import { downloadJsonBackup } from './jsonBackupExport';
 import { exportDataTablePdf } from './dataTablePdf';
+import { getWitaDateString } from './witaDate';
 
 export type ExportFormat = 'pdf' | 'csv' | 'json';
 
@@ -14,7 +15,7 @@ function scopeLabel(scope: ExportScope) {
 
 function fileBaseName(scope: ExportScope, preset: PeriodPreset) {
   const scopePart = scope.type === 'class' ? scope.className.replace(/\s+/g, '-') : 'SemuaKelas';
-  const datePart = new Date().toISOString().split('T')[0];
+  const datePart = getWitaDateString();
   return `Data-${scopePart}-${preset}-${datePart}`;
 }
 
