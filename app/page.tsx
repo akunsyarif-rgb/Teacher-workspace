@@ -46,6 +46,21 @@ function getCompleteDateLabel(date: Date = new Date()) {
   });
 }
 
+// Jam berjalan di header — SENGAJA selalu dikonversi ke Asia/Makassar
+// (WITA), bukan zona waktu perangkat guru, supaya label "WITA" akurat
+// walau guru membuka aplikasi dari perangkat berzona waktu lain. Ini murni
+// indikator visual; logika status sesi tetap dari Workflow Engine yang
+// sudah shipped (classifySessionState di lib/utils/scheduleTime.ts), jam
+// ini tidak dipakai untuk menghitung status apa pun.
+function getWitaTimeLabel(date: Date) {
+  return date.toLocaleTimeString("id-ID", {
+    timeZone: "Asia/Makassar",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
 type SyncStatus = "idle" | "saving" | "saved" | "error" | "offline";
 
 export default function DashboardPage() {
@@ -69,6 +84,18 @@ export default function DashboardPage() {
   const [pendingClasses, setPendingClasses] = useState<string[]>([]);
   const [todayClassStatuses, setTodayClassStatuses] = useState<TodayClassStatus[]>([]);
   const [skipReasonTarget, setSkipReasonTarget] = useState<TodayClassStatus | null>(null);
+  // null di render pertama (server & client sebelum hydrate sama-sama
+  // kosong) supaya tidak ada mismatch hydration — begitu mount, effect di
+  // bawah mengisinya dan menjalankan interval per detik.
+  const [nowLabel, setNowLabel] = useState<string | null>(null);
+
+  useEffect(() => {
+    setNowLabel(getWitaTimeLabel(new Date()));
+    const interval = setInterval(() => {
+      setNowLabel(getWitaTimeLabel(new Date()));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
   const teacherName = teacherProfile?.name || "Guru Pengajar";
@@ -287,9 +314,17 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="space-y-1">
-            <div className="flex items-center gap-2 text-[10px] font-bold text-blue-600 uppercase tracking-wider bg-blue-50/60 px-2.5 py-1 rounded-xl w-fit">
-              <Calendar className="w-3 h-3" />
-              <span>{getCompleteDateLabel()}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2 text-[10px] font-bold text-blue-600 uppercase tracking-wider bg-blue-50/60 px-2.5 py-1 rounded-xl w-fit">
+                <Calendar className="w-3 h-3" />
+                <span>{getCompleteDateLabel()}</span>
+              </div>
+              {nowLabel && (
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider bg-gray-50 px-2.5 py-1 rounded-xl w-fit tabular-nums">
+                  <Clock className="w-3 h-3" />
+                  <span>{nowLabel} WITA</span>
+                </div>
+              )}
             </div>
             <h1 className="text-xl md:text-2xl font-extrabold text-gray-900 flex items-center gap-2">
               {getGreeting()}, {teacherName}
