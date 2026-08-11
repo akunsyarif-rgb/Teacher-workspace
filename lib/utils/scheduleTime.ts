@@ -54,21 +54,6 @@ export function getScheduleStartMinutes(timeSlot: string): number {
   return parseScheduleRange(timeSlot)?.startMinutes ?? Number.MAX_SAFE_INTEGER;
 }
 
-/**
- * Sudah lewat jam pelajarannya (waktu sekarang > jam selesai slot ini)?
- * Dipakai Beranda untuk memisahkan sesi "done" yang sudah lewat waktu ke
- * "Riwayat Mengajar Hari Ini" dari sesi "done" yang selesai lebih awal
- * (misal presensi+jurnal diisi sebelum jam pelajarannya benar-benar mulai)
- * — yang terakhir ini tetap dianggap bagian dari Sesi Aktif hari ini, bukan
- * riwayat, karena jam pelajarannya sendiri belum berakhir.
- */
-export function hasScheduleEnded(timeSlot: string, now: Date = new Date()): boolean {
-  const range = parseScheduleRange(timeSlot);
-  if (!range) return false;
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
-  return currentMinutes > range.endMinutes;
-}
-
 export type SessionState = 'upcoming' | 'ongoing' | 'needs_confirmation' | 'done';
 
 /**

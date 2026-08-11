@@ -9,7 +9,7 @@ import { useWorkspace } from "@/src/context/WorkspaceContext";
 import { fetchDashboardSummary } from "@/lib/controllers/dashboardController";
 import { saveTeacherQuickNote } from "@/lib/controllers/teacherProfileController";
 import { submitSkipReason } from "@/lib/controllers/sessionSkipReasonController";
-import { resolveCurrentWorkflowStep, hasScheduleEnded } from "@/lib/utils/scheduleTime";
+import { resolveCurrentWorkflowStep } from "@/lib/utils/scheduleTime";
 import { getCurrentDayName } from "@/lib/services/dashboardService";
 import type { TodayClassStatus } from "@/lib/services/dashboardService";
 import { useOnlineStatus } from "@/src/hooks/useOnlineStatus";
@@ -28,7 +28,6 @@ import {
   ArrowRight,
   RefreshCw,
   AlertTriangle,
-  CheckCircle2,
 } from "lucide-react";
 
 function getGreeting(date: Date = new Date()) {
@@ -308,24 +307,18 @@ export default function DashboardPage() {
   const isDayComplete = todayTotal > 0 && journalsDone === todayTotal && attendancesDone === todayTotal;
   const isDayPartial = journalsDone > 0 || attendancesDone > 0;
 
-  // "Penyesuaian Workflow Jadwal — Final" #5 + "Rencana Perubahan Lanjutan"
-  // #1: tiga kelompok terpisah, BUKAN sekadar badge berbeda dalam satu
-  // daftar —
-  //  - Sesi Aktif: sedang berlangsung / belum dimulai (workflow masih maju).
-  //  - Perlu Konfirmasi: jam pelajaran sudah lewat, presensi/jurnal belum.
-  //  - Riwayat Mengajar Hari Ini: jam pelajaran sudah lewat DAN sudah
-  //    lengkap — tetap bisa dibuka untuk kroscek, tapi bukan lagi "pekerjaan
-  //    yang harus dikerjakan". Selama masih tanggal yang sama, sesi ini
-  //    TIDAK hilang dari Beranda (beda dari sekadar difilter keluar); begitu
-  //    tanggal berganti, todayClassStatuses sendiri sudah tidak lagi berisi
-  //    sesi kemarin (dihitung ulang dari jadwal HARI INI), jadi otomatis
-  //    tidak tampil lagi di sini — riwayat lengkapnya tetap ada di Riwayat
-  //    Kelas (tab Riwayat per kelas), bukan dihapus.
-  const sesiAktifStatuses = todayClassStatuses.filter(
-    (s) => s.sessionState !== 'needs_confirmation' && !(s.isDone && hasScheduleEnded(s.timeSlot))
-  );
+  // "Penyesuaian Workflow Jadwal — Final" #5, dikoreksi oleh audit lanjutan:
+  // HANYA dua kelompok, bukan tiga — status ✅ Done tetap tinggal di daftar
+  // kronologis "Jadwal Hari Ini" yang sama (bukan dipindah ke section
+  // "Riwayat" terpisah, itu cuma menduplikasi daftar yang sudah ada). Done
+  // berhenti dihitung sebagai "pekerjaan yang harus dikerjakan" (lihat CTA
+  // di bawah — tombol jadi "Buka", bukan "Mulai/Lanjut"), tapi tetap
+  // terlihat & bisa dibuka untuk kroscek selama masih tanggal yang sama.
+  // Begitu tanggal berganti, todayClassStatuses dihitung ulang dari jadwal
+  // HARI INI sehingga sesi kemarin otomatis tidak tampil lagi di sini —
+  // riwayat lengkapnya tetap ada lewat tab Riwayat per kelas, bukan dihapus.
+  const jadwalHariIniStatuses = todayClassStatuses.filter((s) => s.sessionState !== 'needs_confirmation');
   const needsConfirmationStatuses = todayClassStatuses.filter((s) => s.sessionState === 'needs_confirmation');
-  const riwayatHariIniStatuses = todayClassStatuses.filter((s) => s.isDone && hasScheduleEnded(s.timeSlot));
 
   return (
     <div className="min-h-screen bg-gray-50 p-3 sm:p-4 md:p-6 lg:p-8 space-y-4 md:space-y-6">
@@ -452,7 +445,7 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {sesiAktifStatuses.length === 0 ? (
+          {jadwalHariIniStatuses.length === 0 ? (
             todayClassStatuses.length === 0 ? (
               <div className="p-4 md:p-6 bg-gray-50 rounded-xl md:rounded-2xl border border-dashed border-gray-200 text-center space-y-1">
                 <p className="text-sm font-bold text-gray-600">
@@ -467,18 +460,17 @@ export default function DashboardPage() {
               </div>
             ) : (
               // Ada jadwal hari ini, tapi semuanya sudah masuk Perlu
-              // Konfirmasi/Riwayat di bawah — bukan berarti tidak ada
-              // jadwal sama sekali, jadi pesannya beda dari empty-state
-              // di atas.
+              // Konfirmasi di bawah — bukan berarti tidak ada jadwal sama
+              // sekali, jadi pesannya beda dari empty-state di atas.
               <div className="p-4 md:p-6 bg-emerald-50 rounded-xl md:rounded-2xl border border-dashed border-emerald-200 text-center">
                 <p className="text-sm font-bold text-emerald-700">
-                  Tidak ada sesi aktif saat ini — lihat Perlu Konfirmasi/Riwayat di bawah 👇
+                  Tidak ada sesi aktif saat ini — lihat Perlu Konfirmasi di bawah 👇
                 </p>
               </div>
             )
           ) : (
             <div className="divide-y divide-gray-100">
-              {sesiAktifStatuses.map((status) => {
+              {jadwalHariIniStatuses.map((status) => {
                 const nextTab = !status.hasAttendance ? 'presensi' : 'jurnal';
                 const label = status.isDone
                   ? `Selesai • ${status.subject || subject}`
@@ -512,7 +504,16 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    {!status.isDone && (
+                    {status.isDone ? (
+                      // Done TIDAK lagi "pekerjaan yang harus dikerjakan" —
+                      // tombolnya "Buka" (kroscek), bukan "Mulai/Lanjut".
+                      <Link
+                        href={`/attendance?class=${encodeURIComponent(status.className)}&tab=jurnal`}
+                        className="shrink-0 px-3 py-1.5 md:px-4 md:py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-[10px] md:text-xs font-bold transition-colors"
+                      >
+                        Buka
+                      </Link>
+                    ) : (
                       <Link
                         href={`/attendance?class=${encodeURIComponent(status.className)}&tab=${nextTab}`}
                         className="shrink-0 px-3 py-1.5 md:px-4 md:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] md:text-xs font-bold transition-colors shadow-sm"
@@ -566,50 +567,6 @@ export default function DashboardPage() {
                   >
                     {status.skipReason ? 'Ubah' : 'Konfirmasi'}
                   </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Riwayat Mengajar Hari Ini — sesi yang jam pelajarannya sudah
-            lewat DAN sudah lengkap (presensi+jurnal). BUKAN "pekerjaan yang
-            harus dikerjakan" lagi, tapi TIDAK dihilangkan dari Beranda
-            selama masih tanggal yang sama — tetap bisa dibuka untuk
-            kroscek/perbaiki jurnal/lihat presensi & nilai. Begitu tanggal
-            berganti, todayClassStatuses dihitung ulang dari jadwal hari
-            baru sehingga sesi ini otomatis tidak tampil lagi di sini;
-            riwayat lengkapnya tetap ada lewat tab Riwayat per kelas. */}
-        {riwayatHariIniStatuses.length > 0 && (
-          <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 space-y-3 md:space-y-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
-              <h3 className="text-[10px] md:text-xs font-extrabold text-gray-500 uppercase tracking-wider">
-                Riwayat Mengajar Hari Ini
-              </h3>
-            </div>
-            <div className="divide-y divide-gray-100">
-              {riwayatHariIniStatuses.map((status) => (
-                <div key={status.scheduleId} className="py-3 md:py-4 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-lg md:text-xl shrink-0" aria-hidden>
-                      ✅
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-extrabold text-gray-700 truncate">
-                        Kelas {status.className} • {status.timeSlot}
-                      </p>
-                      <p className="text-[10px] md:text-xs text-gray-400 truncate">
-                        Selesai • {status.subject || subject}
-                      </p>
-                    </div>
-                  </div>
-                  <Link
-                    href={`/attendance?class=${encodeURIComponent(status.className)}&tab=jurnal`}
-                    className="shrink-0 px-3 py-1.5 md:px-4 md:py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-[10px] md:text-xs font-bold transition-colors"
-                  >
-                    Buka
-                  </Link>
                 </div>
               ))}
             </div>

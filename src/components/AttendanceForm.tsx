@@ -61,6 +61,7 @@ export default function AttendanceForm() {
   const journalSaveRef = useRef<(() => Promise<void>) | null>(null);
   const gradesOpenReviewRef = useRef<(() => void) | null>(null);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const [showFinishModal, setShowFinishModal] = useState(false);
   const hasUnsavedChanges = journalDirty || gradesDraftCount > 0;
 
@@ -83,12 +84,14 @@ export default function AttendanceForm() {
   function requestLeave(action: () => void) {
     if (hasUnsavedChanges) {
       setPendingAction(() => action);
+      setShowUnsavedModal(true);
     } else {
       action();
     }
   }
 
   function handleCancelLeave() {
+    setShowUnsavedModal(false);
     setPendingAction(null);
   }
 
@@ -96,6 +99,7 @@ export default function AttendanceForm() {
     const action = pendingAction;
     setJournalDirty(false);
     setGradesDraftCount(0);
+    setShowUnsavedModal(false);
     setPendingAction(null);
     action?.();
   }
@@ -105,21 +109,39 @@ export default function AttendanceForm() {
       if (journalDirty) {
         await journalSaveRef.current?.();
         setJournalDirty(false);
+        setShowUnsavedModal(false);
         const action = pendingAction;
         setPendingAction(null);
         action?.();
       } else if (gradesDraftCount > 0) {
         // Nilai "Proteksi Tinggi": tidak langsung tersimpan lewat sini —
-        // cukup buka modal Review yang sudah ada, guru tetap harus
-        // menekan konfirmasi eksplisit di sana. Navigasi yang tertunda
-        // dibatalkan; guru bisa coba pindah lagi setelah nilai tersimpan.
+        // cukup buka modal Review yang sudah ada (tutup dialog Unsaved
+        // Changes-nya sendiri supaya tidak dua modal bertumpuk), guru tetap
+        // harus menekan konfirmasi eksplisit di sana. `pendingAction`
+        // SENGAJA dibiarkan tersimpan (bukan dihapus) — begitu guru
+        // benar-benar konfirmasi di GradesReviewModal, handleGradesSaved
+        // di bawah yang melanjutkan navigasinya, supaya tombol "Simpan &
+        // Keluar" jujur: benar-benar berakhir keluar, bukan cuma membuka
+        // Review lalu diam di situ.
         gradesOpenReviewRef.current?.();
-        setPendingAction(null);
+        setShowUnsavedModal(false);
       }
     } catch {
       // JournalTab sudah menampilkan errorMsg-nya sendiri; biarkan dialog
       // tetap terbuka supaya guru bisa coba lagi atau batal.
     }
+  }
+
+  // Dipanggil GradesTab setelah nilai BENAR-BENAR tersimpan (guru menekan
+  // konfirmasi di GradesReviewModal) — melanjutkan navigasi yang tertunda
+  // KALAU ada (dari alur "Simpan & Keluar"). Kalau guru menyimpan nilai
+  // lewat tombol "Review & Simpan" biasa (bukan lewat guard), pendingAction
+  // memang null di sini dan fungsi ini jadi no-op — aman dipanggil selalu.
+  function handleGradesSaved() {
+    setGradesDraftCount(0);
+    const action = pendingAction;
+    setPendingAction(null);
+    action?.();
   }
 
   // Dukung deep-link dari Action Center Beranda (?class=XI+A&tab=presensi)
@@ -377,7 +399,12 @@ export default function AttendanceForm() {
         />
       )}
       {selectedClass && activeTab === 'nilai' && (
-        <GradesTab className={selectedClass} onDraftChange={setGradesDraftCount} openReviewRef={gradesOpenReviewRef} />
+        <GradesTab
+          className={selectedClass}
+          onDraftChange={setGradesDraftCount}
+          openReviewRef={gradesOpenReviewRef}
+          onSavedSuccessfully={handleGradesSaved}
+        />
       )}
       {selectedClass && activeTab === 'tugas' && <AssignmentsTab className={selectedClass} subject={subject} />}
       {selectedClass && activeTab === 'pengumuman' && (
@@ -386,11 +413,11 @@ export default function AttendanceForm() {
       {selectedClass && activeTab === 'riwayat' && <TimelineTab className={selectedClass} />}
 
       <UnsavedChangesModal
-        isOpen={!!pendingAction}
+        isOpen={showUnsavedModal}
         onCancel={handleCancelLeave}
         onLeaveWithoutSaving={handleLeaveWithoutSaving}
         primaryAction={{
-          label: journalDirty ? 'Simpan & Keluar' : 'Review Dulu',
+          label: 'Simpan & Keluar',
           onClick: handleSaveAndLeave,
         }}
       />

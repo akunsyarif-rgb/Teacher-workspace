@@ -26,9 +26,15 @@ type GradesTabProps = {
   // supaya "Proteksi Tinggi" (guru harus lihat & konfirmasi dulu) tetap
   // berlaku walau lewat jalur keluar-kelas, bukan cuma tombol Review biasa.
   openReviewRef?: MutableRefObject<(() => void) | null>;
+  // Dipanggil setelah nilai BENAR-BENAR tersimpan (guru menekan konfirmasi
+  // di GradesReviewModal) — AttendanceForm memakainya untuk melanjutkan
+  // navigasi yang tertunda dari dialog Unsaved Changes ("Simpan & Keluar"),
+  // supaya labelnya jujur: benar-benar keluar setelah tersimpan, bukan
+  // berhenti di layar Review begitu saja.
+  onSavedSuccessfully?: () => void;
 };
 
-export default function GradesTab({ className, onDraftChange, openReviewRef }: GradesTabProps) {
+export default function GradesTab({ className, onDraftChange, openReviewRef, onSavedSuccessfully }: GradesTabProps) {
   const { workspaceId } = useWorkspace();
   const isOnline = useOnlineStatus();
   const [columns, setColumns] = useState<any[]>([]);
@@ -155,6 +161,7 @@ export default function GradesTab({ className, onDraftChange, openReviewRef }: G
       setUnlockedCells(new Set());
       setSuccess(true);
       setReviewOpen(false);
+      onSavedSuccessfully?.();
     } catch (error: any) {
       setErrorMsg(error.message || 'Gagal menyimpan nilai.');
       throw error;

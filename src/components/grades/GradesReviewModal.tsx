@@ -40,11 +40,12 @@ export default function GradesReviewModal({ isOpen, onClose, onConfirm, changes 
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Konfirmasi Simpan Nilai">
+    <Modal isOpen={isOpen} onClose={onClose} title={hasCorrections ? 'Ubah Nilai?' : 'Simpan Nilai?'}>
       <div className="space-y-4">
         <p className="text-xs text-gray-500">
-          {changes.length} nilai akan disimpan dan terkunci 🔒. Periksa sekali lagi sebelum konfirmasi — nilai yang
-          sudah terkunci tetap bisa dikoreksi nanti lewat tombol Edit.
+          {hasCorrections
+            ? `${changes.length} nilai yang sudah terkunci 🔒 akan diubah. Periksa sekali lagi sebelum konfirmasi.`
+            : `${changes.length} nilai akan disimpan dan terkunci 🔒. Periksa sekali lagi sebelum konfirmasi — nilai yang sudah terkunci tetap bisa dikoreksi nanti lewat tombol Edit.`}
         </p>
 
         <div className="max-h-64 overflow-y-auto space-y-2 -mx-1 px-1">
@@ -55,7 +56,9 @@ export default function GradesReviewModal({ isOpen, onClose, onConfirm, changes 
             >
               <div className="min-w-0">
                 <p className="font-bold text-gray-900 truncate">{change.studentName}</p>
-                <p className="text-gray-400">{change.columnTitle}</p>
+                <p className="text-gray-400">
+                  {change.columnTitle} {change.oldValue ? 'akan diubah' : 'akan disimpan'}:
+                </p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0 font-extrabold">
                 {change.oldValue && (
@@ -82,7 +85,7 @@ export default function GradesReviewModal({ isOpen, onClose, onConfirm, changes 
           <div className="flex-1">
             <Button onClick={handleConfirm} loading={saving}>
               <Lock className="w-4 h-4" />
-              <span>{saving ? 'Menyimpan...' : hasCorrections ? 'Ya, Simpan Perubahan' : 'Ya, Simpan Nilai'}</span>
+              <span>{saving ? 'Menyimpan...' : hasCorrections ? 'Ubah Nilai' : 'Simpan Nilai'}</span>
             </Button>
           </div>
         </div>

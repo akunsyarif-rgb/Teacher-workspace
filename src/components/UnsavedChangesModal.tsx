@@ -9,9 +9,11 @@ type UnsavedChangesModalProps = {
   isOpen: boolean;
   onCancel: () => void;
   onLeaveWithoutSaving: () => void;
-  // Jurnal: benar-benar menyimpan lalu lanjut keluar. Nilai: TIDAK langsung
-  // menyimpan (melanggar "Proteksi Tinggi") — cukup membuka modal Review,
-  // guru tetap harus konfirmasi eksplisit di sana sebelum data tertulis.
+  // Jurnal: langsung menyimpan lalu lanjut keluar. Nilai: TIDAK langsung
+  // menyimpan (melanggar "Proteksi Tinggi") — membuka modal Review dulu;
+  // navigasi keluar baru lanjut setelah guru benar-benar konfirmasi di
+  // sana (lihat handleGradesSaved di AttendanceForm.tsx), bukan langsung
+  // saat tombol ini ditekan.
   primaryAction: { label: string; onClick: () => void | Promise<void> };
 };
 
