@@ -43,6 +43,27 @@ service cloud.firestore {
       return profile != null && profile.data.homeroomClassName == className;
     }
 
+    // Audit T1/T2 — dipakai teacher_profiles.allow create & allow update
+    // supaya validasi role yang boleh diklaim sendiri konsisten di kedua
+    // jalur (profil baru lewat create, ATAU profil kosong yang di-update
+    // pertama kali saat join — dua-duanya jalur nyata di app). Role tidak
+    // pernah dipercaya dari body request begitu saja:
+    // - null: belum gabung workspace apa pun, selalu boleh.
+    // - TEACHER: workspace tujuan harus SEDANG membuka invite code yang
+    //   belum kedaluwarsa (dicek ke dokumen workspaces sungguhan) — tanpa
+    //   ini, siapa pun bisa "gabung" ke workspace mana pun cuma dengan
+    //   menebak/tahu ID-nya (audit T2).
+    // - OWNER: workspace tujuan harus benar dimiliki uid ini.
+    // - ADMIN: tidak pernah bisa diklaim sendiri — belum ada alur produk
+    //   yang menghasilkannya (audit T1).
+    function canClaimRoleForWorkspace(role, workspaceId) {
+      return role == null ||
+        (role == 'TEACHER' &&
+          get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.inviteCodeExpiresAt > request.time.toMillis()) ||
+        (role == 'OWNER' &&
+          get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerUid == request.auth.uid);
+    }
+
     // --- Siswa (Student Companion) ---
     // Siswa tidak punya teacher_profiles, jadi getWorkspaceId(uid) di atas
     // akan gagal (get() pada dokumen yang tidak ada = deny, bukan error) —
@@ -83,19 +104,59 @@ service cloud.firestore {
       // User bisa membaca profilnya sendiri
       allow read: if isAuthenticated() && request.auth.uid == userId;
 
-      // User bisa membuat/mengupdate profilnya sendiri. workspaceId hanya
-      // boleh diisi SEKALI (dari kosong ke suatu workspace, saat daftar
-      // atau gabung pakai kode undangan) — setelah itu terkunci, tidak
-      // bisa diam-diam diganti ke workspace lain lewat write biasa.
-      // (resource == null saat operasi create — profil belum pernah
-      // ada, jadi belum py workspaceId sama sekali.)
-      allow write: if isAuthenticated() && request.auth.uid == userId
-        && (request.resource.data.workspaceId ==
-              (resource == null ? null : resource.data.workspaceId) ||
-            (resource == null || resource.data.workspaceId == null));
+      // Membuat profil sendiri — langkah pertama daftar workspace baru
+      // ATAU gabung lewat kode undangan (lihat workspaceService.
+      // createIndividualWorkspace/createSchoolWorkspace/
+      // joinWorkspaceByCode, semuanya menulis dokumen ini pertama kali).
+      //
+      // role TIDAK dipercaya begitu saja dari body request (celah audit
+      // T1 — sebelumnya field ini bisa ditulis bebas lewat allow write
+      // yang cuma mengunci workspaceId) — validasinya lewat
+      // canClaimRoleForWorkspace() di atas, supaya create & update
+      // (lihat di bawah) selalu konsisten.
+      //
+      // homeroomClassName tidak boleh langsung diisi saat membuat profil
+      // baru — itu keputusan terpisah dari sekadar bergabung workspace
+      // (lihat allow update di bawah).
+      allow create: if isAuthenticated() && request.auth.uid == userId &&
+        canClaimRoleForWorkspace(request.resource.data.get('role', null), request.resource.data.get('workspaceId', null)) &&
+        request.resource.data.get('homeroomClassName', null) == null;
+
+      // Update profil sendiri. Tiga field ini sengaja dibatasi supaya
+      // guru tidak bisa menaikkan hak aksesnya sendiri (audit T1):
+      // - workspaceId & role: sekali terisi bersamaan (dari kosong ke
+      //   suatu workspace, saat daftar ATAU gabung lewat kode undangan
+      //   — lihat assignTeacherToWorkspace), keduanya terkunci. Kalau
+      //   profil MASIH kosong (workspaceId lama null), boleh diisi
+      //   sekali lewat validasi canClaimRoleForWorkspace() yang sama
+      //   persis dengan allow create — celah audit T2 sebelumnya cuma
+      //   ditutup di allow create, padahal profil kosong yang di-update
+      //   (bukan dibuat baru) adalah jalur yang sama nyatanya.
+      // - homeroomClassName: hanya boleh diubah kalau role SAAT INI
+      //   (dari data lama, sebelum write ini) sudah OWNER/ADMIN — guru
+      //   TEACHER biasa tidak bisa menobatkan diri sendiri jadi wali
+      //   kelas mana pun. Itu pintu masuk ke student_notes/
+      //   class_fund_transactions/class_inventory kelas itu lewat
+      //   isHomeroomOf() — persis jalur eksploitasi yang ditemukan di
+      //   audit T1.
+      //
+      // .get(key, default) dipakai di sini (bukan dot-access biasa)
+      // untuk field opsional (role, homeroomClassName) — dot-access
+      // langsung ke field yang tidak ada di kedua sisi (dokumen lama
+      // maupun baru) meledak jadi evaluation error di rules, bukan
+      // sekadar undefined seperti JS.
+      allow update: if isAuthenticated() && request.auth.uid == userId &&
+        (
+          (request.resource.data.workspaceId == resource.data.workspaceId &&
+           request.resource.data.get('role', null) == resource.data.get('role', null)) ||
+          (resource.data.workspaceId == null &&
+           canClaimRoleForWorkspace(request.resource.data.get('role', null), request.resource.data.get('workspaceId', null)))
+        ) &&
+        (request.resource.data.get('homeroomClassName', null) == resource.data.get('homeroomClassName', null) ||
+         resource.data.get('role', null) in ['OWNER', 'ADMIN']);
 
       // OWNER bisa membaca semua profil di workspace-nya (untuk manajemen)
-      allow read: if isAuthenticated() && 
+      allow read: if isAuthenticated() &&
         isAdminOrOwner(getWorkspaceId(request.auth.uid));
     }
 
@@ -112,6 +173,25 @@ service cloud.firestore {
         (resource.data.ownerUid == request.auth.uid ||
          getWorkspaceId(request.auth.uid) == workspaceId);
 
+      // Audit T2: guru BARU (belum tergabung workspace mana pun) perlu
+      // membaca SATU dokumen workspace tertentu untuk pratinjau saat
+      // gabung lewat kode undangan (lihat workspace_invites di bawah —
+      // itu satu-satunya cara tahu workspaceId ini). Sengaja `allow get`
+      // saja (BUKAN `allow read`), supaya list/query ke seluruh
+      // collection tetap tertutup total — cuma bisa diakses satu-satu
+      // kalau sudah tahu persis ID-nya, sama seperti keamanan
+      // student_login_codes.
+      //
+      // Syaratnya cuma "workspace ini pernah mengaktifkan invite code"
+      // (field inviteCode ada), BUKAN "invite-nya masih berlaku" — kalau
+      // dicek kedaluwarsa di sini, guru dengan kode basi akan lihat
+      // error "permission-denied" yang membingungkan alih-alih pesan
+      // "kode sudah kedaluwarsa" yang sudah ada di workspaceService.
+      // Keabsahan SUNGGUHAN (kode belum berubah & belum kedaluwarsa)
+      // ditegakkan di titik yang benar-benar menulis akses: allow create
+      // di teacher_profiles (lihat komentar role=='TEACHER' di atas).
+      allow get: if isAuthenticated() && resource.data.inviteCode != null;
+
       // Owner bisa mengupdate workspace-nya — TAPI field plan/classLimit/
       // seatLimit/planExpiresAt DIKUNCI dari client sama sekali. Field-
       // field itu cuma boleh berubah lewat webhook pembayaran (Admin SDK,
@@ -125,6 +205,35 @@ service cloud.firestore {
 
       // 🔴 DILARANG: Tidak boleh menghapus workspace
       allow delete: if false;
+    }
+
+    // ============================================================
+    // KOLEKSI: workspace_invites (jembatan kode undangan -> workspaceId)
+    // Dokumen ID = inviteCode itu sendiri, isinya cuma {workspaceId,
+    // expiresAt}. Perbaikan audit T2 — sebelumnya guru baru mencari
+    // workspace lewat query where(inviteCode==...) langsung ke
+    // collection workspaces, yang MUSTAHIL dipenuhi allow read di sana
+    // (guru baru bukan owner & belum punya workspaceId). Dipisah ke
+    // collection sendiri persis pola student_login_codes: allow get
+    // (ambil satu dokumen kalau sudah tahu kodenya) TAPI BUKAN allow
+    // list — supaya tidak ada yang bisa mengintip/enumerasi seluruh kode
+    // undangan aktif. Keamanan gabung-workspace bergantung pada kode
+    // acak & rahasia, sama seperti student_login_codes, BUKAN pada
+    // workspace scoping (guru baru memang belum punya workspaceId).
+    // ============================================================
+    match /workspace_invites/{code} {
+      allow get: if isAuthenticated();
+      allow list: if false;
+
+      // Cuma owner workspace terkait yang boleh membuat/mengganti
+      // jembatan kode — dicek ke dokumen workspaces sungguhan, bukan
+      // dipercaya dari body request, supaya tidak ada yang membuat
+      // "kode undangan" palsu menunjuk ke workspace milik orang lain.
+      allow create: if isAuthenticated() &&
+        get(/databases/$(database)/documents/workspaces/$(request.resource.data.workspaceId)).data.ownerUid == request.auth.uid;
+
+      allow update, delete: if isAuthenticated() &&
+        get(/databases/$(database)/documents/workspaces/$(resource.data.workspaceId)).data.ownerUid == request.auth.uid;
     }
 
     // ============================================================

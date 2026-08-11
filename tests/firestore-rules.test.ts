@@ -54,9 +54,9 @@ async function seedProfile(
 }
 
 describe('teacher_profiles', () => {
-  it('allows a user to create their own profile with workspaceId null', async () => {
+  it('allows a user to create their own profile with workspaceId null (no role yet)', async () => {
     const db = testEnv.authenticatedContext('teacherA').firestore();
-    await assertSucceeds(setDoc(doc(db, 'teacher_profiles/teacherA'), { workspaceId: null, role: 'OWNER' }));
+    await assertSucceeds(setDoc(doc(db, 'teacher_profiles/teacherA'), { workspaceId: null }));
   });
 
   it('denies creating a profile for someone else', async () => {
@@ -78,12 +78,21 @@ describe('teacher_profiles', () => {
   });
 
   it('lets a user set workspaceId from null to a real value when joining a workspace', async () => {
+    // Audit T1/T2: role diverifikasi balik ke workspace sungguhan, jadi
+    // workspace-nya harus benar ada & dimiliki teacherA supaya klaim
+    // role 'OWNER' (dari seed) tetap sah saat workspaceId diisi.
+    await seed((db) => setDoc(doc(db, 'workspaces/ws1'), { ownerUid: 'teacherA', name: 'Sekolah A' }));
     await seedProfile('teacherA', null, 'OWNER');
     const db = testEnv.authenticatedContext('teacherA').firestore();
     await assertSucceeds(updateDoc(doc(db, 'teacher_profiles/teacherA'), { workspaceId: 'ws1' }));
   });
 
   it('lets a brand new user create their profile directly with a real workspaceId (signup flow: create workspace right after signup, no prior null-profile step)', async () => {
+    // Sesuai alur nyata (workspaceService.createIndividualWorkspace): dokumen
+    // workspaces dibuat DULU (dengan ownerUid = uid ini), baru teacher_profiles
+    // ditulis merujuk ke situ — audit T1 mensyaratkan role 'OWNER' dicek balik
+    // ke workspace sungguhan, bukan dipercaya dari body request.
+    await seed((db) => setDoc(doc(db, 'workspaces/ws1'), { ownerUid: 'teacherA', name: 'Sekolah A' }));
     const db = testEnv.authenticatedContext('teacherA').firestore();
     await assertSucceeds(
       setDoc(doc(db, 'teacher_profiles/teacherA'), { workspaceId: 'ws1', role: 'OWNER' }, { merge: true })
@@ -140,6 +149,220 @@ describe('workspaces', () => {
     await assertFails(updateDoc(doc(db, 'workspaces/ws1'), { planExpiresAt: 9999999999999 }));
     // Bahkan kalau dicampur dengan field yang sah, tetap ditolak seluruhnya.
     await assertFails(updateDoc(doc(db, 'workspaces/ws1'), { name: 'Sekolah A (baru)', classLimit: 999 }));
+  });
+
+  it('denies get on a workspace that has never opened an invite code (not publicly readable)', async () => {
+    await seed((db) => setDoc(doc(db, 'workspaces/ws1'), { ownerUid: 'ownerX', name: 'Sekolah X' }));
+    const db = testEnv.authenticatedContext('strangerNoWorkspace').firestore();
+    await assertFails(getDoc(doc(db, 'workspaces/ws1')));
+  });
+
+  it('lets an authenticated stranger get a single workspace that currently has an invite code open (needed to preview before joining)', async () => {
+    await seed((db) =>
+      setDoc(doc(db, 'workspaces/ws1'), {
+        ownerUid: 'ownerX',
+        name: 'Sekolah X',
+        inviteCode: 'ABC123',
+        inviteCodeExpiresAt: Date.now() + 100000,
+      })
+    );
+    const db = testEnv.authenticatedContext('strangerNoWorkspace').firestore();
+    await assertSucceeds(getDoc(doc(db, 'workspaces/ws1')));
+  });
+
+  it('never allows listing/querying the workspaces collection at all (no enumeration, even for open-invite workspaces)', async () => {
+    await seed((db) =>
+      setDoc(doc(db, 'workspaces/ws1'), {
+        ownerUid: 'ownerX',
+        name: 'Sekolah X',
+        inviteCode: 'ABC123',
+        inviteCodeExpiresAt: Date.now() + 100000,
+      })
+    );
+    const db = testEnv.authenticatedContext('strangerNoWorkspace').firestore();
+    await assertFails(getDocs(query(collection(db, 'workspaces'), where('inviteCode', '==', 'ABC123'))));
+  });
+});
+
+// ============================================================
+// AUDIT T1 — eskalasi hak akses lewat self-write teacher_profiles.
+// Ditemukan: role & homeroomClassName tidak dikunci di allow write lama,
+// jadi guru TEACHER biasa bisa menulis langsung role:'ADMIN' atau
+// homeroomClassName ke kelas mana pun ke profilnya sendiri, lalu lolos
+// isAdminOrOwner()/isHomeroomOf() dan membaca student_notes/class_fund/
+// class_inventory kelas yang bukan tanggung jawabnya.
+// ============================================================
+describe('audit T1 — privilege escalation via teacher_profiles self-write', () => {
+  it('TEACHER cannot self-promote role to ADMIN via update', async () => {
+    await seedProfile('lowUid', 'ws1', 'TEACHER');
+    const db = testEnv.authenticatedContext('lowUid').firestore();
+    await assertFails(updateDoc(doc(db, 'teacher_profiles/lowUid'), { role: 'ADMIN' }));
+  });
+
+  it('TEACHER cannot self-promote role to OWNER via update', async () => {
+    await seedProfile('lowUid', 'ws1', 'TEACHER');
+    const db = testEnv.authenticatedContext('lowUid').firestore();
+    await assertFails(updateDoc(doc(db, 'teacher_profiles/lowUid'), { role: 'OWNER' }));
+  });
+
+  it('TEACHER cannot self-assign homeroomClassName to any class', async () => {
+    await seedProfile('lowUid', 'ws1', 'TEACHER');
+    const db = testEnv.authenticatedContext('lowUid').firestore();
+    await assertFails(updateDoc(doc(db, 'teacher_profiles/lowUid'), { homeroomClassName: 'XI-A' }));
+  });
+
+  it('TEACHER cannot change workspaceId via update (re-confirms existing lock still holds after T1 rewrite)', async () => {
+    await seedProfile('lowUid', 'ws1', 'TEACHER');
+    const db = testEnv.authenticatedContext('lowUid').firestore();
+    await assertFails(updateDoc(doc(db, 'teacher_profiles/lowUid'), { workspaceId: 'ws2' }));
+  });
+
+  it('TEACHER can still update permitted profile fields (name, subject, quickNote) without touching role/workspaceId/homeroomClassName', async () => {
+    await seedProfile('lowUid', 'ws1', 'TEACHER');
+    const db = testEnv.authenticatedContext('lowUid').firestore();
+    await assertSucceeds(updateDoc(doc(db, 'teacher_profiles/lowUid'), { name: 'Budi', subject: 'Matematika' }));
+    await assertSucceeds(updateDoc(doc(db, 'teacher_profiles/lowUid'), { quickNote: 'catatan pribadi' }));
+  });
+
+  it('OWNER/ADMIN can still self-assign their own homeroomClassName (existing legitimate self-service feature preserved)', async () => {
+    await seedProfile('ownerUid', 'ws1', 'OWNER');
+    const dbOwner = testEnv.authenticatedContext('ownerUid').firestore();
+    await assertSucceeds(updateDoc(doc(dbOwner, 'teacher_profiles/ownerUid'), { homeroomClassName: 'XI-A' }));
+
+    await seedProfile('adminUid', 'ws1', 'ADMIN');
+    const dbAdmin = testEnv.authenticatedContext('adminUid').firestore();
+    await assertSucceeds(updateDoc(doc(dbAdmin, 'teacher_profiles/adminUid'), { homeroomClassName: 'XI-B' }));
+  });
+
+  it('denies self-creating a fresh profile directly with role ADMIN (no product flow produces this, so it is never allowed)', async () => {
+    await seed((db) => setDoc(doc(db, 'workspaces/ws1'), { ownerUid: 'someoneElse', name: 'Sekolah A' }));
+    const db = testEnv.authenticatedContext('lowUid').firestore();
+    await assertFails(setDoc(doc(db, 'teacher_profiles/lowUid'), { workspaceId: 'ws1', role: 'ADMIN' }));
+  });
+
+  it('denies self-creating a fresh profile with role OWNER pointing to a workspace owned by someone else', async () => {
+    await seed((db) => setDoc(doc(db, 'workspaces/ws1'), { ownerUid: 'realOwner', name: 'Sekolah A' }));
+    const db = testEnv.authenticatedContext('impostorUid').firestore();
+    await assertFails(setDoc(doc(db, 'teacher_profiles/impostorUid'), { workspaceId: 'ws1', role: 'OWNER' }));
+  });
+
+  it('allows self-creating a fresh profile with role OWNER when the workspace really is owned by this uid', async () => {
+    await seed((db) => setDoc(doc(db, 'workspaces/ws1'), { ownerUid: 'realOwner', name: 'Sekolah A' }));
+    const db = testEnv.authenticatedContext('realOwner').firestore();
+    await assertSucceeds(setDoc(doc(db, 'teacher_profiles/realOwner'), { workspaceId: 'ws1', role: 'OWNER' }));
+  });
+
+  it('end-to-end: after a denied self-promotion attempt, TEACHER still cannot read another class\'s confidential student_notes (konseling)', async () => {
+    await seedProfile('lowUid', 'ws1', 'TEACHER');
+    await seed((db) =>
+      setDoc(doc(db, 'student_notes/note1'), {
+        workspaceId: 'ws1',
+        className: 'XI-A',
+        category: 'konseling',
+        content: 'RAHASIA konseling siswa',
+      })
+    );
+    const db = testEnv.authenticatedContext('lowUid').firestore();
+
+    // Percobaan eskalasi ditolak...
+    await assertFails(updateDoc(doc(db, 'teacher_profiles/lowUid'), { role: 'ADMIN', homeroomClassName: 'XI-A' }));
+    // ...dan karena itu, akses ke catatan konseling kelas lain tetap tertutup.
+    await assertFails(getDoc(doc(db, 'student_notes/note1')));
+  });
+});
+
+// ============================================================
+// AUDIT T2 — join workspace lewat kode undangan.
+// Ditemukan: findWorkspaceByInviteCode() query where(inviteCode==...)
+// langsung ke collection workspaces, padahal allow read di sana mustahil
+// dipenuhi guru baru (bukan owner, belum py workspaceId). Diperbaiki
+// lewat collection jembatan workspace_invites/{code} (get by ID, bukan
+// query) + allow get bersyarat di workspaces + pengecekan kedaluwarsa
+// sungguhan di titik teacher_profiles.allow create.
+// ============================================================
+describe('audit T2 — join workspace via invite code', () => {
+  it('a brand new teacher (no workspace yet) can get the invite bridge doc by code', async () => {
+    await seed((db) => setDoc(doc(db, 'workspace_invites/ABC123'), { workspaceId: 'ws1', expiresAt: Date.now() + 100000 }));
+    const db = testEnv.authenticatedContext('newTeacher').firestore();
+    await assertSucceeds(getDoc(doc(db, 'workspace_invites/ABC123')));
+  });
+
+  it('workspace_invites is never listable (no enumerating all active invite codes)', async () => {
+    await seed((db) => setDoc(doc(db, 'workspace_invites/ABC123'), { workspaceId: 'ws1', expiresAt: Date.now() + 100000 }));
+    const db = testEnv.authenticatedContext('newTeacher').firestore();
+    await assertFails(getDocs(collection(db, 'workspace_invites')));
+  });
+
+  it('only the real workspace owner can create the invite bridge doc (cannot forge one pointing at someone else\'s workspace)', async () => {
+    await seed((db) => setDoc(doc(db, 'workspaces/ws1'), { ownerUid: 'realOwner', name: 'Sekolah A' }));
+    const impostor = testEnv.authenticatedContext('impostorUid').firestore();
+    await assertFails(setDoc(doc(impostor, 'workspace_invites/FAKE01'), { workspaceId: 'ws1', expiresAt: Date.now() + 100000 }));
+
+    const owner = testEnv.authenticatedContext('realOwner').firestore();
+    await assertSucceeds(setDoc(doc(owner, 'workspace_invites/REAL01'), { workspaceId: 'ws1', expiresAt: Date.now() + 100000 }));
+  });
+
+  it('full join: new teacher can join a real workspace with a valid, unexpired invite code', async () => {
+    await seed((db) =>
+      setDoc(doc(db, 'workspaces/ws1'), {
+        ownerUid: 'ownerX',
+        name: 'Sekolah X',
+        inviteCode: 'ABC123',
+        inviteCodeExpiresAt: Date.now() + 100000,
+      })
+    );
+    await seed((db) => setDoc(doc(db, 'workspace_invites/ABC123'), { workspaceId: 'ws1', expiresAt: Date.now() + 100000 }));
+    await seedProfile('newTeacher', null, 'TEACHER'); // profil awal kosong, workspaceId belum ada
+
+    const db = testEnv.authenticatedContext('newTeacher').firestore();
+    // Langkah 1: temukan workspace lewat jembatan kode.
+    const bridge = await getDoc(doc(db, 'workspace_invites/ABC123'));
+    expect(bridge.exists()).toBe(true);
+    await assertSucceeds(getDoc(doc(db, 'workspaces/ws1')));
+    // Langkah 2: gabung sungguhan.
+    await assertSucceeds(updateDoc(doc(db, 'teacher_profiles/newTeacher'), { workspaceId: 'ws1', role: 'TEACHER' }));
+  });
+
+  it('denies joining with an EXPIRED invite code, even if the bridge doc still exists', async () => {
+    await seed((db) =>
+      setDoc(doc(db, 'workspaces/ws1'), {
+        ownerUid: 'ownerX',
+        name: 'Sekolah X',
+        inviteCode: 'OLD999',
+        inviteCodeExpiresAt: Date.now() - 100000, // sudah lewat
+      })
+    );
+    await seed((db) => setDoc(doc(db, 'workspace_invites/OLD999'), { workspaceId: 'ws1', expiresAt: Date.now() - 100000 }));
+    await seedProfile('newTeacher', null, 'TEACHER');
+
+    const db = testEnv.authenticatedContext('newTeacher').firestore();
+    await assertFails(updateDoc(doc(db, 'teacher_profiles/newTeacher'), { workspaceId: 'ws1', role: 'TEACHER' }));
+  });
+
+  it('denies joining (self-creating profile) a workspace that never opened an invite code, even if the workspaceId is known (no ID-guessing bypass)', async () => {
+    await seed((db) => setDoc(doc(db, 'workspaces/ws1'), { ownerUid: 'ownerX', name: 'Sekolah X', plan: 'individual_lifetime' }));
+    const db = testEnv.authenticatedContext('guessingUid').firestore();
+    await assertFails(setDoc(doc(db, 'teacher_profiles/guessingUid'), { workspaceId: 'ws1', role: 'TEACHER' }));
+  });
+
+  it('denies an invalid/unknown invite code from resolving to anything', async () => {
+    const db = testEnv.authenticatedContext('newTeacher').firestore();
+    const bridge = await getDoc(doc(db, 'workspace_invites/DOESNOTEXIST'));
+    expect(bridge.exists()).toBe(false);
+  });
+
+  it('a teacher already in another workspace cannot use this mechanism to bypass tenancy isolation (workspaceId already locked)', async () => {
+    await seed((db) =>
+      setDoc(doc(db, 'workspaces/ws2'), {
+        ownerUid: 'ownerY',
+        name: 'Sekolah Y',
+        inviteCode: 'JOIN22',
+        inviteCodeExpiresAt: Date.now() + 100000,
+      })
+    );
+    await seedProfile('existingTeacher', 'ws1', 'TEACHER'); // sudah tergabung workspace lain
+    const db = testEnv.authenticatedContext('existingTeacher').firestore();
+    await assertFails(updateDoc(doc(db, 'teacher_profiles/existingTeacher'), { workspaceId: 'ws2', role: 'TEACHER' }));
   });
 });
 
