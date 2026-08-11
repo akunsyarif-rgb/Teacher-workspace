@@ -1,12 +1,10 @@
 import {
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
+  getDocument,
+  setDocument,
+  updateDocument,
+  generateId,
   serverTimestamp,
-  collection,
-} from 'firebase/firestore';
-import { db } from '@/src/config/firebase';
+} from '../adapters/firestoreAdapter';
 import type { WorkspacePlan } from '../config/plans';
 
 const WORKSPACES_COLLECTION = 'workspaces';
@@ -33,28 +31,27 @@ export type WorkspaceDoc = {
 // tapi BOLEH `get` satu dokumen di sini kalau sudah tahu kodenya persis,
 // sama seperti alur student_login_codes.
 async function writeInviteBridge(workspaceId: string, inviteCode: string, expiresAt: number) {
-  await setDoc(doc(db, WORKSPACE_INVITES_COLLECTION, inviteCode), {
+  await setDocument(WORKSPACE_INVITES_COLLECTION, inviteCode, {
     workspaceId,
     expiresAt,
   });
 }
 
 export async function createWorkspaceDoc(data: WorkspaceDoc) {
-  const newDocRef = doc(collection(db, WORKSPACES_COLLECTION));
-  await setDoc(newDocRef, {
+  const id = generateId(WORKSPACES_COLLECTION);
+  await setDocument(WORKSPACES_COLLECTION, id, {
     ...data,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
   if (data.inviteCode && data.inviteCodeExpiresAt) {
-    await writeInviteBridge(newDocRef.id, data.inviteCode, data.inviteCodeExpiresAt);
+    await writeInviteBridge(id, data.inviteCode, data.inviteCodeExpiresAt);
   }
-  return newDocRef.id;
+  return id;
 }
 
 export async function getWorkspaceById(workspaceId: string) {
-  const snap = await getDoc(doc(db, WORKSPACES_COLLECTION, workspaceId));
-  return snap.exists() ? ({ id: snap.id, ...snap.data() } as WorkspaceDoc & { id: string }) : null;
+  return getDocument(WORKSPACES_COLLECTION, workspaceId) as Promise<(WorkspaceDoc & { id: string }) | null>;
 }
 
 // Guru baru (belum tergabung workspace mana pun) tidak boleh query
@@ -66,13 +63,12 @@ export async function getWorkspaceById(workspaceId: string) {
 // jembatan lama boleh tetap ada, tapi tidak lagi cocok dengan kode aktif
 // workspace-nya.
 export async function findWorkspaceByInviteCode(inviteCode: string) {
-  const bridgeSnap = await getDoc(doc(db, WORKSPACE_INVITES_COLLECTION, inviteCode));
-  if (!bridgeSnap.exists()) return null;
+  const bridge = (await getDocument(WORKSPACE_INVITES_COLLECTION, inviteCode)) as
+    | { workspaceId?: string }
+    | null;
+  if (!bridge?.workspaceId) return null;
 
-  const { workspaceId } = bridgeSnap.data() as { workspaceId?: string };
-  if (!workspaceId) return null;
-
-  const workspace = await getWorkspaceById(workspaceId);
+  const workspace = await getWorkspaceById(bridge.workspaceId);
   if (!workspace || workspace.inviteCode !== inviteCode) return null;
   return workspace;
 }
@@ -82,7 +78,7 @@ export async function updateWorkspaceInviteCode(
   inviteCode: string,
   inviteCodeExpiresAt: number
 ) {
-  await updateDoc(doc(db, WORKSPACES_COLLECTION, workspaceId), {
+  await updateDocument(WORKSPACES_COLLECTION, workspaceId, {
     inviteCode,
     inviteCodeExpiresAt,
     updatedAt: serverTimestamp(),

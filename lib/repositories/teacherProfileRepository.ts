@@ -1,6 +1,4 @@
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { db } from '@/src/config/firebase';
-import { countDocuments } from '../adapters/firestoreAdapter';
+import { getDocument, setDocument, updateDocument, countDocuments } from '../adapters/firestoreAdapter';
 
 const TEACHER_PROFILES_COLLECTION = 'teacher_profiles';
 
@@ -17,12 +15,11 @@ export type TeacherProfile = {
 };
 
 export async function getTeacherProfile(uid: string): Promise<TeacherProfile | null> {
-  const snap = await getDoc(doc(db, TEACHER_PROFILES_COLLECTION, uid));
-  return snap.exists() ? (snap.data() as TeacherProfile) : null;
+  return getDocument(TEACHER_PROFILES_COLLECTION, uid) as Promise<TeacherProfile | null>;
 }
 
 export async function saveTeacherProfile(uid: string, data: TeacherProfile) {
-  await setDoc(doc(db, TEACHER_PROFILES_COLLECTION, uid), data, { merge: true });
+  await setDocument(TEACHER_PROFILES_COLLECTION, uid, data);
   return data;
 }
 
@@ -36,7 +33,7 @@ export async function setTeacherWorkspace(
 
 // Fungsi khusus untuk update quickNote saja (lebih ringan)
 export async function updateTeacherQuickNote(uid: string, quickNote: string) {
-  await updateDoc(doc(db, TEACHER_PROFILES_COLLECTION, uid), { quickNote });
+  await updateDocument(TEACHER_PROFILES_COLLECTION, uid, { quickNote });
   return { quickNote };
 }
 

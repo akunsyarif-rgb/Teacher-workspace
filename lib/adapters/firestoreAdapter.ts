@@ -6,6 +6,7 @@ import {
   getDocs,
   getCountFromServer,
   addDoc,
+  setDoc,
   updateDoc,
   deleteDoc,
   query,
@@ -14,6 +15,11 @@ import {
   serverTimestamp,
   QueryConstraint,
 } from 'firebase/firestore';
+
+// Re-export sentinel value (bukan operasi Firestore) supaya repository yang
+// perlu menandai createdAt/updatedAt sendiri (mis. workspaceRepository) tidak
+// perlu import 'firebase/firestore' langsung untuk itu.
+export { serverTimestamp };
 
 function buildQuery(collectionName: string, filters: [string, any, any][]) {
   const constraints: QueryConstraint[] = filters.map(([field, op, value]) => where(field, op, value));
@@ -47,6 +53,16 @@ export async function addDocument(collectionName: string, data: Record<string, a
     createdAt: serverTimestamp(),
   });
   return { id: docRef.id, ...data };
+}
+
+// Beda dari updateDocument: berhasil walau dokumennya belum ada sama
+// sekali (updateDoc menolak kalau dokumen belum ada — masalah untuk tulisan
+// pertama ke dokumen ber-ID tetap seperti profil pengguna, bukan ID
+// auto-generate seperti addDocument). merge:true supaya field yang tidak
+// disebut tidak ikut terhapus.
+export async function setDocument(collectionName: string, id: string, data: Record<string, any>) {
+  await setDoc(doc(db, collectionName, id), data, { merge: true });
+  return { id, ...data };
 }
 
 export async function updateDocument(collectionName: string, id: string, data: Record<string, any>) {
