@@ -35,7 +35,15 @@ afterEach(async () => {
 });
 
 async function seed(fn: (db: import('firebase/firestore').Firestore) => Promise<void>) {
-  await testEnv.withSecurityRulesDisabled(async (ctx) => fn(ctx.firestore()));
+  // ctx.firestore() dideklarasikan bertipe firebase.firestore.Firestore (API
+  // namespaced/compat) di @firebase/rules-unit-testing, tapi objek yang
+  // benar-benar dikembalikan saat runtime kompatibel dengan modular SDK
+  // (terbukti dari seluruh test file ini memanggil doc/setDoc/dst modular ke
+  // objek ini dan lolos) — murni ketidaktepatan deklarasi tipe di paket
+  // tersebut, bukan ketidakcocokan runtime.
+  await testEnv.withSecurityRulesDisabled(async (ctx) =>
+    fn(ctx.firestore() as unknown as import('firebase/firestore').Firestore)
+  );
 }
 
 async function seedProfile(
