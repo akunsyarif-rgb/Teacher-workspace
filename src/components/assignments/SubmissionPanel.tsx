@@ -7,6 +7,7 @@ import Button from '../ui/Button';
 import { SkeletonText } from '../ui/Skeleton';
 import * as submissionController from '@/lib/controllers/submissionController';
 import * as gradeController from '@/lib/controllers/gradeController';
+import { getCached } from '@/lib/utils/sessionCache';
 import { SUBMISSION_STATUS } from '@/lib/config/constants';
 
 const STATUS_LABEL: Record<string, { label: string; className: string; icon: any }> = {
@@ -44,7 +45,12 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
   }, [assignment.id]);
 
   async function loadData() {
-    setLoading(true);
+    const alreadyWarm =
+      getCached(submissionController.submissionsCacheKey(workspaceId, assignment.id)) !== undefined &&
+      getCached(gradeController.gradeDataCacheKey(workspaceId, className)) !== undefined;
+    if (!alreadyWarm) {
+      setLoading(true);
+    }
     try {
       const [submissions, gradeData] = await Promise.all([
         submissionController.fetchSubmissions(workspaceId, className, assignment.id),

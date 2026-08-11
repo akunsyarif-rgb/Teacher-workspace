@@ -1,9 +1,13 @@
 import * as achievementService from '../services/achievementService';
 import { withCache, clearAllCached } from '../utils/sessionCache';
 
+export function achievementsCacheKey(workspaceId: string, className: string) {
+  return `achievements:${workspaceId}:${className}`;
+}
+
 export async function fetchAchievements(workspaceId: string, className: string) {
   if (!workspaceId || !className) return [];
-  return withCache(`achievements:${workspaceId}:${className}`, () =>
+  return withCache(achievementsCacheKey(workspaceId, className), () =>
     achievementService.listAchievements(workspaceId, className)
   );
 }

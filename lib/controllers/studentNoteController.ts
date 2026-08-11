@@ -1,9 +1,13 @@
 import * as studentNoteService from '../services/studentNoteService';
 import { withCache, clearAllCached } from '../utils/sessionCache';
 
+export function studentNotesCacheKey(workspaceId: string, className: string, category: string) {
+  return `studentNotes:${workspaceId}:${className}:${category}`;
+}
+
 export async function fetchStudentNotes(workspaceId: string, className: string, category: string) {
   if (!workspaceId || !className || !category) return [];
-  return withCache(`studentNotes:${workspaceId}:${className}:${category}`, () =>
+  return withCache(studentNotesCacheKey(workspaceId, className, category), () =>
     studentNoteService.loadNotes(workspaceId, className, category)
   );
 }

@@ -9,6 +9,7 @@ import ConfirmDeleteModal from '../ui/ConfirmDeleteModal';
 import InlineAlert from '../ui/InlineAlert';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as inventoryController from '@/lib/controllers/inventoryController';
+import { getCached } from '@/lib/utils/sessionCache';
 import { SkeletonCard } from '../ui/Skeleton';
 
 const CONDITION_COLOR: Record<string, string> = {
@@ -42,7 +43,10 @@ export default function InventoryPage() {
 
   async function loadData() {
     if (!workspaceId || !className) return;
-    setLoading(true);
+    const alreadyWarm = getCached(inventoryController.inventoryCacheKey(workspaceId, className)) !== undefined;
+    if (!alreadyWarm) {
+      setLoading(true);
+    }
     try {
       const list = await inventoryController.fetchInventoryItems(workspaceId, className);
       setItems(list);

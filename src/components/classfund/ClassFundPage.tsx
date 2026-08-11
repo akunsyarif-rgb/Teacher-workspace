@@ -9,6 +9,7 @@ import ConfirmDeleteModal from '../ui/ConfirmDeleteModal';
 import InlineAlert from '../ui/InlineAlert';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as classFundController from '@/lib/controllers/classFundController';
+import { getCached } from '@/lib/utils/sessionCache';
 import { SkeletonCard } from '../ui/Skeleton';
 
 function formatRupiah(value: number): string {
@@ -44,7 +45,10 @@ export default function ClassFundPage() {
 
   async function loadData() {
     if (!workspaceId || !className) return;
-    setLoading(true);
+    const alreadyWarm = getCached(classFundController.classFundCacheKey(workspaceId, className)) !== undefined;
+    if (!alreadyWarm) {
+      setLoading(true);
+    }
     try {
       const data = await classFundController.fetchClassFundData(workspaceId, className);
       setTransactions(data.transactions);

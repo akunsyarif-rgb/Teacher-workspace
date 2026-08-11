@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Trash2, Copy, Check, Plus } from 'lucide-react';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as classController from '@/lib/controllers/classController';
+import { getCached } from '@/lib/utils/sessionCache';
 import ConfirmDeleteModal from '@/src/components/ui/ConfirmDeleteModal';
 import Modal from '@/src/components/ui/Modal';
 import AddStudentForm from './AddStudentForm';
@@ -33,7 +34,13 @@ export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke
 
   async function loadStudents() {
     if (!workspaceId || !className) return;
-    setLoading(true);
+    // Data kelas ini mungkin sudah hangat di sessionCache (mis. guru barusan
+    // dari tab lain di kelas yang sama) — kalau iya, jangan nyalakan
+    // spinner: cukup refresh diam-diam di belakang layar.
+    const alreadyWarm = getCached(classController.studentsInClassCacheKey(workspaceId, className)) !== undefined;
+    if (!alreadyWarm) {
+      setLoading(true);
+    }
     try {
       const list = await classController.fetchStudentsInClass(workspaceId, className);
       setStudents(list);

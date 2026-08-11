@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
-import { fetchSchedules, submitSchedule, deleteScheduleById } from '@/lib/controllers/scheduleController';
+import { fetchSchedules, submitSchedule, deleteScheduleById, schedulesCacheKey } from '@/lib/controllers/scheduleController';
+import { getCached } from '@/lib/utils/sessionCache';
 import { SCHOOL_DAYS_5, SCHOOL_DAYS_6 } from '@/lib/config/constants';
 import ScheduleFormModal from './schedule/ScheduleFormModal';
 import ScheduleDayCard from './schedule/ScheduleDayCard';
@@ -23,7 +24,10 @@ export default function ScheduleManagement() {
 
   async function loadSchedules() {
     if (!workspaceId) return;
-    setLoading(true);
+    const alreadyWarm = getCached(schedulesCacheKey(workspaceId)) !== undefined;
+    if (!alreadyWarm) {
+      setLoading(true);
+    }
     try {
       const data = await fetchSchedules(workspaceId);
       setSchedules(data);
