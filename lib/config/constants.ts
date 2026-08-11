@@ -22,6 +22,13 @@ export const COLLECTIONS = {
   // dianggap sebagai presensi/jurnal pengganti; sesi tetap "Perlu
   // Konfirmasi" di daftar, cuma dilampiri alasan.
   SESSION_SKIP_REASONS: 'session_skip_reasons',
+  // Tahun Ajaran — partisi BERBASIS TANGGAL, bukan tag di tiap dokumen.
+  // Satu dokumen per tahun ajaran {label, startDate, endDate, isActive}.
+  // Data lain (journals/attendances/dst) TIDAK dapat field baru — status
+  // "milik tahun mana" murni dihitung dari field date/createdAt mereka
+  // yang sudah ada, dicocokkan ke rentang startDate..endDate di sini. Lihat
+  // lib/utils/periodRange.ts.
+  ACADEMIC_YEARS: 'academic_years',
 };
 
 // Alasan guru tidak mengajar sesi terjadwal — dipakai di Beranda saat

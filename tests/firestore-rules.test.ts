@@ -411,6 +411,7 @@ const WORKSPACE_SCOPED_COLLECTIONS = [
   'assignments',
   'announcements',
   'session_skip_reasons',
+  'academic_years',
 ];
 
 describe.each(WORKSPACE_SCOPED_COLLECTIONS)('%s — isolasi workspace', (collectionName) => {
