@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   classifySessionState,
   resolveCurrentWorkflowStep,
   getScheduleStartMinutes,
+  findActiveScheduleId,
 } from '../lib/utils/scheduleTime';
 
 // Regresi workflow Beranda/Jadwal. Tiga kondisi yang harus benar bersamaan
@@ -124,6 +125,68 @@ describe('4. Sesi lewat pada tanggal yang sama tidak hilang', () => {
   it('sesi lewat yang sudah selesai juga tidak ditarik jadi sesi aktif', () => {
     const lewatSelesai: Sesi = { ...SESI_LEWAT, isDone: true };
     expect(resolveCurrentWorkflowStep([lewatSelesai], NOW)).toBeNull();
+  });
+});
+
+describe('5. Tombol Buka membuka sesi yang benar', () => {
+  // findActiveScheduleId membaca jam lewat `new Date()` internal (tidak
+  // menerima parameter `now` seperti fungsi lain di modul ini), jadi waktu
+  // WAJIB dibekukan — kalau tidak, test ini berubah hasil saat kebetulan
+  // dijalankan di dalam jam salah satu slot di bawah.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // Kelas yang sama punya DUA slot di hari yang sama: satu sudah lewat,
+  // satu masih nanti. Ini kondisi yang membuat penentuan otomatis tidak
+  // cukup — makanya link "Buka" dari Perlu Konfirmasi membawa scheduleId.
+  const JADWAL = [
+    { id: 'pagi', className: 'XI-A', day: 'Selasa', timeSlot: '07:00-08:00' },
+    { id: 'siang', className: 'XI-A', day: 'Selasa', timeSlot: '13:00-14:00' },
+  ];
+  const STATUS_HARI_INI = [
+    { scheduleId: 'pagi', className: 'XI-A' },
+    { scheduleId: 'siang', className: 'XI-A' },
+  ];
+
+  // Cerminan pemilihan sesi di AttendanceForm: scheduleId dari deep-link
+  // menang selama sesinya memang milik kelas itu & ada di jadwal hari ini.
+  function pilihSesi(requestedScheduleId: string | null, selectedClass: string) {
+    const diminta = requestedScheduleId
+      ? STATUS_HARI_INI.find((s) => s.scheduleId === requestedScheduleId && s.className === selectedClass)
+      : undefined;
+    return diminta?.scheduleId ?? findActiveScheduleId(JADWAL, selectedClass, 'Selasa');
+  }
+
+  it('tanpa scheduleId, penentuan otomatis bisa memilih slot yang keliru', () => {
+    // Inilah alasan scheduleId dibawa: hasilnya ikut urutan dokumen jadwal,
+    // bukan sesi yang diklik guru.
+    expect(findActiveScheduleId(JADWAL, 'XI-A', 'Selasa')).toBe('pagi');
+    expect(findActiveScheduleId([JADWAL[1], JADWAL[0]], 'XI-A', 'Selasa')).toBe('siang');
+  });
+
+  it('scheduleId dari link membuka sesi pagi yang sudah lewat, bukan slot lain', () => {
+    expect(pilihSesi('pagi', 'XI-A')).toBe('pagi');
+  });
+
+  it('scheduleId dari link membuka sesi siang, bukan slot pertama', () => {
+    expect(pilihSesi('siang', 'XI-A')).toBe('siang');
+  });
+
+  it('scheduleId basi/tidak dikenal jatuh ke penentuan otomatis, bukan sesi kosong', () => {
+    expect(pilihSesi('sudah-dihapus', 'XI-A')).toBe('pagi');
+  });
+
+  it('scheduleId milik kelas lain diabaikan — tidak membuka sesi lintas kelas', () => {
+    expect(pilihSesi('pagi', 'XII-B')).toBeNull();
+  });
+
+  it('tanpa scheduleId perilakunya sama seperti sebelumnya', () => {
+    expect(pilihSesi(null, 'XI-A')).toBe('pagi');
   });
 });
 

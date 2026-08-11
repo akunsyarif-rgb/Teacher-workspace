@@ -159,6 +159,13 @@ export default function AttendanceForm() {
     }
   }, [searchParams]);
 
+  // Sesi yang ditunjuk eksplisit oleh deep-link (?scheduleId=...). Dipakai
+  // saat guru membuka satu sesi TERTENTU dari Beranda — mis. sesi yang jam
+  // pelajarannya sudah lewat di daftar Perlu Konfirmasi. Tanpa ini,
+  // findActiveScheduleId jatuh ke slot pertama hari itu, jadi kelas yang
+  // punya dua slot di hari yang sama bisa membuka slot yang keliru.
+  const requestedScheduleId = searchParams.get('scheduleId');
+
   useEffect(() => {
     const savedSubject = localStorage.getItem('teacher_main_subject');
     setSubject(savedSubject || '');
@@ -239,8 +246,19 @@ export default function AttendanceForm() {
     }
   }
 
+  // scheduleId dari deep-link menang, TAPI hanya kalau sesi itu memang milik
+  // kelas yang sedang dibuka & terdaftar hari ini — kalau tidak (link basi,
+  // jadwal sudah dihapus, ganti kelas lewat dropdown), jatuh ke penentuan
+  // otomatis seperti sebelumnya.
+  const requestedSession =
+    requestedScheduleId && selectedClass
+      ? todayClassStatuses.find(
+          (s) => s.scheduleId === requestedScheduleId && s.className === selectedClass
+        )
+      : undefined;
+
   const activeScheduleId = selectedClass
-    ? findActiveScheduleId(schedules, selectedClass, getCurrentDayName())
+    ? requestedSession?.scheduleId ?? findActiveScheduleId(schedules, selectedClass, getCurrentDayName())
     : null;
 
   const currentSession = todayClassStatuses.find((s) => s.scheduleId === activeScheduleId) ?? null;

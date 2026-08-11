@@ -570,7 +570,7 @@ export default function DashboardPage() {
                     <Link
                       href={`/attendance?class=${encodeURIComponent(status.className)}&tab=${
                         !status.hasAttendance ? 'presensi' : 'jurnal'
-                      }`}
+                      }&scheduleId=${encodeURIComponent(status.scheduleId)}`}
                       className="px-3 py-1.5 md:px-4 md:py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-[10px] md:text-xs font-bold transition-colors"
                     >
                       Buka
