@@ -1,9 +1,13 @@
 import * as classFundService from '../services/classFundService';
 import { withCache, clearAllCached } from '../utils/sessionCache';
 
+export function classFundCacheKey(workspaceId: string, className: string) {
+  return `classFund:${workspaceId}:${className}`;
+}
+
 export async function fetchClassFundData(workspaceId: string, className: string) {
   if (!workspaceId || !className) return { transactions: [], balance: 0 };
-  return withCache(`classFund:${workspaceId}:${className}`, () =>
+  return withCache(classFundCacheKey(workspaceId, className), () =>
     classFundService.loadClassFundData(workspaceId, className)
   );
 }

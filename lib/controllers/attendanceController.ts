@@ -15,7 +15,12 @@ export async function fetchAttendanceHistory(workspaceId: string, className: str
   );
 }
 
-export async function submitAttendanceRecord(
+export async function fetchTodayAttendance(workspaceId: string, className: string, scheduleId?: string | null) {
+  return attendanceService.loadTodayAttendance(workspaceId, className, scheduleId);
+}
+
+export async function autoSaveAttendanceRecord(
+  existingId: string | null,
   workspaceId: string,
   className: string,
   subject: string,
@@ -23,7 +28,8 @@ export async function submitAttendanceRecord(
   statusMap: Record<string, AttendanceEntry>,
   scheduleId?: string | null
 ) {
-  const result = await attendanceService.submitAttendance(
+  const id = await attendanceService.autoSaveAttendance(
+    existingId,
     workspaceId,
     className,
     subject,
@@ -31,6 +37,12 @@ export async function submitAttendanceRecord(
     statusMap,
     scheduleId
   );
+  clearAllCached();
+  return id;
+}
+
+export async function markAttendanceCompleted(id: string) {
+  const result = await attendanceService.markAttendanceCompleted(id);
   clearAllCached();
   return result;
 }

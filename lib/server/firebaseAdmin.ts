@@ -22,6 +22,23 @@ function getAdminApp(): App {
     return cachedApp;
   }
 
+  // Mode emulator: firebase-tools emulators:exec otomatis men-set env var
+  // ini untuk seluruh proses anak (termasuk next build/next start yang
+  // di-spawn dari tests/e2e/*.mjs) — Admin SDK mendeteksinya sendiri dan
+  // mengarahkan SEMUA panggilan ke emulator lokal, jadi tidak perlu
+  // credential sungguhan sama sekali di mode ini. Sama seperti gerbang
+  // NEXT_PUBLIC_USE_FIREBASE_EMULATOR di src/config/firebase.ts (client),
+  // cuma Admin SDK mendeteksi emulator lewat env var standarnya sendiri,
+  // bukan connect*Emulator() manual. Produksi (Vercel) tidak pernah
+  // punya FIRESTORE_EMULATOR_HOST ter-set, jadi ini tidak bisa
+  // diam-diam aktif di luar konteks emulator/testing.
+  if (process.env.FIRESTORE_EMULATOR_HOST) {
+    cachedApp = initializeApp({
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'demo-teacher-workspace',
+    });
+    return cachedApp;
+  }
+
   const raw = process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT;
   if (!raw) {
     throw new Error(

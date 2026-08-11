@@ -10,6 +10,7 @@ import InlineAlert from '../ui/InlineAlert';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as classController from '@/lib/controllers/classController';
 import * as studentNoteController from '@/lib/controllers/studentNoteController';
+import { getCached } from '@/lib/utils/sessionCache';
 import { SkeletonCard } from '../ui/Skeleton';
 
 export type NoteEntry = { studentId: string; studentName: string; title: string; notes: string };
@@ -22,6 +23,7 @@ export type NoteDataSource = {
   fetch: (workspaceId: string, className: string) => Promise<any[]>;
   submit: (workspaceId: string, className: string, data: NoteEntry) => Promise<any>;
   remove: (id: string) => Promise<any>;
+  cacheKey: (workspaceId: string, className: string) => string;
 };
 
 type StudentNoteListProps = {
@@ -68,6 +70,7 @@ export default function StudentNoteList({
         fetch: (ws, cls) => studentNoteController.fetchStudentNotes(ws, cls, category),
         submit: (ws, cls, data) => studentNoteController.submitStudentNote(ws, cls, category, data),
         remove: (id) => studentNoteController.deleteStudentNote(id),
+        cacheKey: (ws, cls) => studentNoteController.studentNotesCacheKey(ws, cls, category),
       }
     );
   }
@@ -82,7 +85,12 @@ export default function StudentNoteList({
 
   async function loadData() {
     if (!workspaceId || !className) return;
-    setLoading(true);
+    const alreadyWarm =
+      getCached(classController.studentsInClassCacheKey(workspaceId, className)) !== undefined &&
+      getCached(source().cacheKey(workspaceId, className)) !== undefined;
+    if (!alreadyWarm) {
+      setLoading(true);
+    }
     try {
       const [studentList, noteList] = await Promise.all([
         classController.fetchStudentsInClass(workspaceId, className),

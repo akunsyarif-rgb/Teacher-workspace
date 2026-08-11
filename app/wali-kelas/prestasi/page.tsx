@@ -20,6 +20,8 @@ const ACHIEVEMENT_SOURCE = {
     data: { studentId: string; studentName: string; title: string; notes: string }
   ) => achievementController.submitAchievement(workspaceId, className, data),
   remove: (id: string) => achievementController.deleteAchievement(id),
+  cacheKey: (workspaceId: string, className: string) =>
+    achievementController.achievementsCacheKey(workspaceId, className),
 };
 
 export default function PrestasiPage() {

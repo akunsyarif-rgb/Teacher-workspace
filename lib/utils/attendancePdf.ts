@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { STATUS_LETTER_PLAIN } from './attendanceStatus';
+import { getWitaDateString } from './witaDate';
 
 type AttendanceSession = {
   date: string;
@@ -77,5 +78,5 @@ export function exportAttendanceRecapPdf(params: {
   doc.setTextColor(120);
   doc.text('H=Hadir, S=Sakit, I=Izin, D=Dispensasi, A=Alpa, T=Total Terlambat. Tanda * = hadir tapi terlambat.', 14, finalY + 6);
 
-  doc.save(`Rekap-Presensi-${className}-${new Date().toISOString().split('T')[0]}.pdf`);
+  doc.save(`Rekap-Presensi-${className}-${getWitaDateString()}.pdf`);
 }

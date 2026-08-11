@@ -1,21 +1,36 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Trash2, Copy, Check, Plus } from 'lucide-react';
+import { Trash2, Copy, Check, Plus, Settings } from 'lucide-react';
+import { auth } from '@/src/config/firebase';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as classController from '@/lib/controllers/classController';
+import { getCached } from '@/lib/utils/sessionCache';
 import ConfirmDeleteModal from '@/src/components/ui/ConfirmDeleteModal';
 import Modal from '@/src/components/ui/Modal';
+import Input from '@/src/components/ui/Input';
+import Button from '@/src/components/ui/Button';
 import AddStudentForm from './AddStudentForm';
 import BulkImportForm from './BulkImportForm';
+import { CLASS_NAME_MAX_LENGTH, normalizeClassName, validateClassName } from '@/lib/utils/classNameValidation';
 
 type ClassDetailProps = {
   className: string;
   onBack: () => void;
   backLabel?: string;
+  // Dipanggil setelah rename berhasil supaya parent (ClassManagement)
+  // memindahkan "kelas aktif" yang sedang dibuka ke nama baru — tanpa ini,
+  // effect [workspaceId, className] di bawah akan tetap query nama lama
+  // yang sudah tidak ada lagi datanya.
+  onRenamed?: (newName: string) => void;
 };
 
-export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke Daftar Kelas' }: ClassDetailProps) {
+export default function ClassDetail({
+  className,
+  onBack,
+  backLabel = 'Kembali ke Daftar Kelas',
+  onRenamed,
+}: ClassDetailProps) {
   const { workspaceId } = useWorkspace();
   const [students, setStudents] = useState<any[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; nis: string } | null>(null);
@@ -24,6 +39,10 @@ export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke
   const [generating, setGenerating] = useState(false);
   const [showAddStudent, setShowAddStudent] = useState(false);
   const [confirmDeleteClass, setConfirmDeleteClass] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [renameValue, setRenameValue] = useState(className);
+  const [renaming, setRenaming] = useState(false);
+  const [renameError, setRenameError] = useState('');
 
   useEffect(() => {
     if (workspaceId && className) {
@@ -33,7 +52,13 @@ export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke
 
   async function loadStudents() {
     if (!workspaceId || !className) return;
-    setLoading(true);
+    // Data kelas ini mungkin sudah hangat di sessionCache (mis. guru barusan
+    // dari tab lain di kelas yang sama) — kalau iya, jangan nyalakan
+    // spinner: cukup refresh diam-diam di belakang layar.
+    const alreadyWarm = getCached(classController.studentsInClassCacheKey(workspaceId, className)) !== undefined;
+    if (!alreadyWarm) {
+      setLoading(true);
+    }
     try {
       const list = await classController.fetchStudentsInClass(workspaceId, className);
       setStudents(list);
@@ -68,6 +93,38 @@ export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke
     } catch (error: any) {
       alert(error.message || 'Gagal menghapus kelas.');
       throw error;
+    }
+  }
+
+  function openSettings() {
+    setRenameValue(className);
+    setRenameError('');
+    setShowSettings(true);
+  }
+
+  async function handleRenameClass() {
+    const normalized = normalizeClassName(renameValue);
+    if (!normalized || normalized === className) {
+      setShowSettings(false);
+      return;
+    }
+    const validation = validateClassName(renameValue);
+    if (!validation.valid) {
+      setRenameError(validation.error);
+      return;
+    }
+    if (!auth.currentUser) return;
+    setRenaming(true);
+    setRenameError('');
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      await classController.submitRenameClass(idToken, className, validation.value);
+      setShowSettings(false);
+      onRenamed?.(validation.value);
+    } catch (error: any) {
+      setRenameError(error.message || 'Gagal mengganti nama kelas.');
+    } finally {
+      setRenaming(false);
     }
   }
 
@@ -124,6 +181,14 @@ export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke
           >
             <Plus className="w-3.5 h-3.5" />
             Tambah Siswa
+          </button>
+          <button
+            onClick={openSettings}
+            className="p-2.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl transition-all active:scale-95"
+            title="Pengaturan Kelas"
+            aria-label="Pengaturan Kelas"
+          >
+            <Settings className="w-3.5 h-3.5" />
           </button>
           {students.length > 0 && (
             <button
@@ -249,6 +314,49 @@ export default function ClassDetail({ className, onBack, backLabel = 'Kembali ke
         requireTyping={true}
         type="danger"
       />
+
+      <Modal isOpen={showSettings} onClose={() => setShowSettings(false)} title="Pengaturan Kelas">
+        <div className="space-y-4">
+          <div>
+            <Input
+              label="Nama Kelas"
+              value={renameValue}
+              onChange={setRenameValue}
+              placeholder="Contoh: XI F TEKNIK 2"
+              maxLength={CLASS_NAME_MAX_LENGTH}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+            />
+            <p className="text-[10px] text-gray-400 mt-1.5">
+              Boleh mengandung spasi dan angka, mis. &quot;XI A KESEHATAN 1&quot;. Mengganti nama akan otomatis
+              merapikan seluruh data terkait kelas ini (siswa, jurnal, presensi, nilai, tugas, pengumuman, jadwal) —
+              termasuk akun Student Companion siswa, supaya mereka tidak kehilangan akses.
+            </p>
+          </div>
+          {renameError && <p className="text-xs font-bold text-red-600">{renameError}</p>}
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => setShowSettings(false)}
+              disabled={renaming}
+              className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 rounded-xl text-xs font-bold transition-colors"
+            >
+              Batal
+            </button>
+            <div className="flex-1">
+              <Button
+                onClick={handleRenameClass}
+                loading={renaming}
+                disabled={!normalizeClassName(renameValue) || normalizeClassName(renameValue) === className}
+              >
+                {renaming ? 'Menyimpan...' : 'Simpan Nama Baru'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

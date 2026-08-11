@@ -1,18 +1,34 @@
 'use client';
 
 import React from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Pencil, Lock } from 'lucide-react';
 import Badge from '../ui/Badge';
 
 type GradesTableProps = {
   students: { id: string; name: string; nis?: string }[];
   columns: { id: string; title: string; type: string }[];
   grades: Record<string, Record<string, string>>;
+  savedGrades: Record<string, Record<string, string>>;
+  unlockedCells: Set<string>;
   onScoreChange: (studentId: string, columnId: string, value: string) => void;
+  onRequestUnlock: (studentId: string, columnId: string) => void;
   onDeleteColumn: (columnId: string) => void;
 };
 
-export default function GradesTable({ students, columns, grades, onScoreChange, onDeleteColumn }: GradesTableProps) {
+export function cellKey(studentId: string, columnId: string) {
+  return `${studentId}_${columnId}`;
+}
+
+export default function GradesTable({
+  students,
+  columns,
+  grades,
+  savedGrades,
+  unlockedCells,
+  onScoreChange,
+  onRequestUnlock,
+  onDeleteColumn,
+}: GradesTableProps) {
   function calculateAverage(studentId: string) {
     const studentGrades = grades[studentId];
     if (!studentGrades || columns.length === 0) return '-';
@@ -32,6 +48,57 @@ export default function GradesTable({ students, columns, grades, onScoreChange, 
 
   if (students.length === 0) {
     return <div className="text-center py-12 text-xs text-gray-400">Belum ada siswa terdaftar di kelas ini.</div>;
+  }
+
+  function renderCell(studentId: string, studentName: string, col: { id: string; title: string }) {
+    const key = cellKey(studentId, col.id);
+    const savedValue = savedGrades[studentId]?.[col.id] ?? '';
+    const currentValue = grades[studentId]?.[col.id] ?? '';
+    const isLocked = savedValue !== '' && !unlockedCells.has(key);
+    const isDraft = !isLocked && currentValue.trim() !== '';
+
+    if (isLocked) {
+      return (
+        <div className="relative inline-flex items-center justify-center">
+          <span className="w-16 h-9 flex items-center justify-center gap-1 bg-emerald-50 border border-emerald-200 rounded-xl font-bold text-sm text-emerald-700">
+            <Lock className="w-2.5 h-2.5 shrink-0" />
+            {savedValue}
+          </span>
+          <button
+            type="button"
+            onClick={() => onRequestUnlock(studentId, col.id)}
+            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50 transition-colors active:scale-90"
+            title="Edit nilai"
+            aria-label={`Edit nilai ${studentName} - ${col.title}`}
+          >
+            <Pencil className="w-2.5 h-2.5 text-gray-500" />
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="relative inline-flex items-center justify-center">
+        <input
+          type="number"
+          min="0"
+          max="100"
+          placeholder="-"
+          value={currentValue}
+          onChange={(e) => onScoreChange(studentId, col.id, e.target.value)}
+          aria-label={`Nilai ${studentName} - ${col.title}`}
+          className={`w-16 p-2 text-center border rounded-xl font-bold text-sm text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600 ${
+            isDraft ? 'bg-amber-50 border-amber-300' : 'bg-gray-50 border-gray-200'
+          }`}
+        />
+        {isDraft && (
+          <span
+            className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full border border-white"
+            title="Draft — belum disimpan"
+          />
+        )}
+      </div>
+    );
   }
 
   return (
@@ -74,15 +141,7 @@ export default function GradesTable({ students, columns, grades, onScoreChange, 
               </td>
               {columns.map((col) => (
                 <td key={col.id} className="p-3 text-center">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    placeholder="-"
-                    value={grades[student.id]?.[col.id] ?? ''}
-                    onChange={(e) => onScoreChange(student.id, col.id, e.target.value)}
-                    className="w-16 p-2 text-center bg-gray-50 border border-gray-200 rounded-xl font-bold text-sm text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
-                  />
+                  {renderCell(student.id, student.name, col)}
                 </td>
               ))}
               <td className="p-4 text-center text-sm font-extrabold text-blue-600 bg-blue-50/30">

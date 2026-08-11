@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Megaphone, Plus, Trash2 } from 'lucide-react';
+import { Megaphone, Plus, Trash2, ArrowLeft } from 'lucide-react';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import Modal from '../ui/Modal';
@@ -21,6 +21,7 @@ export default function AnnouncementsTab({ className, subject }: AnnouncementsTa
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [step, setStep] = useState<'form' | 'preview'>('form');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [saving, setSaving] = useState(false);
@@ -28,6 +29,16 @@ export default function AnnouncementsTab({ className, subject }: AnnouncementsTa
   useEffect(() => {
     if (className && workspaceId) loadAnnouncements();
   }, [className, workspaceId]);
+
+  function closeModal() {
+    setShowModal(false);
+    setStep('form');
+  }
+
+  function handleContinueToPreview(e: React.FormEvent) {
+    e.preventDefault();
+    setStep('preview');
+  }
 
   async function loadAnnouncements() {
     if (!workspaceId || !className) return;
@@ -45,15 +56,14 @@ export default function AnnouncementsTab({ className, subject }: AnnouncementsTa
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit() {
     if (!workspaceId) return;
     setSaving(true);
     try {
       await announcementController.createAnnouncement(workspaceId, className, subject, { title, body });
       setTitle('');
       setBody('');
-      setShowModal(false);
+      closeModal();
       await loadAnnouncements();
     } catch (error: any) {
       alert(error.message || 'Gagal membuat pengumuman.');
@@ -84,36 +94,64 @@ export default function AnnouncementsTab({ className, subject }: AnnouncementsTa
         </Button>
       </Card>
 
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Buat Pengumuman Baru">
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <Input
-            label="Judul"
-            value={title}
-            onChange={setTitle}
-            placeholder="Contoh: Ulangan Bab 3 hari Senin"
-            required
-          />
-          <div>
-            <label className="text-xs font-bold text-gray-700 block mb-1">Isi Pengumuman</label>
-            <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              rows={4}
+      {step === 'preview' ? (
+        <Modal isOpen={showModal} onClose={closeModal} title="Preview Pengumuman">
+          <div className="space-y-4">
+            <p className="text-xs text-gray-500">
+              Periksa sekali lagi sebelum dikirim — begitu dikirim, pengumuman langsung tampil di Student Companion.
+            </p>
+            <div className="p-4 bg-gray-50 border border-gray-200 rounded-2xl space-y-1.5">
+              <p className="text-sm font-extrabold text-gray-900">{title}</p>
+              <p className="text-xs text-gray-600 whitespace-pre-wrap">{body}</p>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setStep('form')}
+                disabled={saving}
+                className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 rounded-xl text-xs font-bold transition-colors"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Kembali
+              </button>
+              <div className="flex-1">
+                <Button onClick={handleSubmit} loading={saving}>
+                  {saving ? 'Mengirim...' : 'Kirim ke Siswa'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      ) : (
+        <Modal isOpen={showModal} onClose={closeModal} title="Buat Pengumuman Baru">
+          <form onSubmit={handleContinueToPreview} className="space-y-3">
+            <Input
+              label="Judul"
+              value={title}
+              onChange={setTitle}
+              placeholder="Contoh: Ulangan Bab 3 hari Senin"
               required
-              placeholder="Tulis pengumuman untuk siswa"
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
             />
-          </div>
-          <div className="flex gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setShowModal(false)}>
-              Batal
-            </Button>
-            <Button type="submit" loading={saving}>
-              {saving ? 'Mengirim...' : 'Kirim ke Siswa'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+            <div>
+              <label className="text-xs font-bold text-gray-700 block mb-1">Isi Pengumuman</label>
+              <textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                rows={4}
+                required
+                placeholder="Tulis pengumuman untuk siswa"
+                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button type="button" variant="secondary" onClick={closeModal}>
+                Batal
+              </Button>
+              <Button type="submit">Preview</Button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {loading ? (
         <div className="space-y-3">

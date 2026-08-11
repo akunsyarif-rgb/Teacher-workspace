@@ -8,9 +8,12 @@ import Link from "next/link";
 import { useWorkspace } from "@/src/context/WorkspaceContext";
 import { fetchDashboardSummary } from "@/lib/controllers/dashboardController";
 import { saveTeacherQuickNote } from "@/lib/controllers/teacherProfileController";
-import { isScheduleOngoing, resolveCurrentWorkflowStep } from "@/lib/utils/scheduleTime";
+import { submitSkipReason } from "@/lib/controllers/sessionSkipReasonController";
+import { resolveCurrentWorkflowStep } from "@/lib/utils/scheduleTime";
+import { getCurrentDayName } from "@/lib/services/dashboardService";
 import type { TodayClassStatus } from "@/lib/services/dashboardService";
 import { useOnlineStatus } from "@/src/hooks/useOnlineStatus";
+import SkipReasonModal from "@/src/components/SkipReasonModal";
 import {
   GraduationCap,
   BookOpen,
@@ -24,6 +27,7 @@ import {
   BarChart3,
   ArrowRight,
   RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
 
 function getGreeting(date: Date = new Date()) {
@@ -43,6 +47,21 @@ function getCompleteDateLabel(date: Date = new Date()) {
   });
 }
 
+// Jam berjalan di header — SENGAJA selalu dikonversi ke Asia/Makassar
+// (WITA), bukan zona waktu perangkat guru, supaya label "WITA" akurat
+// walau guru membuka aplikasi dari perangkat berzona waktu lain. Ini murni
+// indikator visual; logika status sesi tetap dari Workflow Engine yang
+// sudah shipped (classifySessionState di lib/utils/scheduleTime.ts), jam
+// ini tidak dipakai untuk menghitung status apa pun.
+function getWitaTimeLabel(date: Date) {
+  return date.toLocaleTimeString("id-ID", {
+    timeZone: "Asia/Makassar",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
 type SyncStatus = "idle" | "saving" | "saved" | "error" | "offline";
 
 export default function DashboardPage() {
@@ -56,7 +75,13 @@ export default function DashboardPage() {
 
   const [uniqueClasses, setUniqueClasses] = useState<string[]>([]);
   const [totalJournals, setTotalJournals] = useState(0);
-  const [currentDayName, setCurrentDayName] = useState("");
+  // Dihitung langsung di client saat pertama render (bukan "" menunggu
+  // fetchDashboardSummary selesai) — supaya header/empty-state tidak
+  // pernah sempat menampilkan "PERLU DISELESAIKAN HARI INI ()" / "hari ."
+  // sebelum data server datang. loadSummary() tetap menimpanya dengan
+  // currentDayName dari server begitu selesai (nilainya seharusnya selalu
+  // sama, cuma untuk konsistensi sumber data).
+  const [currentDayName, setCurrentDayName] = useState(getCurrentDayName());
   const [todayProgress, setTodayProgress] = useState<{
     total: number;
     journalsDone: number;
@@ -65,6 +90,19 @@ export default function DashboardPage() {
   }>({ total: 0, journalsDone: 0, attendancesDone: 0, percentage: 0 });
   const [pendingClasses, setPendingClasses] = useState<string[]>([]);
   const [todayClassStatuses, setTodayClassStatuses] = useState<TodayClassStatus[]>([]);
+  const [skipReasonTarget, setSkipReasonTarget] = useState<TodayClassStatus | null>(null);
+  // null di render pertama (server & client sebelum hydrate sama-sama
+  // kosong) supaya tidak ada mismatch hydration — begitu mount, effect di
+  // bawah mengisinya dan menjalankan interval per detik.
+  const [nowLabel, setNowLabel] = useState<string | null>(null);
+
+  useEffect(() => {
+    setNowLabel(getWitaTimeLabel(new Date()));
+    const interval = setInterval(() => {
+      setNowLabel(getWitaTimeLabel(new Date()));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
   const teacherName = teacherProfile?.name || "Guru Pengajar";
@@ -120,6 +158,12 @@ export default function DashboardPage() {
     } catch (err) {
       console.error("Gagal memuat ringkasan:", err);
     }
+  }
+
+  async function handleSaveSkipReason(reason: string, note: string) {
+    if (!workspaceId || !skipReasonTarget) return;
+    await submitSkipReason(workspaceId, skipReasonTarget.scheduleId, skipReasonTarget.className, reason, note);
+    await loadSummary();
   }
 
   async function saveQuickNoteToFirestore(note: string) {
@@ -263,15 +307,36 @@ export default function DashboardPage() {
   const isDayComplete = todayTotal > 0 && journalsDone === todayTotal && attendancesDone === todayTotal;
   const isDayPartial = journalsDone > 0 || attendancesDone > 0;
 
+  // "Penyesuaian Workflow Jadwal — Final" #5, dikoreksi oleh audit lanjutan:
+  // HANYA dua kelompok, bukan tiga — status ✅ Done tetap tinggal di daftar
+  // kronologis "Jadwal Hari Ini" yang sama (bukan dipindah ke section
+  // "Riwayat" terpisah, itu cuma menduplikasi daftar yang sudah ada). Done
+  // berhenti dihitung sebagai "pekerjaan yang harus dikerjakan" (lihat CTA
+  // di bawah — tombol jadi "Buka", bukan "Mulai/Lanjut"), tapi tetap
+  // terlihat & bisa dibuka untuk kroscek selama masih tanggal yang sama.
+  // Begitu tanggal berganti, todayClassStatuses dihitung ulang dari jadwal
+  // HARI INI sehingga sesi kemarin otomatis tidak tampil lagi di sini —
+  // riwayat lengkapnya tetap ada lewat tab Riwayat per kelas, bukan dihapus.
+  const jadwalHariIniStatuses = todayClassStatuses.filter((s) => s.sessionState !== 'needs_confirmation');
+  const needsConfirmationStatuses = todayClassStatuses.filter((s) => s.sessionState === 'needs_confirmation');
+
   return (
     <div className="min-h-screen bg-gray-50 p-3 sm:p-4 md:p-6 lg:p-8 space-y-4 md:space-y-6">
       <div className="max-w-6xl mx-auto space-y-4 md:space-y-6">
         {/* Header */}
         <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="space-y-1">
-            <div className="flex items-center gap-2 text-[10px] font-bold text-blue-600 uppercase tracking-wider bg-blue-50/60 px-2.5 py-1 rounded-xl w-fit">
-              <Calendar className="w-3 h-3" />
-              <span>{getCompleteDateLabel()}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2 text-[10px] font-bold text-blue-600 uppercase tracking-wider bg-blue-50/60 px-2.5 py-1 rounded-xl w-fit">
+                <Calendar className="w-3 h-3" />
+                <span>{getCompleteDateLabel()}</span>
+              </div>
+              {nowLabel && (
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider bg-gray-50 px-2.5 py-1 rounded-xl w-fit tabular-nums">
+                  <Clock className="w-3 h-3" />
+                  <span>{nowLabel} WITA</span>
+                </div>
+              )}
             </div>
             <h1 className="text-xl md:text-2xl font-extrabold text-gray-900 flex items-center gap-2">
               {getGreeting()}, {teacherName}
@@ -380,22 +445,32 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {todayClassStatuses.length === 0 ? (
-            <div className="p-4 md:p-6 bg-gray-50 rounded-xl md:rounded-2xl border border-dashed border-gray-200 text-center space-y-1">
-              <p className="text-sm font-bold text-gray-600">
-                Tidak ada jadwal mengajar untuk hari {currentDayName}. Santai dulu 😊
-              </p>
-              <Link
-                href="/schedule"
-                className="inline-block text-[10px] md:text-xs text-blue-600 underline underline-offset-2 font-bold"
-              >
-                Tambahkan lewat menu Jadwal Mengajar
-              </Link>
-            </div>
+          {jadwalHariIniStatuses.length === 0 ? (
+            todayClassStatuses.length === 0 ? (
+              <div className="p-4 md:p-6 bg-gray-50 rounded-xl md:rounded-2xl border border-dashed border-gray-200 text-center space-y-1">
+                <p className="text-sm font-bold text-gray-600">
+                  Tidak ada jadwal mengajar untuk hari {currentDayName}. Santai dulu 😊
+                </p>
+                <Link
+                  href="/schedule"
+                  className="inline-block text-[10px] md:text-xs text-blue-600 underline underline-offset-2 font-bold"
+                >
+                  Tambahkan lewat menu Jadwal Mengajar
+                </Link>
+              </div>
+            ) : (
+              // Ada jadwal hari ini, tapi semuanya sudah masuk Perlu
+              // Konfirmasi di bawah — bukan berarti tidak ada jadwal sama
+              // sekali, jadi pesannya beda dari empty-state di atas.
+              <div className="p-4 md:p-6 bg-emerald-50 rounded-xl md:rounded-2xl border border-dashed border-emerald-200 text-center">
+                <p className="text-sm font-bold text-emerald-700">
+                  Tidak ada sesi aktif saat ini — lihat Perlu Konfirmasi di bawah 👇
+                </p>
+              </div>
+            )
           ) : (
             <div className="divide-y divide-gray-100">
-              {todayClassStatuses.map((status) => {
-                const isOngoing = isScheduleOngoing(status.timeSlot || '');
+              {jadwalHariIniStatuses.map((status) => {
                 const nextTab = !status.hasAttendance ? 'presensi' : 'jurnal';
                 const label = status.isDone
                   ? `Selesai • ${status.subject || subject}`
@@ -404,17 +479,22 @@ export default function DashboardPage() {
                   : !status.hasAttendance
                   ? `Presensi belum diisi • ${status.timeSlot}`
                   : `Jurnal belum diisi • ${status.timeSlot}`;
+                // Badge otomatis dari jadwal + waktu aktual, bukan lagi
+                // ditebak dari hasJournal/hasAttendance saja (lihat
+                // classifySessionState) — 🔵 belum waktunya, 🟢 sedang
+                // berlangsung, ✅ kewajiban sudah lengkap.
+                const badge = status.isDone ? '✅' : status.sessionState === 'ongoing' ? '🟢' : '🔵';
 
                 return (
                   <div key={status.scheduleId} className="py-3 md:py-4 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
                       <span className="text-lg md:text-xl shrink-0" aria-hidden>
-                        {status.isDone ? '✅' : status.hasJournal || status.hasAttendance ? '🟢' : '🟡'}
+                        {badge}
                       </span>
                       <div className="min-w-0">
                         <p className="text-sm font-extrabold text-gray-900 truncate flex items-center gap-2">
                           Kelas {status.className}
-                          {isOngoing && !status.isDone && (
+                          {status.sessionState === 'ongoing' && (
                             <span className="text-[9px] font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full whitespace-nowrap">
                               Berlangsung
                             </span>
@@ -424,7 +504,16 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    {!status.isDone && (
+                    {status.isDone ? (
+                      // Done TIDAK lagi "pekerjaan yang harus dikerjakan" —
+                      // tombolnya "Buka" (kroscek), bukan "Mulai/Lanjut".
+                      <Link
+                        href={`/attendance?class=${encodeURIComponent(status.className)}&tab=jurnal`}
+                        className="shrink-0 px-3 py-1.5 md:px-4 md:py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-[10px] md:text-xs font-bold transition-colors"
+                      >
+                        Buka
+                      </Link>
+                    ) : (
                       <Link
                         href={`/attendance?class=${encodeURIComponent(status.className)}&tab=${nextTab}`}
                         className="shrink-0 px-3 py-1.5 md:px-4 md:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] md:text-xs font-bold transition-colors shadow-sm"
@@ -438,6 +527,67 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+
+        {/* Perlu Konfirmasi — sesi yang jam pelajarannya sudah lewat tanpa
+            presensi/jurnal. Dipisah dari daftar di atas (bukan sekadar
+            dikasih badge) supaya guru tidak perlu menyisir seluruh daftar
+            hari ini untuk sadar ada sesi yang terlewat. Mencatat alasan di
+            sini TIDAK menandai sesi selesai — itu murni lewat presensi/jurnal
+            (lihat "Prinsip utama" di spec). */}
+        {needsConfirmationStatuses.length > 0 && (
+          <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-amber-200 space-y-3 md:space-y-4">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 md:w-5 md:h-5 text-amber-500" />
+              <h3 className="text-[10px] md:text-xs font-extrabold text-gray-700 uppercase tracking-wider">
+                Perlu Konfirmasi
+              </h3>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {needsConfirmationStatuses.map((status) => (
+                <div key={status.scheduleId} className="py-3 md:py-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-lg md:text-xl shrink-0" aria-hidden>
+                      ⚠️
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-extrabold text-gray-900 truncate">
+                        Kelas {status.className} • {status.timeSlot}
+                      </p>
+                      <p className="text-[10px] md:text-xs text-gray-500 truncate">
+                        {status.skipReason
+                          ? `${status.skipReason.reason}${status.skipReason.note ? ` — ${status.skipReason.note}` : ''}`
+                          : 'Presensi/jurnal belum tercatat untuk sesi ini'}
+                      </p>
+                    </div>
+                  </div>
+                  {/* Sesi ini jam pelajarannya sudah lewat, tapi masih
+                      tanggal yang sama — guru harus tetap bisa MEMBUKA-nya
+                      untuk kroscek/koreksi (mengisi presensi/jurnal yang
+                      tertinggal), bukan cuma mencatat alasan. Rute & pemilihan
+                      tab-nya sama persis dengan daftar Jadwal Hari Ini di
+                      atas; tidak ada aturan completion yang berubah di sini. */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Link
+                      href={`/attendance?class=${encodeURIComponent(status.className)}&tab=${
+                        !status.hasAttendance ? 'presensi' : 'jurnal'
+                      }&scheduleId=${encodeURIComponent(status.scheduleId)}`}
+                      className="px-3 py-1.5 md:px-4 md:py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-[10px] md:text-xs font-bold transition-colors"
+                    >
+                      Buka
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => setSkipReasonTarget(status)}
+                      className="px-3 py-1.5 md:px-4 md:py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl text-[10px] md:text-xs font-bold transition-colors"
+                    >
+                      {status.skipReason ? 'Ubah' : 'Konfirmasi'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Catatan Cepat + Menu Utama */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
@@ -520,6 +670,18 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {skipReasonTarget && (
+        <SkipReasonModal
+          isOpen={!!skipReasonTarget}
+          onClose={() => setSkipReasonTarget(null)}
+          onConfirm={handleSaveSkipReason}
+          className={skipReasonTarget.className}
+          timeSlot={skipReasonTarget.timeSlot}
+          initialReason={skipReasonTarget.skipReason?.reason || null}
+          initialNote={skipReasonTarget.skipReason?.note || ''}
+        />
+      )}
     </div>
   );
 }

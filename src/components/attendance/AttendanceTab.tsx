@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { CheckCircle2, CloudOff, Calendar, UserCheck, History, Trash2, FileDown } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { CheckCircle2, CloudOff, Loader2, AlertCircle, Calendar, UserCheck, History, Trash2, FileDown, PlayCircle, Flag } from "lucide-react";
 import Card from "../ui/Card";
 import Button from "../ui/Button";
 import AttendanceGrid, { TodayEntry } from "./AttendanceGrid";
@@ -22,18 +22,41 @@ type AttendanceTabProps = {
   onSubmitted?: () => void;
 };
 
+type AutoSaveState = "idle" | "saving" | "saved" | "error";
+
 export default function AttendanceTab({ className, subject, scheduleId, onSubmitted }: AttendanceTabProps) {
   const { workspaceId } = useWorkspace();
   const isOnline = useOnlineStatus();
   const [statusMap, setStatusMap] = useState<Record<string, TodayEntry>>({});
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [history, setHistory] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [formattedDate, setFormattedDate] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; date: string } | null>(null);
   const [loadingData, setLoadingData] = useState(true);
+
+  // Sesi presensi hari ini: null = belum pernah disimpan sama sekali
+  // (tombol "Mulai Presensi" masih tampil). Begitu ada, setiap koreksi
+  // status siswa meng-update dokumen yang sama (auto-save), bukan bikin
+  // dokumen baru. `completed` cuma label progres ("✓ Presensi selesai"),
+  // BUKAN kunci — presensi tetap boleh dikoreksi kapan pun sesuai spec.
+  const [recordId, setRecordId] = useState<string | null>(null);
+  const [completed, setCompleted] = useState(false);
+  const [autoSaveState, setAutoSaveState] = useState<AutoSaveState>("idle");
+  const [markingDone, setMarkingDone] = useState(false);
+
+  // Ref, bukan cuma state: dibaca di dalam antrean save (lihat
+  // triggerAutoSave) supaya penyimpanan berikutnya selalu tahu ID
+  // dokumen TERBARU walau state React belum sempat re-render — tanpa ini,
+  // dua toggle beruntun sebelum simpanan pertama selesai bisa
+  // masing-masing mengira "belum ada dokumen" dan membuat dua dokumen
+  // duplikat untuk sesi yang sama.
+  const recordIdRef = useRef<string | null>(null);
+  // Antrean promise: memaksa setiap auto-save selesai berurutan sesuai
+  // urutan toggle, bukan sesuai urutan respons jaringan — tanpa ini,
+  // simpanan yang lebih lama tapi lebih lambat direspons bisa menimpa
+  // balik simpanan yang lebih baru.
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     setFormattedDate(
@@ -45,7 +68,8 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
     if (className && workspaceId) {
       loadAllData();
     }
-  }, [className, workspaceId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [className, workspaceId, scheduleId]);
 
   async function loadAllData() {
     // Data kelas ini mungkin sudah hangat di sessionCache (dipakai semua
@@ -60,11 +84,11 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
     if (!alreadyWarm) {
       setLoadingData(true);
     }
-    await Promise.all([loadStudents(), loadHistory()]);
+    await Promise.all([loadStudentsAndTodaySession(), loadHistory()]);
     setLoadingData(false);
   }
 
-  async function loadStudents() {
+  async function loadStudentsAndTodaySession() {
     if (!workspaceId || !className) return;
     try {
       const list = await studentController.fetchStudentsInClass(workspaceId, className);
@@ -73,9 +97,26 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
       list.forEach((s: any) => {
         initial[s.id] = { status: "Hadir", late: false };
       });
+
+      const todayRecord = await attendanceController.fetchTodayAttendance(workspaceId, className, scheduleId);
+      if (todayRecord) {
+        (todayRecord.details || []).forEach((d: any) => {
+          if (initial[d.studentId]) {
+            initial[d.studentId] = { status: d.status, late: !!d.late };
+          }
+        });
+        recordIdRef.current = todayRecord.id;
+        setRecordId(todayRecord.id);
+        setCompleted(!!todayRecord.completed);
+      } else {
+        recordIdRef.current = null;
+        setRecordId(null);
+        setCompleted(false);
+      }
+      setAutoSaveState("idle");
       setStatusMap(initial);
     } catch (error) {
-      console.error("Gagal memuat siswa:", error);
+      console.error("Gagal memuat siswa/sesi presensi hari ini:", error);
     }
   }
 
@@ -89,8 +130,42 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
     }
   }
 
+  function triggerAutoSave(nextStatusMap: Record<string, TodayEntry>) {
+    if (!workspaceId) return;
+    setAutoSaveState("saving");
+    setErrorMsg("");
+    saveQueueRef.current = saveQueueRef.current
+      .then(() =>
+        attendanceController.autoSaveAttendanceRecord(
+          recordIdRef.current,
+          workspaceId,
+          className,
+          subject,
+          students,
+          nextStatusMap,
+          scheduleId
+        )
+      )
+      .then((id) => {
+        recordIdRef.current = id;
+        setRecordId(id);
+        setAutoSaveState("saved");
+        loadHistory();
+        onSubmitted?.();
+      })
+      .catch((error: any) => {
+        console.error("Gagal auto-save presensi:", error);
+        setAutoSaveState("error");
+        setErrorMsg(error?.message || "Gagal menyimpan presensi otomatis.");
+      });
+  }
+
   function handleEntryChange(studentId: string, next: TodayEntry) {
-    setStatusMap((prev) => ({ ...prev, [studentId]: next }));
+    setStatusMap((prev) => {
+      const updated = { ...prev, [studentId]: next };
+      triggerAutoSave(updated);
+      return updated;
+    });
   }
 
   function handleSetAllHadir() {
@@ -99,36 +174,30 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
       updated[s.id] = { status: "Hadir", late: false };
     });
     setStatusMap(updated);
+    triggerAutoSave(updated);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!workspaceId) return;
-    setLoading(true);
-    setSuccess(false);
-    setErrorMsg("");
+  async function handleMarkCompleted() {
+    if (!recordId) return;
+    setMarkingDone(true);
     try {
-      await attendanceController.submitAttendanceRecord(
-        workspaceId,
-        className,
-        subject,
-        students,
-        statusMap,
-        scheduleId
-      );
-      setSuccess(true);
-      await loadHistory();
-      onSubmitted?.();
+      await attendanceController.markAttendanceCompleted(recordId);
+      setCompleted(true);
     } catch (error: any) {
-      setErrorMsg(error.message || "Gagal menyimpan presensi.");
+      setErrorMsg(error.message || "Gagal menandai presensi selesai.");
     } finally {
-      setLoading(false);
+      setMarkingDone(false);
     }
   }
 
   async function handleDelete() {
     if (!deleteTarget) return;
     await attendanceController.deleteAttendanceRecord(deleteTarget.id);
+    if (deleteTarget.id === recordId) {
+      recordIdRef.current = null;
+      setRecordId(null);
+      setCompleted(false);
+    }
     await loadHistory();
     setDeleteTarget(null);
   }
@@ -140,23 +209,8 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
   return (
     <div className="space-y-6">
       <InlineAlert message={errorMsg} onDismiss={() => setErrorMsg("")} />
-      {success && (
-        <div className="p-4 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center gap-2 text-xs font-medium">
-          {isOnline ? (
-            <>
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-              <span>Presensi Kelas {className} berhasil disimpan!</span>
-            </>
-          ) : (
-            <>
-              <CloudOff className="w-5 h-5 text-emerald-600 shrink-0" />
-              <span>Presensi tersimpan offline — akan tersinkron otomatis saat koneksi kembali.</span>
-            </>
-          )}
-        </div>
-      )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="space-y-6">
         <Card className="space-y-4">
           <div>
             <label className="text-xs font-bold text-gray-700 block mb-1">Tanggal Hari Ini</label>
@@ -181,10 +235,45 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
         </Card>
 
         <Card className="space-y-4 !p-3 sm:!p-4">
-          <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2 px-1">
-            <UserCheck className="w-4 h-4 text-blue-600" />
-            Daftar Absen ({loadingData ? '...' : students.length} Siswa)
-          </h3>
+          <div className="flex items-center justify-between gap-2 px-1 flex-wrap">
+            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-blue-600" />
+              Daftar Absen ({loadingData ? '...' : students.length} Siswa)
+            </h3>
+
+            {/* Status auto-save — jelas terlihat, sesuai prinsip "Status
+                tersimpan ditampilkan jelas". Cuma tampil begitu sesi sudah
+                mulai (recordId ada), supaya sebelum itu tidak menyesatkan
+                seolah-olah sudah ada yang tersimpan. */}
+            {recordId && !loadingData && (
+              <span className="flex items-center gap-1.5 text-[11px] font-bold">
+                {autoSaveState === "saving" && (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin" />
+                    <span className="text-gray-400">Menyimpan...</span>
+                  </>
+                )}
+                {autoSaveState === "saved" && isOnline && (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="text-emerald-600">Tersimpan otomatis</span>
+                  </>
+                )}
+                {autoSaveState === "saved" && !isOnline && (
+                  <>
+                    <CloudOff className="w-3.5 h-3.5 text-amber-600" />
+                    <span className="text-amber-600">Tersimpan offline — akan tersinkron</span>
+                  </>
+                )}
+                {autoSaveState === "error" && (
+                  <>
+                    <AlertCircle className="w-3.5 h-3.5 text-red-600" />
+                    <span className="text-red-600">Gagal menyimpan</span>
+                  </>
+                )}
+              </span>
+            )}
+          </div>
 
           {loadingData ? (
             <div className="py-4">
@@ -198,12 +287,26 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
         </Card>
 
         {students.length > 0 && !loadingData && (
-          <Button type="submit" loading={loading}>
-            <CheckCircle2 className="w-5 h-5" />
-            <span>{loading ? "Menyimpan Presensi..." : "Simpan Presensi Kelas"}</span>
-          </Button>
+          <>
+            {!recordId ? (
+              <Button onClick={() => triggerAutoSave(statusMap)} loading={autoSaveState === "saving"}>
+                <PlayCircle className="w-5 h-5" />
+                <span>{autoSaveState === "saving" ? "Memulai..." : "Mulai Presensi"}</span>
+              </Button>
+            ) : completed ? (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-2 text-sm font-bold text-emerald-700">
+                <CheckCircle2 className="w-5 h-5 shrink-0" />
+                <span>Presensi selesai — status masih bisa dikoreksi kapan saja kalau ada kesalahan.</span>
+              </div>
+            ) : (
+              <Button onClick={handleMarkCompleted} loading={markingDone} variant="secondary">
+                <Flag className="w-5 h-5" />
+                <span>{markingDone ? "Menandai..." : "Tandai Presensi Selesai"}</span>
+              </Button>
+            )}
+          </>
         )}
-      </form>
+      </div>
 
       {/* Riwayat dengan Skeleton */}
       <Card className="space-y-4">
@@ -241,11 +344,17 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
                 className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-3"
               >
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-[10px] font-extrabold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
                       {item.date}
                     </span>
                     <span className="text-xs font-bold text-gray-900">• {item.subject}</span>
+                    {item.completed && (
+                      <span className="flex items-center gap-1 text-[10px] font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Selesai
+                      </span>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-2 pt-1 text-[11px] font-semibold">
                     <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">Hadir: {item.summary?.hadir || 0}</span>

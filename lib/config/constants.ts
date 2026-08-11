@@ -17,7 +17,28 @@ export const COLLECTIONS = {
   // firestore.rules: student_notes memuat catatan konseling, dan prestasi
   // adalah satu-satunya kategori yang perlu dibaca siswa.
   STUDENT_ACHIEVEMENTS: 'student_achievements',
+  // Alasan guru tidak sempat mengajar sesi tertentu ("Penyesuaian Workflow
+  // Jadwal — Final" #3) — satu dokumen per (scheduleId, date). TIDAK
+  // dianggap sebagai presensi/jurnal pengganti; sesi tetap "Perlu
+  // Konfirmasi" di daftar, cuma dilampiri alasan.
+  SESSION_SKIP_REASONS: 'session_skip_reasons',
+  // Tahun Ajaran — partisi BERBASIS TANGGAL, bukan tag di tiap dokumen.
+  // Satu dokumen per tahun ajaran {label, startDate, endDate, isActive}.
+  // Data lain (journals/attendances/dst) TIDAK dapat field baru — status
+  // "milik tahun mana" murni dihitung dari field date/createdAt mereka
+  // yang sudah ada, dicocokkan ke rentang startDate..endDate di sini. Lihat
+  // lib/utils/periodRange.ts.
+  ACADEMIC_YEARS: 'academic_years',
 };
+
+// Alasan guru tidak mengajar sesi terjadwal — dipakai di Beranda saat
+// mengonfirmasi sesi berstatus "Perlu Konfirmasi".
+export const SESSION_SKIP_REASONS = {
+  RAPAT: 'Rapat',
+  TUGAS_DINAS: 'Tugas dinas',
+  KEGIATAN_SEKOLAH: 'Kegiatan sekolah',
+  LAINNYA: 'Lainnya',
+} as const;
 
 // Status pengumpulan tugas seorang siswa untuk satu assignment. Tidak ada
 // dokumen submission = otomatis BELUM_MENGUMPULKAN (tidak perlu pre-create

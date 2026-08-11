@@ -7,6 +7,7 @@ import Button from '../ui/Button';
 import { SkeletonText } from '../ui/Skeleton';
 import * as submissionController from '@/lib/controllers/submissionController';
 import * as gradeController from '@/lib/controllers/gradeController';
+import { getCached } from '@/lib/utils/sessionCache';
 import { SUBMISSION_STATUS } from '@/lib/config/constants';
 
 const STATUS_LABEL: Record<string, { label: string; className: string; icon: any }> = {
@@ -44,7 +45,12 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
   }, [assignment.id]);
 
   async function loadData() {
-    setLoading(true);
+    const alreadyWarm =
+      getCached(submissionController.submissionsCacheKey(workspaceId, assignment.id)) !== undefined &&
+      getCached(gradeController.gradeDataCacheKey(workspaceId, className)) !== undefined;
+    if (!alreadyWarm) {
+      setLoading(true);
+    }
     try {
       const [submissions, gradeData] = await Promise.all([
         submissionController.fetchSubmissions(workspaceId, className, assignment.id),
@@ -67,7 +73,8 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
   function openGradeForm(studentId: string) {
     setGradingStudentId(studentId);
     setScoreInput(scores[studentId] || '');
-    setFeedbackInput('');
+    const row = rows.find((r) => r.studentId === studentId);
+    setFeedbackInput(row?.feedback || '');
   }
 
   async function handleSaveGrade(studentId: string) {
@@ -168,6 +175,15 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
                         {row.fileName || 'Lihat lampiran'}
                       </a>
                     )}
+                  </div>
+                )}
+
+                {!isGrading && row.feedback && (
+                  <div className="p-3 bg-blue-50 rounded-xl">
+                    <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-0.5">
+                      Catatan untuk siswa
+                    </p>
+                    <p className="text-[11px] text-blue-800 whitespace-pre-wrap">{row.feedback}</p>
                   </div>
                 )}
 

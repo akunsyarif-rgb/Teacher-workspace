@@ -59,3 +59,20 @@ export async function generateMissingAccessCodes(workspaceId: string, className:
   clearAllCached();
   return result;
 }
+
+// Lewat route server (Admin SDK), bukan Firestore langsung — lihat
+// app/api/classes/rename/route.ts untuk alasannya (student_profiles
+// immutable dari client).
+export async function submitRenameClass(idToken: string, oldName: string, newName: string) {
+  const res = await fetch('/api/classes/rename', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ oldName, newName }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Gagal mengganti nama kelas.');
+  }
+  clearAllCached();
+  return data;
+}

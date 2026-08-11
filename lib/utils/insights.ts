@@ -1,3 +1,4 @@
+import { getWitaDateString } from './witaDate';
 /**
  * Analitik di sini sengaja BUKAN sekadar angka: tiap temuan wajib punya
  * rekomendasi tindakan dan tautan langsung ke tempat mengerjakannya.
@@ -37,7 +38,7 @@ export type Insight = {
 };
 
 function todayISO() {
-  return new Date().toISOString().split('T')[0];
+  return getWitaDateString();
 }
 
 /**

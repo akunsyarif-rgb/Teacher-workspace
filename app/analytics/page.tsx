@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import { useWorkspace } from "@/src/context/WorkspaceContext";
-import { fetchDashboardSummary } from "@/lib/controllers/dashboardController";
-import { fetchInsights } from "@/lib/controllers/analyticsController";
+import { fetchDashboardSummary, dashboardSummaryCacheKey } from "@/lib/controllers/dashboardController";
+import { fetchInsights, insightsCacheKey } from "@/lib/controllers/analyticsController";
+import { getCached } from "@/lib/utils/sessionCache";
 import WeeklyChart from "@/src/components/ui/WeeklyChart";
 import Link from "next/link";
 import {
@@ -50,7 +51,12 @@ export default function AnalyticsPage() {
 
   async function loadData() {
     if (!workspaceId) return;
-    setLoading(true);
+    const alreadyWarm =
+      getCached(dashboardSummaryCacheKey(workspaceId)) !== undefined &&
+      getCached(insightsCacheKey(workspaceId)) !== undefined;
+    if (!alreadyWarm) {
+      setLoading(true);
+    }
     try {
       const [summary, insightResult] = await Promise.all([
         fetchDashboardSummary(workspaceId),

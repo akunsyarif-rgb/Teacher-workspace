@@ -1,9 +1,13 @@
 import * as submissionService from '../services/submissionService';
 import { withCache, clearAllCached } from '../utils/sessionCache';
 
+export function submissionsCacheKey(workspaceId: string, assignmentId: string) {
+  return `submissions:${workspaceId}:${assignmentId}`;
+}
+
 export async function fetchSubmissions(workspaceId: string, className: string, assignmentId: string) {
   if (!workspaceId || !className || !assignmentId) return [];
-  return withCache(`submissions:${workspaceId}:${assignmentId}`, () =>
+  return withCache(submissionsCacheKey(workspaceId, assignmentId), () =>
     submissionService.getSubmissionsForAssignment(workspaceId, className, assignmentId)
   );
 }

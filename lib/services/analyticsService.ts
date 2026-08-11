@@ -5,6 +5,7 @@ import {
   getAttendancesInRange,
 } from '../repositories/dashboardRepository';
 import { buildInsights, ANALYSIS_WINDOW_DAYS } from '../utils/insights';
+import { getWitaDateString, getWitaDaysAgo } from '../utils/witaDate';
 
 // Logika penarikan kesimpulannya ada di lib/utils/insights.ts — murni,
 // tanpa sentuhan Firestore, supaya bisa diuji apa adanya (lihat
@@ -13,13 +14,11 @@ export { ANALYSIS_WINDOW_DAYS, THRESHOLDS, buildInsights } from '../utils/insigh
 export type { Insight } from '../utils/insights';
 
 function daysAgoISO(days: number) {
-  const date = new Date();
-  date.setDate(date.getDate() - days);
-  return date.toISOString().split('T')[0];
+  return getWitaDaysAgo(days);
 }
 
 function todayISO() {
-  return new Date().toISOString().split('T')[0];
+  return getWitaDateString();
 }
 
 export async function loadInsights(workspaceId: string) {

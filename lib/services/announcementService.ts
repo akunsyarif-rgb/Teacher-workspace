@@ -1,4 +1,5 @@
 import * as announcementRepository from '../repositories/announcementRepository';
+import { getWitaDateString } from '../utils/witaDate';
 
 // Pengumuman selalu diurutkan terbaru di atas — baik untuk guru maupun
 // siswa yang paling butuh melihat yang barusan diumumkan.
@@ -28,7 +29,7 @@ export async function createAnnouncement(
     subject: subject.trim(),
     title: data.title.trim(),
     body: data.body.trim(),
-    date: new Date().toISOString().split('T')[0],
+    date: getWitaDateString(),
   });
 }
 

@@ -49,3 +49,21 @@ export const PLAN_DURATION_MS: Partial<Record<WorkspacePlan, number>> = {
 export function isPaidPlan(plan: string): plan is PaidPlan {
   return plan === 'individual_onetime' || plan === 'individual_monthly' || plan === 'school_annual';
 }
+
+// Dipakai saat guru gabung workspace lewat kode undangan (khusus
+// school_annual) — dipisah ke sini (bukan tetap di workspaceService.ts)
+// supaya bisa dipakai juga oleh lib/server/workspaceAdminService.ts
+// (server-only, lihat komentar di sana kenapa seat-check ini HARUS
+// dijalankan lewat Admin SDK, bukan query client langsung).
+export function isSeatLimitReached(workspace: { seatLimit?: number | null }, currentMemberCount: number) {
+  if (workspace.seatLimit === null || workspace.seatLimit === undefined) return false;
+  return currentMemberCount >= workspace.seatLimit;
+}
+
+export function assertSeatLimitNotReached(workspace: { seatLimit?: number | null }, currentMemberCount: number) {
+  if (isSeatLimitReached(workspace, currentMemberCount)) {
+    throw new Error(
+      `Kuota guru workspace ini sudah penuh (maks ${workspace.seatLimit} guru). Admin sekolah perlu membeli kursi tambahan lewat halaman upgrade.`
+    );
+  }
+}

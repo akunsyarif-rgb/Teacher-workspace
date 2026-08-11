@@ -5,7 +5,15 @@ import {
   getAttendancesInRange,
   getJournalCount,
 } from '../repositories/dashboardRepository';
-import { getScheduleStartMinutes } from '../utils/scheduleTime';
+import { getByDate as getSkipReasonsByDate } from '../repositories/sessionSkipReasonRepository';
+import { getScheduleStartMinutes, classifySessionState, SessionState } from '../utils/scheduleTime';
+import {
+  getWitaDateString,
+  getWitaDayName,
+  getWitaDaysAgo,
+  getDayNameFromDateString,
+  shiftWitaDateString,
+} from '../utils/witaDate';
 
 export type TodayClassStatus = {
   scheduleId: string;
@@ -15,6 +23,14 @@ export type TodayClassStatus = {
   hasJournal: boolean;
   hasAttendance: boolean;
   isDone: boolean;
+  // "Penyesuaian Workflow Jadwal — Final": status otomatis dari jadwal +
+  // waktu aktual (upcoming/ongoing/needs_confirmation/done) — dasar badge
+  // 🔵/🟢/⚠️/✅ dan pengelompokan daftar di Beranda.
+  sessionState: SessionState;
+  // Alasan yang guru catat kalau sesi ini "needs_confirmation" (Rapat, dst)
+  // — null kalau belum dikonfirmasi. TIDAK mengubah isDone/sessionState;
+  // murni konteks tambahan (lihat sessionSkipReasonService).
+  skipReason: { reason: string; note: string } | null;
 };
 
 export type DashboardSummary = {
@@ -37,32 +53,16 @@ export type DashboardSummary = {
   todayClassStatuses: TodayClassStatus[]; // Status per slot jadwal hari ini — dasar Action Center
 };
 
-const DAY_NAMES: Record<number, string> = {
-  0: 'Minggu',
-  1: 'Senin',
-  2: 'Selasa',
-  3: 'Rabu',
-  4: 'Kamis',
-  5: 'Jumat',
-  6: 'Sabtu',
-};
-
 export function getCurrentDayName(date: Date = new Date()) {
-  return DAY_NAMES[date.getDay()];
+  return getWitaDayName(date);
 }
 
 function getTodayDate(): string {
-  return new Date().toISOString().split('T')[0];
-}
-
-function getDateString(date: Date): string {
-  return date.toISOString().split('T')[0];
+  return getWitaDateString();
 }
 
 function getDaysAgo(days: number): string {
-  const date = new Date();
-  date.setDate(date.getDate() - days);
-  return getDateString(date);
+  return getWitaDaysAgo(days);
 }
 
 export async function loadDashboardSummary(workspaceId: string): Promise<DashboardSummary> {
@@ -83,12 +83,13 @@ export async function loadDashboardSummary(workspaceId: string): Promise<Dashboa
   const todayDate = getTodayDate();
   const sevenDaysAgo = getDaysAgo(6); // 6 hari lalu s/d hari ini = 7 hari
 
-  const [students, journals, schedules, attendances, totalJournalsCount] = await Promise.all([
+  const [students, journals, schedules, attendances, totalJournalsCount, skipReasonsToday] = await Promise.all([
     getAllStudentsForSummary(workspaceId),
     getJournalsInRange(workspaceId, sevenDaysAgo, todayDate),
     getAllSchedulesForSummary(workspaceId),
     getAttendancesInRange(workspaceId, sevenDaysAgo, todayDate),
     getJournalCount(workspaceId),
+    getSkipReasonsByDate(workspaceId, todayDate),
   ]);
 
   const uniqueClasses = Array.from(
@@ -114,6 +115,8 @@ export async function loadDashboardSummary(workspaceId: string): Promise<Dashboa
     const hasAttendance = attendancesToday.some((a: any) =>
       a.scheduleId ? a.scheduleId === s.id : a.className?.trim() === s.className?.trim()
     );
+    const isDone = hasJournal && hasAttendance;
+    const skip = (skipReasonsToday as any[]).find((r) => r.scheduleId === s.id);
     return {
       scheduleId: s.id,
       className: s.className,
@@ -121,7 +124,9 @@ export async function loadDashboardSummary(workspaceId: string): Promise<Dashboa
       timeSlot: s.timeSlot,
       hasJournal,
       hasAttendance,
-      isDone: hasJournal && hasAttendance,
+      isDone,
+      sessionState: classifySessionState(s.timeSlot || '', isDone),
+      skipReason: skip ? { reason: skip.reason, note: skip.note || '' } : null,
     };
   });
 
@@ -139,10 +144,8 @@ export async function loadDashboardSummary(workspaceId: string): Promise<Dashboa
   const weeklyAttendanceCounts: number[] = [];
 
   for (let i = 6; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    const dateStr = getDateString(date);
-    const dayName = DAY_NAMES[date.getDay()];
+    const dateStr = shiftWitaDateString(todayDate, -i);
+    const dayName = getDayNameFromDateString(dateStr);
 
     // Jumlah jurnal pada hari itu
     const journalCount = journals.filter((j: any) => j.date === dateStr).length;

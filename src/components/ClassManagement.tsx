@@ -56,7 +56,7 @@ export default function ClassManagement() {
   }
 
   if (view === 'detail' && activeClass) {
-    return <ClassDetail className={activeClass} onBack={backToOverview} />;
+    return <ClassDetail className={activeClass} onBack={backToOverview} onRenamed={setActiveClass} />;
   }
 
   return (
@@ -96,6 +96,10 @@ export default function ClassManagement() {
 
       <Modal isOpen={showAddClass} onClose={() => setShowAddClass(false)} title="Tambah Kelas Baru">
         <div className="space-y-6">
+          <p className="text-[11px] text-gray-400 -mt-2">
+            Langkah 1: tulis nama kelas barunya di form di bawah. Langkah 2: kelas otomatis terbuat begitu siswa
+            pertamanya tersimpan — tidak perlu langkah terpisah untuk &quot;membuat kelas kosong&quot;.
+          </p>
           <AddStudentForm
             onAdded={() => {
               setShowAddClass(false);
