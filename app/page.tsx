@@ -560,13 +560,29 @@ export default function DashboardPage() {
                       </p>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setSkipReasonTarget(status)}
-                    className="shrink-0 px-3 py-1.5 md:px-4 md:py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl text-[10px] md:text-xs font-bold transition-colors"
-                  >
-                    {status.skipReason ? 'Ubah' : 'Konfirmasi'}
-                  </button>
+                  {/* Sesi ini jam pelajarannya sudah lewat, tapi masih
+                      tanggal yang sama — guru harus tetap bisa MEMBUKA-nya
+                      untuk kroscek/koreksi (mengisi presensi/jurnal yang
+                      tertinggal), bukan cuma mencatat alasan. Rute & pemilihan
+                      tab-nya sama persis dengan daftar Jadwal Hari Ini di
+                      atas; tidak ada aturan completion yang berubah di sini. */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Link
+                      href={`/attendance?class=${encodeURIComponent(status.className)}&tab=${
+                        !status.hasAttendance ? 'presensi' : 'jurnal'
+                      }`}
+                      className="px-3 py-1.5 md:px-4 md:py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-[10px] md:text-xs font-bold transition-colors"
+                    >
+                      Buka
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => setSkipReasonTarget(status)}
+                      className="px-3 py-1.5 md:px-4 md:py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl text-[10px] md:text-xs font-bold transition-colors"
+                    >
+                      {status.skipReason ? 'Ubah' : 'Konfirmasi'}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
