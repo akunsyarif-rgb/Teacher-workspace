@@ -12,14 +12,19 @@ export async function fetchJournalHistory(workspaceId: string, className: string
   );
 }
 
+export async function fetchTodayJournal(workspaceId: string, className: string, scheduleId?: string | null) {
+  return journalService.loadTodayJournal(workspaceId, className, scheduleId);
+}
+
 export async function submitJournalEntry(
+  existingId: string | null,
   workspaceId: string,
   className: string,
   subject: string,
   data: { topic: string; notes: string },
   scheduleId?: string | null
 ) {
-  const result = await journalService.createJournalEntry(workspaceId, className, subject, data, scheduleId);
+  const result = await journalService.saveJournalEntry(existingId, workspaceId, className, subject, data, scheduleId);
   clearAllCached();
   return result;
 }
