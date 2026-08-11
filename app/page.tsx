@@ -9,7 +9,8 @@ import { useWorkspace } from "@/src/context/WorkspaceContext";
 import { fetchDashboardSummary } from "@/lib/controllers/dashboardController";
 import { saveTeacherQuickNote } from "@/lib/controllers/teacherProfileController";
 import { submitSkipReason } from "@/lib/controllers/sessionSkipReasonController";
-import { resolveCurrentWorkflowStep } from "@/lib/utils/scheduleTime";
+import { resolveCurrentWorkflowStep, hasScheduleEnded } from "@/lib/utils/scheduleTime";
+import { getCurrentDayName } from "@/lib/services/dashboardService";
 import type { TodayClassStatus } from "@/lib/services/dashboardService";
 import { useOnlineStatus } from "@/src/hooks/useOnlineStatus";
 import SkipReasonModal from "@/src/components/SkipReasonModal";
@@ -27,6 +28,7 @@ import {
   ArrowRight,
   RefreshCw,
   AlertTriangle,
+  CheckCircle2,
 } from "lucide-react";
 
 function getGreeting(date: Date = new Date()) {
@@ -74,7 +76,13 @@ export default function DashboardPage() {
 
   const [uniqueClasses, setUniqueClasses] = useState<string[]>([]);
   const [totalJournals, setTotalJournals] = useState(0);
-  const [currentDayName, setCurrentDayName] = useState("");
+  // Dihitung langsung di client saat pertama render (bukan "" menunggu
+  // fetchDashboardSummary selesai) — supaya header/empty-state tidak
+  // pernah sempat menampilkan "PERLU DISELESAIKAN HARI INI ()" / "hari ."
+  // sebelum data server datang. loadSummary() tetap menimpanya dengan
+  // currentDayName dari server begitu selesai (nilainya seharusnya selalu
+  // sama, cuma untuk konsistensi sumber data).
+  const [currentDayName, setCurrentDayName] = useState(getCurrentDayName());
   const [todayProgress, setTodayProgress] = useState<{
     total: number;
     journalsDone: number;
@@ -300,13 +308,24 @@ export default function DashboardPage() {
   const isDayComplete = todayTotal > 0 && journalsDone === todayTotal && attendancesDone === todayTotal;
   const isDayPartial = journalsDone > 0 || attendancesDone > 0;
 
-  // "Penyesuaian Workflow Jadwal — Final" #5: sesi yang jam pelajarannya
-  // sudah lewat tanpa presensi/jurnal dipisah ke kartu "Perlu Konfirmasi"
-  // tersendiri di bawah, bukan dicampur dengan daftar kronologis biasa —
-  // supaya guru tidak perlu menyisir seluruh daftar hari ini untuk sadar
-  // ada sesi yang terlewat.
-  const mainClassStatuses = todayClassStatuses.filter((s) => s.sessionState !== 'needs_confirmation');
+  // "Penyesuaian Workflow Jadwal — Final" #5 + "Rencana Perubahan Lanjutan"
+  // #1: tiga kelompok terpisah, BUKAN sekadar badge berbeda dalam satu
+  // daftar —
+  //  - Sesi Aktif: sedang berlangsung / belum dimulai (workflow masih maju).
+  //  - Perlu Konfirmasi: jam pelajaran sudah lewat, presensi/jurnal belum.
+  //  - Riwayat Mengajar Hari Ini: jam pelajaran sudah lewat DAN sudah
+  //    lengkap — tetap bisa dibuka untuk kroscek, tapi bukan lagi "pekerjaan
+  //    yang harus dikerjakan". Selama masih tanggal yang sama, sesi ini
+  //    TIDAK hilang dari Beranda (beda dari sekadar difilter keluar); begitu
+  //    tanggal berganti, todayClassStatuses sendiri sudah tidak lagi berisi
+  //    sesi kemarin (dihitung ulang dari jadwal HARI INI), jadi otomatis
+  //    tidak tampil lagi di sini — riwayat lengkapnya tetap ada di Riwayat
+  //    Kelas (tab Riwayat per kelas), bukan dihapus.
+  const sesiAktifStatuses = todayClassStatuses.filter(
+    (s) => s.sessionState !== 'needs_confirmation' && !(s.isDone && hasScheduleEnded(s.timeSlot))
+  );
   const needsConfirmationStatuses = todayClassStatuses.filter((s) => s.sessionState === 'needs_confirmation');
+  const riwayatHariIniStatuses = todayClassStatuses.filter((s) => s.isDone && hasScheduleEnded(s.timeSlot));
 
   return (
     <div className="min-h-screen bg-gray-50 p-3 sm:p-4 md:p-6 lg:p-8 space-y-4 md:space-y-6">
@@ -433,21 +452,33 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {todayClassStatuses.length === 0 ? (
-            <div className="p-4 md:p-6 bg-gray-50 rounded-xl md:rounded-2xl border border-dashed border-gray-200 text-center space-y-1">
-              <p className="text-sm font-bold text-gray-600">
-                Tidak ada jadwal mengajar untuk hari {currentDayName}. Santai dulu 😊
-              </p>
-              <Link
-                href="/schedule"
-                className="inline-block text-[10px] md:text-xs text-blue-600 underline underline-offset-2 font-bold"
-              >
-                Tambahkan lewat menu Jadwal Mengajar
-              </Link>
-            </div>
+          {sesiAktifStatuses.length === 0 ? (
+            todayClassStatuses.length === 0 ? (
+              <div className="p-4 md:p-6 bg-gray-50 rounded-xl md:rounded-2xl border border-dashed border-gray-200 text-center space-y-1">
+                <p className="text-sm font-bold text-gray-600">
+                  Tidak ada jadwal mengajar untuk hari {currentDayName}. Santai dulu 😊
+                </p>
+                <Link
+                  href="/schedule"
+                  className="inline-block text-[10px] md:text-xs text-blue-600 underline underline-offset-2 font-bold"
+                >
+                  Tambahkan lewat menu Jadwal Mengajar
+                </Link>
+              </div>
+            ) : (
+              // Ada jadwal hari ini, tapi semuanya sudah masuk Perlu
+              // Konfirmasi/Riwayat di bawah — bukan berarti tidak ada
+              // jadwal sama sekali, jadi pesannya beda dari empty-state
+              // di atas.
+              <div className="p-4 md:p-6 bg-emerald-50 rounded-xl md:rounded-2xl border border-dashed border-emerald-200 text-center">
+                <p className="text-sm font-bold text-emerald-700">
+                  Tidak ada sesi aktif saat ini — lihat Perlu Konfirmasi/Riwayat di bawah 👇
+                </p>
+              </div>
+            )
           ) : (
             <div className="divide-y divide-gray-100">
-              {mainClassStatuses.map((status) => {
+              {sesiAktifStatuses.map((status) => {
                 const nextTab = !status.hasAttendance ? 'presensi' : 'jurnal';
                 const label = status.isDone
                   ? `Selesai • ${status.subject || subject}`
@@ -535,6 +566,50 @@ export default function DashboardPage() {
                   >
                     {status.skipReason ? 'Ubah' : 'Konfirmasi'}
                   </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Riwayat Mengajar Hari Ini — sesi yang jam pelajarannya sudah
+            lewat DAN sudah lengkap (presensi+jurnal). BUKAN "pekerjaan yang
+            harus dikerjakan" lagi, tapi TIDAK dihilangkan dari Beranda
+            selama masih tanggal yang sama — tetap bisa dibuka untuk
+            kroscek/perbaiki jurnal/lihat presensi & nilai. Begitu tanggal
+            berganti, todayClassStatuses dihitung ulang dari jadwal hari
+            baru sehingga sesi ini otomatis tidak tampil lagi di sini;
+            riwayat lengkapnya tetap ada lewat tab Riwayat per kelas. */}
+        {riwayatHariIniStatuses.length > 0 && (
+          <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 space-y-3 md:space-y-4">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
+              <h3 className="text-[10px] md:text-xs font-extrabold text-gray-500 uppercase tracking-wider">
+                Riwayat Mengajar Hari Ini
+              </h3>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {riwayatHariIniStatuses.map((status) => (
+                <div key={status.scheduleId} className="py-3 md:py-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-lg md:text-xl shrink-0" aria-hidden>
+                      ✅
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-extrabold text-gray-700 truncate">
+                        Kelas {status.className} • {status.timeSlot}
+                      </p>
+                      <p className="text-[10px] md:text-xs text-gray-400 truncate">
+                        Selesai • {status.subject || subject}
+                      </p>
+                    </div>
+                  </div>
+                  <Link
+                    href={`/attendance?class=${encodeURIComponent(status.className)}&tab=jurnal`}
+                    className="shrink-0 px-3 py-1.5 md:px-4 md:py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-[10px] md:text-xs font-bold transition-colors"
+                  >
+                    Buka
+                  </Link>
                 </div>
               ))}
             </div>
