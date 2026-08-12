@@ -31,7 +31,24 @@ Project → Settings → Environment Variables:
 | `NEXT_PUBLIC_MIDTRANS_CLIENT_KEY` | Client Key dari Midtrans Dashboard | Publik, dipakai Snap.js di browser |
 | `MIDTRANS_IS_PRODUCTION` | `false` saat masih sandbox, `true` saat live | Dibaca server (route create-transaction & webhook) |
 | `NEXT_PUBLIC_MIDTRANS_IS_PRODUCTION` | Samakan dengan di atas | Dibaca client, menentukan URL Snap.js sandbox vs production |
-| `FIREBASE_ADMIN_SERVICE_ACCOUNT` | Seluruh isi JSON service account Firebase | Bisa pakai service account yang **sama** dengan yang sudah dibuat untuk deploy Firestore rules / backup |
+| `FIREBASE_ADMIN_SERVICE_ACCOUNT` | Seluruh isi JSON service account Firebase | Boleh service account yang sama dengan deploy rules/backup, **tetapi role-nya harus ditambah** — lihat catatan di bawah |
+
+> **Service account-nya butuh izin baca/tulis dokumen.** Admin SDK memang
+> mem-bypass Firestore Rules, tapi TIDAK mem-bypass IAM. Service account yang
+> hanya dipakai deploy rules atau backup biasanya cuma punya role seperti
+> *Firebase Rules Admin* atau *Cloud Datastore Import Export Admin* — keduanya
+> tidak mengizinkan membaca/menulis dokumen, sehingga route server (rename
+> kelas, join workspace, pembayaran) gagal dengan
+> `7 PERMISSION_DENIED: Missing or insufficient permissions.`
+>
+> Tambahkan role **Cloud Datastore User** (`roles/datastore.user`) di
+> [Google Cloud Console → IAM](https://console.cloud.google.com/iam-admin/iam)
+> untuk service account tersebut. Perubahan IAM berlaku dalam ~1 menit dan
+> **tidak** perlu redeploy.
+>
+> Pastikan juga `project_id` di dalam JSON sama dengan project Firebase yang
+> dipakai aplikasi (`NEXT_PUBLIC_FIREBASE_PROJECT_ID`) — service account dari
+> project lain menghasilkan `PERMISSION_DENIED` yang sama persis.
 
 Ambil Server Key & Client Key dari Midtrans Dashboard → **Settings → Access
 Keys** (pastikan toggle environment sesuai — Sandbox saat masih uji coba,
