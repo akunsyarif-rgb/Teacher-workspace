@@ -40,8 +40,19 @@ const ADMIN_BATCH_LIMIT = 500;
 // workspace ini memang akses penuh tanpa isolasi per kelas (audit T4,
 // dikonfirmasi "by design"), rename kelas tidak beda dengan operasi
 // guru-ke-guru lain yang sudah diizinkan lintas kelas dalam satu sekolah.
-export async function renameClassServer(uid: string, oldNameInput: string, newNameInput: string) {
-  const adminDb = getAdminDb();
+// `db` opsional HANYA untuk pengujian — pemanggil produksi (route handler)
+// tidak mengirimnya dan tetap memakai Admin SDK seperti sebelumnya. Ini
+// dipakai regression test untuk mensimulasikan batch yang gagal di tengah,
+// kondisi yang mustahil dipicu lewat emulator.
+type AdminDbLike = ReturnType<typeof getAdminDb>;
+
+export async function renameClassServer(
+  uid: string,
+  oldNameInput: string,
+  newNameInput: string,
+  db?: AdminDbLike
+) {
+  const adminDb = db ?? getAdminDb();
 
   const profileSnap = await adminDb.collection('teacher_profiles').doc(uid).get();
   const workspaceId = profileSnap.exists ? (profileSnap.data() as { workspaceId?: string })?.workspaceId : null;
@@ -89,11 +100,32 @@ export async function renameClassServer(uid: string, oldNameInput: string, newNa
     throw new Error(`Kelas "${oldName}" tidak ditemukan.`);
   }
 
+  // Firestore membatasi 500 operasi per batch, jadi rename kelas besar
+  // TERPAKSA dipecah — dan pecahan itu tidak atomik satu sama lain. Kalau
+  // sebuah chunk gagal, dokumen di chunk sebelumnya sudah memakai nama baru
+  // sementara sisanya belum. Kondisi itu TIDAK boleh lewat diam-diam:
+  // errornya menyebut berapa dokumen yang terlanjur berubah supaya guru tahu
+  // harus memeriksa konsistensi, bukan sekadar mengulang.
+  //
+  // Catatan: ini hanya menangkap kegagalan yang punya error (izin, contention,
+  // koneksi). Kalau function-nya sendiri dimatikan platform karena timeout,
+  // tidak ada kode yang sempat jalan di sini — deteksinya jatuh ke sisi klien
+  // (lihat describeHttpFailure di classController.ts) dan ke skrip
+  // scripts/check-class-rename-consistency.mjs.
+  let committed = 0;
   for (let i = 0; i < refsToUpdate.length; i += ADMIN_BATCH_LIMIT) {
     const chunk = refsToUpdate.slice(i, i + ADMIN_BATCH_LIMIT);
     const batch = adminDb.batch();
     chunk.forEach((ref) => batch.update(ref, { className: newName }));
-    await batch.commit();
+    try {
+      await batch.commit();
+    } catch (error: unknown) {
+      const sebab = error instanceof Error ? error.message : 'penyebab tidak diketahui';
+      throw new Error(
+        `Penggantian nama berhenti di tengah jalan: ${committed} dari ${refsToUpdate.length} dokumen sudah memakai nama "${newName}", sisanya masih "${oldName}". Periksa konsistensi data sebelum mencoba lagi. (${sebab})`
+      );
+    }
+    committed += chunk.length;
   }
 
   return { renamedCount: refsToUpdate.length, className: newName };
