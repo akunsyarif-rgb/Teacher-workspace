@@ -53,12 +53,13 @@ function getCompleteDateLabel(date: Date = new Date()) {
 // indikator visual; logika status sesi tetap dari Workflow Engine yang
 // sudah shipped (classifySessionState di lib/utils/scheduleTime.ts), jam
 // ini tidak dipakai untuk menghitung status apa pun.
+// Keputusan UI: HANYA HH:MM, tanpa detik — detik yang berganti tiap detik
+// hanya menarik perhatian tanpa memberi informasi yang guru butuhkan.
 function getWitaTimeLabel(date: Date) {
   return date.toLocaleTimeString("id-ID", {
     timeZone: "Asia/Makassar",
     hour: "2-digit",
     minute: "2-digit",
-    second: "2-digit",
   });
 }
 
@@ -98,9 +99,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setNowLabel(getWitaTimeLabel(new Date()));
+    // Labelnya cuma sampai menit, jadi tidak perlu render tiap detik.
     const interval = setInterval(() => {
       setNowLabel(getWitaTimeLabel(new Date()));
-    }, 1000);
+    }, 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -406,7 +408,7 @@ export default function DashboardPage() {
             <Link
               href={`/attendance?class=${encodeURIComponent(workflowStep.status.className)}&tab=${
                 !workflowStep.status.hasAttendance ? 'presensi' : 'jurnal'
-              }`}
+              }&scheduleId=${encodeURIComponent(workflowStep.status.scheduleId)}`}
               className="shrink-0 flex items-center justify-center gap-1.5 px-5 py-3 bg-white text-blue-700 rounded-xl text-sm font-extrabold shadow-sm hover:bg-blue-50 transition-colors"
             >
               {workflowStep.isOngoing ? 'Lanjutkan Mengajar' : 'Mulai Sekarang'}
@@ -508,14 +510,14 @@ export default function DashboardPage() {
                       // Done TIDAK lagi "pekerjaan yang harus dikerjakan" —
                       // tombolnya "Buka" (kroscek), bukan "Mulai/Lanjut".
                       <Link
-                        href={`/attendance?class=${encodeURIComponent(status.className)}&tab=jurnal`}
+                        href={`/attendance?class=${encodeURIComponent(status.className)}&tab=jurnal&scheduleId=${encodeURIComponent(status.scheduleId)}`}
                         className="shrink-0 px-3 py-1.5 md:px-4 md:py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-[10px] md:text-xs font-bold transition-colors"
                       >
                         Buka
                       </Link>
                     ) : (
                       <Link
-                        href={`/attendance?class=${encodeURIComponent(status.className)}&tab=${nextTab}`}
+                        href={`/attendance?class=${encodeURIComponent(status.className)}&tab=${nextTab}&scheduleId=${encodeURIComponent(status.scheduleId)}`}
                         className="shrink-0 px-3 py-1.5 md:px-4 md:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] md:text-xs font-bold transition-colors shadow-sm"
                       >
                         {status.hasAttendance || status.hasJournal ? 'Lanjut' : 'Mulai'}

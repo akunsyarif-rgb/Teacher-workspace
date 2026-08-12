@@ -142,6 +142,59 @@ describe('status berjalan ikut terbaca untuk format bertanda hubung', () => {
   });
 });
 
+describe('konteks sesi dibawa dari Beranda ke Kelas Aktif', () => {
+  // Kelas yang sama punya tiga slot hari ini. Sesi yang diklik guru HARUS
+  // yang terbuka — bukan slot paling awal hasil penentuan otomatis.
+  const KELAS = 'XI B Kesehatan 2';
+  const STATUS = [
+    { scheduleId: 'sesi-1-2', className: KELAS, timeSlot: 'Jam Ke 1–2' },
+    { scheduleId: 'sesi-7-8', className: KELAS, timeSlot: 'Jam Ke 7–8' },
+    { scheduleId: 'sesi-9-10', className: KELAS, timeSlot: 'Jam Ke 9–10' },
+  ];
+  const JADWAL = STATUS.map((s) => ({ id: s.scheduleId, className: KELAS, day: 'Selasa', timeSlot: s.timeSlot }));
+
+  // Cerminan pemilihan sesi di AttendanceForm.
+  function pilihSesi(requestedScheduleId: string | null, selectedClass: string) {
+    const diminta = requestedScheduleId
+      ? STATUS.find((s) => s.scheduleId === requestedScheduleId && s.className === selectedClass)
+      : undefined;
+    return diminta?.scheduleId ?? findActiveScheduleId(JADWAL, selectedClass, 'Selasa');
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-11T22:00:00+08:00')); // tidak ada sesi berjalan
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('"Mulai Sekarang" pada sesi Jam Ke 9-10 membuka sesi 9-10, bukan slot paling awal', () => {
+    // Inti bug: tanpa scheduleId, penentuan otomatis memberi slot 1-2.
+    expect(findActiveScheduleId(JADWAL, KELAS, 'Selasa')).toBe('sesi-1-2');
+    expect(pilihSesi('sesi-9-10', KELAS)).toBe('sesi-9-10');
+  });
+
+  it('sesi tengah (7-8) juga terbuka tepat', () => {
+    expect(pilihSesi('sesi-7-8', KELAS)).toBe('sesi-7-8');
+  });
+
+  it('className hanya label — scheduleId yang menentukan sesi', () => {
+    // Ketiga sesi punya className identik; yang membedakan cuma scheduleId.
+    const semuaSamaNama = new Set(STATUS.map((s) => s.className));
+    expect(semuaSamaNama.size).toBe(1);
+    expect(pilihSesi('sesi-9-10', KELAS)).not.toBe(pilihSesi('sesi-1-2', KELAS));
+  });
+
+  it('scheduleId milik kelas lain tidak membuka sesi lintas kelas', () => {
+    expect(pilihSesi('sesi-9-10', 'XII A Otomotif 1')).toBeNull();
+  });
+
+  it('buka langsung tanpa sesi (Bottom Nav) tetap dapat sesi paling awal, bukan acak', () => {
+    expect(pilihSesi(null, KELAS)).toBe('sesi-1-2');
+  });
+});
+
 describe('pemilihan sesi tombol Buka memakai urutan yang sama', () => {
   const JADWAL = [
     { id: 'ke9', className: 'XI-A', day: 'Selasa', timeSlot: 'Jam Ke 9–10' },
@@ -162,5 +215,30 @@ describe('pemilihan sesi tombol Buka memakai urutan yang sama', () => {
   it('fallback "slot pertama" adalah yang paling awal, bukan dokumen pertama', () => {
     expect(findActiveScheduleId(JADWAL, 'XI-A', 'Selasa')).toBe('ke1');
     expect(findActiveScheduleId([JADWAL[1], JADWAL[0]], 'XI-A', 'Selasa')).toBe('ke1');
+  });
+});
+
+describe('label jam header WITA', () => {
+  // Keputusan UI: HH:MM saja, tanpa detik. Fungsinya disalin persis dari
+  // app/page.tsx (komponen client, tidak bisa diimpor ke test node ini).
+  function getWitaTimeLabel(date: Date) {
+    return date.toLocaleTimeString('id-ID', {
+      timeZone: 'Asia/Makassar',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  it('tidak menampilkan detik', () => {
+    const label = getWitaTimeLabel(new Date('2026-08-11T09:05:37+08:00'));
+    expect(label).not.toMatch(/\d{1,2}[.:]\d{2}[.:]\d{2}/);
+    expect(label.replace(/\./g, ':')).toBe('09:05');
+  });
+
+  it('tetap memakai jam WITA apa pun zona perangkat', () => {
+    const dariUtc = getWitaTimeLabel(new Date('2026-08-11T01:05:00Z'));
+    const dariWib = getWitaTimeLabel(new Date('2026-08-11T08:05:00+07:00'));
+    expect(dariUtc.replace(/\./g, ':')).toBe('09:05');
+    expect(dariWib.replace(/\./g, ':')).toBe('09:05');
   });
 });
