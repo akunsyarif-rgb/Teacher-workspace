@@ -17,6 +17,12 @@
     "test:e2e:rename-class": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only auth,firestore,storage \"node tests/e2e/rename-class.mjs\"",
     "test:e2e:grade-lock": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only auth,firestore,storage \"node tests/e2e/grade-lock.mjs\""
   },
+  "comments": {
+    "overrides": "jose v6 HANYA ESM (exports-nya tidak punya entry require sama sekali), sedangkan jwks-rsa — dependensi firebase-admin — masih CommonJS dan memanggil require('jose') di level modul. Di runtime Vercel, require(esm) tidak tersedia, sehingga MEMUAT firebase-admin/auth gagal dengan ERR_REQUIRE_ESM sebelum handler route sempat berjalan; hasilnya HTTP 500 pada /api/classes/rename. Menyetel versi Node TIDAK menyelesaikannya (sudah dicoba 22.x lalu 24.x, error tetap sama). jose v5 menyediakan entry CJS asli (dist/node/cjs), jadi require('jose') berhasil di runtime mana pun. jwks-rsa hanya memakai 4 API — decodeJwt, decodeProtectedHeader, exportSPKI, importJWK — yang semuanya ada di v5. Hapus override ini kalau jwks-rsa sudah beralih ke dynamic import()."
+  },
+  "overrides": {
+    "jose": "^5.10.0"
+  },
   "dependencies": {
     "chart.js": "^4.5.1",
     "clsx": "^2.1.1",

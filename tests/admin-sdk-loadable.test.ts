@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 import pkg from '../package.json';
@@ -38,15 +39,60 @@ describe('Admin SDK bisa dimuat di runtime Node yang dipakai', () => {
 });
 
 describe('engines.node memakai format yang dibaca Vercel', () => {
-  // Nilai sebelumnya ">=22.12.0" TIDAK berlaku di runtime Vercel — function
-  // tetap jalan di Node lama dan rename kelas gagal 500. Format mayor-x
-  // ("22.x") adalah bentuk yang didokumentasikan Vercel.
   it('bukan rentang semver, melainkan bentuk "<mayor>.x"', () => {
     expect(pkg.engines?.node).toMatch(/^\d+\.x$/);
   });
 
-  it('mayornya minimal 22 — syarat firebase-admin v14 sekaligus require(esm)', () => {
+  it('mayornya minimal 22 — syarat firebase-admin v14', () => {
     const major = Number(String(pkg.engines?.node).split('.')[0]);
     expect(major).toBeGreaterThanOrEqual(22);
+  });
+});
+
+// INI test yang sebenarnya menangkap bug produksi. Test di atas berjalan pada
+// Node lokal/CI yang kebetulan mendukung require(esm), jadi rantai ini lolos
+// walau paketnya ESM-only — persis kenapa CI hijau sementara produksi 500.
+//
+// `--no-experimental-require-module` mematikan dukungan require(esm),
+// mereproduksi runtime Vercel. Diverifikasi: tanpa override jose, perintah ini
+// menghasilkan ERR_REQUIRE_ESM yang sama persis dengan log produksi; dengan
+// override, berhasil.
+describe('Admin SDK tetap termuat di runtime TANPA require(esm)', () => {
+  function muatTanpaRequireEsm(spec: string) {
+    return spawnSync(
+      process.execPath,
+      ['--no-experimental-require-module', '-e', `require(${JSON.stringify(spec)})`],
+      { encoding: 'utf8' }
+    );
+  }
+
+  it('firebase-admin/auth tidak melempar ERR_REQUIRE_ESM', () => {
+    const hasil = muatTanpaRequireEsm('firebase-admin/auth');
+    expect(hasil.stderr).not.toContain('ERR_REQUIRE_ESM');
+    expect(hasil.status).toBe(0);
+  });
+
+  it('jwks-rsa — mata rantai yang gagal — juga termuat', () => {
+    const hasil = muatTanpaRequireEsm('jwks-rsa');
+    expect(hasil.stderr).not.toContain('ERR_REQUIRE_ESM');
+    expect(hasil.status).toBe(0);
+  });
+});
+
+describe('override jose menjaga rantai CJS tetap utuh', () => {
+  it('jose yang dipakai jwks-rsa punya entry require (CJS)', () => {
+    const josePkg = require('jwks-rsa/node_modules/jose/package.json');
+    expect(josePkg.exports['.'].require).toBeTruthy();
+  });
+
+  it('override dipatok ke mayor 5 — v6 tidak punya entry CJS sama sekali', () => {
+    expect(pkg.overrides?.jose).toMatch(/^\^?5\./);
+  });
+
+  it('keempat API yang dipakai jwks-rsa tersedia', () => {
+    const jose = require('jwks-rsa/node_modules/jose');
+    for (const api of ['decodeJwt', 'decodeProtectedHeader', 'exportSPKI', 'importJWK']) {
+      expect(typeof jose[api], `${api} hilang di jose v5`).toBe('function');
+    }
   });
 });
