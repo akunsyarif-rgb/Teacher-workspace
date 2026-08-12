@@ -24,7 +24,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
 
       # Firestore & Storage Emulator (dipakai npm run test:rules) jalan di
       # atas JDK, dan butuh versi 21+ — runner ubuntu-latest bawaan tidak
