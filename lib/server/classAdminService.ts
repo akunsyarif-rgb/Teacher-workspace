@@ -40,8 +40,19 @@ const ADMIN_BATCH_LIMIT = 500;
 // workspace ini memang akses penuh tanpa isolasi per kelas (audit T4,
 // dikonfirmasi "by design"), rename kelas tidak beda dengan operasi
 // guru-ke-guru lain yang sudah diizinkan lintas kelas dalam satu sekolah.
-export async function renameClassServer(uid: string, oldNameInput: string, newNameInput: string) {
-  const adminDb = getAdminDb();
+// `db` opsional HANYA untuk pengujian — pemanggil produksi (route handler)
+// tidak mengirimnya dan tetap memakai Admin SDK seperti sebelumnya. Ini
+// dipakai regression test untuk mensimulasikan batch yang gagal di tengah,
+// kondisi yang mustahil dipicu lewat emulator.
+type AdminDbLike = ReturnType<typeof getAdminDb>;
+
+export async function renameClassServer(
+  uid: string,
+  oldNameInput: string,
+  newNameInput: string,
+  db?: AdminDbLike
+) {
+  const adminDb = db ?? getAdminDb();
 
   const profileSnap = await adminDb.collection('teacher_profiles').doc(uid).get();
   const workspaceId = profileSnap.exists ? (profileSnap.data() as { workspaceId?: string })?.workspaceId : null;
