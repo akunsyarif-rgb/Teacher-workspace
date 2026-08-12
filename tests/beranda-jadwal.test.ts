@@ -162,11 +162,19 @@ describe('5. Tombol Buka membuka sesi yang benar', () => {
     return diminta?.scheduleId ?? findActiveScheduleId(JADWAL, selectedClass, 'Selasa');
   }
 
-  it('tanpa scheduleId, penentuan otomatis bisa memilih slot yang keliru', () => {
-    // Inilah alasan scheduleId dibawa: hasilnya ikut urutan dokumen jadwal,
-    // bukan sesi yang diklik guru.
+  it('penentuan otomatis tidak lagi bergantung urutan dokumen Firestore', () => {
+    // Dulu hasilnya ikut urutan dokumen (pagi vs siang tergantung array).
+    // Sekarang findActiveScheduleId mengurutkan kronologis dulu, jadi
+    // fallback-nya selalu slot paling awal apa pun urutan masuknya.
     expect(findActiveScheduleId(JADWAL, 'XI-A', 'Selasa')).toBe('pagi');
-    expect(findActiveScheduleId([JADWAL[1], JADWAL[0]], 'XI-A', 'Selasa')).toBe('siang');
+    expect(findActiveScheduleId([JADWAL[1], JADWAL[0]], 'XI-A', 'Selasa')).toBe('pagi');
+  });
+
+  it('scheduleId tetap dibutuhkan untuk membuka sesi selain yang paling awal', () => {
+    // Penentuan otomatis selalu memberi slot paling awal — satu-satunya cara
+    // membuka sesi siang secara sengaja adalah lewat scheduleId dari link.
+    expect(findActiveScheduleId(JADWAL, 'XI-A', 'Selasa')).not.toBe('siang');
+    expect(pilihSesi('siang', 'XI-A')).toBe('siang');
   });
 
   it('scheduleId dari link membuka sesi pagi yang sudah lewat, bukan slot lain', () => {

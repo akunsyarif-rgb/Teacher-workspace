@@ -8,7 +8,18 @@ export type ScheduleLike = {
 };
 
 const TIME_RANGE_REGEX = /(\d{1,2})[:.](\d{2})\s*[-–—]\s*(\d{1,2})[:.](\d{2})/;
-const JAM_KE_REGEX = /Jam Ke[- ](\d+)\s*s\.d\.\s*(\d+)/i;
+
+// `timeSlot` diketik bebas oleh guru (lihat ScheduleFormModal — input teks,
+// bukan dropdown), jadi pemisah antar jam pelajaran datang dalam banyak
+// bentuk: "s.d.", "sd", "s/d", tanda hubung biasa, atau en/em dash yang
+// otomatis disisipkan keyboard HP/iPad. Sebelumnya HANYA "s.d." yang
+// dikenali, sehingga "Jam Ke 9–10" gagal diparse dan seluruh slot semacam
+// itu jatuh ke nilai urut MAX_SAFE_INTEGER — nilainya sama semua, jadi
+// urutannya mengikuti urutan dokumen Firestore dan "Jam Ke 9–10" bisa
+// tampil sebelum "Jam Ke 1–2".
+//
+// Angka kedua opsional: "Jam Ke 3" (satu jam pelajaran) tetap sah.
+const JAM_KE_REGEX = /jam\s*ke\s*[-–—]?\s*(\d{1,2})(?:\s*(?:s\.?\s*\/?\s*d\.?|sampai|[-–—])\s*(\d{1,2}))?/i;
 const JAM_KE_BASE_MINUTES = 7 * 60 + 30;
 const JAM_KE_DURATION_MINUTES = 45;
 
@@ -31,13 +42,32 @@ function parseScheduleRange(timeSlot: string): { startMinutes: number; endMinute
   const jamKeMatch = timeSlot.match(JAM_KE_REGEX);
   if (jamKeMatch) {
     const startKe = parseInt(jamKeMatch[1], 10);
-    const endKe = parseInt(jamKeMatch[2], 10);
+    // Tanpa angka kedua ("Jam Ke 3"), slotnya satu jam pelajaran saja.
+    const endKe = jamKeMatch[2] !== undefined ? parseInt(jamKeMatch[2], 10) : startKe;
+    if (startKe < 1) return null;
     const startMinutes = JAM_KE_BASE_MINUTES + (startKe - 1) * JAM_KE_DURATION_MINUTES;
-    const endMinutes = JAM_KE_BASE_MINUTES + endKe * JAM_KE_DURATION_MINUTES;
+    // Guru bisa keliru menulis urutan terbalik ("Jam Ke 8-7"); ambil yang
+    // lebih besar supaya rentangnya tidak jadi negatif.
+    const endMinutes = JAM_KE_BASE_MINUTES + Math.max(endKe, startKe) * JAM_KE_DURATION_MINUTES;
     return { startMinutes, endMinutes };
   }
 
   return null;
+}
+
+/**
+ * SATU-SATUNYA cara mengurutkan jadwal dalam satu hari — dipakai Beranda,
+ * halaman Jadwal, penentuan "Sesi Berikutnya", dan pemilihan sesi tombol
+ * Buka, supaya keempatnya tidak pernah menampilkan urutan yang berbeda.
+ * Slot yang formatnya tidak terbaca ditaruh paling akhir (bukan dibuang),
+ * dan di antara sesama slot tak terbaca urutan aslinya dipertahankan.
+ */
+export function sortSchedulesChronologically<T>(schedules: T[]): T[] {
+  // Data jadwal datang dari repository dengan tipe longgar (Firestore), jadi
+  // timeSlot dibaca lewat cast alih-alih memaksa setiap pemanggil menyempitkan
+  // tipenya lebih dulu.
+  const startOf = (s: T) => getScheduleStartMinutes((s as { timeSlot?: string })?.timeSlot || '');
+  return schedules.slice().sort((a, b) => startOf(a) - startOf(b));
 }
 
 export function isScheduleOngoing(timeSlot: string, now: Date = new Date()): boolean {
@@ -93,8 +123,13 @@ export function findActiveScheduleId(
   className: string,
   dayName: string
 ): string | null {
-  const todays = schedules.filter(
-    (s) => s.className === className && String(s.day ?? '').toLowerCase() === dayName.toLowerCase()
+  // Diurutkan kronologis dulu: tanpa ini fallback "slot pertama" mengikuti
+  // urutan dokumen Firestore (getAllSchedules tidak memakai orderBy), jadi
+  // kelas dengan beberapa slot di hari yang sama bisa membuka slot keliru.
+  const todays = sortSchedulesChronologically(
+    schedules.filter(
+      (s) => s.className === className && String(s.day ?? '').toLowerCase() === dayName.toLowerCase()
+    )
   );
   if (todays.length === 0) return null;
   const ongoing = todays.find((s) => isScheduleOngoing(s.timeSlot));

@@ -6,7 +6,7 @@ import {
   getJournalCount,
 } from '../repositories/dashboardRepository';
 import { getByDate as getSkipReasonsByDate } from '../repositories/sessionSkipReasonRepository';
-import { getScheduleStartMinutes, classifySessionState, SessionState } from '../utils/scheduleTime';
+import { sortSchedulesChronologically, classifySessionState, SessionState } from '../utils/scheduleTime';
 import {
   getWitaDateString,
   getWitaDayName,
@@ -97,9 +97,9 @@ export async function loadDashboardSummary(workspaceId: string): Promise<Dashboa
   ) as string[];
 
   // Jadwal hari ini, diurutkan berdasarkan jam mulai
-  const todaySchedules = schedules
-    .filter((s: any) => String(s.day ?? '').toLowerCase() === currentDayName.toLowerCase())
-    .sort((a: any, b: any) => getScheduleStartMinutes(a.timeSlot || '') - getScheduleStartMinutes(b.timeSlot || ''));
+  const todaySchedules = sortSchedulesChronologically(
+    schedules.filter((s: any) => String(s.day ?? '').toLowerCase() === currentDayName.toLowerCase())
+  );
 
   const journalsToday = journals.filter((j: any) => j.date === todayDate);
   const attendancesToday = attendances.filter((a: any) => a.date === todayDate);

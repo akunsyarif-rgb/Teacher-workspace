@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import { fetchSchedules, submitSchedule, deleteScheduleById, schedulesCacheKey } from '@/lib/controllers/scheduleController';
 import { getCached } from '@/lib/utils/sessionCache';
+import { sortSchedulesChronologically } from '@/lib/utils/scheduleTime';
 import { SCHOOL_DAYS_5, SCHOOL_DAYS_6 } from '@/lib/config/constants';
 import ScheduleFormModal from './schedule/ScheduleFormModal';
 import ScheduleDayCard from './schedule/ScheduleDayCard';
@@ -124,7 +125,7 @@ export default function ScheduleManagement() {
           <ScheduleDayCard
             key={d}
             day={d}
-            items={schedules.filter((s) => s.day === d)}
+            items={sortSchedulesChronologically(schedules.filter((s) => s.day === d))}
             onRequestDelete={setDeleteTargetId}
           />
         ))}
