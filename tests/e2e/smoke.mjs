@@ -360,38 +360,45 @@ async function run() {
         fail('Siswa mengumpulkan jawaban', 'tombol Kumpulkan tidak ditemukan');
       }
 
-      // ---------- 7b. Siswa melampirkan file ----------
+      // ---------- 7b. Siswa melampirkan BEBERAPA file sekaligus ----------
       // Sengaja sebagai pengumpulan KEDUA (mengubah jawaban), bukan
       // digabung ke langkah di atas: dengan begitu jalur "kumpul teks
       // saja" dan jalur "unggah file" dua-duanya terlewati, termasuk
       // aturan bahwa lampiran lama tidak hilang saat jawaban diperbaiki.
+      // Dua file dipilih SEKALIGUS (bukan satu-satu) supaya benar-benar
+      // menguji fitur multi-foto (maks 5): input multiple, upload paralel
+      // dengan prefix unik per file, dan penyimpanan/rendering array
+      // `attachments` di kedua sisi (siswa & guru) — bukan cuma jalur
+      // lampiran tunggal yang lama.
       const editButton = student.getByRole('button', { name: /Ubah Jawaban/i }).first();
       if (await editButton.count()) {
         await editButton.click();
         await student.waitForTimeout(600);
         // File dibuat di memori, tidak menyentuh disk. PNG 1x1 asli
         // supaya contentType-nya benar-benar lolos Storage rules.
-        await student.locator('input[type="file"]').first().setInputFiles({
-          name: 'jawaban-tulis-tangan.png',
-          mimeType: 'image/png',
-          buffer: ONE_PIXEL_PNG,
-        });
+        await student.locator('input[type="file"]').first().setInputFiles([
+          { name: 'jawaban-tulis-tangan-1.png', mimeType: 'image/png', buffer: ONE_PIXEL_PNG },
+          { name: 'jawaban-tulis-tangan-2.png', mimeType: 'image/png', buffer: ONE_PIXEL_PNG },
+        ]);
         await student.waitForTimeout(500);
         await student.getByRole('button', { name: /^Kumpulkan$/i }).last().click();
-        // Unggah + getDownloadURL butuh waktu lebih lama daripada tulis
-        // Firestore biasa.
-        await student.waitForTimeout(8000);
+        // Unggah 2 file + getDownloadURL butuh waktu lebih lama daripada
+        // tulis Firestore biasa.
+        await student.waitForTimeout(10000);
 
-        const attachmentVisible = await student.getByText(/jawaban-tulis-tangan\.png/i).count();
-        if (attachmentVisible > 0) pass('Siswa melampirkan file dan lampirannya tersimpan');
-        else
+        const attachment1Visible = await student.getByText(/jawaban-tulis-tangan-1\.png/i).count();
+        const attachment2Visible = await student.getByText(/jawaban-tulis-tangan-2\.png/i).count();
+        if (attachment1Visible > 0 && attachment2Visible > 0) {
+          pass('Siswa melampirkan 2 foto sekaligus dan keduanya tersimpan');
+        } else {
           await failWithEvidence(
             student,
-            'Siswa melampirkan file dan lampirannya tersimpan',
-            'nama lampiran tidak muncul setelah dikumpulkan'
+            'Siswa melampirkan 2 foto sekaligus dan keduanya tersimpan',
+            `lampiran hilang setelah dikumpulkan (file1=${attachment1Visible}, file2=${attachment2Visible})`
           );
+        }
       } else {
-        fail('Siswa melampirkan file dan lampirannya tersimpan', 'tombol "Ubah Jawaban" tidak ditemukan');
+        fail('Siswa melampirkan 2 foto sekaligus dan keduanya tersimpan', 'tombol "Ubah Jawaban" tidak ditemukan');
       }
 
       // ---------- 8. Siswa melihat halaman lain tanpa error ----------
@@ -423,26 +430,32 @@ async function run() {
       if (answerVisible > 0) pass('Guru melihat jawaban siswa');
       else fail('Guru melihat jawaban siswa', 'teks jawaban tidak muncul di panel penilaian');
 
-      // Lampiran harus bisa dibuka guru, bukan sekadar tersimpan. Guru
-      // membacanya lewat download URL bertoken (bukan lewat Storage
-      // rules), jadi bagian ini yang membuktikan rantai itu utuh.
-      const attachmentLink = teacher.getByRole('link', { name: /jawaban-tulis-tangan\.png/i }).first();
-      if (await attachmentLink.count()) {
-        const href = await attachmentLink.getAttribute('href');
-        try {
-          const res = await fetch(href);
-          if (res.ok) pass('Guru bisa membuka lampiran siswa', `HTTP ${res.status}`);
-          else fail('Guru bisa membuka lampiran siswa', `unduhan gagal: HTTP ${res.status}`);
-        } catch (err) {
-          fail('Guru bisa membuka lampiran siswa', `unduhan error: ${err.message}`);
+      // Kedua lampiran harus bisa dibuka guru, bukan sekadar tersimpan.
+      // Guru membacanya lewat download URL bertoken (bukan lewat Storage
+      // rules), jadi bagian ini yang membuktikan rantai `attachments`
+      // (array, bukan cuma fileUrl tunggal) utuh sampai ke panel guru.
+      let bothAttachmentsOpenable = true;
+      for (const fileName of ['jawaban-tulis-tangan-1.png', 'jawaban-tulis-tangan-2.png']) {
+        const attachmentLink = teacher.getByRole('link', { name: new RegExp(fileName.replace('.', '\\.'), 'i') }).first();
+        if (await attachmentLink.count()) {
+          const href = await attachmentLink.getAttribute('href');
+          try {
+            const res = await fetch(href);
+            if (!res.ok) {
+              bothAttachmentsOpenable = false;
+              console.log(`  ⚠ ${fileName}: unduhan gagal HTTP ${res.status}`);
+            }
+          } catch (err) {
+            bothAttachmentsOpenable = false;
+            console.log(`  ⚠ ${fileName}: unduhan error ${err.message}`);
+          }
+        } else {
+          bothAttachmentsOpenable = false;
+          console.log(`  ⚠ ${fileName}: tautan tidak muncul di panel penilaian`);
         }
-      } else {
-        await failWithEvidence(
-          teacher,
-          'Guru bisa membuka lampiran siswa',
-          'tautan lampiran tidak muncul di panel penilaian'
-        );
       }
+      if (bothAttachmentsOpenable) pass('Guru bisa membuka kedua lampiran siswa');
+      else await failWithEvidence(teacher, 'Guru bisa membuka kedua lampiran siswa', 'lihat detail di atas');
 
       const gradeButton = teacher.getByRole('button', { name: /Beri Nilai/i }).first();
       if (await gradeButton.count()) {
