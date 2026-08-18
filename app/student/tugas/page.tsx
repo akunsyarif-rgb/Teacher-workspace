@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, Circle, Clock, Send, Paperclip, FileText, X } from "lucide-react";
 import StudentShell from "@/src/components/student/StudentShell";
 import { SkeletonCard } from "@/src/components/ui/Skeleton";
+import InlineAlert from "@/src/components/ui/InlineAlert";
 import * as studentPortalController from "@/lib/controllers/studentPortalController";
 import * as submissionController from "@/lib/controllers/submissionController";
-import { uploadSubmissionFile, validateUploadFile } from "@/lib/adapters/storageAdapter";
+import { uploadSubmissionFiles, validateUploadFile, MAX_SUBMISSION_FILES } from "@/lib/adapters/storageAdapter";
 import { SUBMISSION_STATUS } from "@/lib/config/constants";
 import type { StudentProfile } from "@/src/context/StudentAuthContext";
 
@@ -16,14 +17,29 @@ const STATUS_LABEL: Record<string, { label: string; className: string; icon: any
   [SUBMISSION_STATUS.DINILAI]: { label: "Sudah dinilai", className: "text-emerald-600", icon: CheckCircle2 },
 };
 
+type Attachment = { fileUrl: string; fileName: string; filePath?: string };
+
+function attachmentsOf(assignment: any): Attachment[] {
+  if (assignment.attachments && assignment.attachments.length > 0) return assignment.attachments;
+  if (assignment.fileUrl) return [{ fileUrl: assignment.fileUrl, fileName: assignment.fileName }];
+  return [];
+}
+
 function AssignmentsContent({ profile }: { profile: StudentProfile }) {
   const [assignments, setAssignments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
   const [answer, setAnswer] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  // Diisi ID tugas begitu pengumpulan BENAR-BENAR sukses — dipakai untuk
+  // menampilkan konfirmasi jelas ("Tugas berhasil dikumpulkan!") walau
+  // formnya sudah tertutup, supaya siswa tidak menebak-nebak apakah
+  // unggahannya berhasil terkirim atau tidak.
+  const [justSubmittedId, setJustSubmittedId] = useState<string | null>(null);
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scope = {
     workspaceId: profile.workspaceId,
@@ -50,58 +66,94 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
     loadAssignments();
   }, [loadAssignments]);
 
+  useEffect(() => {
+    return () => {
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    };
+  }, []);
+
   function openForm(assignment: any) {
     setOpenId(assignment.id);
     setAnswer(assignment.textAnswer || "");
-    setFile(null);
+    setFiles([]);
+    setSubmitError("");
   }
 
   function handlePickFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const picked = e.target.files?.[0];
-    if (!picked) return;
-    try {
-      // Dicek di sini juga supaya siswa tahu file-nya ditolak sebelum
-      // menunggu unggahan besar selesai lalu gagal di Storage rules.
-      validateUploadFile(picked);
-      setFile(picked);
-    } catch (error: any) {
-      alert(error.message);
-      e.target.value = "";
+    const picked = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (picked.length === 0) return;
+
+    const remainingSlots = MAX_SUBMISSION_FILES - files.length;
+    if (remainingSlots <= 0) {
+      setSubmitError(`Maksimal ${MAX_SUBMISSION_FILES} foto per pengumpulan.`);
+      return;
     }
+
+    const toAdd: File[] = [];
+    for (const candidate of picked) {
+      if (toAdd.length >= remainingSlots) break;
+      try {
+        // Dicek di sini juga supaya siswa tahu file-nya ditolak sebelum
+        // menunggu unggahan besar selesai lalu gagal di Storage rules.
+        validateUploadFile(candidate);
+        toAdd.push(candidate);
+      } catch (error: any) {
+        setSubmitError(error.message);
+        return;
+      }
+    }
+    if (picked.length > remainingSlots) {
+      setSubmitError(`Maksimal ${MAX_SUBMISSION_FILES} foto per pengumpulan — hanya ${remainingSlots} yang ditambahkan.`);
+    } else {
+      setSubmitError("");
+    }
+    setFiles((prev) => [...prev, ...toAdd]);
+  }
+
+  function removeFile(index: number) {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
   async function handleSubmit(assignment: any) {
+    const existingAttachments = attachmentsOf(assignment);
     // Salah satu boleh kosong, tapi tidak keduanya — sebagian tugas cukup
     // dijawab teks, sebagian lain berupa foto pekerjaan.
-    if (!answer.trim() && !file && !assignment.fileUrl) {
-      alert("Isi jawaban atau lampirkan file dulu.");
+    if (!answer.trim() && files.length === 0 && existingAttachments.length === 0) {
+      setSubmitError("Isi jawaban atau lampirkan foto dulu.");
       return;
     }
+    setSubmitError("");
     setSaving(true);
     try {
-      let attachment: { fileUrl?: string; fileName?: string; filePath?: string } = {};
-      if (file) {
+      let attachments: Attachment[] = existingAttachments;
+      if (files.length > 0) {
         setUploading(true);
-        attachment = await uploadSubmissionFile(scope.workspaceId, assignment.id, file);
-      } else if (assignment.fileUrl) {
-        // Tidak memilih file baru = pertahankan lampiran sebelumnya,
-        // jangan sampai terhapus hanya karena teksnya yang diperbaiki.
-        attachment = { fileUrl: assignment.fileUrl, fileName: assignment.fileName };
+        attachments = await uploadSubmissionFiles(scope.workspaceId, assignment.id, files);
       }
+      // Kalau tidak memilih file baru = pertahankan lampiran sebelumnya
+      // (sudah ditangani lewat default `attachments = existingAttachments`
+      // di atas), jangan sampai terhapus hanya karena teksnya diperbaiki.
 
       await submissionController.submitAssignment(
         scope.workspaceId,
         assignment.id,
         scope.studentId,
         scope.className,
-        { textAnswer: answer, ...attachment }
+        { textAnswer: answer, attachments }
       );
       setOpenId(null);
       setAnswer("");
-      setFile(null);
+      setFiles([]);
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+      setJustSubmittedId(assignment.id);
+      flashTimerRef.current = setTimeout(() => setJustSubmittedId(null), 5000);
       await loadAssignments();
     } catch (error: any) {
-      alert(error.message || "Gagal mengumpulkan tugas.");
+      // Ditampilkan sebagai InlineAlert (bukan alert() browser) supaya
+      // pesan gagal-kirim/unggah-timeout pasti terlihat, bukan cuma
+      // spinner yang diam-diam berhenti tanpa penjelasan apa pun.
+      setSubmitError(error.message || "Gagal mengumpulkan tugas. Periksa koneksi internetmu dan coba lagi.");
     } finally {
       setUploading(false);
       setSaving(false);
@@ -132,9 +184,17 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
         const StatusIcon = status.icon;
         const isGraded = assignment.status === SUBMISSION_STATUS.DINILAI;
         const isOpen = openId === assignment.id;
+        const existingAttachments = attachmentsOf(assignment);
 
         return (
           <div key={assignment.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-3">
+            {justSubmittedId === assignment.id && (
+              <div className="flex items-center gap-1.5 p-2.5 bg-emerald-50 text-emerald-700 rounded-xl text-[11px] font-bold">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                Tugas berhasil dikumpulkan!
+              </div>
+            )}
+
             <div>
               <p className="text-xs font-bold text-gray-900">{assignment.title}</p>
               {assignment.description && (
@@ -180,6 +240,8 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
 
             {isOpen && (
               <div className="space-y-2 pt-1">
+                <InlineAlert message={submitError} onDismiss={() => setSubmitError("")} />
+
                 <textarea
                   value={answer}
                   onChange={(e) => setAnswer(e.target.value)}
@@ -187,29 +249,50 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                   placeholder="Tulis jawabanmu di sini"
                   className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
                 />
-                {file ? (
-                  <div className="flex items-center justify-between gap-2 p-2.5 bg-blue-50 rounded-xl">
-                    <span className="flex items-center gap-1.5 min-w-0">
-                      <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                      <span className="text-[11px] font-bold text-blue-800 truncate">{file.name}</span>
-                    </span>
-                    <button
-                      onClick={() => setFile(null)}
-                      className="p-1 text-blue-400 hover:text-red-500 transition-colors shrink-0"
-                      title="Hapus pilihan file"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
+
+                {files.length > 0 && (
+                  <div className="space-y-1.5">
+                    {files.map((f, idx) => (
+                      <div key={`${f.name}-${idx}`} className="flex items-center justify-between gap-2 p-2.5 bg-blue-50 rounded-xl">
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <span className="text-[11px] font-bold text-blue-800 truncate">{f.name}</span>
+                        </span>
+                        <button
+                          onClick={() => removeFile(idx)}
+                          className="p-1 text-blue-400 hover:text-red-500 transition-colors shrink-0"
+                          title="Hapus foto ini"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                ) : (
+                )}
+
+                {files.length === 0 && existingAttachments.length > 0 && (
+                  <div className="space-y-1.5">
+                    {existingAttachments.map((att, idx) => (
+                      <div key={`${att.fileUrl}-${idx}`} className="flex items-center gap-1.5 p-2.5 bg-gray-50 rounded-xl">
+                        <FileText className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <span className="text-[11px] font-bold text-gray-600 truncate">{att.fileName || "Lampiran"}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {files.length < MAX_SUBMISSION_FILES && (
                   <label className="flex items-center justify-center gap-1.5 p-2.5 border border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-blue-400 transition-colors">
                     <Paperclip className="w-3.5 h-3.5 text-gray-400" />
                     <span className="text-[11px] font-bold text-gray-500">
-                      {assignment.fileUrl ? "Ganti lampiran" : "Lampirkan foto / PDF (opsional)"}
+                      {files.length > 0 || existingAttachments.length > 0
+                        ? `Tambah foto (${files.length}/${MAX_SUBMISSION_FILES})`
+                        : `Lampirkan foto / PDF, maks ${MAX_SUBMISSION_FILES} (opsional)`}
                     </span>
                     <input
                       type="file"
                       accept="image/*,application/pdf,.doc,.docx"
+                      multiple
                       onChange={handlePickFile}
                       className="hidden"
                     />
@@ -235,23 +318,24 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
               </div>
             )}
 
-            {!isOpen && (assignment.textAnswer || assignment.fileUrl) && (
+            {!isOpen && (assignment.textAnswer || existingAttachments.length > 0) && (
               <div className="p-3 bg-gray-50 rounded-xl space-y-1.5">
                 <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">Jawabanmu</p>
                 {assignment.textAnswer && (
                   <p className="text-[11px] text-gray-700 whitespace-pre-wrap">{assignment.textAnswer}</p>
                 )}
-                {assignment.fileUrl && (
+                {existingAttachments.map((att, idx) => (
                   <a
-                    href={assignment.fileUrl}
+                    key={`${att.fileUrl}-${idx}`}
+                    href={att.fileUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline"
+                    className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline"
                   >
                     <FileText className="w-3.5 h-3.5" />
-                    {assignment.fileName || "Lihat lampiran"}
+                    {att.fileName || "Lihat lampiran"}
                   </a>
-                )}
+                ))}
               </div>
             )}
           </div>

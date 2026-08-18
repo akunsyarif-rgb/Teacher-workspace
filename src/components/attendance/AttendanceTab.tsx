@@ -151,7 +151,6 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
         setRecordId(id);
         setAutoSaveState("saved");
         loadHistory();
-        onSubmitted?.();
       })
       .catch((error: any) => {
         console.error("Gagal auto-save presensi:", error);
@@ -183,6 +182,13 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
     try {
       await attendanceController.markAttendanceCompleted(recordId);
       setCompleted(true);
+      // Pindah ke langkah berikutnya (Jurnal) hanya di sini — saat guru
+      // BENAR-BENAR menandai presensi selesai. Sebelumnya dipanggil dari
+      // triggerAutoSave() dan jadi berjalan di SETIAP auto-save (tiap kali
+      // status satu siswa diubah, termasuk Sakit/Izin/Dispensasi/Alpa),
+      // sehingga tab tiba-tiba lompat ke Jurnal (Kegiatan Awal) padahal
+      // guru masih di tengah mengisi presensi siswa lain.
+      onSubmitted?.();
     } catch (error: any) {
       setErrorMsg(error.message || "Gagal menandai presensi selesai.");
     } finally {

@@ -32,27 +32,50 @@ export async function getSubmissionsForAssignment(
   }));
 }
 
+type SubmissionAttachment = { fileUrl: string; fileName: string; filePath?: string };
+
 export async function submitAssignment(
   workspaceId: string,
   assignmentId: string,
   studentId: string,
   className: string,
-  answer: { textAnswer?: string; fileUrl?: string; fileName?: string; filePath?: string }
+  answer: {
+    textAnswer?: string;
+    attachments?: SubmissionAttachment[];
+    // Bentuk lama (satu lampiran) — tetap didukung supaya pemanggil lama
+    // (mis. "pertahankan lampiran sebelumnya" tanpa unggah ulang) tidak
+    // perlu diubah semua.
+    fileUrl?: string;
+    fileName?: string;
+    filePath?: string;
+  }
 ) {
   if (!workspaceId || !assignmentId || !studentId) throw new Error('Data submission tidak valid.');
-  if (!answer.textAnswer?.trim() && !answer.fileUrl) {
+  const attachments: SubmissionAttachment[] =
+    answer.attachments && answer.attachments.length > 0
+      ? answer.attachments
+      : answer.fileUrl
+      ? [{ fileUrl: answer.fileUrl, fileName: answer.fileName || '', filePath: answer.filePath }]
+      : [];
+  if (!answer.textAnswer?.trim() && attachments.length === 0) {
     throw new Error('Jawaban atau file wajib diisi.');
   }
   return submissionRepository.upsertSubmission(assignmentId, studentId, {
     workspaceId,
     className,
     textAnswer: answer.textAnswer?.trim() || '',
-    fileUrl: answer.fileUrl || null,
-    fileName: answer.fileName || null,
+    // Semua lampiran (maks 5) tersimpan di sini. fileUrl/fileName/filePath
+    // di bawah TETAP diisi (lampiran pertama) untuk kompatibilitas mundur
+    // dengan bagian lain yang masih membaca field tunggal (rekap, ekspor,
+    // portofolio siswa) — bukan dihapus, supaya data lama & fitur lain
+    // yang belum diperbarui tetap jalan.
+    attachments,
+    fileUrl: attachments[0]?.fileUrl || null,
+    fileName: attachments[0]?.fileName || null,
     // filePath disimpan terpisah dari fileUrl: URL-nya bertoken dan bisa
     // berubah kalau file diunggah ulang, sedangkan path-nya stabil —
     // berguna untuk menelusuri file di bucket saat ada masalah.
-    filePath: answer.filePath || null,
+    filePath: attachments[0]?.filePath || null,
     status: SUBMISSION_STATUS.MENUNGGU_PENILAIAN,
     submittedAt: new Date().toISOString(),
   });

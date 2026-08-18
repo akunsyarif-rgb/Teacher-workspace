@@ -135,17 +135,23 @@ function ProfileContent({ profile }: { profile: StudentProfile }) {
                 )}
               </div>
 
-              {item.fileUrl && (
+              {(item.attachments && item.attachments.length > 0
+                ? item.attachments
+                : item.fileUrl
+                ? [{ fileUrl: item.fileUrl, fileName: item.fileName }]
+                : []
+              ).map((att: any, idx: number) => (
                 <a
-                  href={item.fileUrl}
+                  key={`${att.fileUrl}-${idx}`}
+                  href={att.fileUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline"
+                  className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline"
                 >
                   <FileText className="w-3.5 h-3.5" />
-                  {item.fileName || "Lihat lampiran"}
+                  {att.fileName || `Lihat lampiran ${idx + 1}`}
                 </a>
-              )}
+              ))}
 
               {item.feedback && (
                 <div className="p-2.5 bg-gray-50 rounded-xl">
