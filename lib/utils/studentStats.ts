@@ -34,6 +34,12 @@ export function mergeAssignmentsWithSubmissions(assignments: any[], submissions:
         ...assignment,
         status: submission?.status || SUBMISSION_STATUS.BELUM_MENGUMPULKAN,
         textAnswer: submission?.textAnswer || '',
+        // Submission lama (sebelum dukungan multi-foto) cuma punya fileUrl
+        // tunggal — dibungkus jadi array 1 elemen supaya konsumen baru
+        // (yang membaca `attachments`) tetap dapat data itu juga.
+        attachments:
+          submission?.attachments ||
+          (submission?.fileUrl ? [{ fileUrl: submission.fileUrl, fileName: submission.fileName }] : []),
         fileUrl: submission?.fileUrl || null,
         fileName: submission?.fileName || null,
         feedback: submission?.feedback || '',
@@ -57,6 +63,7 @@ export function buildPortfolio(assignmentsWithStatus: any[], gradeDocs: any[]) {
       dueDate: assignment.dueDate,
       score: scoreByColumnId[assignment.gradeColumnId] ?? null,
       feedback: assignment.feedback,
+      attachments: assignment.attachments || [],
       fileUrl: assignment.fileUrl,
       fileName: assignment.fileName,
       submittedAt: assignment.submittedAt,

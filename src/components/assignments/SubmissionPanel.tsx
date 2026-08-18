@@ -159,24 +159,34 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
                   )}
                 </div>
 
-                {(row.textAnswer || row.fileUrl) && (
-                  <div className="p-3 bg-gray-50 rounded-xl space-y-1.5">
-                    {row.textAnswer && (
-                      <p className="text-[11px] text-gray-700 whitespace-pre-wrap">{row.textAnswer}</p>
-                    )}
-                    {row.fileUrl && (
-                      <a
-                        href={row.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline"
-                      >
-                        <FileText className="w-3.5 h-3.5" />
-                        {row.fileName || 'Lihat lampiran'}
-                      </a>
-                    )}
-                  </div>
-                )}
+                {(() => {
+                  const attachments =
+                    row.attachments && row.attachments.length > 0
+                      ? row.attachments
+                      : row.fileUrl
+                      ? [{ fileUrl: row.fileUrl, fileName: row.fileName }]
+                      : [];
+                  if (!row.textAnswer && attachments.length === 0) return null;
+                  return (
+                    <div className="p-3 bg-gray-50 rounded-xl space-y-1.5">
+                      {row.textAnswer && (
+                        <p className="text-[11px] text-gray-700 whitespace-pre-wrap">{row.textAnswer}</p>
+                      )}
+                      {attachments.map((att: any, idx: number) => (
+                        <a
+                          key={`${att.fileUrl}-${idx}`}
+                          href={att.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          {att.fileName || `Lihat lampiran ${idx + 1}`}
+                        </a>
+                      ))}
+                    </div>
+                  );
+                })()}
 
                 {!isGrading && row.feedback && (
                   <div className="p-3 bg-blue-50 rounded-xl">

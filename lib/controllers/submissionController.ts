@@ -17,7 +17,13 @@ export async function submitAssignment(
   assignmentId: string,
   studentId: string,
   className: string,
-  answer: { textAnswer?: string; fileUrl?: string; fileName?: string }
+  answer: {
+    textAnswer?: string;
+    attachments?: { fileUrl: string; fileName: string; filePath?: string }[];
+    fileUrl?: string;
+    fileName?: string;
+    filePath?: string;
+  }
 ) {
   const result = await submissionService.submitAssignment(workspaceId, assignmentId, studentId, className, answer);
   clearAllCached();
