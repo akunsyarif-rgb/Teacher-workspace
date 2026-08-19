@@ -13,6 +13,7 @@ import Button from '@/src/components/ui/Button';
 import AddStudentForm from './AddStudentForm';
 import BulkImportForm from './BulkImportForm';
 import { CLASS_NAME_MAX_LENGTH, normalizeClassName, validateClassName } from '@/lib/utils/classNameValidation';
+import { buildStudentCodesShareText } from '@/lib/utils/studentCodesShare';
 
 type ClassDetailProps = {
   className: string;
@@ -36,6 +37,7 @@ export default function ClassDetail({
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; nis: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedAll, setCopiedAll] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [showAddStudent, setShowAddStudent] = useState(false);
   const [confirmDeleteClass, setConfirmDeleteClass] = useState(false);
@@ -154,6 +156,20 @@ export default function ClassDetail({
     }
   }
 
+  async function handleCopyAllCodes() {
+    if (students.length === 0) return;
+    const text = buildStudentCodesShareText(className, students);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedAll(true);
+      setTimeout(() => setCopiedAll(false), 2000);
+    } catch {
+      // Sama seperti fallback handleCopyCode: clipboard API diblokir, jadi
+      // teksnya ditampilkan langsung supaya guru masih bisa menyalin manual.
+      alert(text);
+    }
+  }
+
   const missingCodeCount = students.filter((student) => !student.accessCode).length;
 
   if (loading) {
@@ -183,6 +199,15 @@ export default function ClassDetail({
             Tambah Siswa
           </button>
           <button
+            onClick={handleCopyAllCodes}
+            disabled={students.length === 0}
+            className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 rounded-xl text-xs font-bold transition-all"
+            title="Salin semua kode akses siswa di kelas ini untuk dibagikan sekaligus"
+          >
+            <Copy className="w-3.5 h-3.5" />
+            Salin Semua Kode
+          </button>
+          <button
             onClick={openSettings}
             className="p-2.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl transition-all active:scale-95"
             title="Pengaturan Kelas"
@@ -207,6 +232,13 @@ export default function ClassDetail({
           </button>
         </div>
       </div>
+
+      {copiedAll && (
+        <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-2xl text-[11px] font-bold text-emerald-700 flex items-center gap-2">
+          <Check className="w-3.5 h-3.5 shrink-0" />
+          Kode siswa berhasil disalin
+        </div>
+      )}
 
       {missingCodeCount > 0 && (
         <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">

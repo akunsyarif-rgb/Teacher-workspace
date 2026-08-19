@@ -38,7 +38,7 @@ export default function ConfirmDeleteModal({
     : "bg-amber-600 hover:bg-amber-700";
 
   const isConfirmDisabled =
-    loading || (requireTyping && typedText !== "HAPUS");
+    loading || (requireTyping && typedText.trim().toUpperCase() !== "HAPUS");
 
   async function handleConfirm() {
     setLoading(true);
@@ -79,6 +79,9 @@ export default function ConfirmDeleteModal({
             value={typedText}
             onChange={setTypedText}
             placeholder="Ketik HAPUS"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
           />
         </div>
       )}

@@ -23,13 +23,22 @@ export type TodayClassStatus = {
   hasJournal: boolean;
   hasAttendance: boolean;
   isDone: boolean;
+  // true kalau guru sudah mencatat SkipReason (Rapat/Tugas dinas/Kegiatan
+  // sekolah/Lainnya) untuk sesi ini DAN belum ada presensi/jurnal sungguhan
+  // (kalau isDone true, data sungguhan menang — lihat classifySessionState).
+  // Sesi dengan isSkipped=true dianggap "Tidak Mengajar": TIDAK dihitung
+  // sebagai pekerjaan belum selesai (pendingClasses/todayProgress) maupun
+  // ditawarkan sebagai Sesi Berikutnya (resolveCurrentWorkflowStep), tapi
+  // tetap tercatat (skipReason di bawah, disimpan permanen di Firestore).
+  isSkipped: boolean;
   // "Penyesuaian Workflow Jadwal — Final": status otomatis dari jadwal +
-  // waktu aktual (upcoming/ongoing/needs_confirmation/done) — dasar badge
-  // 🔵/🟢/⚠️/✅ dan pengelompokan daftar di Beranda.
+  // waktu aktual (upcoming/ongoing/needs_confirmation/done/skipped) — dasar
+  // badge 🔵/🟢/⚠️/✅/🗓 dan pengelompokan daftar di Beranda.
   sessionState: SessionState;
   // Alasan yang guru catat kalau sesi ini "needs_confirmation" (Rapat, dst)
-  // — null kalau belum dikonfirmasi. TIDAK mengubah isDone/sessionState;
-  // murni konteks tambahan (lihat sessionSkipReasonService).
+  // — null kalau belum dikonfirmasi. Begitu tercatat DAN sesi belum lengkap
+  // (isDone false), sesi ini resmi jadi "Tidak Mengajar" (lihat isSkipped
+  // di atas) — bukan lagi sekadar konteks tambahan seperti sebelumnya.
   skipReason: { reason: string; note: string } | null;
 };
 
@@ -117,6 +126,7 @@ export async function loadDashboardSummary(workspaceId: string): Promise<Dashboa
     );
     const isDone = hasJournal && hasAttendance;
     const skip = (skipReasonsToday as any[]).find((r) => r.scheduleId === s.id);
+    const isSkipped = !!skip && !isDone;
     return {
       scheduleId: s.id,
       className: s.className,
@@ -125,17 +135,23 @@ export async function loadDashboardSummary(workspaceId: string): Promise<Dashboa
       hasJournal,
       hasAttendance,
       isDone,
-      sessionState: classifySessionState(s.timeSlot || '', isDone),
+      isSkipped,
+      sessionState: classifySessionState(s.timeSlot || '', isDone, undefined, isSkipped),
       skipReason: skip ? { reason: skip.reason, note: skip.note || '' } : null,
     };
   });
 
-  const journalsDone = todayClassStatuses.filter((s) => s.hasJournal).length;
-  const attendancesDone = todayClassStatuses.filter((s) => s.hasAttendance).length;
-  const total = todayClassStatuses.length;
+  // Sesi "Tidak Mengajar" (isSkipped) dikeluarkan dari penghitungan progres
+  // hari ini — statusnya sudah final dan tidak berlaku untuk presensi/
+  // jurnal, jadi tidak boleh membuat persentase hari itu tersendat di bawah
+  // 100% atau tetap nyangkut di daftar pekerjaan belum selesai.
+  const countableStatuses = todayClassStatuses.filter((s) => !s.isSkipped);
+  const journalsDone = countableStatuses.filter((s) => s.hasJournal).length;
+  const attendancesDone = countableStatuses.filter((s) => s.hasAttendance).length;
+  const total = countableStatuses.length;
   const percentage = total > 0 ? Math.round(((journalsDone + attendancesDone) / (total * 2)) * 100) : 0;
   const pendingClasses = Array.from(
-    new Set(todayClassStatuses.filter((s) => !s.isDone).map((s) => s.className))
+    new Set(countableStatuses.filter((s) => !s.isDone).map((s) => s.className))
   );
 
   // ===== STATISTIK MINGGUAN (7 hari terakhir) =====
