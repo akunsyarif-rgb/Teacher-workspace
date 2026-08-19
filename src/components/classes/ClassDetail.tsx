@@ -90,8 +90,10 @@ export default function ClassDetail({
     if (!workspaceId) return;
     try {
       await classController.deleteClass(workspaceId, className);
-      setConfirmDeleteClass(false);
-      onBack();
+      // TIDAK menutup modal atau memanggil onBack() di sini — itu tugas
+      // onSuccessClose pada ConfirmDeleteModal di bawah, supaya guru
+      // sempat melihat "berhasil dihapus" sebelum berpindah ke daftar
+      // kelas (lihat catatan onSuccessClose di ConfirmDeleteModal.tsx).
     } catch (error: any) {
       alert(error.message || 'Gagal menghapus kelas.');
       throw error;
@@ -340,6 +342,10 @@ export default function ClassDetail({
         isOpen={confirmDeleteClass}
         onClose={() => setConfirmDeleteClass(false)}
         onConfirm={handleDeleteClass}
+        onSuccessClose={() => {
+          setConfirmDeleteClass(false);
+          onBack();
+        }}
         title="Hapus Seluruh Kelas Ini?"
         itemName={`Kelas ${className}`}
         itemDetail={`${students.length} siswa di kelas ini akan ikut terhapus semua, termasuk data presensi/nilai yang mereferensikan mereka tidak bisa dipulihkan.`}
