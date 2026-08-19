@@ -90,8 +90,10 @@ export default function ClassDetail({
     if (!workspaceId) return;
     try {
       await classController.deleteClass(workspaceId, className);
-      setConfirmDeleteClass(false);
-      onBack();
+      // TIDAK menutup modal atau memanggil onBack() di sini — itu tugas
+      // onSuccessClose pada ConfirmDeleteModal di bawah, supaya guru
+      // sempat melihat "berhasil dihapus" sebelum berpindah ke daftar
+      // kelas (lihat catatan onSuccessClose di ConfirmDeleteModal.tsx).
     } catch (error: any) {
       alert(error.message || 'Gagal menghapus kelas.');
       throw error;
@@ -172,19 +174,24 @@ export default function ClassDetail({
 
   const missingCodeCount = students.filter((student) => !student.accessCode).length;
 
-  if (loading) {
-    return (
-      <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-gray-100">
+  return (
+    <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
+      {loading ? (
+        // Skeleton ini SENGAJA hanya menggantikan konten di bawah (header +
+        // daftar siswa), BUKAN seluruh return seperti sebelumnya — versi
+        // lama memakai early-return terpisah yang meng-unmount seluruh
+        // komponen ini (termasuk modal konfirmasi hapus di bawah) setiap
+        // kali loadStudents() menyalakan loading, misalnya tepat setelah
+        // hapus siswa berhasil (deleteStudent() memanggil clearAllCached(),
+        // jadi refresh berikutnya selalu dianggap "belum warm"). Modal yang
+        // ikut ter-unmount di tengah animasi sukses membuat pesan "berhasil
+        // dihapus" tidak pernah sempat terlihat sama sekali.
         <div className="flex items-center justify-center py-12">
           <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
           <span className="ml-3 text-xs font-bold text-gray-500">Memuat data siswa...</span>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
+      ) : (
+        <>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
           <h3 className="text-sm font-extrabold text-gray-900 uppercase tracking-wider">Kelas {className}</h3>
@@ -301,7 +308,11 @@ export default function ClassDetail({
           ))}
         </div>
       )}
+        </>
+      )}
 
+      {/* Modal-modal di bawah ini SENGAJA di luar cabang loading di atas —
+          lihat komentar di percabangan loading. */}
       <ConfirmDeleteModal
         isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
@@ -340,6 +351,10 @@ export default function ClassDetail({
         isOpen={confirmDeleteClass}
         onClose={() => setConfirmDeleteClass(false)}
         onConfirm={handleDeleteClass}
+        onSuccessClose={() => {
+          setConfirmDeleteClass(false);
+          onBack();
+        }}
         title="Hapus Seluruh Kelas Ini?"
         itemName={`Kelas ${className}`}
         itemDetail={`${students.length} siswa di kelas ini akan ikut terhapus semua, termasuk data presensi/nilai yang mereferensikan mereka tidak bisa dipulihkan.`}

@@ -1,15 +1,31 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import Modal from "./Modal";
 import Button from "./Button";
 import Input from "./Input";
 
+// Semua pemanggil sudah lebih dulu menutup modal sendiri (mis.
+// setDeleteTarget(null)) tepat setelah onConfirm() berhasil — wajar
+// sebelum ada state sukses di sini, tapi sekarang balapan dengan jeda
+// tampil di bawah: prop isOpen dari luar jatuh ke false SEBELUM "berhasil
+// dihapus" sempat dirender, jadi modal-nya seolah tidak menampilkan
+// apa-apa. Bukannya mengubah 9 pemanggil satu per satu (rapuh, gampang
+// lupa lagi di pemanggil berikutnya), visibility modal ini sengaja TIDAK
+// murni ikut prop isOpen — lihat showModal di bawah.
+const SUCCESS_DISPLAY_MS = 800;
+
 type ConfirmDeleteModalProps = {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => Promise<void>;
+  // Sebagian besar pemanggil: onClose dan "apa yang terjadi setelah
+  // sukses" itu sama (modal tertutup, tetap di halaman yang sama). Hapus
+  // Kelas beda — setelah sukses ia perlu pindah halaman (onBack), tapi
+  // saat Batal/X TIDAK boleh ikut pindah. onSuccessClose opsional ini
+  // memisahkan dua kasus itu; kalau tidak diisi, jatuh ke onClose.
+  onSuccessClose?: () => void;
   title: string;
   itemName: string;
   itemDetail?: string;
@@ -21,6 +37,7 @@ export default function ConfirmDeleteModal({
   isOpen,
   onClose,
   onConfirm,
+  onSuccessClose,
   title,
   itemName,
   itemDetail,
@@ -29,13 +46,28 @@ export default function ConfirmDeleteModal({
 }: ConfirmDeleteModalProps) {
   const [loading, setLoading] = useState(false);
   const [typedText, setTypedText] = useState("");
-  // Tanpa ini, penghapusan berhasil tapi modal langsung tertutup dan
-  // barisnya hilang diam-diam dari daftar — guru tidak sempat sadar
-  // aksinya benar-benar berhasil, bukan gagal senyap. Sengaja pakai
-  // jeda tampil singkat di sini (bukan toast terpisah) supaya SEMUA
-  // 9 pemanggil modal ini otomatis dapat umpan balik yang sama tanpa
-  // masing-masing perlu diubah.
   const [success, setSuccess] = useState(false);
+  // Kebanyakan pemanggil mengosongkan state sumber itemName (mis.
+  // setDeleteTarget(null)) begitu onConfirm() beres — begitu itu terjadi,
+  // prop itemName ikut jadi "" di render berikutnya. Ditangkap di sini
+  // SEBELUM onConfirm() dipanggil supaya pesan sukses tetap menyebut nama
+  // itemnya, bukan string kosong.
+  const [successItemName, setSuccessItemName] = useState("");
+
+  // Setiap kali parent membuka modal untuk aksi BARU, buang sisa state
+  // sukses/ketikan dari aksi sebelumnya — tanpa ini, hapus dua item
+  // berturut-turut bisa sempat menampilkan pesan sukses item yang lama.
+  useEffect(() => {
+    if (isOpen) {
+      setSuccess(false);
+      setTypedText("");
+    }
+  }, [isOpen]);
+
+  // Modal tetap tampil selama fase sukses BERJALAN, walau parent sudah
+  // menjatuhkan isOpen ke false lewat state-nya sendiri — itulah inti
+  // perbaikannya (lihat komentar SUCCESS_DISPLAY_MS di atas).
+  const showModal = isOpen || success;
 
   const isDanger = type === "danger";
   const bgColor = isDanger ? "bg-red-50" : "bg-amber-50";
@@ -50,19 +82,25 @@ export default function ConfirmDeleteModal({
 
   async function handleConfirm() {
     setLoading(true);
+    const capturedItemName = itemName;
     try {
       await onConfirm();
-      setTypedText("");
-      setSuccess(true);
-      // Jeda singkat murni supaya "Berhasil dihapus" sempat terbaca sebelum
-      // modal menutup diri sendiri — bukan menunggu input guru.
-      await new Promise((resolve) => setTimeout(resolve, 1100));
-      setSuccess(false);
-      onClose();
     } finally {
+      // "loading" murni menandai permintaan aktif — begitu onConfirm()
+      // selesai (berhasil atau tidak), permintaannya sudah selesai. Fase
+      // sukses di bawah ini bukan lagi loading, jadi tidak ikut ditahan
+      // sampai jeda tampilnya habis.
       setLoading(false);
       setTypedText("");
     }
+    // onConfirm() tidak throw → berhasil. Kalau throw, baris di bawah ini
+    // tidak pernah tercapai (exception lewat dari sini, modal tetap
+    // terbuka di layar konfirmasi untuk guru coba lagi).
+    setSuccessItemName(capturedItemName);
+    setSuccess(true);
+    await new Promise((resolve) => setTimeout(resolve, SUCCESS_DISPLAY_MS));
+    setSuccess(false);
+    (onSuccessClose ?? onClose)();
   }
 
   function handleClose() {
@@ -72,11 +110,11 @@ export default function ConfirmDeleteModal({
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title={success ? "Berhasil" : title}>
+    <Modal isOpen={showModal} onClose={handleClose} title={success ? "Berhasil" : title}>
       {success ? (
         <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center gap-3">
           <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" aria-hidden />
-          <p className="text-sm font-extrabold text-emerald-700">{itemName} berhasil dihapus.</p>
+          <p className="text-sm font-extrabold text-emerald-700">{successItemName} berhasil dihapus.</p>
         </div>
       ) : (
         <>
