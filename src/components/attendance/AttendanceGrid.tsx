@@ -5,12 +5,12 @@ import { Clock } from 'lucide-react';
 import { ATTENDANCE_STATUS_OPTIONS } from '@/lib/config/constants';
 import { STATUS_LETTER, STATUS_COLOR, LATE_COLOR } from '@/lib/utils/attendanceStatus';
 
-export type TodayEntry = { status: string; late: boolean };
+export type TodayEntry = { status: string; late: boolean; keterangan?: string };
 
 type Session = {
   id: string;
   date: string;
-  details?: { studentId: string; status: string; late?: boolean }[];
+  details?: { studentId: string; status: string; late?: boolean; keterangan?: string | null }[];
 };
 
 type AttendanceGridProps = {
@@ -31,7 +31,13 @@ function formatShortDate(dateStr: string): string {
   return `${d.getDate()}/${d.getMonth() + 1}`;
 }
 
-function HistoryBadge({ detail, date }: { detail?: { status: string; late?: boolean }; date: string }) {
+function HistoryBadge({
+  detail,
+  date,
+}: {
+  detail?: { status: string; late?: boolean; keterangan?: string | null };
+  date: string;
+}) {
   if (!detail) {
     return (
       <span
@@ -41,11 +47,14 @@ function HistoryBadge({ detail, date }: { detail?: { status: string; late?: bool
     );
   }
   const bg = STATUS_COLOR[detail.status] || 'bg-gray-300';
+  const label = `${formatShortDate(date)} — ${detail.status}${detail.late ? ' (Terlambat)' : ''}${
+    detail.keterangan ? `: ${detail.keterangan}` : ''
+  }`;
   return (
     <span
       className="relative inline-flex shrink-0 w-6 h-6 sm:w-7 sm:h-7"
-      title={`${formatShortDate(date)} — ${detail.status}${detail.late ? ' (Terlambat)' : ''}`}
-      aria-label={`${formatShortDate(date)}: ${detail.status}${detail.late ? ' (Terlambat)' : ''}`}
+      title={label}
+      aria-label={label}
     >
       <span
         className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center text-[10px] sm:text-[11px] font-extrabold text-white ${bg}`}
@@ -74,42 +83,80 @@ function StudentName({ idx, name, className }: { idx: number; name: string; clas
 }
 
 function TodayStatusControl({ value, onChange }: { value: TodayEntry; onChange: (next: TodayEntry) => void }) {
+  const showKeterangan = value.status !== 'Hadir';
+
   return (
-    <div className="flex items-center gap-1.5 flex-wrap">
-      {ATTENDANCE_STATUS_OPTIONS.map((option) => {
-        const isActive = value.status === option;
-        return (
-          <button
-            key={option}
-            type="button"
-            onClick={() => onChange({ status: option, late: option === 'Hadir' ? value.late : false })}
-            title={option}
-            aria-label={option}
-            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center text-xs font-extrabold transition-all active:scale-90 ${
-              isActive ? `${STATUS_COLOR[option]} text-white shadow-sm` : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
-            }`}
-          >
-            {STATUS_LETTER[option]}
-          </button>
-        );
-      })}
-      <button
-        type="button"
-        disabled={value.status !== 'Hadir'}
-        onClick={() => onChange({ ...value, late: !value.late })}
-        title="Terlambat (hanya berlaku untuk Hadir)"
-        aria-label="Terlambat (hanya berlaku untuk Hadir)"
-        className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center transition-all active:scale-90 ${
-          value.status !== 'Hadir'
-            ? 'bg-gray-50 text-gray-200 cursor-not-allowed'
-            : value.late
-            ? `${LATE_COLOR} text-white shadow-sm`
-            : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
-        }`}
-      >
-        <Clock className="w-4 h-4" />
-      </button>
+    <div className="flex flex-col gap-1.5 w-full">
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {ATTENDANCE_STATUS_OPTIONS.map((option) => {
+          const isActive = value.status === option;
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() =>
+                onChange({
+                  status: option,
+                  late: option === 'Hadir' ? value.late : false,
+                  // Keterangan cuma dipertahankan kalau statusnya tidak
+                  // berubah (klik ulang) — pindah ke status lain wajib
+                  // isi keterangan baru, bukan warisan dari status sebelumnya.
+                  keterangan: option === value.status ? value.keterangan : undefined,
+                })
+              }
+              title={option}
+              aria-label={option}
+              className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center text-xs font-extrabold transition-all active:scale-90 ${
+                isActive ? `${STATUS_COLOR[option]} text-white shadow-sm` : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+              }`}
+            >
+              {STATUS_LETTER[option]}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          disabled={value.status !== 'Hadir'}
+          onClick={() => onChange({ ...value, late: !value.late })}
+          title="Terlambat (hanya berlaku untuk Hadir)"
+          aria-label="Terlambat (hanya berlaku untuk Hadir)"
+          className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center transition-all active:scale-90 ${
+            value.status !== 'Hadir'
+              ? 'bg-gray-50 text-gray-200 cursor-not-allowed'
+              : value.late
+              ? `${LATE_COLOR} text-white shadow-sm`
+              : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+          }`}
+        >
+          <Clock className="w-4 h-4" />
+        </button>
+      </div>
+      {showKeterangan && (
+        // key=status: input di-remount (state lokal reset) tiap kali status
+        // berpindah, selaras dengan keterangan yang juga direset di tombol
+        // status di atas — bukan sisa teks dari status sebelumnya.
+        <KeteranganInput key={value.status} value={value} onChange={onChange} />
+      )}
     </div>
+  );
+}
+
+function KeteranganInput({ value, onChange }: { value: TodayEntry; onChange: (next: TodayEntry) => void }) {
+  const [keterangan, setKeterangan] = React.useState(value.keterangan || '');
+  return (
+    <input
+      type="text"
+      value={keterangan}
+      onChange={(e) => setKeterangan(e.target.value)}
+      onBlur={() => {
+        const trimmed = keterangan.trim();
+        if (trimmed !== (value.keterangan || '')) {
+          onChange({ ...value, keterangan: trimmed || undefined });
+        }
+      }}
+      placeholder={`Keterangan ${value.status.toLowerCase()}...`}
+      className="w-full px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-[11px] text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+    />
   );
 }
 
@@ -160,8 +207,8 @@ export default function AttendanceGrid({ students, history, statusMap, onChange 
                 </div>
               )}
 
-              <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-                <span className="shrink-0 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Hari Ini</span>
+              <div className="flex items-start gap-2 pt-2 border-t border-gray-100">
+                <span className="shrink-0 text-[10px] font-bold text-gray-400 uppercase tracking-wider pt-2">Hari Ini</span>
                 <TodayStatusControl value={entry} onChange={(next) => onChange(student.id, next)} />
               </div>
             </div>
@@ -206,7 +253,7 @@ export default function AttendanceGrid({ students, history, statusMap, onChange 
                     </div>
                   );
                 })}
-                <div className={`border-l-2 border-gray-200 px-3 py-2.5 flex items-center ${TODAY_COL}`}>
+                <div className={`border-l-2 border-gray-200 px-3 py-2.5 flex items-center ${TODAY_COL} min-w-0`}>
                   <TodayStatusControl value={entry} onChange={(next) => onChange(student.id, next)} />
                 </div>
               </div>

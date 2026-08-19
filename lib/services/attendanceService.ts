@@ -7,7 +7,7 @@ export async function listAttendanceHistory(workspaceId: string, className: stri
   return attendanceRepository.getAttendanceByClass(workspaceId, className);
 }
 
-export type AttendanceEntry = { status: string; late?: boolean };
+export type AttendanceEntry = { status: string; late?: boolean; keterangan?: string };
 
 function todayDateString() {
   return getWitaDateString();
@@ -32,10 +32,11 @@ function buildAttendancePayload(
       ? entry.status
       : 'Hadir';
     const late = status === 'Hadir' && !!entry?.late;
+    const keterangan = status !== 'Hadir' ? entry?.keterangan?.trim() || null : null;
     const key = status.toLowerCase();
     if (summary[key] !== undefined) summary[key] += 1;
     if (late) summary.terlambat += 1;
-    return { studentId: student.id, name: student.name, nis: student.nis || '-', status, late };
+    return { studentId: student.id, name: student.name, nis: student.nis || '-', status, late, keterangan };
   });
   return {
     workspaceId,

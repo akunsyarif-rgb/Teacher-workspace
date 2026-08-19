@@ -102,6 +102,9 @@ function AttendanceContent({ profile }: { profile: StudentProfile }) {
             <div>
               <p className="text-xs font-bold text-gray-900">{record.date}</p>
               <p className="text-[11px] text-gray-500">{record.subject || "-"}</p>
+              {record.keterangan && (
+                <p className="text-[11px] text-gray-500 italic mt-0.5">{record.keterangan}</p>
+              )}
             </div>
             <div className="flex items-center gap-1.5">
               {record.late && (

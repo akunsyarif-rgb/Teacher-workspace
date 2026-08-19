@@ -33,6 +33,7 @@ export const EXPORT_COLUMNS: Record<string, ExportColumn[]> = {
     { key: 'nis', label: 'NIS' },
     { key: 'status', label: 'Status' },
     { key: 'late', label: 'Terlambat' },
+    { key: 'keterangan', label: 'Keterangan' },
   ],
   grades: [
     { key: 'className', label: 'Kelas' },

@@ -102,7 +102,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
       if (todayRecord) {
         (todayRecord.details || []).forEach((d: any) => {
           if (initial[d.studentId]) {
-            initial[d.studentId] = { status: d.status, late: !!d.late };
+            initial[d.studentId] = { status: d.status, late: !!d.late, keterangan: d.keterangan || undefined };
           }
         });
         recordIdRef.current = todayRecord.id;
@@ -371,6 +371,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
                     )}
                     <span className="text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded">Sakit: {item.summary?.sakit || 0}</span>
                     <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded">Izin: {item.summary?.izin || 0}</span>
+                    <span className="text-violet-600 bg-violet-50 px-2 py-0.5 rounded">Dispensasi: {item.summary?.dispensasi || 0}</span>
                     <span className="text-red-600 bg-red-50 px-2 py-0.5 rounded">Alpa: {item.summary?.alpa || 0}</span>
                   </div>
                 </div>

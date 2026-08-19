@@ -33,6 +33,7 @@ function flattenAttendances(sessions: any[]) {
         nis: d.nis,
         status: d.status,
         late: d.late ? 'Ya' : '-',
+        keterangan: d.keterangan || '-',
       });
     });
   });

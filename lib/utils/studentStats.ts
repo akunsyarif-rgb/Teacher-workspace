@@ -145,6 +145,7 @@ export function summarizeAttendance(records: any[], studentId: string) {
         subject: record.subject,
         status: mine.status,
         late: !!mine.late,
+        keterangan: mine.keterangan || null,
       };
     })
     .filter(Boolean)
