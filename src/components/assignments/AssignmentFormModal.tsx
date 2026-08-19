@@ -142,6 +142,7 @@ export default function AssignmentFormModal({ isOpen, onClose, onSubmit }: Assig
                 onClick={() => setFile(null)}
                 className="p-1 text-blue-400 hover:text-red-500 transition-colors shrink-0"
                 title="Hapus pilihan file"
+                aria-label="Hapus pilihan file"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
