@@ -18,9 +18,12 @@ export const COLLECTIONS = {
   // adalah satu-satunya kategori yang perlu dibaca siswa.
   STUDENT_ACHIEVEMENTS: 'student_achievements',
   // Alasan guru tidak sempat mengajar sesi tertentu ("Penyesuaian Workflow
-  // Jadwal — Final" #3) — satu dokumen per (scheduleId, date). TIDAK
-  // dianggap sebagai presensi/jurnal pengganti; sesi tetap "Perlu
-  // Konfirmasi" di daftar, cuma dilampiri alasan.
+  // Jadwal — Final" #3) — satu dokumen per (scheduleId, date). Bukan
+  // presensi/jurnal pengganti (field-nya tidak disentuh), tapi begitu
+  // tersimpan, sesi ini resmi berstatus "Tidak Mengajar" (lihat
+  // TodayClassStatus.isSkipped di dashboardService) — tidak lagi dihitung
+  // sebagai pekerjaan belum selesai, tetap tersimpan permanen sebagai
+  // histori.
   SESSION_SKIP_REASONS: 'session_skip_reasons',
   // Tahun Ajaran — partisi BERBASIS TANGGAL, bukan tag di tiap dokumen.
   // Satu dokumen per tahun ajaran {label, startDate, endDate, isActive}.

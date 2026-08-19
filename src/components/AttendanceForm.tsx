@@ -263,16 +263,14 @@ export default function AttendanceForm() {
 
   const currentSession = todayClassStatuses.find((s) => s.scheduleId === activeScheduleId) ?? null;
 
-  // Setelah presensi/jurnal tersimpan, refresh status sesi dan otomatis
-  // pindah ke langkah berikutnya kalau sesi ini punya jadwal hari ini —
-  // supaya guru tidak perlu klik-klik menu sendiri (lihat diskusi
-  // "Class Workspace" & "Workflow Engine" di roadmap).
+  // Setelah presensi ditandai selesai, refresh status sesi (badge
+  // Presensi/Jurnal di banner atas ikut ter-update) — SENGAJA TIDAK lagi
+  // otomatis pindah tab ke Jurnal. Guru yang baru menandai presensi selesai
+  // tetap di tab Presensi (lihat feedback "Presensi selesai" di
+  // AttendanceTab) dan bebas pindah ke Jurnal sendiri kapan siap — supaya
+  // navigasi tidak terasa diambil alih aplikasi.
   async function handleAttendanceSubmitted() {
-    const statuses = await loadSessionStatuses();
-    const updated = statuses.find((s) => s.scheduleId === activeScheduleId);
-    if (updated && !updated.hasJournal) {
-      setActiveTab('jurnal');
-    }
+    await loadSessionStatuses();
   }
 
   async function handleJournalSubmitted() {

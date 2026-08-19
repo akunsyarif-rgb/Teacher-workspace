@@ -488,6 +488,8 @@ export default function DashboardPage() {
                 const nextTab = !status.hasAttendance ? 'presensi' : 'jurnal';
                 const label = status.isDone
                   ? `Selesai • ${status.subject || subject}`
+                  : status.isSkipped
+                  ? `Tidak Mengajar${status.skipReason ? ` • ${status.skipReason.reason}` : ''}`
                   : !status.hasAttendance && !status.hasJournal
                   ? `Presensi & Jurnal belum diisi • ${status.timeSlot}`
                   : !status.hasAttendance
@@ -496,10 +498,20 @@ export default function DashboardPage() {
                 // Ikon status otomatis dari jadwal + waktu aktual, bukan lagi
                 // ditebak dari hasJournal/hasAttendance saja (lihat
                 // classifySessionState) — biru: belum waktunya, hijau: sedang
-                // berlangsung, centang: kewajiban sudah lengkap.
-                const StatusIcon = status.isDone ? CheckCircle2 : status.sessionState === 'ongoing' ? CircleDot : Circle;
+                // berlangsung, centang: kewajiban sudah lengkap, kalender
+                // silang: Tidak Mengajar (SkipReason tercatat, tidak lagi
+                // jadi pekerjaan).
+                const StatusIcon = status.isDone
+                  ? CheckCircle2
+                  : status.isSkipped
+                  ? CalendarX
+                  : status.sessionState === 'ongoing'
+                  ? CircleDot
+                  : Circle;
                 const statusIconColor = status.isDone
                   ? 'text-emerald-600'
+                  : status.isSkipped
+                  ? 'text-amber-500'
                   : status.sessionState === 'ongoing'
                   ? 'text-emerald-500'
                   : 'text-blue-400';
@@ -521,15 +533,32 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    {status.isDone ? (
-                      // Done TIDAK lagi "pekerjaan yang harus dikerjakan" —
-                      // tombolnya "Buka" (kroscek), bukan "Mulai/Lanjut".
-                      <Link
-                        href={`/attendance?class=${encodeURIComponent(status.className)}&tab=jurnal&scheduleId=${encodeURIComponent(status.scheduleId)}`}
-                        className="shrink-0 px-3 py-1.5 md:px-4 md:py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-[11px] md:text-xs font-bold transition-colors"
-                      >
-                        Buka
-                      </Link>
+                    {status.isDone || status.isSkipped ? (
+                      // Done maupun Tidak Mengajar (skipped) SAMA-SAMA bukan
+                      // lagi "pekerjaan yang harus dikerjakan" — tombolnya
+                      // "Buka" (kroscek/lihat alasan), bukan "Mulai/Lanjut".
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Link
+                          href={`/attendance?class=${encodeURIComponent(status.className)}&tab=jurnal&scheduleId=${encodeURIComponent(status.scheduleId)}`}
+                          className="px-3 py-1.5 md:px-4 md:py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-[11px] md:text-xs font-bold transition-colors"
+                        >
+                          Buka
+                        </Link>
+                        {/* Sesi Tidak Mengajar sudah keluar dari daftar
+                            Perlu Konfirmasi (lihat filter needsConfirmation-
+                            Statuses), jadi "Ubah" dipindah ke sini supaya
+                            guru masih bisa mengoreksi alasan yang salah
+                            pilih tanpa harus menunggu sesi lewat lagi. */}
+                        {status.isSkipped && (
+                          <button
+                            type="button"
+                            onClick={() => setSkipReasonTarget(status)}
+                            className="px-3 py-1.5 md:px-4 md:py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl text-[11px] md:text-xs font-bold transition-colors"
+                          >
+                            Ubah
+                          </button>
+                        )}
+                      </div>
                     ) : (
                       <Link
                         href={`/attendance?class=${encodeURIComponent(status.className)}&tab=${nextTab}&scheduleId=${encodeURIComponent(status.scheduleId)}`}
