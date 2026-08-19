@@ -28,6 +28,12 @@ import {
   ArrowRight,
   RefreshCw,
   AlertTriangle,
+  CheckCircle2,
+  CircleDot,
+  Circle,
+  CalendarX,
+  ListChecks,
+  School,
 } from "lucide-react";
 
 function getGreeting(date: Date = new Date()) {
@@ -239,7 +245,7 @@ export default function DashboardPage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 text-center space-y-3 max-w-md">
           <div className="w-16 h-16 mx-auto bg-amber-50 rounded-full flex items-center justify-center">
-            <span className="text-3xl">🏫</span>
+            <School className="w-7 h-7 text-amber-500" aria-hidden />
           </div>
           <h3 className="text-sm font-extrabold text-gray-700">Belum Ada Workspace</h3>
           <p className="text-xs text-gray-500">
@@ -259,7 +265,7 @@ export default function DashboardPage() {
   const SyncIndicator = () => {
     if (syncStatus === "offline") {
       return (
-        <span className="flex items-center gap-1.5 text-[10px] font-bold text-red-600 bg-red-50 px-3 py-1.5 rounded-full border border-red-200">
+        <span className="flex items-center gap-1.5 text-[11px] font-bold text-red-600 bg-red-50 px-3 py-1.5 rounded-full border border-red-200">
           <WifiOff className="w-3.5 h-3.5" />
           Offline
         </span>
@@ -267,7 +273,7 @@ export default function DashboardPage() {
     }
     if (syncStatus === "saving") {
       return (
-        <span className="flex items-center gap-1.5 text-[10px] font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-200 animate-pulse">
+        <span className="flex items-center gap-1.5 text-[11px] font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-200 animate-pulse">
           <Wifi className="w-3.5 h-3.5" />
           Menyimpan...
         </span>
@@ -275,7 +281,7 @@ export default function DashboardPage() {
     }
     if (syncStatus === "saved") {
       return (
-        <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
+        <span className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
           <Wifi className="w-3.5 h-3.5" />
           Tersimpan
         </span>
@@ -286,7 +292,7 @@ export default function DashboardPage() {
         <button
           type="button"
           onClick={() => saveQuickNoteToFirestore(quickNote)}
-          className="flex items-center gap-1.5 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-full border border-red-200 transition-colors active:scale-95"
+          className="flex items-center gap-1.5 text-[11px] font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-full border border-red-200 transition-colors active:scale-95"
           aria-label="Gagal simpan catatan, tap untuk coba lagi"
         >
           <WifiOff className="w-3.5 h-3.5" />
@@ -296,7 +302,7 @@ export default function DashboardPage() {
       );
     }
     return (
-      <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-50/60 px-3 py-1.5 rounded-full border border-emerald-200/50">
+      <span className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-600 bg-emerald-50/60 px-3 py-1.5 rounded-full border border-emerald-200/50">
         <Wifi className="w-3.5 h-3.5" />
         Tersinkron
       </span>
@@ -391,13 +397,13 @@ export default function DashboardPage() {
         {workflowStep && (
           <div className="bg-blue-600 p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-lg text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-[10px] font-extrabold uppercase tracking-wider text-blue-100">
+              <p className="text-[11px] font-extrabold uppercase tracking-wider text-blue-50">
                 {workflowStep.isOngoing ? 'Sedang Berlangsung Sekarang' : 'Sesi Berikutnya'}
               </p>
               <p className="text-lg md:text-xl font-extrabold mt-1 truncate">
                 Kelas {workflowStep.status.className} • {workflowStep.status.timeSlot}
               </p>
-              <p className="text-xs md:text-sm text-blue-100 mt-1">
+              <p className="text-xs md:text-sm text-blue-50 mt-1">
                 {!workflowStep.status.hasAttendance
                   ? 'Belum presensi hari ini'
                   : !workflowStep.status.hasJournal
@@ -428,8 +434,8 @@ export default function DashboardPage() {
               </h3>
             </div>
             {todayTotal > 0 && (
-              <span className={`text-[10px] md:text-xs font-extrabold shrink-0 ${
-                isDayComplete ? 'text-emerald-600' : isDayPartial ? 'text-amber-600' : 'text-gray-400'
+              <span className={`text-[11px] md:text-xs font-extrabold shrink-0 ${
+                isDayComplete ? 'text-emerald-600' : isDayPartial ? 'text-amber-600' : 'text-gray-500'
               }`}>
                 {journalsDone + attendancesDone} dari {todayTotal * 2} tugas
               </span>
@@ -450,12 +456,15 @@ export default function DashboardPage() {
           {jadwalHariIniStatuses.length === 0 ? (
             todayClassStatuses.length === 0 ? (
               <div className="p-4 md:p-6 bg-gray-50 rounded-xl md:rounded-2xl border border-dashed border-gray-200 text-center space-y-1">
+                <div className="w-9 h-9 mx-auto mb-1 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center">
+                  <CalendarX className="w-4.5 h-4.5" aria-hidden />
+                </div>
                 <p className="text-sm font-bold text-gray-600">
                   Tidak ada jadwal mengajar untuk hari {currentDayName}. Santai dulu 😊
                 </p>
                 <Link
                   href="/schedule"
-                  className="inline-block text-[10px] md:text-xs text-blue-600 underline underline-offset-2 font-bold"
+                  className="inline-block text-[11px] md:text-xs text-blue-600 underline underline-offset-2 font-bold"
                 >
                   Tambahkan lewat menu Jadwal Mengajar
                 </Link>
@@ -464,7 +473,10 @@ export default function DashboardPage() {
               // Ada jadwal hari ini, tapi semuanya sudah masuk Perlu
               // Konfirmasi di bawah — bukan berarti tidak ada jadwal sama
               // sekali, jadi pesannya beda dari empty-state di atas.
-              <div className="p-4 md:p-6 bg-emerald-50 rounded-xl md:rounded-2xl border border-dashed border-emerald-200 text-center">
+              <div className="p-4 md:p-6 bg-emerald-50 rounded-xl md:rounded-2xl border border-dashed border-emerald-200 text-center space-y-1">
+                <div className="w-9 h-9 mx-auto mb-1 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                  <ListChecks className="w-4.5 h-4.5" aria-hidden />
+                </div>
                 <p className="text-sm font-bold text-emerald-700">
                   Tidak ada sesi aktif saat ini — lihat Perlu Konfirmasi di bawah 👇
                 </p>
@@ -483,29 +495,41 @@ export default function DashboardPage() {
                   : !status.hasAttendance
                   ? `Presensi belum diisi • ${status.timeSlot}`
                   : `Jurnal belum diisi • ${status.timeSlot}`;
-                // Badge otomatis dari jadwal + waktu aktual, bukan lagi
+                // Ikon status otomatis dari jadwal + waktu aktual, bukan lagi
                 // ditebak dari hasJournal/hasAttendance saja (lihat
-                // classifySessionState) — 🔵 belum waktunya, 🟢 sedang
-                // berlangsung, ✅ kewajiban sudah lengkap, 🗓️ Tidak Mengajar
-                // (SkipReason tercatat, tidak lagi jadi pekerjaan).
-                const badge = status.isDone ? '✅' : status.isSkipped ? '🗓️' : status.sessionState === 'ongoing' ? '🟢' : '🔵';
+                // classifySessionState) — biru: belum waktunya, hijau: sedang
+                // berlangsung, centang: kewajiban sudah lengkap, kalender
+                // silang: Tidak Mengajar (SkipReason tercatat, tidak lagi
+                // jadi pekerjaan).
+                const StatusIcon = status.isDone
+                  ? CheckCircle2
+                  : status.isSkipped
+                  ? CalendarX
+                  : status.sessionState === 'ongoing'
+                  ? CircleDot
+                  : Circle;
+                const statusIconColor = status.isDone
+                  ? 'text-emerald-600'
+                  : status.isSkipped
+                  ? 'text-amber-500'
+                  : status.sessionState === 'ongoing'
+                  ? 'text-emerald-500'
+                  : 'text-blue-400';
 
                 return (
                   <div key={status.scheduleId} className="py-3 md:py-4 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <span className="text-lg md:text-xl shrink-0" aria-hidden>
-                        {badge}
-                      </span>
+                      <StatusIcon className={`w-5 h-5 shrink-0 ${statusIconColor}`} aria-hidden />
                       <div className="min-w-0">
                         <p className="text-sm font-extrabold text-gray-900 truncate flex items-center gap-2">
                           Kelas {status.className}
                           {status.sessionState === 'ongoing' && (
-                            <span className="text-[9px] font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full whitespace-nowrap">
+                            <span className="text-[10px] font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full whitespace-nowrap">
                               Berlangsung
                             </span>
                           )}
                         </p>
-                        <p className="text-[10px] md:text-xs text-gray-500 truncate">{label}</p>
+                        <p className="text-[11px] md:text-xs text-gray-500 truncate">{label}</p>
                       </div>
                     </div>
 
@@ -516,7 +540,7 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-2 shrink-0">
                         <Link
                           href={`/attendance?class=${encodeURIComponent(status.className)}&tab=jurnal&scheduleId=${encodeURIComponent(status.scheduleId)}`}
-                          className="px-3 py-1.5 md:px-4 md:py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-[10px] md:text-xs font-bold transition-colors"
+                          className="px-3 py-1.5 md:px-4 md:py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-[11px] md:text-xs font-bold transition-colors"
                         >
                           Buka
                         </Link>
@@ -529,7 +553,7 @@ export default function DashboardPage() {
                           <button
                             type="button"
                             onClick={() => setSkipReasonTarget(status)}
-                            className="px-3 py-1.5 md:px-4 md:py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl text-[10px] md:text-xs font-bold transition-colors"
+                            className="px-3 py-1.5 md:px-4 md:py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl text-[11px] md:text-xs font-bold transition-colors"
                           >
                             Ubah
                           </button>
@@ -538,7 +562,7 @@ export default function DashboardPage() {
                     ) : (
                       <Link
                         href={`/attendance?class=${encodeURIComponent(status.className)}&tab=${nextTab}&scheduleId=${encodeURIComponent(status.scheduleId)}`}
-                        className="shrink-0 px-3 py-1.5 md:px-4 md:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] md:text-xs font-bold transition-colors shadow-sm"
+                        className="shrink-0 px-3 py-1.5 md:px-4 md:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] md:text-xs font-bold transition-colors shadow-sm"
                       >
                         {status.hasAttendance || status.hasJournal ? 'Lanjut' : 'Mulai'}
                       </Link>
@@ -568,14 +592,12 @@ export default function DashboardPage() {
               {needsConfirmationStatuses.map((status) => (
                 <div key={status.scheduleId} className="py-3 md:py-4 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-lg md:text-xl shrink-0" aria-hidden>
-                      ⚠️
-                    </span>
+                    <AlertTriangle className="w-5 h-5 shrink-0 text-amber-500" aria-hidden />
                     <div className="min-w-0">
                       <p className="text-sm font-extrabold text-gray-900 truncate">
                         Kelas {status.className} • {status.timeSlot}
                       </p>
-                      <p className="text-[10px] md:text-xs text-gray-500 truncate">
+                      <p className="text-[11px] md:text-xs text-gray-500 truncate">
                         {status.skipReason
                           ? `${status.skipReason.reason}${status.skipReason.note ? ` — ${status.skipReason.note}` : ''}`
                           : 'Presensi/jurnal belum tercatat untuk sesi ini'}
@@ -593,14 +615,14 @@ export default function DashboardPage() {
                       href={`/attendance?class=${encodeURIComponent(status.className)}&tab=${
                         !status.hasAttendance ? 'presensi' : 'jurnal'
                       }&scheduleId=${encodeURIComponent(status.scheduleId)}`}
-                      className="px-3 py-1.5 md:px-4 md:py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-[10px] md:text-xs font-bold transition-colors"
+                      className="px-3 py-1.5 md:px-4 md:py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-[11px] md:text-xs font-bold transition-colors"
                     >
                       Buka
                     </Link>
                     <button
                       type="button"
                       onClick={() => setSkipReasonTarget(status)}
-                      className="px-3 py-1.5 md:px-4 md:py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl text-[10px] md:text-xs font-bold transition-colors"
+                      className="px-3 py-1.5 md:px-4 md:py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl text-[11px] md:text-xs font-bold transition-colors"
                     >
                       {status.skipReason ? 'Ubah' : 'Konfirmasi'}
                     </button>
@@ -638,10 +660,17 @@ export default function DashboardPage() {
                   : "border-gray-200 focus:ring-2 focus:ring-amber-500"
               }`}
             />
-            <p className="text-[9px] md:text-[10px] text-gray-400">
-              {isOnline
-                ? "Catatan otomatis tersimpan ke akun Anda (sinkron lintas perangkat)."
-                : "⚠️ Anda sedang offline. Catatan akan disimpan saat koneksi kembali."}
+            <p className="text-[11px] md:text-xs">
+              {isOnline ? (
+                <span className="text-gray-500">
+                  Catatan otomatis tersimpan ke akun Anda (sinkron lintas perangkat).
+                </span>
+              ) : (
+                <span className="text-red-600 font-semibold flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                  Anda sedang offline. Catatan akan disimpan saat koneksi kembali.
+                </span>
+              )}
             </p>
           </div>
 

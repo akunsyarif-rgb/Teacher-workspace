@@ -65,6 +65,7 @@ function HomeContent({ profile }: { profile: StudentProfile }) {
           onClick={handleLogout}
           className="p-2.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
           title="Keluar"
+          aria-label="Keluar"
         >
           <LogOut className="w-4 h-4" />
         </button>

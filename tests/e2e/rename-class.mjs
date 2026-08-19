@@ -170,7 +170,10 @@ async function run() {
     await teacher.goto(`${BASE_URL}/classes`, { waitUntil: 'domcontentloaded' });
     await teacher.getByText(ORIGINAL_CLASS, { exact: true }).first().click();
     await teacher.waitForTimeout(1500);
-    const codeButtonBefore = teacher.locator('button[title*="kode akses"]').first();
+    // Judul spesifik, bukan substring "kode akses" saja — sejak fitur
+    // "Salin Semua Kode" ditambahkan, judulnya juga cocok dengan substring
+    // itu dan render lebih dulu di DOM (lihat catatan sama di smoke.mjs).
+    const codeButtonBefore = teacher.locator('button[title="Salin kode akses Student Companion"]').first();
     if (await codeButtonBefore.count()) {
       accessCodeBeforeRename = (await codeButtonBefore.innerText()).trim().split('\n')[0].trim();
       pass('Setup: kode akses siswa dicatat sebelum rename', accessCodeBeforeRename);
@@ -272,7 +275,7 @@ async function run() {
     await teacher.goto(`${BASE_URL}/classes`, { waitUntil: 'domcontentloaded' });
     await teacher.getByText(RENAMED_CLASS, { exact: true }).first().click();
     await teacher.waitForTimeout(1500);
-    const codeButtonAfter = teacher.locator('button[title*="kode akses"]').first();
+    const codeButtonAfter = teacher.locator('button[title="Salin kode akses Student Companion"]').first();
     let accessCodeAfterRename = null;
     if (await codeButtonAfter.count()) {
       accessCodeAfterRename = (await codeButtonAfter.innerText()).trim().split('\n')[0].trim();

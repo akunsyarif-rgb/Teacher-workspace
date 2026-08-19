@@ -262,6 +262,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                           onClick={() => removeFile(idx)}
                           className="p-1 text-blue-400 hover:text-red-500 transition-colors shrink-0"
                           title="Hapus foto ini"
+                          aria-label="Hapus foto ini"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
