@@ -6,6 +6,7 @@ import Card from "../ui/Card";
 import Button from "../ui/Button";
 import AttendanceGrid, { TodayEntry } from "./AttendanceGrid";
 import ConfirmDeleteModal from "@/src/components/ui/ConfirmDeleteModal";
+import MarkCompletedConfirmModal from "./MarkCompletedConfirmModal";
 import InlineAlert from "@/src/components/ui/InlineAlert";
 import * as attendanceController from "@/lib/controllers/attendanceController";
 import * as studentController from "@/lib/controllers/classController";
@@ -44,6 +45,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
   const [completed, setCompleted] = useState(false);
   const [autoSaveState, setAutoSaveState] = useState<AutoSaveState>("idle");
   const [markingDone, setMarkingDone] = useState(false);
+  const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
 
   // Ref, bukan cuma state: dibaca di dalam antrean save (lihat
   // triggerAutoSave) supaya penyimpanan berikutnya selalu tahu ID
@@ -193,6 +195,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
       setErrorMsg(error.message || "Gagal menandai presensi selesai.");
     } finally {
       setMarkingDone(false);
+      setShowCompleteConfirm(false);
     }
   }
 
@@ -305,9 +308,9 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
                 <span>Presensi selesai — status masih bisa dikoreksi kapan saja kalau ada kesalahan.</span>
               </div>
             ) : (
-              <Button onClick={handleMarkCompleted} loading={markingDone} variant="secondary">
+              <Button onClick={() => setShowCompleteConfirm(true)} variant="secondary">
                 <Flag className="w-5 h-5" />
-                <span>{markingDone ? "Menandai..." : "Tandai Presensi Selesai"}</span>
+                <span>Tandai Presensi Selesai</span>
               </Button>
             )}
           </>
@@ -397,6 +400,13 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
         itemDetail={`Kelas ${className}`}
         requireTyping={false}
         type="warning"
+      />
+
+      <MarkCompletedConfirmModal
+        isOpen={showCompleteConfirm}
+        onClose={() => setShowCompleteConfirm(false)}
+        onConfirm={handleMarkCompleted}
+        loading={markingDone}
       />
     </div>
   );

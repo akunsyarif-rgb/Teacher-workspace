@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { signInWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "@/src/config/firebase";
 import { useRouter } from "next/navigation";
-import { GraduationCap, Lock, Mail, ArrowRight } from "lucide-react";
+import { GraduationCap, Lock, Mail, ArrowRight, Users } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -102,6 +102,33 @@ export default function LoginPage() {
           <p className="text-xs text-gray-400">Kelola absensi, jurnal, dan kegiatan kelas dengan mudah</p>
         </div>
 
+        {/* Jalur siswa dibuat menonjol (bukan cuma tautan teks kecil di
+            bawah) supaya begitu halaman ini dibuka, langsung terlihat ada
+            DUA jenis pengguna — guru (form di bawah) dan siswa (kartu ini).
+            Sengaja tetap link biasa ke /student/login, bukan landing page
+            pemilihan baru. */}
+        <a
+          href="/student/login"
+          className="flex items-center justify-between gap-3 p-4 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-2xl transition-colors group"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shrink-0 shadow-sm shadow-blue-200">
+              <Users className="w-5 h-5 text-white" />
+            </div>
+            <div className="min-w-0 text-left">
+              <p className="text-xs font-extrabold text-gray-900">Masuk sebagai Siswa</p>
+              <p className="text-[10px] text-gray-500 truncate">Buka Student Companion pakai kode akses dari guru</p>
+            </div>
+          </div>
+          <ArrowRight className="w-4 h-4 text-blue-600 group-hover:translate-x-0.5 transition-transform shrink-0" />
+        </a>
+
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px bg-gray-100" />
+          <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">atau, Guru masuk di sini</span>
+          <div className="flex-1 h-px bg-gray-100" />
+        </div>
+
         {error && (
           <div className="p-3.5 bg-red-50 border border-red-100 rounded-2xl text-xs font-bold text-red-600 text-center">
             {error}
@@ -164,13 +191,6 @@ export default function LoginPage() {
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
-
-        <p className="text-center text-xs text-gray-400 pt-2 border-t border-gray-100">
-          Siswa?{" "}
-          <a href="/student/login" className="text-blue-600 font-bold hover:underline">
-            Masuk ke Student Companion
-          </a>
-        </p>
       </div>
     </div>
   );

@@ -86,7 +86,7 @@ export function getScheduleStartMinutes(timeSlot: string): number {
   return parseScheduleRange(timeSlot)?.startMinutes ?? Number.MAX_SAFE_INTEGER;
 }
 
-export type SessionState = 'upcoming' | 'ongoing' | 'needs_confirmation' | 'done';
+export type SessionState = 'upcoming' | 'ongoing' | 'needs_confirmation' | 'done' | 'skipped';
 
 /**
  * Status otomatis satu sesi berdasarkan jadwal resmi + waktu aktual, sesuai
@@ -96,13 +96,22 @@ export type SessionState = 'upcoming' | 'ongoing' | 'needs_confirmation' | 'done
  * Format timeSlot yang tidak dikenali dianggap "upcoming" — lebih aman
  * daripada menuduh guru belum konfirmasi sesi yang jadwalnya sendiri tidak
  * terbaca.
+ *
+ * `isSkipped` (opsional, default false) = guru sudah mencatat SkipReason
+ * (Rapat/Tugas dinas/dst) untuk sesi ini. isDone tetap diprioritaskan di
+ * atas isSkipped — kalau guru ternyata TETAP mengisi presensi/jurnal
+ * setelah mencatat alasan, data sungguhan itu yang menang, bukan label
+ * "Tidak Mengajar". Parameter ini opsional (bukan wajib) supaya pemanggil
+ * lama yang belum kenal konsep skip reason tetap jalan tanpa perubahan.
  */
 export function classifySessionState(
   timeSlot: string,
   isDone: boolean,
-  now: Date = new Date()
+  now: Date = new Date(),
+  isSkipped: boolean = false
 ): SessionState {
   if (isDone) return 'done';
+  if (isSkipped) return 'skipped';
   if (isScheduleOngoing(timeSlot, now)) return 'ongoing';
 
   const range = parseScheduleRange(timeSlot);
@@ -136,7 +145,7 @@ export function findActiveScheduleId(
   return (ongoing ?? todays[0]).id;
 }
 
-export type WorkflowStep<T extends { timeSlot: string; isDone: boolean }> = {
+export type WorkflowStep<T extends { timeSlot: string; isDone: boolean; isSkipped?: boolean }> = {
   status: T;
   isOngoing: boolean;
 };
@@ -155,12 +164,16 @@ export type WorkflowStep<T extends { timeSlot: string; isDone: boolean }> = {
  * waktunya, kembalikan null — daftar "Perlu Konfirmasi" terpisah (di
  * Beranda) yang menampung sesi-sesi itu, supaya guru tidak diarahkan
  * seolah-olah harus "memulai" sesi yang jadwalnya sudah berakhir.
+ *
+ * Sesi yang sudah ditandai "Tidak Mengajar" (isSkipped) juga dikeluarkan
+ * dari `pending` — statusnya sudah final (Rapat/Tugas dinas/dst), jadi
+ * tidak boleh ditawarkan sebagai "Sesi Berikutnya" yang harus dikerjakan.
  */
-export function resolveCurrentWorkflowStep<T extends { timeSlot: string; isDone: boolean }>(
+export function resolveCurrentWorkflowStep<T extends { timeSlot: string; isDone: boolean; isSkipped?: boolean }>(
   statuses: T[],
   now: Date = new Date()
 ): WorkflowStep<T> | null {
-  const pending = statuses.filter((s) => !s.isDone);
+  const pending = statuses.filter((s) => !s.isDone && !s.isSkipped);
   if (pending.length === 0) return null;
 
   const ongoing = pending.find((s) => isScheduleOngoing(s.timeSlot, now));

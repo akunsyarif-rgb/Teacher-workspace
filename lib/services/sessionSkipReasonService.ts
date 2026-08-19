@@ -13,10 +13,16 @@ export async function listTodaySkipReasons(workspaceId: string) {
   return sessionSkipReasonRepository.getByDate(workspaceId, todayDateString());
 }
 
-// Guru mencatat/mengganti alasan sesi "Perlu Konfirmasi" — TIDAK mengubah
-// hasAttendance/hasJournal, jadi sesi tetap tercatat belum lengkap. Ini
-// murni lapisan konfirmasi/konteks, bukan pengganti presensi/jurnal (lihat
-// "Prinsip utama" di spec: data presensi/jurnal = penentu penyelesaian).
+// Guru mencatat/mengganti alasan sesi "Perlu Konfirmasi". TIDAK mengubah
+// hasAttendance/hasJournal itu sendiri (bukan pengganti presensi/jurnal),
+// TAPI begitu tersimpan, dashboardService menandai sesi ini isSkipped=true
+// ("Tidak Mengajar") — dikeluarkan dari daftar pekerjaan belum selesai,
+// bukan lagi sekadar konteks tambahan seperti sebelumnya. Untuk versi ini
+// hanya bisa diisi SETELAH sesi terlewat (dipicu dari daftar "Perlu
+// Konfirmasi" di Beranda) — bukan proaktif sebelum jam mengajar. Signature
+// di sini sengaja sudah generik (scheduleId+date, bukan terikat ke waktu
+// sesi lewat), supaya nanti pengisian proaktif tinggal ditambah pemanggil
+// baru tanpa mengubah service/repository ini.
 export async function saveSkipReason(
   workspaceId: string,
   scheduleId: string,
