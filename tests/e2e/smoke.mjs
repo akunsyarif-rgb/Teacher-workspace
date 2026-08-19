@@ -224,7 +224,12 @@ async function run() {
       await classCard.click();
       await teacher.waitForTimeout(3000);
     }
-    const codeButton = teacher.locator('button[title*="kode akses"]').first();
+    // Judul spesifik (bukan substring "kode akses" saja) — sejak fitur
+    // "Salin Semua Kode" ditambahkan, judulnya ("Salin semua kode akses
+    // siswa...") juga cocok dengan substring itu dan render LEBIH DULU di
+    // DOM daripada tombol kode per-siswa, sehingga `.first()` salah
+    // menangkap tombol bulk-copy alih-alih kode akses siswa sungguhan.
+    const codeButton = teacher.locator('button[title="Salin kode akses Student Companion"]').first();
     if (await codeButton.count()) {
       accessCode = (await codeButton.innerText()).trim().split('\n')[0].trim();
       pass('Kode akses siswa tampil untuk guru', accessCode);
