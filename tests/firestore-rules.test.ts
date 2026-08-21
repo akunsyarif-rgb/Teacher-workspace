@@ -674,12 +674,151 @@ describe('submissions — siswa hanya boleh baca/tulis submission miliknya sendi
 
   it('denies a student re-submitting once the teacher already graded it', async () => {
     await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    // Fixture-nya memuat pekerjaan siswa (textAnswer + submittedAt) karena
+    // itulah arti "sudah dinilai" yang sebenarnya: guru menilai sesuatu
+    // yang memang dikumpulkan. Dokumen ber-status 'dinilai' TANPA
+    // pekerjaan siswa adalah kasus berbeda — diuji tepat di bawah ini.
     await seed((db) =>
-      setDoc(doc(db, 'submissions/a1_s1'), { workspaceId: 'ws1', assignmentId: 'a1', studentId: 's1', status: 'dinilai' })
+      setDoc(doc(db, 'submissions/a1_s1'), {
+        workspaceId: 'ws1',
+        assignmentId: 'a1',
+        studentId: 's1',
+        status: 'dinilai',
+        textAnswer: 'jawaban saya',
+        submittedAt: '2026-08-20T01:00:00.000Z',
+      })
     );
     const db = testEnv.authenticatedContext('studentUidA').firestore();
     await assertFails(
       updateDoc(doc(db, 'submissions/a1_s1'), { status: 'menunggu_penilaian', textAnswer: 'revisi' })
+    );
+  });
+
+  // REGRESI bug "siswa tidak bisa mengumpulkan tugas": guru yang mengisi
+  // nilai untuk siswa yang belum mengumpulkan membuat dokumen ber-status
+  // 'dinilai' yang kosong, dan sejak itu rules ikut menolak setiap
+  // pengumpulan siswa tersebut — selamanya, tanpa pesan apa pun.
+  it('lets a student still submit when the doc was marked dinilai but holds no student work', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    await seed((db) =>
+      setDoc(doc(db, 'submissions/a1_s1'), {
+        workspaceId: 'ws1',
+        assignmentId: 'a1',
+        studentId: 's1',
+        status: 'dinilai',
+        feedback: 'dikerjakan di kelas',
+      })
+    );
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertSucceeds(
+      updateDoc(doc(db, 'submissions/a1_s1'), {
+        status: 'menunggu_penilaian',
+        textAnswer: 'jawaban saya',
+        submittedAt: '2026-08-21T02:00:00.000Z',
+        feedback: 'dikerjakan di kelas',
+      })
+    );
+  });
+
+  it('denies a student overwriting the teacher feedback while re-submitting', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    await seed((db) =>
+      setDoc(doc(db, 'submissions/a1_s1'), {
+        workspaceId: 'ws1',
+        assignmentId: 'a1',
+        studentId: 's1',
+        status: 'menunggu_penilaian',
+        textAnswer: 'jawaban lama',
+        feedback: 'perbaiki nomor 3',
+      })
+    );
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertFails(
+      updateDoc(doc(db, 'submissions/a1_s1'), { textAnswer: 'revisi', feedback: 'katanya sudah bagus' })
+    );
+    await assertFails(updateDoc(doc(db, 'submissions/a1_s1'), { textAnswer: 'revisi', feedback: '' }));
+  });
+
+  it('denies a student inventing teacher feedback on a brand new submission', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertFails(
+      setDoc(doc(db, 'submissions/a1_s1'), {
+        workspaceId: 'ws1',
+        assignmentId: 'a1',
+        studentId: 's1',
+        status: 'menunggu_penilaian',
+        textAnswer: 'jawaban saya',
+        feedback: 'bagus sekali, nilai 100',
+      })
+    );
+  });
+
+  it('still lets a student re-submit while keeping the teacher feedback untouched', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    await seed((db) =>
+      setDoc(doc(db, 'submissions/a1_s1'), {
+        workspaceId: 'ws1',
+        assignmentId: 'a1',
+        studentId: 's1',
+        status: 'menunggu_penilaian',
+        textAnswer: 'jawaban lama',
+        feedback: 'perbaiki nomor 3',
+      })
+    );
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertSucceeds(
+      updateDoc(doc(db, 'submissions/a1_s1'), { textAnswer: 'jawaban baru', feedback: 'perbaiki nomor 3' })
+    );
+  });
+
+  it('lets the teacher write feedback without touching the grade', async () => {
+    await seedProfile('teacherA', 'ws1');
+    await seed((db) =>
+      setDoc(doc(db, 'submissions/a1_s1'), {
+        workspaceId: 'ws1',
+        assignmentId: 'a1',
+        studentId: 's1',
+        status: 'menunggu_penilaian',
+        textAnswer: 'jawaban saya',
+      })
+    );
+    const db = testEnv.authenticatedContext('teacherA').firestore();
+    await assertSucceeds(updateDoc(doc(db, 'submissions/a1_s1'), { feedback: 'kerjakan ulang nomor 2' }));
+  });
+
+  // REGRESI: pengumpulan PERTAMA setiap siswa gagal dengan
+  // permission-denied karena service memeriksa dokumen yang belum ada
+  // lebih dulu, dan `get` pada dokumen yang belum ada ikut tertolak
+  // (resource == null membuat aturan read biasa error).
+  it('lets a student get their own submission doc even before it exists', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertSucceeds(getDoc(doc(db, 'submissions/a1_s1')));
+  });
+
+  it('denies a student probing a classmate\'s not-yet-existing submission doc', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertFails(getDoc(doc(db, 'submissions/a1_s2')));
+  });
+
+  it('denies an unclaimed anonymous user from probing submission docs', async () => {
+    const db = testEnv.authenticatedContext('unclaimedAnon').firestore();
+    await assertFails(getDoc(doc(db, 'submissions/a1_s1')));
+  });
+
+  it('denies a student writing a grade into the grades collection', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertFails(
+      setDoc(doc(db, 'grades/s1_col1'), {
+        workspaceId: 'ws1',
+        className: 'XI-A',
+        studentId: 's1',
+        columnId: 'col1',
+        score: '100',
+      })
     );
   });
 });

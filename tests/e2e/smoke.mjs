@@ -351,18 +351,18 @@ async function run() {
       }
 
       // ---------- 7. Siswa mengumpulkan jawaban ----------
-      const submitButton = student.getByRole('button', { name: /Kumpulkan/i }).first();
+      const submitButton = student.getByRole('button', { name: /Kerjakan Tugas/i }).first();
       if (await submitButton.count()) {
         await submitButton.click();
         await student.waitForTimeout(600);
         await student.fill('textarea', 'Ini jawaban saya untuk latihan bab 3.');
-        await student.getByRole('button', { name: /^Kumpulkan$/i }).last().click();
-        await student.waitForTimeout(3500);
-        const waiting = await student.getByText(/Menunggu penilaian/i).count();
+        await student.getByRole('button', { name: /^Kirim Tugas$/i }).last().click();
+        await student.waitForTimeout(4000);
+        const waiting = await student.getByText(/Sudah dikumpulkan/i).count();
         if (waiting > 0) pass('Siswa mengumpulkan jawaban');
-        else fail('Siswa mengumpulkan jawaban', 'status tidak berubah jadi "Menunggu penilaian"');
+        else fail('Siswa mengumpulkan jawaban', 'status tidak berubah jadi "Sudah dikumpulkan"');
       } else {
-        fail('Siswa mengumpulkan jawaban', 'tombol Kumpulkan tidak ditemukan');
+        fail('Siswa mengumpulkan jawaban', 'tombol "Kerjakan Tugas" tidak ditemukan');
       }
 
       // ---------- 7b. Siswa melampirkan BEBERAPA file sekaligus ----------
@@ -375,7 +375,7 @@ async function run() {
       // dengan prefix unik per file, dan penyimpanan/rendering array
       // `attachments` di kedua sisi (siswa & guru) — bukan cuma jalur
       // lampiran tunggal yang lama.
-      const editButton = student.getByRole('button', { name: /Ubah Jawaban/i }).first();
+      const editButton = student.getByRole('button', { name: /Ubah Pengumpulan/i }).first();
       if (await editButton.count()) {
         await editButton.click();
         await student.waitForTimeout(600);
@@ -386,7 +386,7 @@ async function run() {
           { name: 'jawaban-tulis-tangan-2.png', mimeType: 'image/png', buffer: ONE_PIXEL_PNG },
         ]);
         await student.waitForTimeout(500);
-        await student.getByRole('button', { name: /^Kumpulkan$/i }).last().click();
+        await student.getByRole('button', { name: /^Kirim Tugas$/i }).last().click();
         // Unggah 2 file + getDownloadURL butuh waktu lebih lama daripada
         // tulis Firestore biasa.
         await student.waitForTimeout(10000);
@@ -403,7 +403,7 @@ async function run() {
           );
         }
       } else {
-        fail('Siswa melampirkan 2 foto sekaligus dan keduanya tersimpan', 'tombol "Ubah Jawaban" tidak ditemukan');
+        fail('Siswa melampirkan 2 foto sekaligus dan keduanya tersimpan', 'tombol "Ubah Pengumpulan" tidak ditemukan');
       }
 
       // ---------- 8. Siswa melihat halaman lain tanpa error ----------
@@ -431,6 +431,13 @@ async function run() {
     if (await assignmentRow.count()) {
       await assignmentRow.click();
       await teacher.waitForTimeout(3000);
+      // Isi pengumpulan kini ditampilkan di dalam panel Review, bukan
+      // langsung di daftar — guru wajib membukanya sebelum menilai.
+      const openReview = teacher.getByRole('button', { name: /^Review$/i }).first();
+      if (await openReview.count()) {
+        await openReview.click();
+        await teacher.waitForTimeout(1500);
+      }
       const answerVisible = await teacher.getByText(/Ini jawaban saya/i).count();
       if (answerVisible > 0) pass('Guru melihat jawaban siswa');
       else fail('Guru melihat jawaban siswa', 'teks jawaban tidak muncul di panel penilaian');
@@ -462,18 +469,22 @@ async function run() {
       if (bothAttachmentsOpenable) pass('Guru bisa membuka kedua lampiran siswa');
       else await failWithEvidence(teacher, 'Guru bisa membuka kedua lampiran siswa', 'lihat detail di atas');
 
-      const gradeButton = teacher.getByRole('button', { name: /Beri Nilai/i }).first();
-      if (await gradeButton.count()) {
-        await gradeButton.click();
-        await teacher.waitForTimeout(600);
-        await teacher.fill('input[placeholder="Nilai"]', '88');
-        await teacher.getByRole('button', { name: /^Simpan$/i }).first().click();
-        await teacher.waitForTimeout(3500);
+      // Sejak "Review sebelum nilai", menilai hanya mungkin dari dalam
+      // panel review (guru harus melihat pekerjaannya dulu — panelnya
+      // sudah terbuka di langkah sebelumnya), dan nilai baru tertulis
+      // setelah dikonfirmasi.
+      const scoreField = teacher.locator('input[placeholder="Nilai"]').first();
+      if (await scoreField.count()) {
+        await scoreField.fill('88');
+        await teacher.getByRole('button', { name: /^Simpan Nilai$/i }).first().click();
+        await teacher.waitForTimeout(800);
+        await teacher.getByRole('button', { name: /^Simpan Nilai$/i }).last().click();
+        await teacher.waitForTimeout(4000);
         const graded = await teacher.getByText(/Nilai 88/i).count();
         if (graded > 0) pass('Guru memberi nilai');
         else fail('Guru memberi nilai', 'nilai tidak muncul setelah disimpan');
       } else {
-        fail('Guru memberi nilai', 'tombol "Beri Nilai" tidak ditemukan');
+        fail('Guru memberi nilai', 'kolom Nilai tidak ditemukan di panel review');
       }
     } else {
       fail('Guru melihat jawaban siswa', 'tugas tidak ditemukan di daftar');

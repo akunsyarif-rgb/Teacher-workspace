@@ -1,4 +1,4 @@
-import { getDocuments, batchWrite, BatchOperation } from '../adapters/firestoreAdapter';
+import { getDocument, getDocuments, batchWrite, BatchOperation } from '../adapters/firestoreAdapter';
 import { COLLECTIONS } from '../config/constants';
 
 // Satu dokumen per (assignment, siswa) — bukan satu dokumen per assignment
@@ -15,6 +15,17 @@ export async function getSubmissionsByAssignment(workspaceId: string, assignment
     ['workspaceId', '==', workspaceId],
     ['assignmentId', '==', assignmentId],
   ]);
+}
+
+/**
+ * Satu dokumen submission milik seorang siswa untuk satu tugas. Dibaca
+ * lewat ID (bukan query) karena ID-nya memang deterministik — inilah yang
+ * membuat pengumpulan berulang selalu MENIMPA dokumen yang sama, bukan
+ * membuat submission baru tiap kali tombol kirim ditekan.
+ */
+export async function getSubmission(assignmentId: string, studentId: string) {
+  if (!assignmentId || !studentId) return null;
+  return getDocument(COLLECTIONS.SUBMISSIONS, submissionId(assignmentId, studentId));
 }
 
 export async function getSubmissionsByStudent(workspaceId: string, studentId: string) {

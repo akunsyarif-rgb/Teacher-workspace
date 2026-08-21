@@ -23,9 +23,37 @@ export async function submitAssignment(
     fileUrl?: string;
     fileName?: string;
     filePath?: string;
-  }
+  },
+  dueDate?: string | null
 ) {
-  const result = await submissionService.submitAssignment(workspaceId, assignmentId, studentId, className, answer);
+  const result = await submissionService.submitAssignment(
+    workspaceId,
+    assignmentId,
+    studentId,
+    className,
+    answer,
+    dueDate
+  );
+  clearAllCached();
+  return result;
+}
+
+// Catatan guru disimpan lewat jalur sendiri, tanpa menyentuh nilai —
+// lihat submissionService.saveSubmissionFeedback.
+export async function saveFeedback(
+  workspaceId: string,
+  className: string,
+  assignmentId: string,
+  studentId: string,
+  feedback: string
+) {
+  const result = await submissionService.saveSubmissionFeedback(
+    workspaceId,
+    className,
+    assignmentId,
+    studentId,
+    feedback
+  );
   clearAllCached();
   return result;
 }
@@ -37,7 +65,8 @@ export async function gradeSubmission(
   gradeColumnId: string,
   studentId: string,
   score: string,
-  feedback?: string
+  feedback?: string,
+  hasSubmitted?: boolean
 ) {
   const result = await submissionService.gradeSubmission(
     workspaceId,
@@ -46,7 +75,8 @@ export async function gradeSubmission(
     gradeColumnId,
     studentId,
     score,
-    feedback
+    feedback,
+    hasSubmitted
   );
   clearAllCached();
   return result;

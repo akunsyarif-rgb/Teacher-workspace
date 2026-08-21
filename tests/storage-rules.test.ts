@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
   initializeTestEnvironment,
   assertSucceeds,
@@ -7,6 +7,7 @@ import {
 } from '@firebase/rules-unit-testing';
 import { readFileSync } from 'node:fs';
 import { ref, uploadBytes, getBytes } from 'firebase/storage';
+import { resolveUploadContentType } from '../lib/utils/uploadFileTypes';
 
 // Kepemilikan lampiran dibuktikan dari UID di path (lihat storage.rules),
 // jadi seluruh aturan bisa diuji tanpa bergantung pada cross-service
@@ -102,6 +103,41 @@ describe('storage.rules — lampiran tugas', () => {
   it('denies writing anywhere outside the submissions path', async () => {
     const storage = testEnv.authenticatedContext('studentUidA').storage();
     await assertFails(uploadBytes(ref(storage, 'random/file.png'), PNG, META));
+  });
+
+  // REGRESI: HP Android/Google Drive sering melaporkan foto sebagai
+  // application/octet-stream. Kalau contentType itu diteruskan apa adanya,
+  // rules menolaknya — foto pekerjaan tulis tangan (cara paling umum siswa
+  // mengumpulkan) mustahil diunggah. Aturannya TIDAK dilonggarkan; yang
+  // diperbaiki adalah tipe yang dikirim klien.
+  it('denies the raw octet-stream a phone file picker reports', async () => {
+    const storage = testEnv.authenticatedContext('studentUidA').storage();
+    await assertFails(
+      uploadBytes(ref(storage, `submissions/ws1/a1/studentUidA/foto.jpg`), PNG, {
+        contentType: 'application/octet-stream',
+      })
+    );
+  });
+
+  it('accepts that same photo once the content type is inferred from the file name', async () => {
+    const storage = testEnv.authenticatedContext('studentUidA').storage();
+    const contentType = resolveUploadContentType({ name: 'foto.jpg', type: 'application/octet-stream' });
+    await assertSucceeds(
+      uploadBytes(ref(storage, `submissions/ws1/a1/studentUidA/foto.jpg`), PNG, {
+        contentType: contentType as string,
+      })
+    );
+  });
+
+  it('still rejects a file whose name gives no allowed type either', async () => {
+    const storage = testEnv.authenticatedContext('studentUidA').storage();
+    const contentType = resolveUploadContentType({ name: 'arsip.zip', type: 'application/octet-stream' });
+    expect(contentType).toBeNull();
+    await assertFails(
+      uploadBytes(ref(storage, `submissions/ws1/a1/studentUidA/arsip.zip`), PNG, {
+        contentType: 'application/zip',
+      })
+    );
   });
 });
 

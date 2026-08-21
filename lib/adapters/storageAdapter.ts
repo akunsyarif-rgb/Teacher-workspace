@@ -1,8 +1,16 @@
 import { auth, storage } from '@/src/config/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { withTimeout } from '../utils/withTimeout';
+import { userError } from '../utils/submissionRules';
+import {
+  MAX_SUBMISSION_FILES,
+  MAX_UPLOAD_BYTES,
+  resolveUploadContentType,
+} from '../utils/uploadFileTypes';
 
-export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
-export const MAX_SUBMISSION_FILES = 5;
+// Di-re-export supaya pemanggil lama (halaman siswa, AssignmentFormModal)
+// tetap mengimpornya dari adapter ini seperti sebelumnya.
+export { MAX_SUBMISSION_FILES, MAX_UPLOAD_BYTES, resolveUploadContentType };
 
 // Upload lampiran lewat jaringan sekolah/seluler yang tidak stabil bisa
 // diam-diam menggantung tanpa pernah resolve ATAUPUN reject (koneksi putus
@@ -11,39 +19,15 @@ export const MAX_SUBMISSION_FILES = 5;
 // berputar selamanya dan siswa tidak pernah tahu unggahannya gagal.
 const UPLOAD_TIMEOUT_MS = 45_000;
 
-function withTimeout<T>(promise: Promise<T>, message: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(message)), UPLOAD_TIMEOUT_MS);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error) => {
-        clearTimeout(timer);
-        reject(error);
-      }
-    );
-  });
-}
-
-// Harus sejalan dengan isAllowedUpload() di storage.rules. Divalidasi dua
-// kali (di sini dan di rules) bukan karena kurang percaya, tapi supaya
-// siswa dapat pesan yang jelas sebelum file 10MB terlanjur terkirim —
-// rules-nya sendiri tetap jadi penentu akhir.
-const ALLOWED_TYPE_PATTERNS = [
-  /^image\//,
-  /^application\/pdf$/,
-  /^application\/msword$/,
-  /^application\/vnd\.openxmlformats-officedocument\./,
-];
-
+// Divalidasi dua kali (di sini dan di storage.rules) bukan karena kurang
+// percaya, tapi supaya siswa dapat pesan yang jelas sebelum file 10MB
+// terlanjur terkirim — rules-nya sendiri tetap jadi penentu akhir.
 export function validateUploadFile(file: File) {
   if (file.size >= MAX_UPLOAD_BYTES) {
-    throw new Error('Ukuran file maksimal 10 MB.');
+    throw userError('Ukuran file maksimal 10 MB. Kecilkan dulu fotonya lalu coba lagi.');
   }
-  if (!ALLOWED_TYPE_PATTERNS.some((pattern) => pattern.test(file.type))) {
-    throw new Error('Format file harus gambar, PDF, atau dokumen Word.');
+  if (!resolveUploadContentType(file)) {
+    throw userError('Format file harus gambar, PDF, atau dokumen Word.');
   }
 }
 
@@ -70,19 +54,24 @@ export async function uploadSubmissionFile(
   validateUploadFile(file);
 
   const uid = auth.currentUser?.uid;
-  if (!uid) throw new Error('Sesi tidak valid, coba muat ulang halaman.');
+  if (!uid) throw userError('Sesi tidak valid, coba muat ulang halaman.', 'unauthenticated');
 
   const fileName = sanitizeFileName(file.name);
   const path = `submissions/${workspaceId}/${assignmentId}/${uid}/${uniquePrefix ? `${uniquePrefix}_${fileName}` : fileName}`;
   const fileRef = ref(storage, path);
 
   await withTimeout(
-    uploadBytes(fileRef, file, { contentType: file.type }),
-    `Unggah "${file.name}" terlalu lama, periksa koneksi internetmu lalu coba lagi.`
+    // contentType dikirim eksplisit dari resolveUploadContentType, BUKAN
+    // dari file.type mentah: kalau HP tidak melaporkan tipe yang sah,
+    // file.type yang kosong/octet-stream akan ditolak storage.rules.
+    uploadBytes(fileRef, file, { contentType: resolveUploadContentType(file) as string }),
+    `Unggah "${file.name}" terlalu lama, periksa koneksi internetmu lalu coba lagi.`,
+    UPLOAD_TIMEOUT_MS
   );
   const url = await withTimeout(
     getDownloadURL(fileRef),
-    `Gagal mengambil tautan "${file.name}", periksa koneksi internetmu lalu coba lagi.`
+    `Gagal mengambil tautan "${file.name}", periksa koneksi internetmu lalu coba lagi.`,
+    UPLOAD_TIMEOUT_MS
   );
 
   return { fileUrl: url, fileName: file.name, filePath: path };
@@ -98,7 +87,7 @@ export async function uploadSubmissionFiles(
   files: File[]
 ) {
   if (files.length > MAX_SUBMISSION_FILES) {
-    throw new Error(`Maksimal ${MAX_SUBMISSION_FILES} file per pengumpulan.`);
+    throw userError(`Maksimal ${MAX_SUBMISSION_FILES} file per pengumpulan.`);
   }
   return Promise.all(
     files.map((file, index) => uploadSubmissionFile(workspaceId, assignmentId, file, String(index)))
@@ -119,13 +108,13 @@ export async function uploadAssignmentFile(
   validateUploadFile(file);
 
   const uid = auth.currentUser?.uid;
-  if (!uid) throw new Error('Sesi tidak valid, coba muat ulang halaman.');
+  if (!uid) throw userError('Sesi tidak valid, coba muat ulang halaman.', 'unauthenticated');
 
   const fileName = sanitizeFileName(file.name);
   const path = `assignment-materials/${workspaceId}/${assignmentId}/${uid}/${fileName}`;
   const fileRef = ref(storage, path);
 
-  await uploadBytes(fileRef, file, { contentType: file.type });
+  await uploadBytes(fileRef, file, { contentType: resolveUploadContentType(file) as string });
   const url = await getDownloadURL(fileRef);
 
   return { materialFileUrl: url, materialFileName: file.name, materialFilePath: path };
