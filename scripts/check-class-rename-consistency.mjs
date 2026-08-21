@@ -2,7 +2,7 @@
  * Pemeriksa konsistensi rename kelas — HANYA MEMBACA, tidak pernah menulis.
  *
  * Dipakai saat rename kelas gagal di tengah jalan dan kita perlu tahu apakah
- * sebagian dokumen sudah memakai nama baru. Rename menyentuh 14 koleksi dan
+ * sebagian dokumen sudah memakai nama baru. Rename menyentuh 16 koleksi dan
  * commit-nya dipecah per 500 dokumen (lihat lib/server/classAdminService.ts),
  * jadi kegagalan/timeout bisa meninggalkan data setengah jalan: koleksi A
  * sudah bernama baru, koleksi B masih nama lama.
@@ -40,6 +40,11 @@ const CLASS_SCOPED_COLLECTIONS = [
   'class_inventory',
   'student_notes',
   'assignments',
+  // Dokumen submission menyimpan className juga. Tanpa ikut dirapikan,
+  // pengumpulan siswa tetap membawa nama kelas lama setelah rename —
+  // relasinya jadi tidak konsisten dengan tugas & nilai yang sudah ikut
+  // berubah.
+  'submissions',
   'announcements',
   'student_achievements',
   'session_skip_reasons',

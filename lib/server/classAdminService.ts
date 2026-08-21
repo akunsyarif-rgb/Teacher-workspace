@@ -29,6 +29,11 @@ const CLASS_SCOPED_COLLECTIONS = [
   'class_inventory',
   'student_notes',
   'assignments',
+  // Dokumen submission menyimpan className juga. Tanpa ikut dirapikan,
+  // pengumpulan siswa tetap membawa nama kelas lama setelah rename —
+  // relasinya jadi tidak konsisten dengan tugas & nilai yang sudah ikut
+  // berubah.
+  'submissions',
   'announcements',
   'student_achievements',
   'session_skip_reasons',

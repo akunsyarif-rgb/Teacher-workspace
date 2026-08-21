@@ -383,6 +383,23 @@ service cloud.firestore {
       // Siswa cuma boleh baca nilainya sendiri, bukan nilai sekelas.
       allow read: if isOwnStudentData(resource.data.workspaceId, resource.data.studentId);
 
+      // `get` pada dokumen yang BELUM ada: resource bernilai null, sehingga
+      // kedua aturan read di atas ikut gagal (membaca resource.data dari
+      // null itu error) dan Firestore menolaknya. Padahal justru itu yang
+      // perlu diperiksa siswa TEPAT SEBELUM mengumpulkan — "apakah aku
+      // sudah pernah mengirim, dan apakah sudah dinilai?" — supaya
+      // keputusannya berdasar data server, bukan layar yang mungkin sudah
+      // basi. Tanpa aturan ini, pengumpulan PERTAMA setiap siswa gagal
+      // dengan permission-denied.
+      //
+      // Bukan pelonggaran: dokumen yang belum ada tidak memuat data siapa
+      // pun, jadi tidak ada yang bisa bocor — dan tetap dipersempit ke
+      // dokumen yang ID-nya memang milik siswa itu sendiri (ID submission
+      // selalu "{assignmentId}_{studentId}", lihat submissionRepository).
+      allow get: if resource == null &&
+        isStudentAuthed() &&
+        docId.matches('.*_' + studentProfileData().studentId);
+
       allow create: if isAuthenticated() &&
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
 
@@ -466,24 +483,70 @@ service cloud.firestore {
     // langsung dari client siswa).
     // ============================================================
     match /submissions/{docId} {
+      // Apakah dokumen ini memuat pekerjaan yang BENAR-BENAR dikirim
+      // siswa — bukan sekadar dokumen yang pernah disentuh guru saat
+      // menilai/memberi catatan. Bedanya menentukan siapa yang masih boleh
+      // menulis (lihat allow update di bawah).
+      function hasStudentWork(data) {
+        return data.get('submittedAt', null) != null ||
+          data.get('textAnswer', '') != '' ||
+          data.get('fileUrl', null) != null ||
+          data.get('attachments', []).size() > 0;
+      }
+
+      // Catatan guru adalah milik guru: siswa boleh MEMBACANYA (dokumen ini
+      // memang miliknya) tapi tidak boleh mengubah atau menghapusnya lewat
+      // pengumpulan ulang.
+      function keepsTeacherFeedback() {
+        return request.resource.data.get('feedback', '') == resource.data.get('feedback', '');
+      }
+
       allow read: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
 
       allow read: if isOwnStudentData(resource.data.workspaceId, resource.data.studentId);
 
+      // `get` pada dokumen yang BELUM ada: resource bernilai null, sehingga
+      // kedua aturan read di atas ikut gagal (membaca resource.data dari
+      // null itu error) dan Firestore menolaknya. Padahal justru itu yang
+      // perlu diperiksa siswa TEPAT SEBELUM mengumpulkan — "apakah aku
+      // sudah pernah mengirim, dan apakah sudah dinilai?" — supaya
+      // keputusannya berdasar data server, bukan layar yang mungkin sudah
+      // basi. Tanpa aturan ini, pengumpulan PERTAMA setiap siswa gagal
+      // dengan permission-denied.
+      //
+      // Bukan pelonggaran: dokumen yang belum ada tidak memuat data siapa
+      // pun, jadi tidak ada yang bisa bocor — dan tetap dipersempit ke
+      // dokumen yang ID-nya memang milik siswa itu sendiri (ID submission
+      // selalu "{assignmentId}_{studentId}", lihat submissionRepository).
+      allow get: if resource == null &&
+        isStudentAuthed() &&
+        docId.matches('.*_' + studentProfileData().studentId);
+
       allow create: if isAuthenticated() &&
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
 
       allow create: if isOwnStudentData(request.resource.data.workspaceId, request.resource.data.studentId) &&
-        request.resource.data.status == 'menunggu_penilaian';
+        request.resource.data.status == 'menunggu_penilaian' &&
+        request.resource.data.get('feedback', '') == '';
 
       allow update: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
 
+      // Siswa boleh memperbaiki pengumpulannya selama belum dinilai.
+      //
+      // `!hasStudentWork(resource.data)` BUKAN pelonggaran, justru
+      // perbaikan bug: dokumen yang ditandai 'dinilai' padahal siswanya
+      // belum pernah mengirim apa pun (dulu terjadi setiap kali guru
+      // mengisi nilai untuk siswa yang belum mengumpulkan) mengunci siswa
+      // itu dari mengumpulkan SELAMANYA, tanpa pesan apa pun. Yang tetap
+      // terkunci rapat adalah yang memang seharusnya: pekerjaan yang sudah
+      // dikirim DAN sudah dinilai gurunya.
       allow update: if isOwnStudentData(resource.data.workspaceId, resource.data.studentId) &&
         isOwnStudentData(request.resource.data.workspaceId, request.resource.data.studentId) &&
         request.resource.data.status == 'menunggu_penilaian' &&
-        resource.data.status != 'dinilai';
+        (resource.data.status != 'dinilai' || !hasStudentWork(resource.data)) &&
+        keepsTeacherFeedback();
 
       allow delete: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));

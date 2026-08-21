@@ -38,13 +38,13 @@ Yang SUDAH ada sekarang (perlindungan minimal, bukan penyelesaian):
 - sisi klien menerjemahkan respons non-JSON/5xx jadi pesan yang menyuruh
   MEMERIKSA dulu, bukan mengulang (`lib/controllers/classController.ts`)
 - `scripts/check-class-rename-consistency.mjs` — read-only, memeriksa apakah
-  sebuah kelas terbelah antara nama lama dan nama baru di 14 koleksi
+  sebuah kelas terbelah antara nama lama dan nama baru di 16 koleksi
 
 Yang BELUM dikerjakan, sengaja ditunda:
 - Kalau function dimatikan platform (timeout/OOM), tidak ada kode yang sempat
   berjalan, sehingga deteksinya hanya lewat skrip di atas.
 - Penyelesaian sebenarnya adalah berhenti menyimpan `className` terdenormalisasi
-  di 14 koleksi dan beralih ke referensi `classId`, sehingga rename cukup
+  di 16 koleksi dan beralih ke referensi `classId`, sehingga rename cukup
   menyentuh satu dokumen dan partial write mustahil terjadi. Ini perubahan
   schema + migrasi data, terlalu besar untuk digabung dengan perbaikan bug.
 - Alternatif lebih ringan: antrean/background job supaya rename besar tidak

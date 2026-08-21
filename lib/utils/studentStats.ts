@@ -1,4 +1,5 @@
 import { SUBMISSION_STATUS, SCHOOL_DAYS_6 } from '../config/constants';
+import { effectiveSubmissionStatus, hasStudentSubmitted } from './submissionRules';
 
 /**
  * Perhitungan murni untuk Student Companion: data masuk, ringkasan keluar,
@@ -32,7 +33,13 @@ export function mergeAssignmentsWithSubmissions(assignments: any[], submissions:
       const submission = byAssignmentId[assignment.id];
       return {
         ...assignment,
-        status: submission?.status || SUBMISSION_STATUS.BELUM_MENGUMPULKAN,
+        // Bukan `submission.status` mentah: dokumen yang isinya cuma nilai
+        // /catatan guru (siswanya belum mengirim apa pun) pernah ditandai
+        // 'dinilai', dan tanda itu menghilangkan tombol Kumpulkan dari
+        // layar siswa selamanya. Status dihitung ulang dari isi dokumen
+        // supaya data yang terlanjur salah ikut sembuh saat dibaca.
+        status: effectiveSubmissionStatus(submission),
+        hasSubmitted: hasStudentSubmitted(submission),
         textAnswer: submission?.textAnswer || '',
         // Submission lama (sebelum dukungan multi-foto) cuma punya fileUrl
         // tunggal — dibungkus jadi array 1 elemen supaya konsumen baru

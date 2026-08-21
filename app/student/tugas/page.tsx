@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, Circle, Clock, Send, Paperclip, FileText, X } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CheckCircle2, Circle, Clock, Send, Paperclip, FileText, X, CalendarX } from "lucide-react";
 import StudentShell from "@/src/components/student/StudentShell";
 import { SkeletonCard } from "@/src/components/ui/Skeleton";
 import InlineAlert from "@/src/components/ui/InlineAlert";
@@ -9,11 +9,12 @@ import * as studentPortalController from "@/lib/controllers/studentPortalControl
 import * as submissionController from "@/lib/controllers/submissionController";
 import { uploadSubmissionFiles, validateUploadFile, MAX_SUBMISSION_FILES } from "@/lib/adapters/storageAdapter";
 import { SUBMISSION_STATUS } from "@/lib/config/constants";
+import { canStudentSubmit, describeSubmissionError, isPastDue } from "@/lib/utils/submissionRules";
 import type { StudentProfile } from "@/src/context/StudentAuthContext";
 
 const STATUS_LABEL: Record<string, { label: string; className: string; icon: any }> = {
   [SUBMISSION_STATUS.BELUM_MENGUMPULKAN]: { label: "Belum dikumpulkan", className: "text-gray-400", icon: Circle },
-  [SUBMISSION_STATUS.MENUNGGU_PENILAIAN]: { label: "Menunggu penilaian", className: "text-amber-600", icon: Clock },
+  [SUBMISSION_STATUS.MENUNGGU_PENILAIAN]: { label: "Sudah dikumpulkan", className: "text-amber-600", icon: Clock },
   [SUBMISSION_STATUS.DINILAI]: { label: "Sudah dinilai", className: "text-emerald-600", icon: CheckCircle2 },
 };
 
@@ -23,6 +24,23 @@ function attachmentsOf(assignment: any): Attachment[] {
   if (assignment.attachments && assignment.attachments.length > 0) return assignment.attachments;
   if (assignment.fileUrl) return [{ fileUrl: assignment.fileUrl, fileName: assignment.fileName }];
   return [];
+}
+
+// Waktu pengumpulan ditampilkan dalam zona yang sama dengan seluruh
+// aplikasi (WITA), bukan zona perangkat siswa — supaya jam yang dilihat
+// siswa dan gurunya sama persis.
+function formatSubmittedAt(iso?: string | null) {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("id-ID", {
+    timeZone: "Asia/Makassar",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
 }
 
 function AssignmentsContent({ profile }: { profile: StudentProfile }) {
@@ -40,12 +58,19 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
   // unggahannya berhasil terkirim atau tidak.
   const [justSubmittedId, setJustSubmittedId] = useState<string | null>(null);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Penjaga klik ganda yang TIDAK bergantung pada render ulang React:
+  // `saving` baru menonaktifkan tombol setelah render berikutnya, jadi dua
+  // ketukan cepat di layar sentuh masih bisa memulai dua unggahan sekaligus.
+  const submittingRef = useRef(false);
 
-  const scope = {
-    workspaceId: profile.workspaceId,
-    className: profile.className,
-    studentId: profile.studentId,
-  };
+  const scope = useMemo(
+    () => ({
+      workspaceId: profile.workspaceId,
+      className: profile.className,
+      studentId: profile.studentId,
+    }),
+    [profile.workspaceId, profile.className, profile.studentId]
+  );
 
   const loadAssignments = useCallback(async () => {
     try {
@@ -99,7 +124,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
         validateUploadFile(candidate);
         toAdd.push(candidate);
       } catch (error: any) {
-        setSubmitError(error.message);
+        setSubmitError(describeSubmissionError(error));
         return;
       }
     }
@@ -116,6 +141,8 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
   }
 
   async function handleSubmit(assignment: any) {
+    if (submittingRef.current) return;
+
     const existingAttachments = attachmentsOf(assignment);
     // Salah satu boleh kosong, tapi tidak keduanya — sebagian tugas cukup
     // dijawab teks, sebagian lain berupa foto pekerjaan.
@@ -123,6 +150,20 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
       setSubmitError("Isi jawaban atau lampirkan foto dulu.");
       return;
     }
+    // Aturan yang sama dipakai untuk menampilkan tombolnya (lihat di
+    // bawah) DAN untuk menolak di service — dicek lagi di sini supaya
+    // form yang terlanjur dibuka sebelum tenggat lewat tidak menyesatkan.
+    const gate = canStudentSubmit(assignment, assignment.dueDate);
+    if (!gate.allowed) {
+      setSubmitError(gate.reason);
+      return;
+    }
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      setSubmitError("Kamu sedang offline. Sambungkan internet dulu, lalu kirim lagi.");
+      return;
+    }
+
+    submittingRef.current = true;
     setSubmitError("");
     setSaving(true);
     try {
@@ -140,21 +181,26 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
         assignment.id,
         scope.studentId,
         scope.className,
-        { textAnswer: answer, attachments }
+        { textAnswer: answer, attachments },
+        assignment.dueDate
       );
       setOpenId(null);
       setAnswer("");
       setFiles([]);
       if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
       setJustSubmittedId(assignment.id);
-      flashTimerRef.current = setTimeout(() => setJustSubmittedId(null), 5000);
+      flashTimerRef.current = setTimeout(() => setJustSubmittedId(null), 6000);
       await loadAssignments();
     } catch (error: any) {
       // Ditampilkan sebagai InlineAlert (bukan alert() browser) supaya
       // pesan gagal-kirim/unggah-timeout pasti terlihat, bukan cuma
       // spinner yang diam-diam berhenti tanpa penjelasan apa pun.
-      setSubmitError(error.message || "Gagal mengumpulkan tugas. Periksa koneksi internetmu dan coba lagi.");
+      // describeSubmissionError menjamin siswa tidak pernah melihat pesan
+      // mentah SDK ("FirebaseError: Missing or insufficient permissions").
+      console.error("Gagal mengumpulkan tugas:", error);
+      setSubmitError(describeSubmissionError(error));
     } finally {
+      submittingRef.current = false;
       setUploading(false);
       setSaving(false);
     }
@@ -182,9 +228,12 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
       {assignments.map((assignment) => {
         const status = STATUS_LABEL[assignment.status] || STATUS_LABEL[SUBMISSION_STATUS.BELUM_MENGUMPULKAN];
         const StatusIcon = status.icon;
-        const isGraded = assignment.status === SUBMISSION_STATUS.DINILAI;
         const isOpen = openId === assignment.id;
         const existingAttachments = attachmentsOf(assignment);
+        const hasSubmitted = assignment.status !== SUBMISSION_STATUS.BELUM_MENGUMPULKAN;
+        const overdue = isPastDue(assignment.dueDate);
+        const gate = canStudentSubmit(assignment, assignment.dueDate);
+        const submittedAtLabel = formatSubmittedAt(assignment.submittedAt);
 
         return (
           <div key={assignment.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-3">
@@ -200,7 +249,11 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
               {assignment.description && (
                 <p className="text-[11px] text-gray-500 mt-0.5">{assignment.description}</p>
               )}
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">
+              <p
+                className={`text-[10px] font-bold uppercase tracking-wider mt-1 ${
+                  overdue && !hasSubmitted ? "text-red-500" : "text-gray-400"
+                }`}
+              >
                 Tenggat {assignment.dueDate}
               </p>
               {assignment.materialFileUrl && (
@@ -220,21 +273,34 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
               <span className={`flex items-center gap-1.5 text-[11px] font-bold ${status.className}`}>
                 <StatusIcon className="w-3.5 h-3.5" />
                 {status.label}
+                {submittedAtLabel && hasSubmitted && (
+                  <span className="font-medium text-gray-400">• {submittedAtLabel}</span>
+                )}
               </span>
-              {!isGraded && !isOpen && (
+              {!isOpen && gate.allowed && (
                 <button
                   onClick={() => openForm(assignment)}
                   className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-bold transition-colors shadow-sm"
                 >
-                  {assignment.status === SUBMISSION_STATUS.BELUM_MENGUMPULKAN ? "Kumpulkan" : "Ubah Jawaban"}
+                  {hasSubmitted ? "Ubah Pengumpulan" : "Kerjakan Tugas"}
                 </button>
               )}
             </div>
 
+            {/* Kenapa tombolnya tidak ada dijelaskan, bukan dibiarkan hilang
+                begitu saja — inilah yang dulu membuat siswa mengira
+                aplikasinya rusak. */}
+            {!isOpen && !gate.allowed && (
+              <p className="flex items-start gap-1.5 text-[11px] text-gray-500 bg-gray-50 rounded-xl p-2.5">
+                <CalendarX className="w-3.5 h-3.5 shrink-0 mt-px text-gray-400" />
+                <span>{gate.reason}</span>
+              </p>
+            )}
+
             {assignment.feedback && (
               <div className="p-3 bg-emerald-50 rounded-xl">
                 <p className="text-[10px] font-extrabold text-emerald-700 uppercase tracking-wider">Catatan Guru</p>
-                <p className="text-[11px] text-emerald-800 mt-0.5">{assignment.feedback}</p>
+                <p className="text-[11px] text-emerald-800 mt-0.5 whitespace-pre-wrap">{assignment.feedback}</p>
               </div>
             )}
 
@@ -303,7 +369,8 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setOpenId(null)}
-                    className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+                    disabled={saving}
+                    className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 transition-colors"
                   >
                     Batal
                   </button>
@@ -313,7 +380,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                     className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white shadow-sm transition-colors flex items-center justify-center gap-1.5"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    {uploading ? "Mengunggah..." : saving ? "Mengirim..." : "Kumpulkan"}
+                    {uploading ? "Mengunggah..." : saving ? "Mengirim..." : "Kirim Tugas"}
                   </button>
                 </div>
               </div>
