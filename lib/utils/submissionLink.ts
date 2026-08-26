@@ -49,6 +49,19 @@ export function normalizeSubmissionLink(raw: string | null | undefined): string 
   if (parsed.protocol !== 'https:') return null;
   if (!ALLOWED_HOSTS.has(parsed.hostname.toLowerCase())) return null;
 
+  // Firestore rules (isValidExternalLink di firestore.rules) mem-regex
+  // SELURUH string URL, sedangkan pengecekan di atas hanya melihat
+  // `hostname` secara terpisah — itu berarti URL berport non-default
+  // ("https://drive.google.com:8443/...") atau ber-userinfo
+  // ("https://evil.com@drive.google.com/...") lolos di sini padahal
+  // hostname-nya memang cocok, lalu baru ditolak rules saat benar-benar
+  // ditulis. Client harus menolak lebih dulu, bukan rules yang harus
+  // dilonggarkan. Port default (":443" untuk https) tidak kena aturan ini
+  // karena URL() sendiri sudah menghapusnya saat parsing — bukan port
+  // "asing", jadi tidak perlu ditolak.
+  if (parsed.port !== '') return null;
+  if (parsed.username !== '' || parsed.password !== '') return null;
+
   return parsed.toString();
 }
 

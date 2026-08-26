@@ -55,6 +55,43 @@ describe('normalizeSubmissionLink / isValidSubmissionLink — format saja, tanpa
     expect(isValidSubmissionLink('https://google.com/')).toBe(false);
   });
 
+  // Menyamakan client dengan Firestore rules: isValidExternalLink() di
+  // firestore.rules mem-regex SELURUH string URL, sedangkan pengecekan
+  // hostname di atas sendirian tidak menangkap port non-default atau
+  // userinfo yang menyelip di antara "https://" dan hostname — sebelumnya
+  // client bilang valid untuk keduanya padahal rules menolak saat
+  // benar-benar ditulis ke Firestore.
+  it('menolak URL Google Drive dengan port non-default (client harus sama ketat dengan rules)', () => {
+    expect(isValidSubmissionLink('https://drive.google.com:8443/file/d/x')).toBe(false);
+  });
+
+  it('menerima URL dengan port default https (:443) — dihapus otomatis oleh URL(), bukan port asing', () => {
+    // new URL() sendiri sudah menghilangkan port default saat parsing
+    // (dikonfirmasi: `new URL('https://x:443/y').port === ''`), jadi
+    // string yang benar-benar ditulis ke Firestore tidak pernah memuat
+    // ":443" sama sekali — rules pun tidak pernah melihat port ini.
+    expect(isValidSubmissionLink('https://docs.google.com:443/document/d/x')).toBe(true);
+    expect(normalizeSubmissionLink('https://docs.google.com:443/document/d/x')).toBe(
+      'https://docs.google.com/document/d/x'
+    );
+  });
+
+  it('menolak URL dengan userinfo (user@ atau user:pass@) sebelum hostname', () => {
+    expect(isValidSubmissionLink('https://evil.com@drive.google.com/x')).toBe(false);
+    expect(isValidSubmissionLink('https://user:pass@drive.google.com/x')).toBe(false);
+  });
+
+  it('URL normal Google Drive/Docs tetap valid dan tidak berubah oleh normalisasi baru', () => {
+    expect(isValidSubmissionLink('https://drive.google.com/file/d/abc/view')).toBe(true);
+    expect(isValidSubmissionLink('https://docs.google.com/document/d/abc/edit')).toBe(true);
+    expect(normalizeSubmissionLink('https://drive.google.com/file/d/abc/view')).toBe(
+      'https://drive.google.com/file/d/abc/view'
+    );
+    expect(normalizeSubmissionLink('https://docs.google.com/document/d/abc/edit')).toBe(
+      'https://docs.google.com/document/d/abc/edit'
+    );
+  });
+
   it('normalizeSubmissionLink mengembalikan URL yang sudah diparse ulang', () => {
     expect(normalizeSubmissionLink('https://drive.google.com/file/d/abc/view')).toBe(
       'https://drive.google.com/file/d/abc/view'
