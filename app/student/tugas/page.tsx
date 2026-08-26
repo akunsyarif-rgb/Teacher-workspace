@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Circle, Clock, Send, Paperclip, FileText, X, CalendarX } from "lucide-react";
+import { CheckCircle2, Circle, Clock, Send, Paperclip, FileText, X, CalendarX, Link2 } from "lucide-react";
 import StudentShell from "@/src/components/student/StudentShell";
 import { SkeletonCard } from "@/src/components/ui/Skeleton";
 import InlineAlert from "@/src/components/ui/InlineAlert";
@@ -10,6 +10,7 @@ import * as submissionController from "@/lib/controllers/submissionController";
 import { uploadSubmissionFiles, validateUploadFile, MAX_SUBMISSION_FILES } from "@/lib/adapters/storageAdapter";
 import { SUBMISSION_STATUS } from "@/lib/config/constants";
 import { canStudentSubmit, describeSubmissionError, isPastDue } from "@/lib/utils/submissionRules";
+import { isValidSubmissionLink, SUBMISSION_LINK_ERROR_MESSAGE } from "@/lib/utils/submissionLink";
 import type { StudentProfile } from "@/src/context/StudentAuthContext";
 
 const STATUS_LABEL: Record<string, { label: string; className: string; icon: any }> = {
@@ -19,11 +20,16 @@ const STATUS_LABEL: Record<string, { label: string; className: string; icon: any
 };
 
 type Attachment = { fileUrl: string; fileName: string; filePath?: string };
+type ExternalLink = { provider: string; url: string; label: string };
 
 function attachmentsOf(assignment: any): Attachment[] {
   if (assignment.attachments && assignment.attachments.length > 0) return assignment.attachments;
   if (assignment.fileUrl) return [{ fileUrl: assignment.fileUrl, fileName: assignment.fileName }];
   return [];
+}
+
+function externalLinkOf(assignment: any): ExternalLink | null {
+  return assignment?.externalLink?.url ? assignment.externalLink : null;
 }
 
 // Waktu pengumpulan ditampilkan dalam zona yang sama dengan seluruh
@@ -52,6 +58,13 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  // Alternatif lampiran kalau upload foto ke Firebase Storage gagal/tidak
+  // tersedia — lihat lib/utils/submissionLink.ts. `driveLinkRemoved`
+  // menandai siswa sengaja menghapus link yang sebelumnya sudah tersimpan
+  // (beda dari "belum diisi lagi" — dua-duanya string kosong di input).
+  const [showDriveLink, setShowDriveLink] = useState(false);
+  const [driveLinkInput, setDriveLinkInput] = useState("");
+  const [driveLinkRemoved, setDriveLinkRemoved] = useState(false);
   // Diisi ID tugas begitu pengumpulan BENAR-BENAR sukses — dipakai untuk
   // menampilkan konfirmasi jelas ("Tugas berhasil dikumpulkan!") walau
   // formnya sudah tertutup, supaya siswa tidak menebak-nebak apakah
@@ -102,6 +115,9 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
     setAnswer(assignment.textAnswer || "");
     setFiles([]);
     setSubmitError("");
+    setDriveLinkInput("");
+    setDriveLinkRemoved(false);
+    setShowDriveLink(!!externalLinkOf(assignment));
   }
 
   function handlePickFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -144,10 +160,28 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
     if (submittingRef.current) return;
 
     const existingAttachments = attachmentsOf(assignment);
-    // Salah satu boleh kosong, tapi tidak keduanya — sebagian tugas cukup
-    // dijawab teks, sebagian lain berupa foto pekerjaan.
-    if (!answer.trim() && files.length === 0 && existingAttachments.length === 0) {
-      setSubmitError("Isi jawaban atau lampirkan foto dulu.");
+    const existingExternalLink = externalLinkOf(assignment);
+    const trimmedLink = driveLinkInput.trim();
+
+    // Link baru yang diketik menang atas link lama; kalau kosong dan belum
+    // dihapus, link lama dipertahankan — persis pola yang sama dengan
+    // attachments di bawah.
+    let resolvedExternalLink: ExternalLink | null = null;
+    if (trimmedLink) {
+      if (!isValidSubmissionLink(trimmedLink)) {
+        setSubmitError(SUBMISSION_LINK_ERROR_MESSAGE);
+        return;
+      }
+      resolvedExternalLink = { provider: "google-drive", url: trimmedLink, label: "Lampiran Google Drive" };
+    } else if (existingExternalLink && !driveLinkRemoved) {
+      resolvedExternalLink = existingExternalLink;
+    }
+
+    // Salah satu boleh kosong, tapi tidak ketiganya — sebagian tugas cukup
+    // dijawab teks, sebagian berupa foto pekerjaan, sebagian lewat link
+    // Google Drive (mis. saat upload foto sedang bermasalah).
+    if (!answer.trim() && files.length === 0 && existingAttachments.length === 0 && !resolvedExternalLink) {
+      setSubmitError("Isi jawaban, lampirkan foto, atau tempel link Google Drive dulu.");
       return;
     }
     // Aturan yang sama dipakai untuk menampilkan tombolnya (lihat di
@@ -166,27 +200,49 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
     submittingRef.current = true;
     setSubmitError("");
     setSaving(true);
-    try {
-      let attachments: Attachment[] = existingAttachments;
-      if (files.length > 0) {
-        setUploading(true);
-        attachments = await uploadSubmissionFiles(scope.workspaceId, assignment.id, files);
-      }
-      // Kalau tidak memilih file baru = pertahankan lampiran sebelumnya
-      // (sudah ditangani lewat default `attachments = existingAttachments`
-      // di atas), jangan sampai terhapus hanya karena teksnya diperbaiki.
 
+    let attachments: Attachment[] = existingAttachments;
+    if (files.length > 0) {
+      setUploading(true);
+      try {
+        attachments = await uploadSubmissionFiles(scope.workspaceId, assignment.id, files);
+      } catch (uploadError) {
+        // Upload gagal BUKAN alasan menggagalkan seluruh pengumpulan kalau
+        // siswa punya jawaban teks atau link Google Drive sebagai
+        // alternatif — form dibiarkan terbuka, link Drive langsung
+        // ditawarkan, dan siswa menekan Kirim Tugas lagi sendiri (bukan
+        // otomatis lanjut tanpa foto, supaya tidak mengejutkan).
+        console.error("Gagal mengunggah lampiran:", uploadError);
+        setShowDriveLink(true);
+        setSubmitError(
+          "Foto tidak dapat diunggah. Anda tetap dapat mengumpulkan tugas dengan menempelkan link Google Drive, atau coba unggah foto lagi."
+        );
+        submittingRef.current = false;
+        setUploading(false);
+        setSaving(false);
+        return;
+      }
+      setUploading(false);
+    }
+    // Kalau tidak memilih file baru = pertahankan lampiran sebelumnya
+    // (sudah ditangani lewat default `attachments = existingAttachments`
+    // di atas), jangan sampai terhapus hanya karena teksnya diperbaiki.
+
+    try {
       await submissionController.submitAssignment(
         scope.workspaceId,
         assignment.id,
         scope.studentId,
         scope.className,
-        { textAnswer: answer, attachments },
+        { textAnswer: answer, attachments, externalLink: resolvedExternalLink },
         assignment.dueDate
       );
       setOpenId(null);
       setAnswer("");
       setFiles([]);
+      setDriveLinkInput("");
+      setDriveLinkRemoved(false);
+      setShowDriveLink(false);
       if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
       setJustSubmittedId(assignment.id);
       flashTimerRef.current = setTimeout(() => setJustSubmittedId(null), 6000);
@@ -201,7 +257,6 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
       setSubmitError(describeSubmissionError(error));
     } finally {
       submittingRef.current = false;
-      setUploading(false);
       setSaving(false);
     }
   }
@@ -230,6 +285,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
         const StatusIcon = status.icon;
         const isOpen = openId === assignment.id;
         const existingAttachments = attachmentsOf(assignment);
+        const existingExternalLink = externalLinkOf(assignment);
         const hasSubmitted = assignment.status !== SUBMISSION_STATUS.BELUM_MENGUMPULKAN;
         const overdue = isPastDue(assignment.dueDate);
         const gate = canStudentSubmit(assignment, assignment.dueDate);
@@ -366,6 +422,68 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                   </label>
                 )}
 
+                {!showDriveLink ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowDriveLink(true)}
+                    className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline"
+                  >
+                    <Link2 className="w-3.5 h-3.5" />
+                    Atau kumpulkan lewat Google Drive
+                  </button>
+                ) : (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">
+                      Tempel link Google Drive
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="url"
+                        value={driveLinkInput}
+                        onChange={(e) => {
+                          setDriveLinkInput(e.target.value);
+                          setDriveLinkRemoved(false);
+                        }}
+                        placeholder="https://drive.google.com/..."
+                        className="flex-1 min-w-0 p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+                      />
+                      {(driveLinkInput || (existingExternalLink && !driveLinkRemoved)) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDriveLinkInput("");
+                            setDriveLinkRemoved(true);
+                          }}
+                          className="p-2 text-gray-400 hover:text-red-500 transition-colors shrink-0"
+                          title="Hapus link"
+                          aria-label="Hapus link"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    {!driveLinkInput && existingExternalLink && !driveLinkRemoved && (
+                      <p className="text-[11px] text-gray-500">
+                        Link tersimpan:{" "}
+                        <a
+                          href={existingExternalLink.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-bold text-blue-600 hover:underline"
+                        >
+                          {existingExternalLink.label}
+                        </a>
+                      </p>
+                    )}
+                    {driveLinkInput.trim() &&
+                      (isValidSubmissionLink(driveLinkInput) ? (
+                        <p className="text-[11px] font-bold text-emerald-600">Link Google Drive siap dikumpulkan</p>
+                      ) : (
+                        <p className="text-[11px] font-bold text-red-500">{SUBMISSION_LINK_ERROR_MESSAGE}</p>
+                      ))}
+                  </div>
+                )}
+
                 <div className="flex gap-2">
                   <button
                     onClick={() => setOpenId(null)}
@@ -386,7 +504,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
               </div>
             )}
 
-            {!isOpen && (assignment.textAnswer || existingAttachments.length > 0) && (
+            {!isOpen && (assignment.textAnswer || existingAttachments.length > 0 || existingExternalLink) && (
               <div className="p-3 bg-gray-50 rounded-xl space-y-1.5">
                 <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">Jawabanmu</p>
                 {assignment.textAnswer && (
@@ -404,6 +522,17 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                     {att.fileName || "Lihat lampiran"}
                   </a>
                 ))}
+                {existingExternalLink && (
+                  <a
+                    href={existingExternalLink.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline"
+                  >
+                    <Link2 className="w-3.5 h-3.5" />
+                    {existingExternalLink.label}
+                  </a>
+                )}
               </div>
             )}
           </div>

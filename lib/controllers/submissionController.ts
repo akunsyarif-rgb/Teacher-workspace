@@ -23,6 +23,7 @@ export async function submitAssignment(
     fileUrl?: string;
     fileName?: string;
     filePath?: string;
+    externalLink?: { url: string; label?: string } | null;
   },
   dueDate?: string | null
 ) {

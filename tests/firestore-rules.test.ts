@@ -754,6 +754,92 @@ describe('submissions — siswa hanya boleh baca/tulis submission miliknya sendi
     );
   });
 
+  // externalLink adalah alternatif lampiran (link Google Drive/Docs) yang
+  // ditempel siswa langsung dari browser saat upload foto ke Firebase
+  // Storage gagal — lihat lib/utils/submissionLink.ts &
+  // isValidExternalLink() di firestore.rules. Divalidasi ulang di sini
+  // (bukan cuma dipercaya dari client): format URL, bukan aksesibilitasnya.
+  it('lets a student create a submission with a valid Google Drive link', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertSucceeds(
+      setDoc(doc(db, 'submissions/a1_s1'), {
+        workspaceId: 'ws1',
+        assignmentId: 'a1',
+        studentId: 's1',
+        status: 'menunggu_penilaian',
+        externalLink: { provider: 'google-drive', url: 'https://drive.google.com/file/d/abc/view' },
+      })
+    );
+  });
+
+  it('denies a submission whose externalLink uses a non-https/javascript protocol', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertFails(
+      setDoc(doc(db, 'submissions/a1_s1'), {
+        workspaceId: 'ws1',
+        assignmentId: 'a1',
+        studentId: 's1',
+        status: 'menunggu_penilaian',
+        externalLink: { provider: 'google-drive', url: 'javascript:alert(1)' },
+      })
+    );
+  });
+
+  it('denies a submission whose externalLink host is not drive/docs.google.com', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertFails(
+      setDoc(doc(db, 'submissions/a1_s1'), {
+        workspaceId: 'ws1',
+        assignmentId: 'a1',
+        studentId: 's1',
+        status: 'menunggu_penilaian',
+        externalLink: { provider: 'google-drive', url: 'https://evil.com/drive.google.com' },
+      })
+    );
+  });
+
+  it('denies smuggling a teacher feedback change alongside an externalLink update', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    await seed((db) =>
+      setDoc(doc(db, 'submissions/a1_s1'), {
+        workspaceId: 'ws1',
+        assignmentId: 'a1',
+        studentId: 's1',
+        status: 'menunggu_penilaian',
+        textAnswer: 'jawaban lama',
+        feedback: 'perbaiki nomor 3',
+      })
+    );
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertFails(
+      updateDoc(doc(db, 'submissions/a1_s1'), {
+        externalLink: { provider: 'google-drive', url: 'https://drive.google.com/file/d/abc/view' },
+        feedback: 'sudah bagus kok',
+      })
+    );
+  });
+
+  // Memastikan menambahkan externalLink tidak membuka celah baca lintas
+  // siswa — isolasi tetap ditegakkan sepenuhnya oleh aturan read yang sama
+  // seperti sebelumnya, terlepas dari field apa pun yang ada di dokumen.
+  it('denies a classmate from reading a submission just because it has an externalLink', async () => {
+    await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
+    await seed((db) =>
+      setDoc(doc(db, 'submissions/a1_s2'), {
+        workspaceId: 'ws1',
+        assignmentId: 'a1',
+        studentId: 's2',
+        status: 'menunggu_penilaian',
+        externalLink: { provider: 'google-drive', url: 'https://drive.google.com/file/d/abc/view' },
+      })
+    );
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertFails(getDoc(doc(db, 'submissions/a1_s2')));
+  });
+
   it('still lets a student re-submit while keeping the teacher feedback untouched', async () => {
     await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
     await seed((db) =>

@@ -43,6 +43,17 @@ describe('hasStudentSubmitted — dokumen bernilai bukan berarti sudah mengumpul
     expect(hasStudentSubmitted({ fileUrl: 'https://contoh/x.png' })).toBe(true);
   });
 
+  it('menganggap sudah mengumpulkan kalau ada link Google Drive (alternatif upload gagal)', () => {
+    expect(
+      hasStudentSubmitted({ externalLink: { url: 'https://drive.google.com/file/d/x/view' } })
+    ).toBe(true);
+  });
+
+  it('tidak terkecoh externalLink kosong/tanpa url', () => {
+    expect(hasStudentSubmitted({ externalLink: null })).toBe(false);
+    expect(hasStudentSubmitted({ externalLink: { url: '' } })).toBe(false);
+  });
+
   it('menganggap sudah mengumpulkan kalau ada submittedAt', () => {
     expect(hasStudentSubmitted({ submittedAt: '2026-08-20T01:00:00.000Z' })).toBe(true);
   });
