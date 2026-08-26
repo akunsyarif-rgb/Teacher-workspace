@@ -491,7 +491,23 @@ service cloud.firestore {
         return data.get('submittedAt', null) != null ||
           data.get('textAnswer', '') != '' ||
           data.get('fileUrl', null) != null ||
-          data.get('attachments', []).size() > 0;
+          data.get('attachments', []).size() > 0 ||
+          data.get('externalLink', null) != null;
+      }
+
+      // Alternatif lampiran (link Google Drive/Docs) kalau upload Firebase
+      // Storage gagal — ditulis langsung oleh siswa dari browser, jadi
+      // formatnya divalidasi ULANG di sini, bukan cuma dipercaya dari
+      // client. Hanya format URL yang dicek (protokol https + host persis
+      // drive.google.com/docs.google.com) — rules tidak bisa melakukan
+      // network request untuk memverifikasi link itu benar-benar bisa
+      // diakses, dan memang tidak dimaksudkan untuk itu.
+      function isValidExternalLink(link) {
+        return link == null ||
+          (link is map &&
+           link.get('provider', '') == 'google-drive' &&
+           link.get('url', '') is string &&
+           link.get('url', '').matches('^https://(drive|docs)[.]google[.]com(/.*)?$'));
       }
 
       // Catatan guru adalah milik guru: siswa boleh MEMBACANYA (dokumen ini
@@ -528,7 +544,8 @@ service cloud.firestore {
 
       allow create: if isOwnStudentData(request.resource.data.workspaceId, request.resource.data.studentId) &&
         request.resource.data.status == 'menunggu_penilaian' &&
-        request.resource.data.get('feedback', '') == '';
+        request.resource.data.get('feedback', '') == '' &&
+        isValidExternalLink(request.resource.data.get('externalLink', null));
 
       allow update: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
@@ -546,7 +563,8 @@ service cloud.firestore {
         isOwnStudentData(request.resource.data.workspaceId, request.resource.data.studentId) &&
         request.resource.data.status == 'menunggu_penilaian' &&
         (resource.data.status != 'dinilai' || !hasStudentWork(resource.data)) &&
-        keepsTeacherFeedback();
+        keepsTeacherFeedback() &&
+        isValidExternalLink(request.resource.data.get('externalLink', null));
 
       allow delete: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));

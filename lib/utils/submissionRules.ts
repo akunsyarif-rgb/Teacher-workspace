@@ -21,6 +21,10 @@ export type SubmissionLike =
       textAnswer?: string | null;
       attachments?: unknown[] | null;
       fileUrl?: string | null;
+      // Alternatif lampiran kalau upload Firebase gagal — lihat
+      // lib/utils/submissionLink.ts. Cukup butuh `url` untuk aturan di
+      // bawah, jadi tidak perlu impor tipe lengkapnya di sini.
+      externalLink?: { url?: string | null } | null;
     } & Record<string, unknown>)
   | null
   | undefined;
@@ -43,6 +47,7 @@ export function hasStudentSubmitted(submission: SubmissionLike): boolean {
   if (submission.submittedAt) return true;
   if (typeof submission.textAnswer === 'string' && submission.textAnswer.trim() !== '') return true;
   if (Array.isArray(submission.attachments) && submission.attachments.length > 0) return true;
+  if (submission.externalLink && !!submission.externalLink.url) return true;
   return !!submission.fileUrl;
 }
 

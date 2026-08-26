@@ -1,5 +1,5 @@
 import { auth, storage } from '@/src/config/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { withTimeout } from '../utils/withTimeout';
 import { userError } from '../utils/submissionRules';
 import {
@@ -18,6 +18,67 @@ export { MAX_SUBMISSION_FILES, MAX_UPLOAD_BYTES, resolveUploadContentType };
 // tidak punya batas waktu bawaan. Tanpa timeout ini, tombol kirim tetap
 // berputar selamanya dan siswa tidak pernah tahu unggahannya gagal.
 const UPLOAD_TIMEOUT_MS = 45_000;
+
+// Foto asli dari HP (beberapa MB) via uploadBytes() single-shot pernah
+// terbukti kena timeout 45 detik di atas padahal SDK Storage sendiri masih
+// diam-diam mencoba ulang di baliknya (retry bawaan Storage untuk upload
+// punya jatah beberapa MENIT, jauh di atas 45 detik) — akibatnya siswa
+// melihat "terlalu lama" untuk upload yang sebenarnya masih berjalan wajar
+// di jaringan sekolah/seluler yang lambat tapi tidak putus. Diganti ke
+// uploadBytesResumable supaya progres nyata bisa dipantau: batas waktu
+// dihitung dari TIDAK ADA progres sama sekali selama STALL_TIMEOUT_MS
+// (koneksi benar-benar mati), bukan dari total durasi upload — upload besar
+// yang lambat tapi terus bergerak tidak lagi dipotong paksa. Tetap ada batas
+// mutlak (HARD_CEILING_MS) supaya tombol kirim tidak berputar selamanya
+// kalau progres bergerak sangat pelan tanpa pernah benar-benar stall.
+const UPLOAD_STALL_TIMEOUT_MS = 30_000;
+const UPLOAD_HARD_CEILING_MS = 5 * 60_000;
+
+function uploadFileWithStallTimeout(
+  fileRef: ReturnType<typeof ref>,
+  file: File,
+  contentType: string,
+  timeoutMessage: string
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const task = uploadBytesResumable(fileRef, file, { contentType });
+    let stallTimer: ReturnType<typeof setTimeout>;
+    let settled = false;
+
+    const timeoutError = () =>
+      Object.assign(new Error(timeoutMessage), { userFacing: true, code: 'app/timeout' });
+
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(stallTimer);
+      clearTimeout(hardTimer);
+      fn();
+    };
+
+    const armStallTimer = () => {
+      clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => {
+        task.cancel();
+        finish(() => reject(timeoutError()));
+      }, UPLOAD_STALL_TIMEOUT_MS);
+    };
+
+    const hardTimer = setTimeout(() => {
+      task.cancel();
+      finish(() => reject(timeoutError()));
+    }, UPLOAD_HARD_CEILING_MS);
+
+    armStallTimer();
+
+    task.on(
+      'state_changed',
+      () => armStallTimer(),
+      (error) => finish(() => reject(error)),
+      () => finish(() => resolve())
+    );
+  });
+}
 
 // Divalidasi dua kali (di sini dan di storage.rules) bukan karena kurang
 // percaya, tapi supaya siswa dapat pesan yang jelas sebelum file 10MB
@@ -60,13 +121,14 @@ export async function uploadSubmissionFile(
   const path = `submissions/${workspaceId}/${assignmentId}/${uid}/${uniquePrefix ? `${uniquePrefix}_${fileName}` : fileName}`;
   const fileRef = ref(storage, path);
 
-  await withTimeout(
-    // contentType dikirim eksplisit dari resolveUploadContentType, BUKAN
-    // dari file.type mentah: kalau HP tidak melaporkan tipe yang sah,
-    // file.type yang kosong/octet-stream akan ditolak storage.rules.
-    uploadBytes(fileRef, file, { contentType: resolveUploadContentType(file) as string }),
-    `Unggah "${file.name}" terlalu lama, periksa koneksi internetmu lalu coba lagi.`,
-    UPLOAD_TIMEOUT_MS
+  // contentType dikirim eksplisit dari resolveUploadContentType, BUKAN dari
+  // file.type mentah: kalau HP tidak melaporkan tipe yang sah, file.type
+  // yang kosong/octet-stream akan ditolak storage.rules.
+  await uploadFileWithStallTimeout(
+    fileRef,
+    file,
+    resolveUploadContentType(file) as string,
+    `Unggah "${file.name}" terlalu lama, periksa koneksi internetmu lalu coba lagi.`
   );
   const url = await withTimeout(
     getDownloadURL(fileRef),

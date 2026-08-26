@@ -9,6 +9,12 @@ import {
   hasStudentSubmitted,
   userError,
 } from '../utils/submissionRules';
+import {
+  normalizeSubmissionLink,
+  SUBMISSION_LINK_ERROR_MESSAGE,
+  SUBMISSION_LINK_PROVIDER,
+  type SubmissionExternalLink,
+} from '../utils/submissionLink';
 
 
 // Tulis Firestore juga bisa menggantung tanpa resolve/reject di jaringan
@@ -70,6 +76,13 @@ export async function submitAssignment(
     fileUrl?: string;
     fileName?: string;
     filePath?: string;
+    // Alternatif lampiran kalau upload Firebase gagal/tidak tersedia —
+    // lihat lib/utils/submissionLink.ts. Pemanggil (halaman siswa)
+    // bertanggung jawab meneruskan link lama kalau siswa tidak
+    // menyentuhnya, persis seperti pola `attachments` di atas — service
+    // ini tidak menebak "pertahankan atau hapus", cuma menulis apa yang
+    // dikirim. null/undefined = tidak ada link.
+    externalLink?: { url: string; label?: string } | null;
   },
   // Tenggat tugasnya, supaya aturan "sudah lewat batas" ditegakkan di
   // sini — bukan cuma disembunyikan tombolnya di UI. Boleh kosong: tugas
@@ -83,8 +96,24 @@ export async function submitAssignment(
       : answer.fileUrl
       ? [{ fileUrl: answer.fileUrl, fileName: answer.fileName || '', filePath: answer.filePath }]
       : [];
-  if (!answer.textAnswer?.trim() && attachments.length === 0) {
-    throw userError('Isi jawaban atau lampirkan foto dulu.');
+
+  // Divalidasi ULANG di sini — bukan cuma format yang sudah dicek form —
+  // karena field ini ditulis langsung oleh siswa dari browser, dan
+  // firestore.rules (bukan API server) adalah satu-satunya penjaga
+  // sesungguhnya untuk jalur ini.
+  let externalLink: SubmissionExternalLink | null = null;
+  if (answer.externalLink) {
+    const normalizedUrl = normalizeSubmissionLink(answer.externalLink.url);
+    if (!normalizedUrl) throw userError(SUBMISSION_LINK_ERROR_MESSAGE);
+    externalLink = {
+      provider: SUBMISSION_LINK_PROVIDER,
+      url: normalizedUrl,
+      label: answer.externalLink.label || 'Lampiran Google Drive',
+    };
+  }
+
+  if (!answer.textAnswer?.trim() && attachments.length === 0 && !externalLink) {
+    throw userError('Isi jawaban, lampirkan foto, atau tempel link Google Drive dulu.');
   }
 
   // Dicek terhadap dokumen yang BENAR-BENAR tersimpan, bukan terhadap
@@ -111,6 +140,10 @@ export async function submitAssignment(
       // berubah kalau file diunggah ulang, sedangkan path-nya stabil —
       // berguna untuk menelusuri file di bucket saat ada masalah.
       filePath: attachments[0]?.filePath || null,
+      // null eksplisit (bukan dihilangkan) supaya "siswa menghapus link"
+      // benar-benar menghapusnya juga di Firestore — bukan diam-diam
+      // dipertahankan karena field-nya tidak disebut dalam merge write.
+      externalLink,
       status: SUBMISSION_STATUS.MENUNGGU_PENILAIAN,
       submittedAt: new Date().toISOString(),
       // `feedback` SENGAJA tidak ikut ditulis di sini. Dokumennya ditulis

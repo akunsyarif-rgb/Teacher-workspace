@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Circle, Clock, Star, FileText, Eye, Lock, Pencil, MessageSquare } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Circle, Clock, Star, FileText, Eye, Lock, Pencil, MessageSquare, Link2 } from 'lucide-react';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import Modal from '../ui/Modal';
@@ -227,8 +227,9 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
             const StatusIcon = status.icon;
             const isReviewing = reviewingStudentId === row.studentId;
             const attachments = attachmentsOf(row);
+            const externalLink = row?.externalLink?.url ? row.externalLink : null;
             const submittedAtLabel = formatSubmittedAt(row.submittedAt);
-            const hasContent = !!row.textAnswer || attachments.length > 0;
+            const hasContent = !!row.textAnswer || attachments.length > 0 || !!externalLink;
 
             return (
               <div key={row.studentId} className="p-4 space-y-3">
@@ -287,6 +288,22 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
                               {att.fileName || `Buka lampiran ${idx + 1}`}
                             </a>
                           ))}
+                          {externalLink && (
+                            // Link eksternal (siswa tempel sendiri, biasanya
+                            // karena upload foto gagal) — sengaja dibuka apa
+                            // adanya sebagai tautan biasa, TIDAK pernah lewat
+                            // fetch/proxy server: aplikasi tidak pernah
+                            // mengklaim sudah memverifikasi isi/aksesnya.
+                            <a
+                              href={externalLink.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline"
+                            >
+                              <Link2 className="w-3.5 h-3.5" />
+                              {externalLink.label || 'Buka Google Drive'}
+                            </a>
+                          )}
                         </>
                       )}
                     </div>
