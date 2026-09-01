@@ -6,6 +6,16 @@ export async function listJournalEntries(workspaceId: string, className: string)
   return journalRepository.getJournalsByClass(workspaceId, className);
 }
 
+export async function listJournalEntriesInRange(
+  workspaceId: string,
+  className: string,
+  startDate: string,
+  endDate: string
+) {
+  if (!workspaceId || !className) return [];
+  return journalRepository.getJournalsByClassInRange(workspaceId, className, startDate, endDate);
+}
+
 function todayDateString() {
   return getWitaDateString();
 }

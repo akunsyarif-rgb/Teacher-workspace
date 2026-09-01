@@ -60,7 +60,17 @@ export async function getSubmissionsForAssignment(
   });
 }
 
-type SubmissionAttachment = { fileUrl: string; fileName: string; filePath?: string };
+type SubmissionAttachment = {
+  fileUrl: string;
+  fileName: string;
+  filePath?: string;
+  // 'google-drive' kalau lampiran diunggah lewat app/api/upload (Service
+  // Account) — lihat lib/adapters/driveUploadAdapter.ts. Field opsional:
+  // lampiran lama dari Firebase Storage tidak punya field ini sama sekali
+  // dan tetap dianggap 'firebase-storage'.
+  provider?: 'firebase-storage' | 'google-drive';
+  fileId?: string;
+};
 
 export async function submitAssignment(
   workspaceId: string,

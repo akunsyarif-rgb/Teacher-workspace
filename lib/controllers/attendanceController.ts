@@ -15,6 +15,29 @@ export async function fetchAttendanceHistory(workspaceId: string, className: str
   );
 }
 
+export function attendanceHistoryRangeCacheKey(
+  workspaceId: string,
+  className: string,
+  startDate: string,
+  endDate: string
+) {
+  return `attendanceHistoryRange:${workspaceId}:${className}:${startDate}:${endDate}`;
+}
+
+// Dipakai TimelineTab — jendela tanggal, bukan seluruh riwayat. Lihat
+// komentar di attendanceRepository.getAttendanceByClassInRange.
+export async function fetchAttendanceHistoryInRange(
+  workspaceId: string,
+  className: string,
+  startDate: string,
+  endDate: string
+) {
+  if (!workspaceId || !className) return [];
+  return withCache(attendanceHistoryRangeCacheKey(workspaceId, className, startDate, endDate), () =>
+    attendanceService.listAttendanceHistoryInRange(workspaceId, className, startDate, endDate)
+  );
+}
+
 export async function fetchTodayAttendance(workspaceId: string, className: string, scheduleId?: string | null) {
   return attendanceService.loadTodayAttendance(workspaceId, className, scheduleId);
 }

@@ -36,10 +36,27 @@ export function clearAllCached(): void {
   cache.clear();
 }
 
+// Monitoring PALING sederhana yang mungkin: hampir semua fetch data di
+// aplikasi ini lewat withCache (dipanggil dari controller), jadi satu
+// titik ini saja cukup untuk melihat query mana yang lambat — tanpa
+// menambah dependency atau membungkus setiap pemanggil satu per satu.
+// Cuma aktif di dev (console.debug, bukan console.log, supaya gampang
+// disaring) dan cuma untuk cache MISS — cache HIT sudah pasti cepat,
+// tidak ada gunanya diukur.
+const SLOW_FETCH_THRESHOLD_MS = 800;
+
 export async function withCache<T>(key: string, fetcher: () => Promise<T>, ttlMs?: number): Promise<T> {
   const cached = getCached<T>(key, ttlMs);
   if (cached !== undefined) return cached;
+
+  const start = process.env.NODE_ENV !== 'production' ? performance.now() : 0;
   const data = await fetcher();
+  if (process.env.NODE_ENV !== 'production') {
+    const elapsed = performance.now() - start;
+    if (elapsed >= SLOW_FETCH_THRESHOLD_MS) {
+      console.debug(`[perf] ${key} — ${elapsed.toFixed(0)}ms`);
+    }
+  }
   setCached(key, data);
   return data;
 }

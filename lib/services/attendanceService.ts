@@ -7,6 +7,16 @@ export async function listAttendanceHistory(workspaceId: string, className: stri
   return attendanceRepository.getAttendanceByClass(workspaceId, className);
 }
 
+export async function listAttendanceHistoryInRange(
+  workspaceId: string,
+  className: string,
+  startDate: string,
+  endDate: string
+) {
+  if (!workspaceId || !className) return [];
+  return attendanceRepository.getAttendanceByClassInRange(workspaceId, className, startDate, endDate);
+}
+
 export type AttendanceEntry = { status: string; late?: boolean };
 
 function todayDateString() {

@@ -1,13 +1,18 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Circle, Clock, Send, Paperclip, FileText, X, CalendarX, Link2 } from "lucide-react";
+import { CheckCircle2, Circle, Clock, Send, Paperclip, FileText, X, CalendarX, Link2, Cloud } from "lucide-react";
 import StudentShell from "@/src/components/student/StudentShell";
 import { SkeletonCard } from "@/src/components/ui/Skeleton";
 import InlineAlert from "@/src/components/ui/InlineAlert";
 import * as studentPortalController from "@/lib/controllers/studentPortalController";
 import * as submissionController from "@/lib/controllers/submissionController";
 import { uploadSubmissionFiles, validateUploadFile, MAX_SUBMISSION_FILES } from "@/lib/adapters/storageAdapter";
+import {
+  uploadSubmissionFileToDrive,
+  validateDriveUploadFile,
+  type DriveUploadResult,
+} from "@/lib/adapters/driveUploadAdapter";
 import { SUBMISSION_STATUS } from "@/lib/config/constants";
 import { canStudentSubmit, describeSubmissionError, isPastDue } from "@/lib/utils/submissionRules";
 import { isValidSubmissionLink, SUBMISSION_LINK_ERROR_MESSAGE } from "@/lib/utils/submissionLink";
@@ -19,7 +24,7 @@ const STATUS_LABEL: Record<string, { label: string; className: string; icon: any
   [SUBMISSION_STATUS.DINILAI]: { label: "Sudah dinilai", className: "text-emerald-600", icon: CheckCircle2 },
 };
 
-type Attachment = { fileUrl: string; fileName: string; filePath?: string };
+type Attachment = { fileUrl: string; fileName: string; filePath?: string; provider?: string; fileId?: string };
 type ExternalLink = { provider: string; url: string; label: string };
 
 function attachmentsOf(assignment: any): Attachment[] {
@@ -58,6 +63,13 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  // Lampiran lewat Google Drive (Service Account) — opsi KEDUA di samping
+  // upload foto biasa (Firebase Storage) di atas, bukan pengganti. Beda
+  // dari `files`: setiap file di sini SUDAH diunggah begitu dipilih
+  // (bukan ditunda sampai "Kirim Tugas"), jadi yang disimpan adalah hasil
+  // uploadnya langsung, bukan objek File mentah.
+  const [driveFiles, setDriveFiles] = useState<DriveUploadResult[]>([]);
+  const [uploadingDrive, setUploadingDrive] = useState(false);
   // Alternatif lampiran kalau upload foto ke Firebase Storage gagal/tidak
   // tersedia — lihat lib/utils/submissionLink.ts. `driveLinkRemoved`
   // menandai siswa sengaja menghapus link yang sebelumnya sudah tersimpan
@@ -114,6 +126,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
     setOpenId(assignment.id);
     setAnswer(assignment.textAnswer || "");
     setFiles([]);
+    setDriveFiles([]);
     setSubmitError("");
     setDriveLinkInput("");
     setDriveLinkRemoved(false);
@@ -156,6 +169,51 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
+  async function handlePickDriveFile(assignment: any, e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (picked.length === 0) return;
+
+    const remainingSlots = MAX_SUBMISSION_FILES - files.length - driveFiles.length;
+    if (remainingSlots <= 0) {
+      setSubmitError(`Maksimal ${MAX_SUBMISSION_FILES} lampiran per pengumpulan.`);
+      return;
+    }
+    const toUpload = picked.slice(0, remainingSlots);
+    if (picked.length > remainingSlots) {
+      setSubmitError(`Maksimal ${MAX_SUBMISSION_FILES} lampiran per pengumpulan — hanya ${remainingSlots} yang diunggah.`);
+    } else {
+      setSubmitError("");
+    }
+
+    for (const candidate of toUpload) {
+      try {
+        validateDriveUploadFile(candidate);
+      } catch (error: any) {
+        setSubmitError(describeSubmissionError(error));
+        return;
+      }
+    }
+
+    setUploadingDrive(true);
+    try {
+      // Satu per satu (bukan Promise.all) supaya kegagalan salah satu file
+      // tidak membatalkan file lain yang sudah terlanjur berhasil diunggah.
+      for (const candidate of toUpload) {
+        const result = await uploadSubmissionFileToDrive(scope.workspaceId, assignment.id, candidate);
+        setDriveFiles((prev) => [...prev, result]);
+      }
+    } catch (error: any) {
+      setSubmitError(describeSubmissionError(error));
+    } finally {
+      setUploadingDrive(false);
+    }
+  }
+
+  function removeDriveFile(index: number) {
+    setDriveFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
   async function handleSubmit(assignment: any) {
     if (submittingRef.current) return;
 
@@ -177,10 +235,17 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
       resolvedExternalLink = existingExternalLink;
     }
 
-    // Salah satu boleh kosong, tapi tidak ketiganya — sebagian tugas cukup
-    // dijawab teks, sebagian berupa foto pekerjaan, sebagian lewat link
-    // Google Drive (mis. saat upload foto sedang bermasalah).
-    if (!answer.trim() && files.length === 0 && existingAttachments.length === 0 && !resolvedExternalLink) {
+    // Salah satu boleh kosong, tapi tidak semuanya — sebagian tugas cukup
+    // dijawab teks, sebagian berupa foto pekerjaan (Storage atau Drive),
+    // sebagian lewat link Google Drive yang ditempel sendiri (mis. saat
+    // upload foto sedang bermasalah).
+    if (
+      !answer.trim() &&
+      files.length === 0 &&
+      driveFiles.length === 0 &&
+      existingAttachments.length === 0 &&
+      !resolvedExternalLink
+    ) {
       setSubmitError("Isi jawaban, lampirkan foto, atau tempel link Google Drive dulu.");
       return;
     }
@@ -205,7 +270,8 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
     if (files.length > 0) {
       setUploading(true);
       try {
-        attachments = await uploadSubmissionFiles(scope.workspaceId, assignment.id, files);
+        const uploaded = await uploadSubmissionFiles(scope.workspaceId, assignment.id, files);
+        attachments = [...uploaded, ...driveFiles];
       } catch (uploadError) {
         // Upload gagal BUKAN alasan menggagalkan seluruh pengumpulan kalau
         // siswa punya jawaban teks atau link Google Drive sebagai
@@ -223,10 +289,15 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
         return;
       }
       setUploading(false);
+    } else if (driveFiles.length > 0) {
+      // File Google Drive sudah terunggah lebih dulu (lihat
+      // handlePickDriveFile) — tinggal disertakan, tidak perlu unggah ulang.
+      attachments = [...driveFiles];
     }
-    // Kalau tidak memilih file baru = pertahankan lampiran sebelumnya
-    // (sudah ditangani lewat default `attachments = existingAttachments`
-    // di atas), jangan sampai terhapus hanya karena teksnya diperbaiki.
+    // Kalau tidak ada file baru sama sekali (Storage maupun Drive) =
+    // pertahankan lampiran sebelumnya (default `attachments =
+    // existingAttachments` di atas), jangan sampai terhapus hanya karena
+    // teksnya diperbaiki.
 
     try {
       await submissionController.submitAssignment(
@@ -240,6 +311,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
       setOpenId(null);
       setAnswer("");
       setFiles([]);
+      setDriveFiles([]);
       setDriveLinkInput("");
       setDriveLinkRemoved(false);
       setShowDriveLink(false);
@@ -422,6 +494,52 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                   </label>
                 )}
 
+                {driveFiles.length > 0 && (
+                  <div className="space-y-1.5">
+                    {driveFiles.map((f, idx) => (
+                      <div
+                        key={`${f.fileId}-${idx}`}
+                        className="flex items-center justify-between gap-2 p-2.5 bg-teal-50 rounded-xl"
+                      >
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <Cloud className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                          <span className="text-[11px] font-bold text-teal-800 truncate">{f.fileName}</span>
+                        </span>
+                        <button
+                          onClick={() => removeDriveFile(idx)}
+                          className="p-1 text-teal-400 hover:text-red-500 transition-colors shrink-0"
+                          title="Hapus lampiran Drive ini"
+                          aria-label="Hapus lampiran Drive ini"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Opsi upload LANGSUNG ke Google Drive lewat Service Account
+                    (app/api/upload) — beda dari toggle "tempel link" di
+                    bawah, yang minta siswa sudah punya link Drive sendiri.
+                    Batas 4 MB (lihat driveUploadAdapter.ts) karena file
+                    lewat server (Vercel), bukan langsung ke penyimpanan. */}
+                {files.length + driveFiles.length < MAX_SUBMISSION_FILES && (
+                  <label className="flex items-center justify-center gap-1.5 p-2.5 border border-dashed border-teal-300 rounded-xl cursor-pointer hover:border-teal-500 transition-colors">
+                    <Cloud className="w-3.5 h-3.5 text-teal-500" />
+                    <span className="text-[11px] font-bold text-teal-600">
+                      {uploadingDrive ? "Mengunggah ke Google Drive..." : "Upload ke Google Drive (maks 4 MB)"}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf,.doc,.docx"
+                      multiple
+                      disabled={uploadingDrive}
+                      onChange={(e) => handlePickDriveFile(assignment, e)}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+
                 {!showDriveLink ? (
                   <button
                     type="button"
@@ -494,11 +612,11 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                   </button>
                   <button
                     onClick={() => handleSubmit(assignment)}
-                    disabled={saving}
+                    disabled={saving || uploadingDrive}
                     className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white shadow-sm transition-colors flex items-center justify-center gap-1.5"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    {uploading ? "Mengunggah..." : saving ? "Mengirim..." : "Kirim Tugas"}
+                    {uploadingDrive ? "Mengunggah ke Drive..." : uploading ? "Mengunggah..." : saving ? "Mengirim..." : "Kirim Tugas"}
                   </button>
                 </div>
               </div>

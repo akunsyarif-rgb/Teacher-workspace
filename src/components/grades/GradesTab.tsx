@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, MutableRefObject } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, MutableRefObject } from 'react';
 import { CheckCircle2, CloudOff, Table, Plus, Save, Circle, Lock } from 'lucide-react';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
@@ -109,24 +109,33 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
     }
   }
 
-  function handleScoreChange(studentId: string, columnId: string, value: string) {
+  // useCallback dengan deps kosong: fungsi ini murni functional update
+  // (tidak membaca state lain lewat closure), jadi identitasnya boleh
+  // stabil selamanya. Ini PENTING, bukan sekadar rapi — GradesRow di
+  // GradesTable.tsx di-memo per baris, dan memo itu percuma kalau prop
+  // fungsinya berubah identitas di setiap ketukan (yang terjadi kalau
+  // fungsi ini didefinisikan ulang setiap render, seperti sebelumnya).
+  const handleScoreChange = useCallback((studentId: string, columnId: string, value: string) => {
     setGrades((prev) => ({
       ...prev,
       [studentId]: { ...(prev[studentId] || {}), [columnId]: value },
     }));
-  }
+  }, []);
 
-  function handleRequestUnlock(studentId: string, columnId: string) {
-    const student = students.find((s) => s.id === studentId);
-    const column = columns.find((c) => c.id === columnId);
-    setUnlockTarget({
-      studentId,
-      columnId,
-      studentName: student?.name ?? '',
-      columnTitle: column?.title ?? '',
-      currentValue: savedGrades[studentId]?.[columnId] ?? '',
-    });
-  }
+  const handleRequestUnlock = useCallback(
+    (studentId: string, columnId: string) => {
+      const student = students.find((s) => s.id === studentId);
+      const column = columns.find((c) => c.id === columnId);
+      setUnlockTarget({
+        studentId,
+        columnId,
+        studentName: student?.name ?? '',
+        columnTitle: column?.title ?? '',
+        currentValue: savedGrades[studentId]?.[columnId] ?? '',
+      });
+    },
+    [students, columns, savedGrades]
+  );
 
   function confirmUnlock() {
     if (!unlockTarget) return;

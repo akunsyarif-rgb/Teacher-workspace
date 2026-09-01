@@ -1,16 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { BookOpen, UserCheck, Table, History, CheckCircle2, Circle, PartyPopper, ClipboardList, Megaphone, Flag } from 'lucide-react';
 import Card from './ui/Card';
 import ClassSelector from './attendance/ClassSelector';
-import JournalTab from './journal/JournalTab';
-import AttendanceTab from './attendance/AttendanceTab';
-import GradesTab from './grades/GradesTab';
-import AssignmentsTab from './assignments/AssignmentsTab';
-import AnnouncementsTab from './announcements/AnnouncementsTab';
-import TimelineTab from './timeline/TimelineTab';
+import { SkeletonCard } from './ui/Skeleton';
 import UnsavedChangesModal from './UnsavedChangesModal';
 import SessionFinishModal from './SessionFinishModal';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
@@ -20,6 +16,22 @@ import * as dashboardController from '@/lib/controllers/dashboardController';
 import { getCurrentDayName, TodayClassStatus } from '@/lib/services/dashboardService';
 import { findActiveScheduleId, resolveCurrentWorkflowStep } from '@/lib/utils/scheduleTime';
 import { getCached } from '@/lib/utils/sessionCache';
+
+// Code-splitting per tab: sebelumnya JournalTab/AttendanceTab/GradesTab/
+// AssignmentsTab/AnnouncementsTab/TimelineTab semua diimpor statis di
+// atas, sehingga membuka /attendance mengunduh JS keenamnya sekaligus
+// walau cuma SATU tab yang tampil (masing-masing sudah dibungkus
+// `activeTab === ...` di render, jadi datanya memang tidak ikut
+// terambil — tapi kodenya tetap ikut terkirim ke browser). Dynamic
+// import memecah tiap tab jadi chunk terpisah yang baru diunduh saat
+// tab itu benar-benar diklik, tanpa mengubah perilaku fungsional apa
+// pun (props & urutan render tetap sama persis).
+const JournalTab = dynamic(() => import('./journal/JournalTab'), { loading: () => <SkeletonCard /> });
+const AttendanceTab = dynamic(() => import('./attendance/AttendanceTab'), { loading: () => <SkeletonCard /> });
+const GradesTab = dynamic(() => import('./grades/GradesTab'), { loading: () => <SkeletonCard /> });
+const AssignmentsTab = dynamic(() => import('./assignments/AssignmentsTab'), { loading: () => <SkeletonCard /> });
+const AnnouncementsTab = dynamic(() => import('./announcements/AnnouncementsTab'), { loading: () => <SkeletonCard /> });
+const TimelineTab = dynamic(() => import('./timeline/TimelineTab'), { loading: () => <SkeletonCard /> });
 
 type WorkspaceTab = 'jurnal' | 'presensi' | 'nilai' | 'tugas' | 'pengumuman' | 'riwayat';
 const VALID_TABS: WorkspaceTab[] = ['jurnal', 'presensi', 'nilai', 'tugas', 'pengumuman', 'riwayat'];
