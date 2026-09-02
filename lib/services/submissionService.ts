@@ -83,6 +83,11 @@ export async function submitAssignment(
     // ini tidak menebak "pertahankan atau hapus", cuma menulis apa yang
     // dikirim. null/undefined = tidak ada link.
     externalLink?: { url: string; label?: string } | null;
+    // true kalau jawaban teks diisi lewat SATU aksi paste besar (bukan
+    // diketik bertahap) — lihat handlePasteAnswer di app/student/tugas.
+    // SINYAL untuk guru periksa lebih teliti, BUKAN bukti/tuduhan: copy
+    // dari draft sendiri (mis. Word/Notes) juga memicu flag yang sama.
+    answerPasted?: boolean;
   },
   // Tenggat tugasnya, supaya aturan "sudah lewat batas" ditegakkan di
   // sini — bukan cuma disembunyikan tombolnya di UI. Boleh kosong: tugas
@@ -144,6 +149,11 @@ export async function submitAssignment(
       // benar-benar menghapusnya juga di Firestore — bukan diam-diam
       // dipertahankan karena field-nya tidak disebut dalam merge write.
       externalLink,
+      // Sama seperti attachments/externalLink: ditulis eksplisit apa
+      // adanya (bukan cuma saat true) supaya pengumpulan ulang tanpa
+      // paste baru benar-benar menghapus flag lama, bukan diam-diam
+      // mempertahankannya.
+      answerPastedFlag: !!answer.answerPasted,
       status: SUBMISSION_STATUS.MENUNGGU_PENILAIAN,
       submittedAt: new Date().toISOString(),
       // `feedback` SENGAJA tidak ikut ditulis di sini. Dokumennya ditulis

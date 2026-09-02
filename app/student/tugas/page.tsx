@@ -65,6 +65,10 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
   const [showDriveLink, setShowDriveLink] = useState(false);
   const [driveLinkInput, setDriveLinkInput] = useState("");
   const [driveLinkRemoved, setDriveLinkRemoved] = useState(false);
+  // true kalau jawaban teks pernah diisi lewat SATU aksi tempel besar
+  // (bukan diketik bertahap) — sinyal untuk guru periksa lebih teliti di
+  // panel review, BUKAN tuduhan otomatis (lihat handlePasteAnswer).
+  const [answerPasted, setAnswerPasted] = useState(false);
   // Diisi ID tugas begitu pengumpulan BENAR-BENAR sukses — dipakai untuk
   // menampilkan konfirmasi jelas ("Tugas berhasil dikumpulkan!") walau
   // formnya sudah tertutup, supaya siswa tidak menebak-nebak apakah
@@ -118,6 +122,19 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
     setDriveLinkInput("");
     setDriveLinkRemoved(false);
     setShowDriveLink(!!externalLinkOf(assignment));
+    setAnswerPasted(false);
+  }
+
+  // Ambang 200 karakter: cukup untuk menyaring paste jawaban esai
+  // (biasanya ratusan karakter), tapi tidak memicu untuk paste wajar
+  // seperti nama/istilah pendek yang disalin dari soal.
+  const PASTE_LENGTH_THRESHOLD = 200;
+
+  function handlePasteAnswer(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const pasted = e.clipboardData?.getData("text") || "";
+    if (pasted.length >= PASTE_LENGTH_THRESHOLD) {
+      setAnswerPasted(true);
+    }
   }
 
   function handlePickFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -234,7 +251,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
         assignment.id,
         scope.studentId,
         scope.className,
-        { textAnswer: answer, attachments, externalLink: resolvedExternalLink },
+        { textAnswer: answer, attachments, externalLink: resolvedExternalLink, answerPasted },
         assignment.dueDate
       );
       setOpenId(null);
@@ -243,6 +260,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
       setDriveLinkInput("");
       setDriveLinkRemoved(false);
       setShowDriveLink(false);
+      setAnswerPasted(false);
       if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
       setJustSubmittedId(assignment.id);
       flashTimerRef.current = setTimeout(() => setJustSubmittedId(null), 6000);
@@ -367,6 +385,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                 <textarea
                   value={answer}
                   onChange={(e) => setAnswer(e.target.value)}
+                  onPaste={handlePasteAnswer}
                   rows={4}
                   placeholder="Tulis jawabanmu di sini"
                   className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"

@@ -1,7 +1,21 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Circle, Clock, Star, FileText, Eye, Lock, Pencil, MessageSquare, Link2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Circle,
+  Clock,
+  Star,
+  FileText,
+  Eye,
+  Lock,
+  Pencil,
+  MessageSquare,
+  Link2,
+  Download,
+  ClipboardPaste,
+} from 'lucide-react';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import Modal from '../ui/Modal';
@@ -10,7 +24,19 @@ import { SkeletonText } from '../ui/Skeleton';
 import * as submissionController from '@/lib/controllers/submissionController';
 import * as gradeController from '@/lib/controllers/gradeController';
 import { getCached } from '@/lib/utils/sessionCache';
+import { downloadCsv } from '@/lib/utils/csvExport';
 import { SUBMISSION_STATUS } from '@/lib/config/constants';
+
+const SUBMISSION_CSV_COLUMNS = [
+  { key: 'studentName', label: 'Nama Siswa' },
+  { key: 'studentNis', label: 'NIS' },
+  { key: 'status', label: 'Status' },
+  { key: 'textAnswer', label: 'Jawaban' },
+  { key: 'attachmentLinks', label: 'Link Lampiran' },
+  { key: 'score', label: 'Nilai' },
+  { key: 'feedback', label: 'Catatan Guru' },
+  { key: 'pastedFlag', label: 'Indikasi Tempel' },
+];
 
 const STATUS_LABEL: Record<string, { label: string; className: string; icon: any }> = {
   [SUBMISSION_STATUS.BELUM_MENGUMPULKAN]: { label: 'Belum mengumpulkan', className: 'text-gray-400', icon: Circle },
@@ -127,6 +153,34 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
     setConfirmGrade(false);
   }
 
+  // Unduh CSV semua siswa di tugas ini sekaligus — supaya guru tidak perlu
+  // buka Review satu per satu hanya untuk membaca/merekap jawaban.
+  function handleDownloadCsv() {
+    const csvRows = rows.map((row) => {
+      const linkParts = attachmentsOf(row)
+        .map((att: any) => att.fileUrl)
+        .filter(Boolean);
+      if (row?.externalLink?.url) linkParts.push(row.externalLink.url);
+
+      return {
+        studentName: row.studentName || '-',
+        studentNis: row.studentNis || '-',
+        status: (STATUS_LABEL[row.status] || STATUS_LABEL[SUBMISSION_STATUS.BELUM_MENGUMPULKAN]).label,
+        textAnswer: row.textAnswer || '-',
+        attachmentLinks: linkParts.length > 0 ? linkParts.join(' | ') : '-',
+        score: scores[row.studentId] || '-',
+        feedback: row.feedback || '-',
+        // Sinyal "pernah ditempel", BUKAN bukti kecurangan — lihat komentar
+        // di handlePasteAnswer (app/student/tugas/page.tsx). Kolom ini
+        // supaya guru bisa urutkan/filter di Excel, bukan buka satu-satu.
+        pastedFlag: row.answerPastedFlag ? 'Ya' : '-',
+      };
+    });
+
+    const safeTitle = (assignment.title || 'Tugas').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60);
+    downloadCsv(`Jawaban_${safeTitle || 'Tugas'}_${className}.csv`, csvRows, SUBMISSION_CSV_COLUMNS);
+  }
+
   async function handleSaveFeedback(studentId: string) {
     setErrorMsg('');
     setSavingFeedback(true);
@@ -208,10 +262,20 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
       <InlineAlert message={errorMsg} onDismiss={() => setErrorMsg('')} />
 
       {!loading && rows.length > 0 && (
-        <p className="text-[11px] font-bold text-gray-500 px-1">
-          {rows.filter((r) => r.status !== SUBMISSION_STATUS.BELUM_MENGUMPULKAN).length} dari {rows.length} siswa sudah
-          mengumpulkan
-        </p>
+        <div className="flex items-center justify-between gap-2 px-1">
+          <p className="text-[11px] font-bold text-gray-500">
+            {rows.filter((r) => r.status !== SUBMISSION_STATUS.BELUM_MENGUMPULKAN).length} dari {rows.length} siswa
+            sudah mengumpulkan
+          </p>
+          <button
+            type="button"
+            onClick={handleDownloadCsv}
+            className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline shrink-0"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Unduh Jawaban (CSV)
+          </button>
+        </div>
       )}
 
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm divide-y divide-gray-100 overflow-hidden">
@@ -247,6 +311,14 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
                       ) : (
                         ''
                       )}
+                      {row.answerPastedFlag && (
+                        <span
+                          title="Jawaban ditempel dari clipboard — bukan bukti, periksa isinya sebelum menilai"
+                          className="inline-flex text-amber-500"
+                        >
+                          <ClipboardPaste className="w-3 h-3" />
+                        </span>
+                      )}
                     </p>
                   </div>
                   {!isReviewing && (
@@ -274,7 +346,16 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
                       ) : (
                         <>
                           {row.textAnswer && (
-                            <p className="text-[11px] text-gray-700 whitespace-pre-wrap">{row.textAnswer}</p>
+                            <>
+                              {row.answerPastedFlag && (
+                                <p className="flex items-center gap-1.5 text-[10px] font-bold text-amber-700 bg-amber-50 rounded-lg px-2 py-1 w-fit">
+                                  <ClipboardPaste className="w-3 h-3 shrink-0" />
+                                  Jawaban ini ditempel dari clipboard — bukan bukti kecurangan, tapi layak diperiksa
+                                  lebih teliti
+                                </p>
+                              )}
+                              <p className="text-[11px] text-gray-700 whitespace-pre-wrap">{row.textAnswer}</p>
+                            </>
                           )}
                           {attachments.map((att: any, idx: number) => (
                             <a
