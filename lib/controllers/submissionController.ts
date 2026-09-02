@@ -24,6 +24,7 @@ export async function submitAssignment(
     fileName?: string;
     filePath?: string;
     externalLink?: { url: string; label?: string } | null;
+    answerPasted?: boolean;
   },
   dueDate?: string | null
 ) {
