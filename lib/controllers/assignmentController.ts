@@ -31,12 +31,7 @@ export async function removeAssignment(id: string) {
 
 export async function attachAssignmentMaterial(
   id: string,
-  data: {
-    materialFileUrl: string;
-    materialFileName: string;
-    materialFilePath: string;
-    materialFileProvider?: 'firebase-storage' | 'google-drive';
-  }
+  data: { materialFileUrl: string; materialFileName: string; materialFilePath: string }
 ) {
   const result = await assignmentService.attachAssignmentMaterial(id, data);
   clearAllCached();

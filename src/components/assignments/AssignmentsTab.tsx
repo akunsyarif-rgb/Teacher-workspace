@@ -5,11 +5,10 @@ import { ClipboardList, Plus, ChevronRight, Trash2, Paperclip } from 'lucide-rea
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import { SkeletonCard } from '../ui/Skeleton';
-import AssignmentFormModal, { type MaterialFileProvider } from './AssignmentFormModal';
+import AssignmentFormModal from './AssignmentFormModal';
 import SubmissionPanel from './SubmissionPanel';
 import * as assignmentController from '@/lib/controllers/assignmentController';
 import { uploadAssignmentFile } from '@/lib/adapters/storageAdapter';
-import { uploadAssignmentMaterialToDrive } from '@/lib/adapters/driveUploadAdapter';
 import { getCached } from '@/lib/utils/sessionCache';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 
@@ -45,35 +44,16 @@ export default function AssignmentsTab({ className, subject }: AssignmentsTabPro
     }
   }
 
-  async function handleCreate(data: {
-    title: string;
-    description: string;
-    dueDate: string;
-    file: File | null;
-    fileProvider: MaterialFileProvider;
-  }) {
+  async function handleCreate(data: { title: string; description: string; dueDate: string; file: File | null }) {
     if (!workspaceId) return;
-    const { file, fileProvider, ...fields } = data;
+    const { file, ...fields } = data;
     const created: any = await assignmentController.createAssignment(workspaceId, className, subject, fields);
     if (file) {
       // Tugas sudah tersimpan meski unggahan materinya nanti gagal — guru
       // tetap bisa menandai file lewat "Buat Tugas" lagi kalau perlu,
       // daripada seluruh tugas batal hanya karena lampirannya bermasalah.
-      if (fileProvider === 'google-drive') {
-        const material = await uploadAssignmentMaterialToDrive(workspaceId, created.id, file);
-        await assignmentController.attachAssignmentMaterial(created.id, {
-          materialFileUrl: material.fileUrl,
-          materialFileName: material.fileName,
-          materialFilePath: '',
-          materialFileProvider: 'google-drive',
-        });
-      } else {
-        const material = await uploadAssignmentFile(workspaceId, created.id, file);
-        await assignmentController.attachAssignmentMaterial(created.id, {
-          ...material,
-          materialFileProvider: 'firebase-storage',
-        });
-      }
+      const material = await uploadAssignmentFile(workspaceId, created.id, file);
+      await assignmentController.attachAssignmentMaterial(created.id, material);
     }
     await loadAssignments();
   }
