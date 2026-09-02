@@ -19,7 +19,149 @@ export function cellKey(studentId: string, columnId: string) {
   return `${studentId}_${columnId}`;
 }
 
-export default function GradesTable({
+function calculateAverage(studentGrades: Record<string, string> | undefined, columns: { id: string }[]) {
+  if (!studentGrades || columns.length === 0) return '-';
+
+  let total = 0;
+  let count = 0;
+  columns.forEach((col) => {
+    const val = studentGrades[col.id];
+    if (val !== undefined && val !== '' && !isNaN(Number(val))) {
+      total += Number(val);
+      count += 1;
+    }
+  });
+
+  return count > 0 ? (total / count).toFixed(1) : '-';
+}
+
+function GradeCell({
+  studentId,
+  studentName,
+  col,
+  savedValue,
+  currentValue,
+  isLocked,
+  onScoreChange,
+  onRequestUnlock,
+}: {
+  studentId: string;
+  studentName: string;
+  col: { id: string; title: string };
+  savedValue: string;
+  currentValue: string;
+  isLocked: boolean;
+  onScoreChange: (studentId: string, columnId: string, value: string) => void;
+  onRequestUnlock: (studentId: string, columnId: string) => void;
+}) {
+  const isDraft = !isLocked && currentValue.trim() !== '';
+
+  if (isLocked) {
+    return (
+      <div className="relative inline-flex items-center justify-center">
+        <span className="w-16 h-9 flex items-center justify-center gap-1 bg-emerald-50 border border-emerald-200 rounded-xl font-bold text-sm text-emerald-700">
+          <Lock className="w-2.5 h-2.5 shrink-0" />
+          {savedValue}
+        </span>
+        <button
+          type="button"
+          onClick={() => onRequestUnlock(studentId, col.id)}
+          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50 transition-colors active:scale-90"
+          title="Edit nilai"
+          aria-label={`Edit nilai ${studentName} - ${col.title}`}
+        >
+          <Pencil className="w-2.5 h-2.5 text-gray-500" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative inline-flex items-center justify-center">
+      <input
+        type="number"
+        min="0"
+        max="100"
+        placeholder="-"
+        value={currentValue}
+        onChange={(e) => onScoreChange(studentId, col.id, e.target.value)}
+        aria-label={`Nilai ${studentName} - ${col.title}`}
+        className={`w-16 p-2 text-center border rounded-xl font-bold text-sm text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600 ${
+          isDraft ? 'bg-amber-50 border-amber-300' : 'bg-gray-50 border-gray-200'
+        }`}
+      />
+      {isDraft && (
+        <span
+          className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full border border-white"
+          title="Draft — belum disimpan"
+        />
+      )}
+    </div>
+  );
+}
+
+type GradesRowProps = {
+  idx: number;
+  student: { id: string; name: string; nis?: string };
+  columns: { id: string; title: string; type: string }[];
+  studentGrades: Record<string, string> | undefined;
+  studentSavedGrades: Record<string, string> | undefined;
+  unlockedCells: Set<string>;
+  onScoreChange: (studentId: string, columnId: string, value: string) => void;
+  onRequestUnlock: (studentId: string, columnId: string) => void;
+};
+
+// Baris per siswa dipisah & di-memo sendiri: mengetik nilai satu siswa
+// hanya mengubah grades[studentId] itu sendiri (lihat handleScoreChange di
+// GradesTab.tsx, updatenya immutable per-studentId) — objek grades milik
+// siswa LAIN tetap sama reference-nya, jadi baris mereka tidak perlu
+// dirender ulang sama sekali. Tanpa ini, mengetik satu nilai me-render
+// ulang seluruh tabel (bisa puluhan baris x beberapa kolom) di setiap
+// ketukan tombol.
+const GradesRow = React.memo(function GradesRow({
+  idx,
+  student,
+  columns,
+  studentGrades,
+  studentSavedGrades,
+  unlockedCells,
+  onScoreChange,
+  onRequestUnlock,
+}: GradesRowProps) {
+  return (
+    <tr className="hover:bg-gray-50/50 transition-colors">
+      <td className="p-4 text-center text-gray-400 font-bold">{idx + 1}</td>
+      <td className="p-4 font-bold text-gray-900 sticky left-0 bg-white z-10">
+        <p className="text-sm">{student.name}</p>
+        <p className="text-[10px] text-gray-400 font-normal">NIS: {student.nis || '-'}</p>
+      </td>
+      {columns.map((col) => {
+        const savedValue = studentSavedGrades?.[col.id] ?? '';
+        const currentValue = studentGrades?.[col.id] ?? '';
+        const isLocked = savedValue !== '' && !unlockedCells.has(cellKey(student.id, col.id));
+        return (
+          <td key={col.id} className="p-3 text-center">
+            <GradeCell
+              studentId={student.id}
+              studentName={student.name}
+              col={col}
+              savedValue={savedValue}
+              currentValue={currentValue}
+              isLocked={isLocked}
+              onScoreChange={onScoreChange}
+              onRequestUnlock={onRequestUnlock}
+            />
+          </td>
+        );
+      })}
+      <td className="p-4 text-center text-sm font-extrabold text-blue-600 bg-blue-50/30">
+        {calculateAverage(studentGrades, columns)}
+      </td>
+    </tr>
+  );
+});
+
+function GradesTable({
   students,
   columns,
   grades,
@@ -29,76 +171,8 @@ export default function GradesTable({
   onRequestUnlock,
   onDeleteColumn,
 }: GradesTableProps) {
-  function calculateAverage(studentId: string) {
-    const studentGrades = grades[studentId];
-    if (!studentGrades || columns.length === 0) return '-';
-
-    let total = 0;
-    let count = 0;
-    columns.forEach((col) => {
-      const val = studentGrades[col.id];
-      if (val !== undefined && val !== '' && !isNaN(Number(val))) {
-        total += Number(val);
-        count += 1;
-      }
-    });
-
-    return count > 0 ? (total / count).toFixed(1) : '-';
-  }
-
   if (students.length === 0) {
     return <div className="text-center py-12 text-xs text-gray-400">Belum ada siswa terdaftar di kelas ini.</div>;
-  }
-
-  function renderCell(studentId: string, studentName: string, col: { id: string; title: string }) {
-    const key = cellKey(studentId, col.id);
-    const savedValue = savedGrades[studentId]?.[col.id] ?? '';
-    const currentValue = grades[studentId]?.[col.id] ?? '';
-    const isLocked = savedValue !== '' && !unlockedCells.has(key);
-    const isDraft = !isLocked && currentValue.trim() !== '';
-
-    if (isLocked) {
-      return (
-        <div className="relative inline-flex items-center justify-center">
-          <span className="w-16 h-9 flex items-center justify-center gap-1 bg-emerald-50 border border-emerald-200 rounded-xl font-bold text-sm text-emerald-700">
-            <Lock className="w-2.5 h-2.5 shrink-0" />
-            {savedValue}
-          </span>
-          <button
-            type="button"
-            onClick={() => onRequestUnlock(studentId, col.id)}
-            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50 transition-colors active:scale-90"
-            title="Edit nilai"
-            aria-label={`Edit nilai ${studentName} - ${col.title}`}
-          >
-            <Pencil className="w-2.5 h-2.5 text-gray-500" />
-          </button>
-        </div>
-      );
-    }
-
-    return (
-      <div className="relative inline-flex items-center justify-center">
-        <input
-          type="number"
-          min="0"
-          max="100"
-          placeholder="-"
-          value={currentValue}
-          onChange={(e) => onScoreChange(studentId, col.id, e.target.value)}
-          aria-label={`Nilai ${studentName} - ${col.title}`}
-          className={`w-16 p-2 text-center border rounded-xl font-bold text-sm text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600 ${
-            isDraft ? 'bg-amber-50 border-amber-300' : 'bg-gray-50 border-gray-200'
-          }`}
-        />
-        {isDraft && (
-          <span
-            className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full border border-white"
-            title="Draft — belum disimpan"
-          />
-        )}
-      </div>
-    );
   }
 
   return (
@@ -133,24 +207,22 @@ export default function GradesTable({
         </thead>
         <tbody className="divide-y divide-gray-100 text-xs">
           {students.map((student, idx) => (
-            <tr key={student.id} className="hover:bg-gray-50/50 transition-colors">
-              <td className="p-4 text-center text-gray-400 font-bold">{idx + 1}</td>
-              <td className="p-4 font-bold text-gray-900 sticky left-0 bg-white z-10">
-                <p className="text-sm">{student.name}</p>
-                <p className="text-[10px] text-gray-400 font-normal">NIS: {student.nis || '-'}</p>
-              </td>
-              {columns.map((col) => (
-                <td key={col.id} className="p-3 text-center">
-                  {renderCell(student.id, student.name, col)}
-                </td>
-              ))}
-              <td className="p-4 text-center text-sm font-extrabold text-blue-600 bg-blue-50/30">
-                {calculateAverage(student.id)}
-              </td>
-            </tr>
+            <GradesRow
+              key={student.id}
+              idx={idx}
+              student={student}
+              columns={columns}
+              studentGrades={grades[student.id]}
+              studentSavedGrades={savedGrades[student.id]}
+              unlockedCells={unlockedCells}
+              onScoreChange={onScoreChange}
+              onRequestUnlock={onRequestUnlock}
+            />
           ))}
         </tbody>
       </table>
     </div>
   );
 }
+
+export default React.memo(GradesTable);

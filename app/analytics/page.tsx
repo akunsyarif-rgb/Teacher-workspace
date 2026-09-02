@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { useWorkspace } from "@/src/context/WorkspaceContext";
 import { fetchDashboardSummary, dashboardSummaryCacheKey } from "@/lib/controllers/dashboardController";
 import { fetchInsights, insightsCacheKey } from "@/lib/controllers/analyticsController";
 import { getCached } from "@/lib/utils/sessionCache";
-import WeeklyChart from "@/src/components/ui/WeeklyChart";
+import { SkeletonCard } from "@/src/components/ui/Skeleton";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -20,7 +21,14 @@ import {
   CheckCircle2,
   ArrowRight,
 } from "lucide-react";
-import { SkeletonCard } from "@/src/components/ui/Skeleton";
+
+// Chart.js (+ react-chartjs-2) berat dan tidak dibutuhkan sebelum data
+// mingguannya sendiri selesai dimuat — dipisah ke chunk sendiri supaya
+// tidak ikut menunda render awal /analytics.
+const WeeklyChart = dynamic(() => import("@/src/components/ui/WeeklyChart"), {
+  loading: () => <SkeletonCard />,
+  ssr: false,
+});
 
 const CATEGORY_STYLE: Record<string, { icon: any; label: string; tone: string }> = {
   kehadiran: { icon: UserX, label: "Kehadiran", tone: "bg-amber-50 text-amber-700" },

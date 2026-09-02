@@ -12,6 +12,29 @@ export async function fetchJournalHistory(workspaceId: string, className: string
   );
 }
 
+export function journalHistoryRangeCacheKey(
+  workspaceId: string,
+  className: string,
+  startDate: string,
+  endDate: string
+) {
+  return `journalHistoryRange:${workspaceId}:${className}:${startDate}:${endDate}`;
+}
+
+// Dipakai TimelineTab — jendela tanggal, bukan seluruh riwayat. Lihat
+// komentar di journalRepository.getJournalsByClassInRange.
+export async function fetchJournalHistoryInRange(
+  workspaceId: string,
+  className: string,
+  startDate: string,
+  endDate: string
+) {
+  if (!workspaceId || !className) return [];
+  return withCache(journalHistoryRangeCacheKey(workspaceId, className, startDate, endDate), () =>
+    journalService.listJournalEntriesInRange(workspaceId, className, startDate, endDate)
+  );
+}
+
 export async function fetchTodayJournal(workspaceId: string, className: string, scheduleId?: string | null) {
   return journalService.loadTodayJournal(workspaceId, className, scheduleId);
 }

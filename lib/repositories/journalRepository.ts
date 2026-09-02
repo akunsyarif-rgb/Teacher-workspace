@@ -9,6 +9,26 @@ export async function getJournalsByClass(workspaceId: string, className: string)
   ]);
 }
 
+// Rentang tanggal saja (dipakai TimelineTab) — bukan seluruh riwayat
+// kelas. Timeline menumpuk terus seiring tahun ajaran berjalan (beda dari
+// getJournalsByClass yang memang dipakai jurnal harian, jumlahnya wajar
+// karena sekadar cek "hari ini sudah diisi atau belum"). Sama pola dengan
+// getJournalsInRange di dashboardRepository.ts — lihat komentar di sana.
+export async function getJournalsByClassInRange(
+  workspaceId: string,
+  className: string,
+  startDate: string,
+  endDate: string
+) {
+  if (!workspaceId || !className) return [];
+  return getDocuments(COLLECTIONS.JOURNALS, [
+    ['workspaceId', '==', workspaceId],
+    ['className', '==', className],
+    ['date', '>=', startDate],
+    ['date', '<=', endDate],
+  ]);
+}
+
 // Dipakai supaya jurnal hari ini bisa dideteksi ("○ Belum diisi" vs
 // "✓ Tersimpan") dan diedit di tempat, bukan cuma dihapus-lalu-tulis-ulang.
 // Tiga filter ==, tidak butuh composite index — sama seperti
