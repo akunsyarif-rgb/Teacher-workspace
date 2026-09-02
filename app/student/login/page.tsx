@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { GraduationCap, KeyRound, ArrowRight, ArrowLeft } from "lucide-react";
 import { useStudentAuth, StudentProfile } from "@/src/context/StudentAuthContext";
 import * as studentAuthController from "@/lib/controllers/studentAuthController";
+import { describeAuthError } from "@/lib/utils/authErrors";
 
 export default function StudentLoginPage() {
   const { user, profile, loading, applyProfile } = useStudentAuth();
@@ -63,7 +64,7 @@ export default function StudentLoginPage() {
       router.push("/student");
     } catch (err: any) {
       console.error("Gagal masuk sebagai siswa:", err);
-      setError(err.message || "Gagal masuk. Periksa kembali kode akses dari gurumu.");
+      setError(describeAuthError(err, "Gagal masuk. Periksa kembali kode akses dari gurumu."));
       warmupRef.current = null;
     } finally {
       setSubmitting(false);

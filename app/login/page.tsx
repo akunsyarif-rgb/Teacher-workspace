@@ -5,6 +5,7 @@ import { signInWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail 
 import { auth } from "@/src/config/firebase";
 import { useRouter } from "next/navigation";
 import { GraduationCap, Lock, Mail, ArrowRight, Users } from "lucide-react";
+import { describeAuthError } from "@/lib/utils/authErrors";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -46,7 +47,11 @@ export default function LoginPage() {
       router.push("/");
     } catch (err: any) {
       console.error("Gagal login:", err);
-      setError("Email atau kata sandi salah. Silakan periksa kembali.");
+      // Sebelumnya pesan ini SELALU "Email atau kata sandi salah" apa pun
+      // penyebabnya — termasuk saat internet bermasalah
+      // (auth/network-request-failed), yang jelas menyesatkan karena guru
+      // sama sekali tidak salah ketik apa pun.
+      setError(describeAuthError(err, "Email atau kata sandi salah. Silakan periksa kembali."));
     } finally {
       setLoading(false);
     }
@@ -67,7 +72,7 @@ export default function LoginPage() {
       setResetMessage("Link reset kata sandi sudah dikirim ke email Anda. Cek juga folder Spam.");
     } catch (err: any) {
       console.error("Gagal mengirim reset password:", err);
-      setError("Gagal mengirim email reset. Periksa kembali alamat email Anda.");
+      setError(describeAuthError(err, "Gagal mengirim email reset. Periksa kembali alamat email Anda."));
     } finally {
       setResetLoading(false);
     }
