@@ -15,6 +15,7 @@ import {
   Link2,
   Download,
   ClipboardPaste,
+  RefreshCw,
 } from 'lucide-react';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
@@ -23,7 +24,7 @@ import InlineAlert from '../ui/InlineAlert';
 import { SkeletonText } from '../ui/Skeleton';
 import * as submissionController from '@/lib/controllers/submissionController';
 import * as gradeController from '@/lib/controllers/gradeController';
-import { getCached } from '@/lib/utils/sessionCache';
+import { getCached, clearAllCached } from '@/lib/utils/sessionCache';
 import { downloadCsv } from '@/lib/utils/csvExport';
 import { SUBMISSION_STATUS } from '@/lib/config/constants';
 
@@ -83,6 +84,12 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
   const [rows, setRows] = useState<any[]>([]);
   const [scores, setScores] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  // Beda dari `loading`: dipakai tombol "Segarkan" supaya daftar yang
+  // sudah tampil TIDAK ikut hilang diganti skeleton saat guru cuma minta
+  // data terbaru (mis. cek siapa yang baru saja mengumpulkan) — sebelumnya
+  // satu-satunya cara melihat pengumpulan baru adalah pindah menu lalu
+  // kembali lagi ke tugas ini.
+  const [refreshing, setRefreshing] = useState(false);
   // ID siswa yang submission-nya sedang DIBUKA untuk direview. Menilai
   // hanya mungkin dari dalam sini — daftar di luar tidak lagi punya tombol
   // "Beri Nilai" langsung, supaya guru selalu melihat isi pekerjaannya
@@ -106,13 +113,23 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assignment.id]);
 
-  async function loadData() {
-    const alreadyWarm =
-      getCached(submissionController.submissionsCacheKey(workspaceId, assignment.id)) !== undefined &&
-      getCached(gradeController.gradeDataCacheKey(workspaceId, className)) !== undefined;
-    if (!alreadyWarm) {
-      setLoading(true);
+  async function loadData(options?: { forceRefresh?: boolean }) {
+    if (options?.forceRefresh) {
+      // Cache sessionCache (TTL 60 dtk) bisa saja belum kedaluwarsa tepat
+      // saat guru menekan Segarkan — dibersihkan paksa di sini supaya
+      // tombolnya selalu benar-benar mengambil data terbaru, bukan
+      // kadang-kadang menampilkan hasil lama yang masih "hangat".
+      clearAllCached();
+      setRefreshing(true);
+    } else {
+      const alreadyWarm =
+        getCached(submissionController.submissionsCacheKey(workspaceId, assignment.id)) !== undefined &&
+        getCached(gradeController.gradeDataCacheKey(workspaceId, className)) !== undefined;
+      if (!alreadyWarm) {
+        setLoading(true);
+      }
     }
+    setErrorMsg('');
     try {
       const [submissions, gradeData] = await Promise.all([
         submissionController.fetchSubmissions(workspaceId, className, assignment.id),
@@ -130,7 +147,12 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
       setErrorMsg('Gagal memuat pengumpulan siswa. Periksa koneksi internet lalu buka lagi tugas ini.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  }
+
+  function handleRefresh() {
+    loadData({ forceRefresh: true });
   }
 
   function openReview(studentId: string) {
@@ -267,14 +289,26 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
             {rows.filter((r) => r.status !== SUBMISSION_STATUS.BELUM_MENGUMPULKAN).length} dari {rows.length} siswa
             sudah mengumpulkan
           </p>
-          <button
-            type="button"
-            onClick={handleDownloadCsv}
-            className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline shrink-0"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Unduh Jawaban (CSV)
-          </button>
+          <div className="flex items-center gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              title="Muat ulang untuk melihat pengumpulan terbaru"
+              className="flex items-center gap-1.5 text-[11px] font-bold text-gray-500 hover:text-gray-900 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Menyegarkan...' : 'Segarkan'}
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadCsv}
+              className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Unduh Jawaban (CSV)
+            </button>
+          </div>
         </div>
       )}
 
