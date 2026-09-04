@@ -8,6 +8,7 @@ import { auth } from "@/src/config/firebase";
 import { useWorkspace } from "@/src/context/WorkspaceContext";
 import WorkspaceGuard from "@/src/components/ui/WorkspaceGuard";
 import * as workspaceController from "@/lib/controllers/workspaceController";
+import { describeFirestoreError } from "@/lib/utils/firestoreErrors";
 import { User, ChevronRight, LogOut, BarChart3, Wallet, KeyRound, Copy, Check, RefreshCw, Database } from "lucide-react";
 
 export default function AccountPage() {
@@ -64,7 +65,7 @@ export default function AccountPage() {
       await workspaceController.submitRegenerateInviteCode(workspace.id);
       await refreshProfile();
     } catch (error: any) {
-      alert(error.message || "Gagal membuat kode undangan baru.");
+      alert(describeFirestoreError(error, "Gagal membuat kode undangan baru."));
     } finally {
       setRegenerating(false);
     }

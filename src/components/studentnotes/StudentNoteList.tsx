@@ -10,6 +10,7 @@ import InlineAlert from '../ui/InlineAlert';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as classController from '@/lib/controllers/classController';
 import * as studentNoteController from '@/lib/controllers/studentNoteController';
+import { describeFirestoreError } from '@/lib/utils/firestoreErrors';
 import { getCached } from '@/lib/utils/sessionCache';
 import { SkeletonCard } from '../ui/Skeleton';
 
@@ -128,7 +129,7 @@ export default function StudentNoteList({
       setSuccess(true);
       await loadData();
     } catch (error: any) {
-      setErrorMsg(error.message || 'Gagal menyimpan catatan.');
+      setErrorMsg(describeFirestoreError(error, 'Gagal menyimpan catatan.'));
     } finally {
       setSubmitting(false);
     }

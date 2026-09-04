@@ -8,6 +8,7 @@ import Modal from '../ui/Modal';
 import Input from '../ui/Input';
 import { SkeletonCard } from '../ui/Skeleton';
 import * as announcementController from '@/lib/controllers/announcementController';
+import { describeFirestoreError } from '@/lib/utils/firestoreErrors';
 import { getCached } from '@/lib/utils/sessionCache';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 
@@ -66,7 +67,7 @@ export default function AnnouncementsTab({ className, subject }: AnnouncementsTa
       closeModal();
       await loadAnnouncements();
     } catch (error: any) {
-      alert(error.message || 'Gagal membuat pengumuman.');
+      alert(describeFirestoreError(error, 'Gagal membuat pengumuman.'));
     } finally {
       setSaving(false);
     }

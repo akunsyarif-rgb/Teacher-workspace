@@ -9,6 +9,7 @@ import InlineAlert from '../ui/InlineAlert';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as classController from '@/lib/controllers/classController';
 import * as teacherProfileController from '@/lib/controllers/teacherProfileController';
+import { describeFirestoreError } from '@/lib/utils/firestoreErrors';
 
 export default function ProfileForm() {
   const { user, workspaceId, teacherProfile, refreshProfile } = useWorkspace();
@@ -53,7 +54,7 @@ export default function ProfileForm() {
       await refreshProfile();
       setSuccess(true);
     } catch (error: any) {
-      setErrorMsg(error.message || 'Gagal menyimpan profil.');
+      setErrorMsg(describeFirestoreError(error, 'Gagal menyimpan profil.'));
     } finally {
       setLoading(false);
     }

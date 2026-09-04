@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { ArrowRightLeft } from 'lucide-react';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as achievementController from '@/lib/controllers/achievementController';
+import { describeFirestoreError } from '@/lib/utils/firestoreErrors';
 
 /**
  * Prestasi yang tercatat sebelum pemisahan koleksi masih ada di
@@ -38,7 +39,7 @@ export default function AchievementMigrationBanner({ onMigrated }: { onMigrated:
       onMigrated();
       alert(`${moved} prestasi lama berhasil dipindahkan dan kini bisa dilihat siswa.`);
     } catch (error: any) {
-      alert(error.message || 'Gagal memindahkan prestasi lama.');
+      alert(describeFirestoreError(error, 'Gagal memindahkan prestasi lama.'));
     } finally {
       setMigrating(false);
     }

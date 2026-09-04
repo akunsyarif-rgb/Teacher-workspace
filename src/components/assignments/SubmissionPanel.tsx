@@ -27,6 +27,7 @@ import * as gradeController from '@/lib/controllers/gradeController';
 import { getCached, clearAllCached } from '@/lib/utils/sessionCache';
 import { downloadCsv } from '@/lib/utils/csvExport';
 import { SUBMISSION_STATUS } from '@/lib/config/constants';
+import { describeFirestoreError } from '@/lib/utils/firestoreErrors';
 
 const SUBMISSION_CSV_COLUMNS = [
   { key: 'studentName', label: 'Nama Siswa' },
@@ -219,7 +220,7 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
       setFeedbackSavedFor(studentId);
       await loadData();
     } catch (error: any) {
-      setErrorMsg(error.message || 'Gagal menyimpan catatan.');
+      setErrorMsg(describeFirestoreError(error, 'Gagal menyimpan catatan.'));
     } finally {
       setSavingFeedback(false);
     }
@@ -246,7 +247,7 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
       closeReview();
       await loadData();
     } catch (error: any) {
-      setErrorMsg(error.message || 'Gagal menyimpan nilai.');
+      setErrorMsg(describeFirestoreError(error, 'Gagal menyimpan nilai.'));
     } finally {
       setSavingGrade(false);
     }

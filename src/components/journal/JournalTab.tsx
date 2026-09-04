@@ -10,6 +10,7 @@ import JournalHistoryList from "./JournalHistoryList";
 import ConfirmDeleteModal from "@/src/components/ui/ConfirmDeleteModal";
 import InlineAlert from "@/src/components/ui/InlineAlert";
 import * as journalController from "@/lib/controllers/journalController";
+import { describeFirestoreError } from "@/lib/utils/firestoreErrors";
 import { getCached } from "@/lib/utils/sessionCache";
 import { useWorkspace } from "@/src/context/WorkspaceContext";
 import { useOnlineStatus } from "@/src/hooks/useOnlineStatus";
@@ -151,7 +152,7 @@ export default function JournalTab({
       await loadHistory();
       onSubmitted?.();
     } catch (error: any) {
-      setErrorMsg(error.message || "Gagal menyimpan jurnal.");
+      setErrorMsg(describeFirestoreError(error, "Gagal menyimpan jurnal."));
       throw error;
     } finally {
       setLoading(false);

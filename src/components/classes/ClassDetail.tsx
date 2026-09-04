@@ -5,6 +5,7 @@ import { Trash2, Copy, Check, Plus, Settings } from 'lucide-react';
 import { auth } from '@/src/config/firebase';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as classController from '@/lib/controllers/classController';
+import { describeFirestoreError } from '@/lib/utils/firestoreErrors';
 import { getCached } from '@/lib/utils/sessionCache';
 import ConfirmDeleteModal from '@/src/components/ui/ConfirmDeleteModal';
 import Modal from '@/src/components/ui/Modal';
@@ -81,7 +82,7 @@ export default function ClassDetail({
       // tanpa alert di sini, kegagalan hapus gagal secara senyap. Re-throw
       // supaya modal tahu untuk tetap terbuka (bukan ikut onClose seolah
       // berhasil), mengikuti pola handleGenerateMissingCodes di file ini.
-      alert(error.message || 'Gagal menghapus siswa.');
+      alert(describeFirestoreError(error, 'Gagal menghapus siswa.'));
       throw error;
     }
   }
@@ -95,7 +96,7 @@ export default function ClassDetail({
       // sempat melihat "berhasil dihapus" sebelum berpindah ke daftar
       // kelas (lihat catatan onSuccessClose di ConfirmDeleteModal.tsx).
     } catch (error: any) {
-      alert(error.message || 'Gagal menghapus kelas.');
+      alert(describeFirestoreError(error, 'Gagal menghapus kelas.'));
       throw error;
     }
   }
@@ -126,7 +127,7 @@ export default function ClassDetail({
       setShowSettings(false);
       onRenamed?.(validation.value);
     } catch (error: any) {
-      setRenameError(error.message || 'Gagal mengganti nama kelas.');
+      setRenameError(describeFirestoreError(error, 'Gagal mengganti nama kelas.'));
     } finally {
       setRenaming(false);
     }
@@ -140,7 +141,7 @@ export default function ClassDetail({
       await loadStudents();
       alert(`${count} kode akses dibuat. Bagikan ke siswa untuk masuk ke Student Companion.`);
     } catch (error: any) {
-      alert(error.message || 'Gagal membuat kode akses.');
+      alert(describeFirestoreError(error, 'Gagal membuat kode akses.'));
     } finally {
       setGenerating(false);
     }

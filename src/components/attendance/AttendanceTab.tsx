@@ -14,6 +14,7 @@ import { getCached } from "@/lib/utils/sessionCache";
 import { useWorkspace } from "@/src/context/WorkspaceContext";
 import { useOnlineStatus } from "@/src/hooks/useOnlineStatus";
 import { exportAttendanceRecapPdf } from "@/lib/utils/attendancePdf";
+import { describeFirestoreError } from "@/lib/utils/firestoreErrors";
 import { SkeletonCard, SkeletonTable } from "../ui/Skeleton";
 
 type AttendanceTabProps = {
@@ -192,7 +193,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
       // guru masih di tengah mengisi presensi siswa lain.
       onSubmitted?.();
     } catch (error: any) {
-      setErrorMsg(error.message || "Gagal menandai presensi selesai.");
+      setErrorMsg(describeFirestoreError(error, "Gagal menandai presensi selesai."));
     } finally {
       setMarkingDone(false);
       setShowCompleteConfirm(false);

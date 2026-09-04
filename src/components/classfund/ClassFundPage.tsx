@@ -9,6 +9,7 @@ import ConfirmDeleteModal from '../ui/ConfirmDeleteModal';
 import InlineAlert from '../ui/InlineAlert';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as classFundController from '@/lib/controllers/classFundController';
+import { describeFirestoreError } from '@/lib/utils/firestoreErrors';
 import { getCached } from '@/lib/utils/sessionCache';
 import { SkeletonCard } from '../ui/Skeleton';
 
@@ -77,7 +78,7 @@ export default function ClassFundPage() {
       setSuccess(true);
       await loadData();
     } catch (error: any) {
-      setErrorMsg(error.message || 'Gagal menyimpan transaksi.');
+      setErrorMsg(describeFirestoreError(error, 'Gagal menyimpan transaksi.'));
     } finally {
       setSubmitting(false);
     }

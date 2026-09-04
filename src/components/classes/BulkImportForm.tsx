@@ -8,6 +8,7 @@ import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import Button from '../ui/Button';
 import * as classController from '@/lib/controllers/classController';
+import { describeFirestoreError } from '@/lib/utils/firestoreErrors';
 
 type BulkImportFormProps = {
   onAdded: () => void;
@@ -41,7 +42,7 @@ export default function BulkImportForm({ onAdded, lockedClassName }: BulkImportF
       setNamesText('');
       onAdded();
     } catch (error: any) {
-      setError(error.message || 'Gagal mengimpor siswa.');
+      setError(describeFirestoreError(error, 'Gagal mengimpor siswa.'));
     } finally {
       setLoading(false);
     }

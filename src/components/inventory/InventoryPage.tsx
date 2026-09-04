@@ -9,6 +9,7 @@ import ConfirmDeleteModal from '../ui/ConfirmDeleteModal';
 import InlineAlert from '../ui/InlineAlert';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as inventoryController from '@/lib/controllers/inventoryController';
+import { describeFirestoreError } from '@/lib/utils/firestoreErrors';
 import { getCached } from '@/lib/utils/sessionCache';
 import { SkeletonCard } from '../ui/Skeleton';
 
@@ -76,7 +77,7 @@ export default function InventoryPage() {
       setSuccess(true);
       await loadData();
     } catch (error: any) {
-      setErrorMsg(error.message || 'Gagal menyimpan barang.');
+      setErrorMsg(describeFirestoreError(error, 'Gagal menyimpan barang.'));
     } finally {
       setSubmitting(false);
     }

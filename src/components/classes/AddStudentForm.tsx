@@ -7,6 +7,7 @@ import Card from '../ui/Card';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import * as classController from '@/lib/controllers/classController';
+import { describeFirestoreError } from '@/lib/utils/firestoreErrors';
 
 type AddStudentFormProps = {
   onAdded: () => void;
@@ -43,7 +44,7 @@ export default function AddStudentForm({ onAdded, lockedClassName }: AddStudentF
       }
       onAdded();
     } catch (error: any) {
-      setError(error.message || 'Gagal menambah siswa.');
+      setError(describeFirestoreError(error, 'Gagal menambah siswa.'));
     } finally {
       setLoading(false);
     }

@@ -6,6 +6,7 @@ import Modal from '../ui/Modal';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import { validateUploadFile } from '@/lib/adapters/storageAdapter';
+import { describeFirestoreError } from '@/lib/utils/firestoreErrors';
 
 type AssignmentFormModalProps = {
   isOpen: boolean;
@@ -57,7 +58,7 @@ export default function AssignmentFormModal({ isOpen, onClose, onSubmit }: Assig
       setStep('form');
       onClose();
     } catch (error: any) {
-      alert(error.message || 'Gagal membuat tugas.');
+      alert(describeFirestoreError(error, 'Gagal membuat tugas.'));
     } finally {
       setSaving(false);
     }
