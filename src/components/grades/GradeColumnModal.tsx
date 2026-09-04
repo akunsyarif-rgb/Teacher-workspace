@@ -14,12 +14,22 @@ type GradeColumnModalProps = {
 export default function GradeColumnModal({ isOpen, onClose, onSubmit }: GradeColumnModalProps) {
   const [title, setTitle] = useState('');
   const [type, setType] = useState('Tugas');
+  // Tanpa guard ini, dobel-tap "Tambahkan Kolom" (umum di layar sentuh
+  // tablet) memicu dua kali onSubmit sebelum modal sempat tertutup —
+  // membuat dua kolom nilai dengan judul sama persis.
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    await onSubmit(title, type);
-    setTitle('');
-    onClose();
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await onSubmit(title, type);
+      setTitle('');
+      onClose();
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -48,10 +58,12 @@ export default function GradeColumnModal({ isOpen, onClose, onSubmit }: GradeCol
         </div>
 
         <div className="flex gap-2 pt-2">
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button type="button" variant="secondary" onClick={onClose} disabled={isSubmitting}>
             Batal
           </Button>
-          <Button type="submit">Tambahkan Kolom</Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Menambahkan...' : 'Tambahkan Kolom'}
+          </Button>
         </div>
       </form>
     </Modal>

@@ -13,6 +13,7 @@ import InlineAlert from '@/src/components/ui/InlineAlert';
 import * as gradeController from '@/lib/controllers/gradeController';
 import * as studentController from '@/lib/controllers/classController';
 import { getCached } from '@/lib/utils/sessionCache';
+import { describeFirestoreError } from '@/lib/utils/firestoreErrors';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import { useOnlineStatus } from '@/src/hooks/useOnlineStatus';
 import { SkeletonTable, SkeletonText } from '../ui/Skeleton';
@@ -197,7 +198,7 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
       setReviewOpen(false);
       onSavedSuccessfully?.();
     } catch (error: any) {
-      setErrorMsg(error.message || 'Gagal menyimpan nilai.');
+      setErrorMsg(describeFirestoreError(error, 'Gagal menyimpan nilai.'));
       throw error;
     }
   }
