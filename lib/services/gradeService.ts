@@ -37,6 +37,11 @@ export async function addGradeColumn(workspaceId: string, className: string, tit
   return gradeColumnRepository.createColumn({ workspaceId, className, title: title.trim(), type });
 }
 
+export async function renameGradeColumn(id: string, title: string) {
+  if (!title || !title.trim()) throw new Error('Judul kolom wajib diisi.');
+  return gradeColumnRepository.updateColumnTitle(id, title.trim());
+}
+
 export async function removeGradeColumn(id: string) {
   return gradeColumnRepository.deleteColumn(id);
 }

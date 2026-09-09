@@ -26,6 +26,12 @@ export async function addColumn(workspaceId: string, className: string, title: s
   return result;
 }
 
+export async function renameColumn(id: string, title: string) {
+  const result = await gradeService.renameGradeColumn(id, title);
+  clearAllCached();
+  return result;
+}
+
 export async function removeColumn(id: string) {
   const result = await gradeService.removeGradeColumn(id);
   clearAllCached();

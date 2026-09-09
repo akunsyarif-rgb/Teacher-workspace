@@ -9,6 +9,7 @@ import GradesReviewModal, { GradeChange } from './GradesReviewModal';
 import GradeColumnModal from './GradeColumnModal';
 import ConfirmDeleteModal from '@/src/components/ui/ConfirmDeleteModal';
 import Modal from '@/src/components/ui/Modal';
+import Input from '@/src/components/ui/Input';
 import InlineAlert from '@/src/components/ui/InlineAlert';
 import * as gradeController from '@/lib/controllers/gradeController';
 import * as studentController from '@/lib/controllers/classController';
@@ -55,6 +56,10 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
   const [errorMsg, setErrorMsg] = useState('');
   const [loadingData, setLoadingData] = useState(true);
   const [deleteColumnTarget, setDeleteColumnTarget] = useState<{ id: string; title: string } | null>(null);
+  const [editColumnTarget, setEditColumnTarget] = useState<{ id: string; title: string } | null>(null);
+  const [editColumnTitle, setEditColumnTitle] = useState('');
+  const [editColumnSaving, setEditColumnSaving] = useState(false);
+  const [editColumnError, setEditColumnError] = useState('');
   // Sel terkunci yang pensilnya baru ditekan, menunggu jawaban "Ubah nilai?".
   // Tanpa gerbang ini satu sentuhan tak sengaja di layar sentuh langsung
   // membuka nilai yang sudah terkunci untuk diketik ulang.
@@ -220,6 +225,33 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
     setDeleteColumnTarget(null);
   }
 
+  function handleEditColumn(columnId: string) {
+    const col = columns.find((c) => c.id === columnId);
+    setEditColumnTarget({ id: columnId, title: col?.title || '' });
+    setEditColumnTitle(col?.title || '');
+    setEditColumnError('');
+  }
+
+  async function confirmEditColumn() {
+    if (!editColumnTarget) return;
+    const trimmed = editColumnTitle.trim();
+    if (!trimmed) {
+      setEditColumnError('Nama tugas wajib diisi.');
+      return;
+    }
+    setEditColumnSaving(true);
+    setEditColumnError('');
+    try {
+      await gradeController.renameColumn(editColumnTarget.id, trimmed);
+      await loadData();
+      setEditColumnTarget(null);
+    } catch (error: any) {
+      setEditColumnError(error.message || 'Gagal mengganti nama kolom.');
+    } finally {
+      setEditColumnSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Card className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -306,6 +338,37 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
         </div>
       </Modal>
 
+      <Modal isOpen={!!editColumnTarget} onClose={() => setEditColumnTarget(null)} title="Edit Nama Kolom">
+        <div className="space-y-4">
+          <Input
+            label="Nama / Judul Materi"
+            value={editColumnTitle}
+            onChange={setEditColumnTitle}
+            placeholder="Contoh: Berpikir Kritis, Bab 1"
+            required
+          />
+          {editColumnError && <p className="text-xs font-bold text-red-600">{editColumnError}</p>}
+          <div className="flex gap-2 pt-1">
+            <Button
+              variant="secondary"
+              onClick={() => setEditColumnTarget(null)}
+              disabled={editColumnSaving}
+              className="flex-1"
+            >
+              Batal
+            </Button>
+            <Button
+              onClick={confirmEditColumn}
+              loading={editColumnSaving}
+              disabled={!editColumnTitle.trim()}
+              className="flex-1"
+            >
+              {editColumnSaving ? 'Menyimpan...' : 'Simpan'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       <ConfirmDeleteModal
         isOpen={!!deleteColumnTarget}
         onClose={() => setDeleteColumnTarget(null)}
@@ -331,6 +394,7 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
             unlockedCells={unlockedCells}
             onScoreChange={handleScoreChange}
             onRequestUnlock={handleRequestUnlock}
+            onEditColumn={handleEditColumn}
             onDeleteColumn={handleDeleteColumn}
           />
         )}

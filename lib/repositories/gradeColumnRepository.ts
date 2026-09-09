@@ -1,4 +1,4 @@
-import { getDocuments, addDocument, deleteDocument } from '../adapters/firestoreAdapter';
+import { getDocuments, addDocument, updateDocument, deleteDocument } from '../adapters/firestoreAdapter';
 import { COLLECTIONS, DEFAULT_GRADE_COLUMNS } from '../config/constants';
 
 export async function getColumnsByClass(workspaceId: string, className: string) {
@@ -25,6 +25,10 @@ function toMillis(createdAt: any): number {
 
 export async function createColumn(data: Record<string, any>) {
   return addDocument(COLLECTIONS.GRADE_COLUMNS, data);
+}
+
+export async function updateColumnTitle(id: string, title: string) {
+  return updateDocument(COLLECTIONS.GRADE_COLUMNS, id, { title });
 }
 
 export async function deleteColumn(id: string) {
