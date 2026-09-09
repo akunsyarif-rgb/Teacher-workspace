@@ -12,6 +12,7 @@ type GradesTableProps = {
   unlockedCells: Set<string>;
   onScoreChange: (studentId: string, columnId: string, value: string) => void;
   onRequestUnlock: (studentId: string, columnId: string) => void;
+  onEditColumn: (columnId: string) => void;
   onDeleteColumn: (columnId: string) => void;
 };
 
@@ -169,6 +170,7 @@ function GradesTable({
   unlockedCells,
   onScoreChange,
   onRequestUnlock,
+  onEditColumn,
   onDeleteColumn,
 }: GradesTableProps) {
   if (students.length === 0) {
@@ -190,6 +192,14 @@ function GradesTable({
                   </span>
                   <div className="flex items-center gap-1">
                     <Badge label={col.type} />
+                    <button
+                      onClick={() => onEditColumn(col.id)}
+                      className="p-2 -m-1 text-gray-400 hover:text-blue-600 rounded active:scale-90 transition-transform"
+                      title="Edit Nama Kolom"
+                      aria-label={`Edit Nama Kolom ${col.title}`}
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
                     <button
                       onClick={() => onDeleteColumn(col.id)}
                       className="p-2 -m-1 text-red-400 hover:text-red-600 rounded active:scale-90 transition-transform"
