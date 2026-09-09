@@ -19,10 +19,15 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
       onClick={onClose}
     >
       <div
-        className="bg-white p-6 rounded-3xl max-w-md w-full space-y-4 shadow-xl"
+        className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3">
+        {/* Header sticky supaya tombol tutup tetap terjangkau walau isi
+            modal (mis. preview instruksi tugas yang sangat panjang) lebih
+            tinggi dari layar — tanpa ini kartu modal cuma memanjang ke
+            bawah tanpa batas dan tombol aksi di paling bawah (mis. Publish
+            Tugas) jadi tidak pernah kelihatan maupun bisa dicapai scroll. */}
+        <div className="flex items-start justify-between gap-3 p-6 pb-0 shrink-0">
           <h3 className="text-sm font-bold text-gray-900">{title}</h3>
           <button
             type="button"
@@ -33,7 +38,7 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
             <X className="w-4 h-4" />
           </button>
         </div>
-        {children}
+        <div className="p-6 pt-4 space-y-4 overflow-y-auto">{children}</div>
       </div>
     </div>
   );
