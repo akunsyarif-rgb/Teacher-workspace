@@ -6,6 +6,7 @@ import { auth } from "@/src/config/firebase";
 import { useRouter } from "next/navigation";
 import { GraduationCap, Lock, Mail, ArrowRight, Users } from "lucide-react";
 import { describeAuthError } from "@/lib/utils/authErrors";
+import { syncSupabaseIdentity } from "@/lib/auth/supabaseIdentityBridge";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -18,8 +19,6 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Firebase Auth sudah otomatis menyimpan & memulihkan sesi login
-    // (termasuk saat offline) tanpa perlu penyimpanan tambahan di sini.
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         router.push("/");
@@ -27,7 +26,6 @@ export default function LoginPage() {
         setCheckingSession(false);
       }
     });
-
     return () => unsubscribe();
   }, [router]);
 
@@ -43,14 +41,11 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
+      const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      await syncSupabaseIdentity(credential.user);
       router.push("/");
     } catch (err: any) {
       console.error("Gagal login:", err);
-      // Sebelumnya pesan ini SELALU "Email atau kata sandi salah" apa pun
-      // penyebabnya — termasuk saat internet bermasalah
-      // (auth/network-request-failed), yang jelas menyesatkan karena guru
-      // sama sekali tidak salah ketik apa pun.
       setError(describeAuthError(err, "Email atau kata sandi salah. Silakan periksa kembali."));
     } finally {
       setLoading(false);
@@ -97,25 +92,15 @@ export default function LoginPage() {
             <GraduationCap className="w-7 h-7 text-white" />
           </div>
 
-        <p className="text-center text-xs text-gray-400">
-          Belum punya akun?{' '}
-          <a href="/signup" className="text-blue-600 font-bold hover:underline">
-            Daftar di sini
-          </a>
-        </p>
+          <p className="text-center text-xs text-gray-400">
+            Belum punya akun?{' '}
+            <a href="/signup" className="text-blue-600 font-bold hover:underline">Daftar di sini</a>
+          </p>
           <h1 className="text-xl font-extrabold text-gray-900 mt-2">Masuk ke Aplikasi Guru</h1>
           <p className="text-xs text-gray-400">Kelola absensi, jurnal, dan kegiatan kelas dengan mudah</p>
         </div>
 
-        {/* Jalur siswa dibuat menonjol (bukan cuma tautan teks kecil di
-            bawah) supaya begitu halaman ini dibuka, langsung terlihat ada
-            DUA jenis pengguna — guru (form di bawah) dan siswa (kartu ini).
-            Sengaja tetap link biasa ke /student/login, bukan landing page
-            pemilihan baru. */}
-        <a
-          href="/student/login"
-          className="flex items-center justify-between gap-3 p-4 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-2xl transition-colors group"
-        >
+        <a href="/student/login" className="flex items-center justify-between gap-3 p-4 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-2xl transition-colors group">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shrink-0 shadow-sm shadow-blue-200">
               <Users className="w-5 h-5 text-white" />
@@ -134,64 +119,30 @@ export default function LoginPage() {
           <div className="flex-1 h-px bg-gray-100" />
         </div>
 
-        {error && (
-          <div className="p-3.5 bg-red-50 border border-red-100 rounded-2xl text-xs font-bold text-red-600 text-center">
-            {error}
-          </div>
-        )}
-
-        {resetMessage && (
-          <div className="p-3.5 bg-emerald-50 border border-emerald-100 rounded-2xl text-xs font-bold text-emerald-700 text-center">
-            {resetMessage}
-          </div>
-        )}
+        {error && <div className="p-3.5 bg-red-50 border border-red-100 rounded-2xl text-xs font-bold text-red-600 text-center">{error}</div>}
+        {resetMessage && <div className="p-3.5 bg-emerald-50 border border-emerald-100 rounded-2xl text-xs font-bold text-emerald-700 text-center">{resetMessage}</div>}
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Email Akun</label>
             <div className="relative">
               <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
-              <input
-                type="email"
-                placeholder="nama@sekolah.sch.id"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-extrabold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
-              />
+              <input type="email" placeholder="nama@sekolah.sch.id" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-extrabold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600" />
             </div>
           </div>
 
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Kata Sandi</label>
-              <button
-                type="button"
-                onClick={handleForgotPassword}
-                disabled={resetLoading}
-                className="text-[10px] font-bold text-blue-600 hover:underline disabled:text-blue-300"
-              >
-                {resetLoading ? "Mengirim..." : "Lupa kata sandi?"}
-              </button>
+              <button type="button" onClick={handleForgotPassword} disabled={resetLoading} className="text-[10px] font-bold text-blue-600 hover:underline disabled:text-blue-300">{resetLoading ? "Mengirim..." : "Lupa kata sandi?"}</button>
             </div>
             <div className="relative">
               <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
-              <input
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-extrabold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
-              />
+              <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-extrabold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600" />
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-blue-200 transition-all active:scale-[0.97] flex items-center justify-center gap-2 mt-2"
-          >
+          <button type="submit" disabled={loading} className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-blue-200 transition-all active:scale-[0.97] flex items-center justify-center gap-2 mt-2">
             <span>{loading ? "Memproses..." : "Masuk ke Beranda"}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
