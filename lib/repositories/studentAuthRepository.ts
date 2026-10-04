@@ -1,16 +1,35 @@
+import { supabaseRequest } from '@/src/config/supabase';
 import { getDocument, batchWrite, BatchOperation } from '../adapters/firestoreAdapter';
 import { COLLECTIONS } from '../config/constants';
 
 export async function getLoginCode(accessCode: string) {
   if (!accessCode) return null;
-  return getDocument(COLLECTIONS.STUDENT_LOGIN_CODES, accessCode);
+  const { data } = await supabaseRequest<Array<{
+    student_id: string;
+    workspace_id: string;
+    name: string;
+    class_name: string;
+    nis: string;
+  }>>('/rest/v1/rpc/claim_student_login_code', {
+    method: 'POST',
+    body: JSON.stringify({ p_code: accessCode }),
+  });
+  const row = data?.[0];
+  if (!row) return null;
+  return {
+    id: accessCode,
+    studentId: row.student_id,
+    workspaceId: row.workspace_id,
+    name: row.name,
+    className: row.class_name,
+    nis: row.nis || '-',
+  };
 }
 
-// Dipakai murni untuk memicu koneksi Firestore lebih awal (lihat
-// studentAuthService.warmupConnection) — hasilnya (null, kode ini memang
-// tidak pernah ada) tidak dipakai sama sekali.
+// Supabase tidak perlu warm-up query Firestore. Tetap dipertahankan sebagai
+// no-op async agar service dan UI lama tidak perlu diubah serentak.
 export async function warmupConnection() {
-  await getDocument(COLLECTIONS.STUDENT_LOGIN_CODES, '__warmup__');
+  return undefined;
 }
 
 export async function getStudentProfile(authUid: string) {
