@@ -8,6 +8,7 @@ import { GraduationCap, KeyRound, ArrowRight, ArrowLeft } from "lucide-react";
 import { useStudentAuth, StudentProfile } from "@/src/context/StudentAuthContext";
 import * as studentAuthController from "@/lib/controllers/studentAuthController";
 import { describeAuthError } from "@/lib/utils/authErrors";
+import { syncSupabaseIdentity } from "@/lib/auth/supabaseIdentityBridge";
 
 export default function StudentLoginPage() {
   const { user, profile, loading, applyProfile } = useStudentAuth();
@@ -59,6 +60,7 @@ export default function StudentLoginPage() {
     setSubmitting(true);
     try {
       const currentUser = auth.currentUser ?? (await (warmupRef.current ?? signInAnonymously(auth))).user;
+      await syncSupabaseIdentity(currentUser);
       const claimedProfile = await studentAuthController.claimAccessCode(accessCode, currentUser.uid);
       applyProfile(currentUser, claimedProfile as StudentProfile);
       router.push("/student");
