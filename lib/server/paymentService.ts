@@ -24,7 +24,6 @@ export async function createPaymentTransaction(input: CreateTransactionInput) {
   const { workspaceId, uid, plan, customerEmail, customerName } = input;
   if (!workspaceId || !uid) throw new Error('workspaceId dan uid diperlukan.');
   if (!isPaidPlan(plan)) throw new Error('Paket tidak valid.');
-
   let grossAmount:number; let seatCount:number|null=null;
   if (plan === 'school_annual') {
     seatCount = Math.floor(Number(input.seatCount));
@@ -53,7 +52,6 @@ export async function handleMidtransNotification(payload:MidtransNotificationPay
   const serverKey = process.env.MIDTRANS_SERVER_KEY;
   if (!serverKey) throw new Error('MIDTRANS_SERVER_KEY belum di-set di environment variable.');
   if (!verifySignature(payload,serverKey)) throw new Error('Signature Midtrans tidak valid — notifikasi ditolak.');
-
   const payment = await adminGetOne<any>('payments','orderId',payload.order_id);
   if (!payment) throw new Error(`Payment record untuk order_id ${payload.order_id} tidak ditemukan.`);
   if (payment.status === 'settled') return { alreadyProcessed:true, applied:false };
@@ -66,7 +64,7 @@ export async function handleMidtransNotification(payload:MidtransNotificationPay
 
   const plan = payment.plan as PaidPlan;
   const durationMs = PLAN_DURATION_MS[plan];
-  const workspaceUpdate:any = { plan, classLimit:PLAN_CLASS_LIMITS[plan], planExpiresAt:durationMs ? new Date(Date.now()+durationMs).toISOString() : null, updatedAt:new Date().toISOString() };
+  const workspaceUpdate:any = { plan, classLimit:PLAN_CLASS_LIMITS[plan], planExpiresAt:durationMs ? Date.now()+durationMs : null, updatedAt:new Date().toISOString() };
   if (plan === 'school_annual') workspaceUpdate.seatLimit = payment.seatCount;
   await adminUpdate('workspaces',[['id','==',payment.workspaceId]],workspaceUpdate);
   await adminUpdate('payments',[['orderId','==',payload.order_id]],{status:'settled',settledAt:Date.now(),updatedAt:new Date().toISOString()});
