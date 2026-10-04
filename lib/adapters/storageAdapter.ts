@@ -12,9 +12,6 @@ export const uploadSubmissionFile = backend.uploadSubmissionFile;
 export const uploadSubmissionFiles = backend.uploadSubmissionFiles;
 export const uploadAssignmentFile = backend.uploadAssignmentFile;
 export const createAttachmentSignedUrl = USE_FIREBASE_EMULATOR
-  ? async (path: string) => {
-      const result = await firebaseStorage.uploadSubmissionFile('', '', new File([''], path));
-      return result.fileUrl;
-    }
+  ? async (_path: string) => { throw new Error('Signed URL Supabase tidak tersedia dalam mode Firebase emulator.'); }
   : supabaseStorage.createAttachmentSignedUrl;
 export const SUPABASE_SUBMISSION_BUCKET = 'submission-attachments';
