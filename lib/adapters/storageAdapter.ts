@@ -1,105 +1,20 @@
-import { auth } from '@/src/config/firebase';
-import {
-  SUPABASE_SUBMISSION_BUCKET,
-  getSupabaseUrl,
-  supabaseRequest,
-  uploadSupabaseObject,
-} from '@/src/config/supabase';
-import { userError } from '../utils/submissionRules';
-import {
-  MAX_SUBMISSION_FILES,
-  MAX_UPLOAD_BYTES,
-  resolveUploadContentType,
-} from '../utils/uploadFileTypes';
+import * as supabaseStorage from './storageSupabaseAdapter';
+import * as firebaseStorage from './storageLegacyAdapter';
 
-export { MAX_SUBMISSION_FILES, MAX_UPLOAD_BYTES, resolveUploadContentType };
+const USE_FIREBASE_EMULATOR = process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === 'true';
+const backend = USE_FIREBASE_EMULATOR ? firebaseStorage : supabaseStorage;
 
-const SIGNED_URL_SECONDS = 60 * 60;
-
-export function validateUploadFile(file: File) {
-  if (file.size >= MAX_UPLOAD_BYTES) {
-    throw userError('Ukuran file maksimal 10 MB. Kecilkan dulu fotonya lalu coba lagi.');
-  }
-  if (!resolveUploadContentType(file)) {
-    throw userError('Format file harus gambar, PDF, atau dokumen Word.');
-  }
-}
-
-function sanitizeFileName(name: string) {
-  const cleaned = name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/_+/g, '_');
-  return cleaned.slice(-80) || 'lampiran';
-}
-
-function encodePath(path: string) {
-  return path.split('/').map(encodeURIComponent).join('/');
-}
-
-export async function createAttachmentSignedUrl(path: string, expiresIn = SIGNED_URL_SECONDS) {
-  const encodedPath = encodePath(path);
-  const { data } = await supabaseRequest<{ signedURL?: string; signedUrl?: string }>(
-    `/storage/v1/object/sign/${SUPABASE_SUBMISSION_BUCKET}/${encodedPath}`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ expiresIn }),
+export const MAX_SUBMISSION_FILES = backend.MAX_SUBMISSION_FILES;
+export const MAX_UPLOAD_BYTES = backend.MAX_UPLOAD_BYTES;
+export const resolveUploadContentType = backend.resolveUploadContentType;
+export const validateUploadFile = backend.validateUploadFile;
+export const uploadSubmissionFile = backend.uploadSubmissionFile;
+export const uploadSubmissionFiles = backend.uploadSubmissionFiles;
+export const uploadAssignmentFile = backend.uploadAssignmentFile;
+export const createAttachmentSignedUrl = USE_FIREBASE_EMULATOR
+  ? async (path: string) => {
+      const result = await firebaseStorage.uploadSubmissionFile('', '', new File([''], path));
+      return result.fileUrl;
     }
-  );
-  const signedUrl = data.signedURL || data.signedUrl;
-  if (!signedUrl) throw new Error('Tautan lampiran tidak dapat dibuat.');
-  return signedUrl.startsWith('http') ? signedUrl : `${getSupabaseUrl()}${signedUrl.startsWith('/') ? '' : '/'}${signedUrl}`;
-}
-
-async function uploadPrivateFile(path: string, file: File) {
-  validateUploadFile(file);
-  const uid = auth.currentUser?.uid;
-  if (!uid) throw userError('Sesi tidak valid, coba muat ulang halaman.', 'unauthenticated');
-
-  const contentType = resolveUploadContentType(file) as string;
-  await uploadSupabaseObject(path, file, contentType);
-  const signedUrl = await createAttachmentSignedUrl(path);
-  return { fileUrl: signedUrl, fileName: file.name, filePath: path };
-}
-
-export async function uploadSubmissionFile(
-  workspaceId: string,
-  assignmentId: string,
-  file: File,
-  uniquePrefix?: string
-) {
-  const uid = auth.currentUser?.uid;
-  if (!uid) throw userError('Sesi tidak valid, coba muat ulang halaman.', 'unauthenticated');
-  const fileName = sanitizeFileName(file.name);
-  const path = `submissions/${workspaceId}/${assignmentId}/${uid}/${uniquePrefix ? `${uniquePrefix}_${fileName}` : fileName}`;
-  return uploadPrivateFile(path, file);
-}
-
-export async function uploadSubmissionFiles(
-  workspaceId: string,
-  assignmentId: string,
-  files: File[]
-) {
-  if (files.length > MAX_SUBMISSION_FILES) {
-    throw userError(`Maksimal ${MAX_SUBMISSION_FILES} file per pengumpulan.`);
-  }
-  return Promise.all(
-    files.map((file, index) => uploadSubmissionFile(workspaceId, assignmentId, file, String(index)))
-  );
-}
-
-export async function uploadAssignmentFile(
-  workspaceId: string,
-  assignmentId: string,
-  file: File
-) {
-  const uid = auth.currentUser?.uid;
-  if (!uid) throw userError('Sesi tidak valid, coba muat ulang halaman.', 'unauthenticated');
-  const fileName = sanitizeFileName(file.name);
-  const path = `assignment-materials/${workspaceId}/${assignmentId}/${uid}/${fileName}`;
-  const result = await uploadPrivateFile(path, file);
-  return {
-    materialFileUrl: result.fileUrl,
-    materialFileName: result.fileName,
-    materialFilePath: result.filePath,
-  };
-}
-
-export { SUPABASE_SUBMISSION_BUCKET };
+  : supabaseStorage.createAttachmentSignedUrl;
+export const SUPABASE_SUBMISSION_BUCKET = 'submission-attachments';
