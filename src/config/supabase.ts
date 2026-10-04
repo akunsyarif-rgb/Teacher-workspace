@@ -12,6 +12,10 @@ function requireConfig() {
   return { url: SUPABASE_URL, key: SUPABASE_KEY };
 }
 
+export function getSupabaseUrl() {
+  return requireConfig().url;
+}
+
 async function getAuthToken() {
   const user = auth.currentUser;
   if (!user) throw new Error('Sesi tidak valid, coba muat ulang halaman.');
