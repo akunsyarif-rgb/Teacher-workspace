@@ -1,6 +1,7 @@
 import { auth } from '@/src/config/firebase';
 import {
   SUPABASE_SUBMISSION_BUCKET,
+  getSupabaseUrl,
   supabaseRequest,
   uploadSupabaseObject,
 } from '@/src/config/supabase';
@@ -33,7 +34,6 @@ function encodePath(path: string) {
   return path.split('/').map(encodeURIComponent).join('/');
 }
 
-/** Membuat URL sementara untuk membuka file private di browser. */
 export async function createAttachmentSignedUrl(path: string, expiresIn = SIGNED_URL_SECONDS) {
   const encodedPath = encodePath(path);
   const { data } = await supabaseRequest<{ signedURL?: string; signedUrl?: string }>(
@@ -45,7 +45,7 @@ export async function createAttachmentSignedUrl(path: string, expiresIn = SIGNED
   );
   const signedUrl = data.signedURL || data.signedUrl;
   if (!signedUrl) throw new Error('Tautan lampiran tidak dapat dibuat.');
-  return signedUrl.startsWith('http') ? signedUrl : signedUrl;
+  return signedUrl.startsWith('http') ? signedUrl : `${getSupabaseUrl()}${signedUrl.startsWith('/') ? '' : '/'}${signedUrl}`;
 }
 
 async function uploadPrivateFile(path: string, file: File) {
