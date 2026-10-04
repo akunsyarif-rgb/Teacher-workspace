@@ -2,151 +2,22 @@ import { supabaseRequest } from '@/src/config/supabase';
 
 export { serverTimestamp } from '@/src/config/supabaseTimestamp';
 
-const OPERATOR_MAP: Record<string, string> = {
-  '==': 'eq',
-  '!=': 'neq',
-  '>': 'gt',
-  '>=': 'gte',
-  '<': 'lt',
-  '<=': 'lte',
-};
-
-function toSnakeCase(value: string) {
-  return value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
-}
-
-function toCamelCase(value: string) {
-  return value.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
-}
-
-function mapTopLevelKeys<T extends Record<string, any>>(row: T, mapper: (key: string) => string) {
-  return Object.fromEntries(Object.entries(row).map(([key, value]) => [mapper(key), value]));
-}
-
-function encodeFilterValue(value: unknown) {
-  if (value === null) return 'null';
-  if (typeof value === 'boolean') return String(value);
-  if (typeof value === 'number') return String(value);
-  return String(value);
-}
-
-function buildQuery(collectionName: string, filters: [string, any, any][]) {
-  const params = new URLSearchParams();
-  params.set('select', '*');
-  for (const [field, op, value] of filters) {
-    const postgrestOp = OPERATOR_MAP[op];
-    if (!postgrestOp) throw new Error(`Operator query tidak didukung: ${op}`);
-    const column = toSnakeCase(field);
-    if (value === null && op === '==') {
-      params.set(column, 'is.null');
-    } else if (value === null && op === '!=') {
-      params.set(column, 'not.is.null');
-    } else {
-      params.set(column, `${postgrestOp}.${encodeFilterValue(value)}`);
-    }
-  }
-  return `/${collectionName}?${params.toString()}`;
-}
-
-async function requestRows<T = any>(path: string, init?: RequestInit) {
-  const { data } = await supabaseRequest<T[]>(path, init);
-  return (data || []).map((row) => mapTopLevelKeys(row as Record<string, any>, toCamelCase)) as T[];
-}
-
-export async function getDocuments(collectionName: string, filters: [string, any, any][] = []) {
-  return requestRows(buildQuery(collectionName, filters));
-}
-
-export async function getDocument(collectionName: string, id: string) {
-  const rows = await requestRows(`/${collectionName}?id=eq.${encodeURIComponent(id)}&limit=1`);
-  return rows[0] || null;
-}
-
-export async function countDocuments(collectionName: string, filters: [string, any, any][] = []) {
-  const { response } = await supabaseRequest(
-    buildQuery(collectionName, filters).replace('select=*', 'select=id&limit=1'),
-    { headers: { Prefer: 'count=exact', Range: '0-0' } }
-  );
-  const contentRange = response.headers.get('content-range');
-  if (!contentRange) return (await getDocuments(collectionName, filters)).length;
-  const total = Number(contentRange.split('/')[1]);
-  return Number.isFinite(total) ? total : 0;
-}
-
-export async function addDocument(collectionName: string, data: Record<string, any>) {
-  const id = generateId(collectionName);
-  const payload = { id, ...mapTopLevelKeys(data, toSnakeCase) };
-  const rows = await requestRows(`/${collectionName}`, {
-    method: 'POST',
-    headers: { Prefer: 'return=representation' },
-    body: JSON.stringify(payload),
-  });
-  return rows[0] || { id, ...data };
-}
-
-export async function setDocument(collectionName: string, id: string, data: Record<string, any>) {
-  const payload = { id, ...mapTopLevelKeys(data, toSnakeCase) };
-  const rows = await requestRows(`/${collectionName}`, {
-    method: 'POST',
-    headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
-    body: JSON.stringify(payload),
-  });
-  return rows[0] || { id, ...data };
-}
-
-export async function updateDocument(collectionName: string, id: string, data: Record<string, any>) {
-  const payload = mapTopLevelKeys(data, toSnakeCase);
-  const rows = await requestRows(`/${collectionName}?id=eq.${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    headers: { Prefer: 'return=representation' },
-    body: JSON.stringify(payload),
-  });
-  return rows[0] || { id, ...data };
-}
-
-export async function deleteDocument(collectionName: string, id: string) {
-  await supabaseRequest(`/${collectionName}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
-  return true;
-}
-
-export function generateId(_collectionName: string) {
-  return crypto.randomUUID();
-}
-
-export type BatchOperation =
-  | { type: 'set'; collectionName: string; id: string; data: Record<string, any> }
-  | { type: 'delete'; collectionName: string; id: string };
-
-const BATCH_SIZE = 100;
-
-export async function batchWrite(operations: BatchOperation[]) {
-  const grouped = new Map<string, BatchOperation[]>();
-  for (const operation of operations) {
-    const list = grouped.get(operation.collectionName) || [];
-    list.push(operation);
-    grouped.set(operation.collectionName, list);
-  }
-
-  for (const [collectionName, collectionOps] of grouped) {
-    const sets = collectionOps.filter((op): op is Extract<BatchOperation, { type: 'set' }> => op.type === 'set');
-    for (let i = 0; i < sets.length; i += BATCH_SIZE) {
-      const chunk = sets.slice(i, i + BATCH_SIZE);
-      const payload = chunk.map((op) => ({ id: op.id, ...mapTopLevelKeys(op.data, toSnakeCase) }));
-      await supabaseRequest(`/${collectionName}`, {
-        method: 'POST',
-        headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify(payload),
-      });
-    }
-
-    const deletes = collectionOps.filter((op): op is Extract<BatchOperation, { type: 'delete' }> => op.type === 'delete');
-    for (let i = 0; i < deletes.length; i += BATCH_SIZE) {
-      const chunk = deletes.slice(i, i + BATCH_SIZE);
-      const ids = chunk.map((op) => op.id.replace(/([(),])/g, ''));
-      const inValue = `(${ids.join(',')})`;
-      await supabaseRequest(`/${collectionName}?id=in.${encodeURIComponent(inValue)}`, { method: 'DELETE' });
-    }
-  }
-
-  return true;
-}
+const OPERATOR_MAP: Record<string,string> = {'==':'eq','!=':'neq','>':'gt','>=':'gte','<':'lt','<=':'lte'};
+const PRIMARY_KEY_MAP: Record<string,string> = {teacher_profiles:'user_id',student_profiles:'user_id',workspace_invites:'code',payments:'order_id'};
+function toSnakeCase(value:string){return value.replace(/[A-Z]/g,(letter)=>`_${letter.toLowerCase()}`);}
+function toCamelCase(value:string){return value.replace(/_([a-z])/g,(_,letter:string)=>letter.toUpperCase());}
+function mapTopLevelKeys<T extends Record<string,any>>(row:T,mapper:(key:string)=>string){return Object.fromEntries(Object.entries(row).map(([key,value])=>[mapper(key),value]));}
+function encodeFilterValue(value:unknown){if(value===null)return 'null';if(typeof value==='boolean'||typeof value==='number')return String(value);return String(value);}
+function buildQuery(collectionName:string,filters:[string,any,any][]){const params=new URLSearchParams();params.set('select','*');for(const [field,op,value] of filters){const postgrestOp=OPERATOR_MAP[op];if(!postgrestOp)throw new Error(`Operator query tidak didukung: ${op}`);const column=toSnakeCase(field);if(value===null&&op==='==')params.set(column,'is.null');else if(value===null&&op==='!=')params.set(column,'not.is.null');else params.set(column,`${postgrestOp}.${encodeFilterValue(value)}`);}return `/${collectionName}?${params.toString()}`;}
+async function requestRows<T=any>(path:string,init?:RequestInit){const {data}=await supabaseRequest<T[]>(path,init);return(data||[]).map((row)=>mapTopLevelKeys(row as Record<string,any>,toCamelCase)) as T[];}
+export async function getDocuments(collectionName:string,filters:[string,any,any][]=[]){return requestRows(buildQuery(collectionName,filters));}
+export async function getDocument(collectionName:string,id:string){const primaryKey=PRIMARY_KEY_MAP[collectionName]||'id';const rows=await requestRows(`/${collectionName}?${primaryKey}=eq.${encodeURIComponent(id)}&limit=1`);return rows[0]||null;}
+export async function countDocuments(collectionName:string,filters:[string,any,any][]=[]){const {response}=await supabaseRequest(buildQuery(collectionName,filters).replace('select=*','select=id&limit=1'),{headers:{Prefer:'count=exact',Range:'0-0'}});const contentRange=response.headers.get('content-range');if(!contentRange)return(await getDocuments(collectionName,filters)).length;const total=Number(contentRange.split('/')[1]);return Number.isFinite(total)?total:0;}
+export async function addDocument(collectionName:string,data:Record<string,any>){const id=generateId(collectionName);const primaryKey=PRIMARY_KEY_MAP[collectionName]||'id';const payload={...mapTopLevelKeys(data,toSnakeCase),[primaryKey]:id};const rows=await requestRows(`/${collectionName}`,{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify(payload)});return rows[0]||{id,...data};}
+export async function setDocument(collectionName:string,id:string,data:Record<string,any>){const primaryKey=PRIMARY_KEY_MAP[collectionName]||'id';const payload={...mapTopLevelKeys(data,toSnakeCase),[primaryKey]:id};const rows=await requestRows(`/${collectionName}`,{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=representation'},body:JSON.stringify(payload)});return rows[0]||{id,...data};}
+export async function updateDocument(collectionName:string,id:string,data:Record<string,any>){const primaryKey=PRIMARY_KEY_MAP[collectionName]||'id';const payload=mapTopLevelKeys(data,toSnakeCase);const rows=await requestRows(`/${collectionName}?${primaryKey}=eq.${encodeURIComponent(id)}`,{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify(payload)});return rows[0]||{id,...data};}
+export async function deleteDocument(collectionName:string,id:string){const primaryKey=PRIMARY_KEY_MAP[collectionName]||'id';await supabaseRequest(`/${collectionName}?${primaryKey}=eq.${encodeURIComponent(id)}`,{method:'DELETE'});return true;}
+export function generateId(_collectionName:string){return crypto.randomUUID();}
+export type BatchOperation={type:'set';collectionName:string;id:string;data:Record<string,any>}|{type:'delete';collectionName:string;id:string};
+const BATCH_SIZE=100;
+export async function batchWrite(operations:BatchOperation[]){const grouped=new Map<string,BatchOperation[]>();for(const operation of operations){const list=grouped.get(operation.collectionName)||[];list.push(operation);grouped.set(operation.collectionName,list);}for(const [collectionName,collectionOps] of grouped){const primaryKey=PRIMARY_KEY_MAP[collectionName]||'id';const sets=collectionOps.filter((op):op is Extract<BatchOperation,{type:'set'}>=>op.type==='set');for(let i=0;i<sets.length;i+=BATCH_SIZE){const chunk=sets.slice(i,i+BATCH_SIZE);const payload=chunk.map((op)=>({...mapTopLevelKeys(op.data,toSnakeCase),[primaryKey]:op.id}));await supabaseRequest(`/${collectionName}`,{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(payload)});}const deletes=collectionOps.filter((op):op is Extract<BatchOperation,{type:'delete'}>=>op.type==='delete');for(let i=0;i<deletes.length;i+=BATCH_SIZE){const chunk=deletes.slice(i,i+BATCH_SIZE);const ids=chunk.map((op)=>op.id.replace(/([(),])/g,''));const inValue=`(${ids.join(',')})`;await supabaseRequest(`/${collectionName}?${primaryKey}=in.${encodeURIComponent(inValue)}`,{method:'DELETE'});}}return true;}
