@@ -1,12 +1,12 @@
 import { db } from '@/src/config/firebase';
 import { collection, doc, getDoc, getDocs, getCountFromServer, addDoc, setDoc, updateDoc, deleteDoc, query, where, writeBatch, serverTimestamp, QueryConstraint } from 'firebase/firestore';
+import type { QueryFilter } from './firestoreAdapter';
 export { serverTimestamp };
-type LegacyQueryFilter = [string, any, any];
-const EMPTY_FILTERS: LegacyQueryFilter[] = [];
-function buildQuery(collectionName:string,filters:LegacyQueryFilter[]) { const constraints:QueryConstraint[]=filters.map(([field,op,value])=>where(field,op,value)); return constraints.length ? query(collection(db,collectionName),...constraints) : collection(db,collectionName); }
-export async function getDocuments(collectionName:string,filters:LegacyQueryFilter[]=EMPTY_FILTERS) { const snapshot=await getDocs(buildQuery(collectionName,filters)); return snapshot.docs.map((snap)=>({id:snap.id,...snap.data()})); }
+const EMPTY_FILTERS: QueryFilter[] = [];
+function buildQuery(collectionName:string,filters:QueryFilter[]) { const constraints:QueryConstraint[]=filters.map(([field,op,value])=>where(field,op,value)); return constraints.length ? query(collection(db,collectionName),...constraints) : collection(db,collectionName); }
+export async function getDocuments(collectionName:string,filters:QueryFilter[]=EMPTY_FILTERS) { const snapshot=await getDocs(buildQuery(collectionName,filters)); return snapshot.docs.map((snap)=>({id:snap.id,...snap.data()})); }
 export async function getDocument(collectionName:string,id:string) { const snap=await getDoc(doc(db,collectionName,id)); return snap.exists()?{id:snap.id,...snap.data()}:null; }
-export async function countDocuments(collectionName:string,filters:LegacyQueryFilter[]=EMPTY_FILTERS) { const snapshot=await getCountFromServer(buildQuery(collectionName,filters)); return snapshot.data().count; }
+export async function countDocuments(collectionName:string,filters:QueryFilter[]=EMPTY_FILTERS) { const snapshot=await getCountFromServer(buildQuery(collectionName,filters)); return snapshot.data().count; }
 export async function addDocument(collectionName:string,data:Record<string,any>) { const ref=await addDoc(collection(db,collectionName),{...data,createdAt:serverTimestamp()}); return {id:ref.id,...data}; }
 export async function setDocument(collectionName:string,id:string,data:Record<string,any>) { await setDoc(doc(db,collectionName,id),data,{merge:true}); return {id,...data}; }
 export async function updateDocument(collectionName:string,id:string,data:Record<string,any>) { await updateDoc(doc(db,collectionName,id),data); return {id,...data}; }
