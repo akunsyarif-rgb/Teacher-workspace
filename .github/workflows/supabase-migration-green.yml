@@ -3,7 +3,7 @@ name: Supabase migration green
 on:
   push:
     branches:
-      - feat/supabase-migration-storage
+      - fix/supabase-adapter-type-contract
   workflow_dispatch:
 
 jobs:
