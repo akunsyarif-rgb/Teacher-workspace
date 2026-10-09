@@ -12,6 +12,9 @@ Status: kode siap, **belum dijalankan terhadap Supabase nyata**. Flag default ma
 3. Backup produksi sebelum migrasi ke produksi (dashboard Database → Backups, atau `pg_dump` skema+data).
 
 ## Urutan
+0. Guard skrip: `--workspace` wajib; `SUPABASE_ALLOWED_REFS` wajib memuat ref target (kosong = tolak semua); SmadaExam selalu ditolak;
+   project Workflow produksi juga butuh `ALLOW_PRODUCTION_BACKFILL=yes`. Exit code: 0 bersih, 1 gagal parsial/rekonsiliasi kotor, 2 konfigurasi ditolak.
+   Dry-run hanya melakukan GET (diuji). Backfill tidak pernah menghapus baris berlebih di Supabase; hanya melaporkannya.
 1. Staging: `backfill-skip-reasons.ts --workspace <ws uji>` (dry-run) → `--apply` → ulangi dry-run; harus `ok: true`.
 2. Nyalakan `NEXT_PUBLIC_SUPABASE_COLLECTIONS=session_skip_reasons` hanya di Preview staging; uji alur Beranda "Perlu Konfirmasi".
 3. Produksi (butuh persetujuan eksplisit): backfill satu workspace → rekonsiliasi bersih → flag → pantau.
