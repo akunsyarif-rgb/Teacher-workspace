@@ -39,8 +39,8 @@ if [[ "$REF" == "$WORKFLOW_REF" ]]; then
 fi
 
 PSQL=(psql "$URL" -X -q -v ON_ERROR_STOP=1)
-UP=(supabase/migrations/20261009000000_rls_hardening.sql supabase/migrations/20261009000100_auth_probe.sql)
-DOWN=(supabase/rollback/20261009000100_auth_probe_down.sql supabase/rollback/20261009000000_rls_hardening_down.sql)
+UP=(supabase/migrations/20261009000000_rls_hardening.sql supabase/migrations/20261009000100_auth_probe.sql supabase/migrations/20261009000200_batch_write.sql)
+DOWN=(supabase/rollback/20261009000200_batch_write_down.sql supabase/rollback/20261009000100_auth_probe_down.sql supabase/rollback/20261009000000_rls_hardening_down.sql)
 BASE=(supabase/baseline/001_schema.sql supabase/baseline/002_functions_triggers.sql supabase/baseline/003_rls_policies_grants.sql)
 has_schema() { [[ "$("${PSQL[@]}" -At -c "select to_regclass('public.workspaces') is not null")" == "t" ]]; }
 

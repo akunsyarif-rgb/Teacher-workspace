@@ -6,8 +6,16 @@ import { BASELINE_FILES, createRawDatabase, psql, repoFile } from './rls/harness
 const adminUrl = process.env.RLS_TEST_ADMIN_URL;
 const suite = adminUrl ? describe : describe.skip;
 
-const UP = ['supabase/migrations/20261009000000_rls_hardening.sql', 'supabase/migrations/20261009000100_auth_probe.sql'];
-const DOWN = ['supabase/rollback/20261009000100_auth_probe_down.sql', 'supabase/rollback/20261009000000_rls_hardening_down.sql'];
+const UP = [
+  'supabase/migrations/20261009000000_rls_hardening.sql',
+  'supabase/migrations/20261009000100_auth_probe.sql',
+  'supabase/migrations/20261009000200_batch_write.sql',
+];
+const DOWN = [
+  'supabase/rollback/20261009000200_batch_write_down.sql',
+  'supabase/rollback/20261009000100_auth_probe_down.sql',
+  'supabase/rollback/20261009000000_rls_hardening_down.sql',
+];
 
 // Sidik jari katalog: policy, definisi fungsi, grant tabel/fungsi, trigger.
 const CATALOG = `

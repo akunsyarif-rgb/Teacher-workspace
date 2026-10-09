@@ -228,4 +228,35 @@ addFb('fb:siswa-anonim-tanpa-profil-tidak-melihat-apa-pun', fbClaims('anonNew', 
 addFb('fb:user_id-dipalsukan-sub-yang-dipakai', fbClaims('outsider', 'password', { user_id: 'ownerA' }), "select * from public.session_skip_reasons where workspace_id='wsA'", OK0);
 addFb('fb:sub-kosong-tidak-punya-identitas', fbClaims('', 'password', { user_id: 'ownerA' }), "select * from public.teacher_profiles", OK0);
 
+// ---------- 10. batch_write (RPC transaksional, SECURITY INVOKER) ----------
+const bw = (ops: string) => `select public.batch_write('${ops.replace(/'/g, "''")}'::jsonb)`;
+const rowOf = (t: string, id: string, ws: string, extra = '') => `{"op":"set","table":"${t}","row":{"id":"${id}","workspace_id":"${ws}"${extra}}}`;
+add('bw:guru-set-baru-dan-hapus-atomik', 'teachA', bw(`[${rowOf('students', 'bwS1', 'wsA', ',"class_name":"7A","name":"Baru"')},${rowOf('students', 'bwS2', 'wsA', ',"class_name":"7A","name":"Baru2"')},{"op":"delete","table":"students","id":"sA2"}]`), 'ok:1');
+addRaw('bw:set-merge-metadata-dan-kolom', 'teachA',
+  [bw(`[${rowOf('students', 'sA1', 'wsA', ',"name":"Diganti","metadata":{"k":1}')}]`), { raw: "select name||'/'||(metadata->>'k')||'/'||class_name from public.students where id='sA1'" }],
+  ['ok:1', 'Diganti/1/7A']);
+add('bw:tenant-lain-ditolak-RLS', 'teachA', bw(`[${rowOf('students', 'bwX', 'wsB', ',"class_name":"7A"')}]`), DENY);
+addRaw('bw:gagal-di-tengah-membatalkan-semua', 'teachA',
+  [`select public.batch_write('[${rowOf('students', 'bwAtom', 'wsA', ',"class_name":"7A"').replace(/'/g, "''")},${rowOf('students', 'bwX2', 'wsB', ',"class_name":"7A"').replace(/'/g, "''")}]'::jsonb)`, { raw: "select count(*) from public.students where id='bwAtom'" }],
+  [DENY, '0']);
+add('bw:timpa-baris-tenant-lain-via-id-ditolak', 'teachA', bw(`[${rowOf('students', 'sB1', 'wsA', ',"class_name":"7A","name":"Curian"')}]`), ANYERR);
+addRaw('bw:hapus-baris-tenant-lain-tak-berefek', 'teachA',
+  [bw('[{"op":"delete","table":"students","id":"sB1"}]'), { raw: "select count(*) from public.students where id='sB1'" }], ['ok:1', '1']);
+add('bw:tabel-terlarang', 'ownerA', bw('[{"op":"delete","table":"workspaces","id":"wsA"}]'), ANYERR);
+add('bw:tabel-payments-terlarang', 'ownerA', bw(`[${rowOf('payments', 'x', 'wsA')}]`), ANYERR);
+add('bw:kolom-tidak-dikenal', 'teachA', bw(`[${rowOf('students', 'bwC', 'wsA', ',"class_name":"7A","bukan_kolom":1')}]`), ANYERR);
+add('bw:tanpa-workspace_id', 'teachA', bw('[{"op":"set","table":"students","row":{"id":"bwN","class_name":"7A"}}]'), ANYERR);
+add('bw:op-tak-dikenal', 'teachA', bw('[{"op":"drop","table":"students","id":"x"}]'), ANYERR);
+add('bw:bukan-array', 'teachA', bw('{"op":"delete"}'), ANYERR);
+add('bw:lebih-dari-500', 'teachA', `select public.batch_write((select jsonb_agg('{"op":"delete","table":"students","id":"z"}'::jsonb) from generate_series(1,501)))`, ANYERR);
+add('bw:siswa-tidak-bisa-menulis', 'stuA1', bw(`[${rowOf('students', 'bwSt', 'wsA', ',"class_name":"7A"')}]`), DENY);
+add('bw:anon-ditolak', 'anon', bw('[]'), DENY);
+add('bw:orang-luar-tidak-bisa-menulis', 'outsider', bw(`[${rowOf('students', 'bwOut', 'wsA', ',"class_name":"7A"')}]`), DENY);
+addRaw('bw:wali-kelas-sesuai-RLS-kas-kelas', 'hmA',
+  [bw(`[${rowOf('class_fund_transactions', 'bwCF', 'wsA', ',"class_name":"7A","amount":5000,"type":"masuk"')}]`), bw(`[${rowOf('class_fund_transactions', 'bwCF2', 'wsA', ',"class_name":"7B","amount":5000,"type":"masuk"')}]`)],
+  ['ok:1', DENY]);
+addRaw('bw:set-tanpa-metadata-tidak-menghapus-metadata-lama', 'teachA',
+  [bw(`[${rowOf('students', 'sA1', 'wsA', ',"metadata":{"a":1}')}]`), bw(`[${rowOf('students', 'sA1', 'wsA', ',"name":"X"')}]`), { raw: "select metadata->>'a' from public.students where id='sA1'" }],
+  ['ok:1', 'ok:1', '1']);
+
 export default cases;
