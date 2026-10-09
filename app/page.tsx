@@ -1,5 +1,6 @@
 "use client";
 
+import { measure } from "@/lib/utils/perf";
 import React, { useState, useEffect, useRef } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "@/src/config/firebase";
@@ -156,7 +157,7 @@ export default function DashboardPage() {
   async function loadSummary() {
     if (!workspaceId) return;
     try {
-      const summary = await fetchDashboardSummary(workspaceId);
+      const summary = await measure('guru beranda: muat ringkasan hari ini', () => fetchDashboardSummary(workspaceId));
       setUniqueClasses(summary.uniqueClasses);
       setTotalJournals(summary.totalJournals);
       setCurrentDayName(summary.currentDayName);

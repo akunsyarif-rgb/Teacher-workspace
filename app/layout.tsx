@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import BottomNav from "@/src/components/BottomNav";
 import OfflineBanner from "@/src/components/ui/OfflineBanner";
+import PerfOverlay from "@/src/components/ui/PerfOverlay";
 import { WorkspaceProvider } from "@/src/context/WorkspaceContext"; // <-- IMPOR INI
 
 const geistSans = Geist({
@@ -36,6 +37,7 @@ export default function RootLayout({
           <OfflineBanner />
           <div className="flex-1 pb-20">{children}</div>
           <BottomNav />
+          <PerfOverlay />
         </WorkspaceProvider>
       </body>
     </html>
