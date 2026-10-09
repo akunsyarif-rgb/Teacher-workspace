@@ -5,10 +5,17 @@
 //      NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE=yes (khusus Preview/staging uji — jangan di produksi).
 // Tidak ada dual-write: satu koleksi = satu sumber kebenaran pada satu waktu.
 //
-// Kosong sengaja: aplikasi menjanjikan tulis-offline (OfflineBanner, tab Presensi/Jurnal/Nilai)
-// dan adapter Supabase belum punya antrean offline. Isi daftar ini hanya setelah padanannya
-// ada, teruji, dan disetujui (docs/MIGRASI-SKIP-REASONS.md).
-export const OFFLINE_PARITY_READY: readonly string[] = [];
+// OFFLINE_PARITY_READY = koleksi yang sudah punya padanan perilaku offline Firestore lewat lapisan offline
+// (lib/adapters/offlineLayer.ts: cache baca + outbox tulis idempoten) DAN pemetaan kolom + RLS teruji.
+// Ini hanya "kesiapan kode"; SAKLAR-nya tetap NEXT_PUBLIC_SUPABASE_COLLECTIONS (default kosong).
+// Koleksi yang memakai batchWrite (students, grades, achievements, ...) sengaja tidak masuk.
+export const OFFLINE_PARITY_READY: readonly string[] = [
+  'session_skip_reasons',
+  'academic_years',
+  'class_fund_transactions',
+  'class_inventory',
+  'student_notes',
+];
 
 export function isSupabaseCollection(
   collectionName: string,

@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:rules": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only firestore,storage \"vitest run\"",
-    "migrate:skip-reasons": "jiti scripts/migration/backfill-skip-reasons.ts",
+    "migrate:collection": "jiti scripts/migration/backfill-collection.ts",
     "emulators": "npx firebase-tools emulators:start --project demo-teacher-workspace --only auth,firestore,storage",
     "test:e2e": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only auth,firestore,storage \"node tests/e2e/smoke.mjs\"",
     "test:e2e:onboarding": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only auth,firestore,storage \"node tests/e2e/onboarding.mjs\"",

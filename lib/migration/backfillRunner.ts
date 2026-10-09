@@ -1,4 +1,4 @@
-import { firestoreDocToRow, reconcileSkipReasons, type ReconcileReport } from './skipReasonsMigration';
+import { assertMappedCollection, firestoreDocToRow, reconcileCollection, type ReconcileReport } from './collectionMigration';
 
 type Row = Record<string, unknown>;
 
@@ -9,6 +9,7 @@ export const PRODUCTION_REF = 'htutgpjcynbnyxwgorcb'; // Workflow produksi
 export class ConfigError extends Error {}
 
 export interface BackfillConfig {
+  collection: string;
   workspaceId: string;
   apply: boolean;
   url: string;
@@ -21,6 +22,10 @@ export function parseBackfillConfig(argv: string[], env: Record<string, string |
   const workspaceId = wsIdx >= 0 ? (argv[wsIdx + 1] ?? '') : '';
   if (!workspaceId || workspaceId.startsWith('--')) throw new ConfigError('Wajib --workspace <id>.');
 
+  const cIdx = argv.indexOf('--collection');
+  const collection = cIdx >= 0 ? (argv[cIdx + 1] ?? '') : 'session_skip_reasons';
+  try { assertMappedCollection(collection); } catch (e) { throw new ConfigError(e instanceof Error ? e.message : String(e)); }
+
   const url = (env.SUPABASE_URL ?? '').replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
   const ref = url.match(/^https:\/\/([a-z0-9]{20})\.supabase\.co$/)?.[1];
   if (!ref) throw new ConfigError('SUPABASE_URL harus https://<ref>.supabase.co.');
@@ -32,13 +37,13 @@ export function parseBackfillConfig(argv: string[], env: Record<string, string |
   if (ref === PRODUCTION_REF && env.ALLOW_PRODUCTION_BACKFILL !== 'yes') {
     throw new ConfigError('Project produksi butuh ALLOW_PRODUCTION_BACKFILL=yes (persetujuan eksplisit).');
   }
-  return { workspaceId, apply: argv.includes('--apply'), url, key: env.SUPABASE_SECRET_KEY, ref };
+  return { collection, workspaceId, apply: argv.includes('--apply'), url, key: env.SUPABASE_SECRET_KEY, ref };
 }
 
 export interface BackfillIO {
-  readFirestore(workspaceId: string): Promise<{ id: string; data: Row }[]>;
-  readSupabase(workspaceId: string): Promise<Row[]>;
-  upsert(rows: Row[]): Promise<void>;
+  readFirestore(workspaceId: string, collection: string): Promise<{ id: string; data: Row }[]>;
+  readSupabase(workspaceId: string, collection: string): Promise<Row[]>;
+  upsert(rows: Row[], collection: string): Promise<void>;
 }
 
 export interface BackfillResult {
@@ -55,11 +60,13 @@ const BATCH = 200;
 // membatalkan batch lain, tapi membuat exit code 1. Rekonsiliasi SELALU jalan
 // terakhir dan satu-satunya penentu "bersih".
 export async function runBackfill(
-  cfg: { workspaceId: string; apply: boolean },
+  cfg: { workspaceId: string; apply: boolean; collection?: string },
   io: BackfillIO,
   batchSize = BATCH
 ): Promise<BackfillResult> {
-  const docs = await io.readFirestore(cfg.workspaceId);
+  const collection = cfg.collection ?? 'session_skip_reasons';
+  assertMappedCollection(collection);
+  const docs = await io.readFirestore(cfg.workspaceId, collection);
   const result: BackfillResult = {
     exitCode: 1, upserted: 0, failedBatches: [], skippedInvalid: [],
     report: undefined as unknown as ReconcileReport,
@@ -72,7 +79,7 @@ export async function runBackfill(
       if (seen.has(d.id)) continue; // duplikat dilaporkan oleh rekonsiliasi
       seen.add(d.id);
       try {
-        const row = firestoreDocToRow(d.id, d.data);
+        const row = firestoreDocToRow(collection, d.id, d.data);
         if (row.workspace_id !== cfg.workspaceId) throw new Error('workspace berbeda');
         rows.push(row);
       } catch {
@@ -82,7 +89,7 @@ export async function runBackfill(
     for (let i = 0, n = 0; i < rows.length; i += batchSize, n++) {
       const batch = rows.slice(i, i + batchSize);
       try {
-        await io.upsert(batch);
+        await io.upsert(batch, collection);
         result.upserted += batch.length;
       } catch (e) {
         result.failedBatches.push({ index: n, error: e instanceof Error ? e.message : String(e) });
@@ -90,8 +97,8 @@ export async function runBackfill(
     }
   }
 
-  const current = await io.readSupabase(cfg.workspaceId);
-  result.report = reconcileSkipReasons(docs, current);
+  const current = await io.readSupabase(cfg.workspaceId, collection);
+  result.report = reconcileCollection(collection, docs, current);
   result.exitCode = result.report.ok && !result.failedBatches.length && !result.skippedInvalid.length ? 0 : 1;
   return result;
 }
@@ -114,10 +121,10 @@ export function createSupabaseBackfillIO(
   }
   return {
     readFirestore: base.readFirestore,
-    readSupabase: async (ws) =>
-      (await call(`session_skip_reasons?workspace_id=eq.${encodeURIComponent(ws)}&select=*`)) as Row[],
-    upsert: async (rows) => {
-      await call('session_skip_reasons?on_conflict=id', {
+    readSupabase: async (ws, collection) =>
+      (await call(`${collection}?workspace_id=eq.${encodeURIComponent(ws)}&select=*`)) as Row[],
+    upsert: async (rows, collection) => {
+      await call(`${collection}?on_conflict=id`, {
         method: 'POST',
         headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
         body: JSON.stringify(rows),

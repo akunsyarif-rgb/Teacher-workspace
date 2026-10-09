@@ -56,7 +56,7 @@ async function clearFirestore() {
 
 function run(args: string[], env: Record<string, string> = {}) {
   return new Promise<{ code: number; out: string }>((resolve) => {
-    const child = spawn(process.execPath, [path.join(ROOT, 'node_modules/.bin/jiti'), 'scripts/migration/backfill-skip-reasons.ts', ...args], {
+    const child = spawn(process.execPath, [path.join(ROOT, 'node_modules/.bin/jiti'), 'scripts/migration/backfill-collection.ts', ...args], {
       cwd: ROOT,
       env: {
         PATH: process.env.PATH ?? '', NODE_ENV: 'test', FIRESTORE_EMULATOR_HOST: emu!, GCLOUD_PROJECT: 'demo-teacher-workspace',
@@ -72,7 +72,7 @@ function run(args: string[], env: Record<string, string> = {}) {
   });
 }
 
-suite('CLI backfill-skip-reasons (proses nyata, emulator + Supabase palsu)', () => {
+suite('CLI backfill-collection (proses nyata, emulator + Supabase palsu)', () => {
   beforeAll(async () => {
     server = createServer(async (req, res) => {
       const chunks: Buffer[] = [];
@@ -131,6 +131,19 @@ suite('CLI backfill-skip-reasons (proses nyata, emulator + Supabase palsu)', () 
     hits = [];
     expect((await run(['--workspace', 'ws1'])).code).toBe(0);
     expect(hits.every((h) => h.startsWith('GET '))).toBe(true);
+  });
+  it('--collection academic_years: tipe date/boolean/null bertahan, rekonsiliasi bersih; koleksi tak dipetakan exit 2', async () => {
+    const { initializeApp, getApps } = await import('firebase-admin/app');
+    const { getFirestore } = await import('firebase-admin/firestore');
+    const app = getApps().find((a) => a.name === 'seed') ?? initializeApp({ projectId: 'demo-teacher-workspace' }, 'seed');
+    await getFirestore(app).collection('academic_years').doc('ay1').set({ workspaceId: 'ws1', label: '2026/2027', startDate: '2026-07-13', endDate: null, isActive: true });
+    const r = await run(['--collection', 'academic_years', '--workspace', 'ws1', '--apply']);
+    expect(r.code, r.out).toBe(0);
+    expect(fake.store.get('ay1')).toMatchObject({ workspace_id: 'ws1', label: '2026/2027', start_date: '2026-07-13', end_date: null, is_active: true });
+    expect((await run(['--collection', 'academic_years', '--workspace', 'ws1'])).code).toBe(0);
+    hits = [];
+    expect((await run(['--collection', 'grades', '--workspace', 'ws1', '--apply'])).code).toBe(2);
+    expect(hits).toEqual([]);
   });
   it('dokumen workspace lain di Firestore tidak ikut disalin', async () => {
     await seed(['a']);

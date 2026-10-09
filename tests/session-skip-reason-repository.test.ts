@@ -33,10 +33,10 @@ describe('sessionSkipReasonRepository — pemilihan backend', () => {
     expect(fs.updateDocument).toHaveBeenCalledWith(C, 'id', { reason: 'x' });
     for (const m of Object.values(sb)) expect(m).not.toHaveBeenCalled();
   });
-  it('flag dicantumkan tanpa override staging: TETAP Firestore (belum ada padanan offline)', async () => {
+  it('flag dicantumkan: Supabase (koleksi ini sudah di OFFLINE_PARITY_READY)', async () => {
     const repo = await load({ NEXT_PUBLIC_SUPABASE_COLLECTIONS: C });
-    expect(await repo.getByDate('w', 'd')).toEqual([{ id: 'f1' }]);
-    for (const m of Object.values(sb)) expect(m).not.toHaveBeenCalled();
+    expect(await repo.getByDate('w', 'd')).toEqual([{ id: 's1' }]);
+    for (const m of Object.values(fs)) expect(m).not.toHaveBeenCalled();
   });
   it('flag lain tidak memengaruhi koleksi ini', async () => {
     const repo = await load({ NEXT_PUBLIC_SUPABASE_COLLECTIONS: 'grades', NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE: 'yes' });

@@ -99,7 +99,11 @@ export async function loadDashboardSummary(workspaceId: string): Promise<Dashboa
     measure('ringkasan: jadwal', () => getAllSchedulesForSummary(workspaceId)),
     measure('ringkasan: presensi 7 hari', () => getAttendancesInRange(workspaceId, sevenDaysAgo, todayDate)),
     measure('ringkasan: hitung jurnal', () => getJournalCount(workspaceId)),
-    measure('ringkasan: alasan skip', () => getSkipReasonsByDate(workspaceId, todayDate)),
+    measure('ringkasan: alasan skip', () => getSkipReasonsByDate(workspaceId, todayDate)).catch((err) => {
+      // Sumber sekunder: gagal (mis. Supabase offline tanpa cache) tidak boleh mematikan seluruh Beranda.
+      console.warn('Alasan skip tidak termuat:', err);
+      return [] as Awaited<ReturnType<typeof getSkipReasonsByDate>>;
+    }),
   ]);
 
   const uniqueClasses = Array.from(

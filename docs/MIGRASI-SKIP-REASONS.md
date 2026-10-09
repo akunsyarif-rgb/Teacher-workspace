@@ -1,12 +1,12 @@
 # Runbook: `session_skip_reasons` Firestore → Supabase (koleksi percobaan)
 
-**Status: kode + tes lokal siap; koleksi TIDAK boleh dialihkan.** Dua penghalang tetap terbuka:
-(1) auth Firebase→Supabase belum terbukti, (2) perilaku offline belum punya padanan (bagian Offline).
-Semua flag default mati dan `OFFLINE_PARITY_READY` (lib/config/dataBackend.ts) sengaja kosong.
+**Status: jalur kode SIAP untuk 5 koleksi, flag default MATI.** Satu-satunya penghalang yang tersisa adalah yang tidak bisa saya kerjakan sendiri:
+auth Firebase→Supabase (Third-Party Auth + claim `role`) dan staging. Koleksi siap (`OFFLINE_PARITY_READY`): `session_skip_reasons`, `academic_years`,
+`class_fund_transactions`, `class_inventory`, `student_notes` — repository-nya sudah memakai `adapterFor(koleksi)`.
 
 ## Gerbang aktivasi (kode, bukan sekadar dokumen)
 `isSupabaseCollection(c)` benar hanya bila `NEXT_PUBLIC_SUPABASE_COLLECTIONS` memuat `c` **dan** (`c` ∈ `OFFLINE_PARITY_READY`
-**atau** `NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE=yes`). Override hanya untuk Preview/staging uji — jangan pernah di Production.
+**atau** `NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE=yes`). Menyalakan = set env itu di Vercel (Preview dulu). Jangan di Production sebelum auth+staging+backfill terbukti.
 Teruji di `tests/data-backend.test.ts` dan `tests/session-skip-reason-repository.test.ts`.
 
 ## Kesetaraan adapter (supabaseAdapter vs firestoreAdapter)
@@ -29,30 +29,26 @@ Perbedaan data yang disengaja: `createdAt/updatedAt` string ISO (bukan `Timestam
 (mis. `scheduleId`, `note`) ada di `metadata` jsonb dan difilter lewat `metadata->>field` (tanpa indeks).
 Tidak ada fallback ke Firestore saat Supabase gagal (diuji): kegagalan merambat ke UI.
 
-## Offline — bukti dan keputusan
-Bukti kontrak offline di kode saat ini:
-- `src/config/firebase.ts`: cache IndexedDB persisten "dasar dukungan offline: baca & tulis tetap berfungsi tanpa koneksi".
-- `OfflineBanner` global: "perubahan tetap tersimpan dan akan tersinkron otomatis saat koneksi kembali"; tab Presensi/Jurnal/Nilai
-  menampilkan "tersimpan offline"; `lib/utils/browserSupport.ts` mendokumentasikan trade-off Safari (antrean tulis tidak bertahan).
-- Beranda memuat `getSkipReasonsByDate` di dalam `Promise.all` ringkasan dashboard (`dashboardService`): bila baca Supabase gagal
-  saat offline, **seluruh ringkasan Beranda gagal**, bukan hanya alasan skip. Dengan Firestore, `getDocs` jatuh ke cache.
-- Penyimpanan alasan (`SkipReasonModal` → `submitSkipReason`) meng-`await` tulisan; dengan Supabase offline langsung error.
-Tidak ada tes khusus offline untuk koleksi ini (hanya e2e submission siswa). Karena kontrak offline berlaku global dan tidak ada
-bukti bahwa koleksi ini dikecualikan, **koleksi diperlakukan offline-dependent dan tidak dialihkan**.
+## Offline — bukti dan padanannya (lapisan offline sudah dibangun)
+Kontrak offline di kode: cache IndexedDB persisten Firestore, `OfflineBanner`, label "tersimpan offline" di tab Presensi/Jurnal/Nilai,
+dan Beranda yang tetap termuat dari cache. Padanan untuk Supabase: `lib/adapters/offlineLayer.ts` (dibungkus di `supabaseClient.ts`):
+- **Cache baca** per query (IndexedDB, dipisah per `uid`): online → server + simpan cache; offline/jaringan putus/timeout → cache;
+  tidak pernah dimuat → error jujur. Error lain (auth/denied/...) tidak pernah disamarkan dengan cache.
+- **Outbox tulis** FIFO: hanya kegagalan jaringan yang menjadi "sukses semu"; id dibuat di klien, replay = `set` buat-atau-gabung (idempoten,
+  aman bila POST sebenarnya sudah sampai server). Dokumen yang punya antrean memaksa tulisan berikutnya ikut antre (urutan terjaga).
+  "Read your own writes": hasil baca ditimpa operasi yang belum terkirim.
+- **Flush** otomatis saat `online`, saat dimuat, tiap 30 dtk, dan sebelum tiap baca. Gagal jaringan/auth/5xx/konflik → berhenti & coba lagi;
+  gagal permanen → *dead letter* (`listFailed()`), tidak hilang diam-diam. `getStatus()/subscribe()` untuk indikator UI.
+- Beranda: sumber sekunder (alasan skip) kini `catch` → `[]` + `console.warn`, sehingga satu sumber gagal tidak mematikan ringkasan.
+- Batas yang diketahui: satu tab (sama seperti `persistentSingleTabManager`); IndexedDB tidak tersedia → memori (outbox tak bertahan);
+  Safari: sama seperti Firestore (lihat `browserSupport.ts`); implementasi IndexedDB mentah belum diuji di browser sungguhan
+  (logika diuji dengan store memori) — uji e2e Playwright `setOffline` ditambahkan saat ada staging Supabase.
+Tes: `tests/offline-layer.test.ts` (13): cache, offline, POST hilang di tengah jalan, urutan add→update→delete, dead letter, jaringan putus saat flush.
 
-Syarat sebelum `OFFLINE_PARITY_READY` boleh diisi (usulan sesuai arsitektur layer yang ada):
-1. **Cache baca** di Repository/Adapter (stale-while-revalidate, IndexedDB per `workspaceId`+tanggal) sehingga Beranda tetap termuat offline.
-2. **Outbox tulis** di adapter: operasi tulis dicatat (IndexedDB) dengan id klien (UUID) + `Idempotency` lewat upsert `on_conflict=id`,
-   dikirim ulang saat online (event `online`), status "tersimpan offline" ditampilkan seperti tab lain; konflik diselesaikan
-   last-write-wins per (`scheduleId`,`date`).
-3. Dashboard memakai `Promise.allSettled` untuk sumber sekunder (alasan skip) agar satu sumber gagal tidak mematikan Beranda.
-4. Tes regresi: putuskan koneksi → simpan → muncul "tersimpan offline" → online → tersinkron tepat sekali (e2e Playwright `context.setOffline`).
-Tes regresi yang SUDAH ada untuk keadaan sekarang: offline/jaringan putus/timeout/401/5xx pada adapter dan propagasi error di repository.
-
-## Backfill + rekonsiliasi (`scripts/migration/backfill-skip-reasons.ts`)
+## Backfill + rekonsiliasi (`scripts/migration/backfill-collection.ts`)
 ```bash
-npm run migrate:skip-reasons -- --workspace <wsId>            # dry-run (default): hanya GET
-npm run migrate:skip-reasons -- --workspace <wsId> --apply    # upsert idempoten per id, lalu rekonsiliasi
+npm run migrate:collection -- --collection session_skip_reasons --workspace <wsId>            # dry-run (default): hanya GET
+npm run migrate:collection -- --collection session_skip_reasons --workspace <wsId> --apply    # upsert idempoten per id, lalu rekonsiliasi
 ```
 Env: `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_ALLOWED_REFS` (wajib; kosong = tolak semua), `FIREBASE_SERVICE_ACCOUNT`.
 Dijalankan lewat `jiti` yang sudah terpasang oleh `npm ci` (tanpa unduhan). Guard: `--workspace` wajib; SmadaExam selalu ditolak;
@@ -72,8 +68,9 @@ Belum pernah dijalankan terhadap Supabase nyata.
 Matikan flag → Firestore kembali dipakai. Tulisan yang terjadi saat flag aktif hanya ada di Supabase: jalankan rekonsiliasi dibalik
 (Supabase→Firestore) sebelum rollback bila perlu. Backfill hanya menambah/menimpa baris Supabase; Firestore tak diubah.
 
-## Kandidat koleksi berikutnya (urut risiko, setelah adapter + offline terbukti)
-1. `academic_years` — volume sangat kecil (1 dokumen/tahun), hanya dipakai panel Arsip/Unduh/Bersihkan data (layar admin, bukan alur harian), tanpa batch.
-2. `class_fund_transactions`, `class_inventory`, `student_notes` — hanya wali kelas, tanpa batch; tapi tulis harian guru → bergantung outbox offline.
+## Koleksi (status)
+Sudah dialihkan di kode (flag mati): lima koleksi di atas. Berikutnya (butuh RPC `batch` atau tabel dengan perilaku khusus):
+1. (selesai di kode) `academic_years` — volume sangat kecil (1 dokumen/tahun), hanya dipakai panel Arsip/Unduh/Bersihkan data (layar admin, bukan alur harian), tanpa batch.
+2. (selesai di kode) `class_fund_transactions`, `class_inventory`, `student_notes`.
 3. `announcements` — dibaca siswa (butuh klaim auth siswa anonim terbukti).
 4. Terakhir: `students`/`student_achievements` (pakai `batchWrite`), `grades`, `attendances`, `journals`, `schedules`, `submissions` (alur inti, batch, offline kuat).

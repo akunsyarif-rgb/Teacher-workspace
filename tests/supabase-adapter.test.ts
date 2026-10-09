@@ -39,9 +39,9 @@ describe('mapping', () => {
     expect(toRow(C, { workspaceId: 'w', scheduleId: 's', note: 'x', date: '2026-10-09', createdAt: {} }))
       .toEqual({ workspace_id: 'w', date: '2026-10-09', metadata: { scheduleId: 's', note: 'x' } });
   });
-  it('null kolom dihilangkan; metadata digabung; timestamp jadi createdAt/updatedAt', () => {
+  it('null kolom dipertahankan (app menulis null eksplisit); metadata digabung; timestamp jadi createdAt/updatedAt', () => {
     expect(fromRow(C, { id: '1', workspace_id: 'w', class_name: null, metadata: { scheduleId: 's' }, created_at: 't', updated_at: 'u' }))
-      .toEqual({ id: '1', workspaceId: 'w', scheduleId: 's', createdAt: 't', updatedAt: 'u' });
+      .toEqual({ id: '1', workspaceId: 'w', className: null, scheduleId: 's', createdAt: 't', updatedAt: 'u' });
     expect(fromRow(C, { id: '1', workspace_id: 'w', metadata: null })).toEqual({ id: '1', workspaceId: 'w' });
   });
   it('filter: metadata, null, operator & nama field berbahaya, koleksi tak dipetakan', () => {

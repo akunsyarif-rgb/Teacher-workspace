@@ -3,7 +3,7 @@
  * DEFAULT DRY-RUN (hanya membaca & melaporkan). --apply menulis (upsert idempoten per id).
  *
  *   FIREBASE_SERVICE_ACCOUNT='{...}' SUPABASE_URL=https://<ref>.supabase.co SUPABASE_SECRET_KEY=... \
- *   SUPABASE_ALLOWED_REFS=<ref-staging> npm run migrate:skip-reasons -- --workspace <wsId> [--apply]
+ *   SUPABASE_ALLOWED_REFS=<ref-staging> npm run migrate:collection -- --collection <nama> --workspace <wsId> [--apply]   (default koleksi: session_skip_reasons)
  * (npm script memakai `jiti` yang sudah terpasang oleh `npm ci`; tidak mengunduh paket apa pun.)
  *
  * Uji lokal: bila FIRESTORE_EMULATOR_HOST diset, Firestore = emulator (tanpa service account).
@@ -39,12 +39,12 @@ async function main() {
     fetchImpl = (await import(process.env.BACKFILL_TEST_FETCH_MODULE)).default;
   }
   const io = createSupabaseBackfillIO(cfg, {
-    readFirestore: async (ws) => {
-      const snap = await getFirestore().collection('session_skip_reasons').where('workspaceId', '==', ws).get();
+    readFirestore: async (ws, collection) => {
+      const snap = await getFirestore().collection(collection).where('workspaceId', '==', ws).get();
       return snap.docs.map((d) => ({ id: d.id, data: d.data() as Record<string, unknown> }));
     },
   }, fetchImpl);
-  console.log(`${cfg.apply ? 'APPLY' : 'DRY-RUN'} ref=${cfg.ref} workspace=${cfg.workspaceId}`);
+  console.log(`${cfg.apply ? 'APPLY' : 'DRY-RUN'} ref=${cfg.ref} collection=${cfg.collection} workspace=${cfg.workspaceId}`);
   const result = await runBackfill(cfg, io);
   console.log(JSON.stringify(result, null, 2));
   process.exit(result.exitCode);

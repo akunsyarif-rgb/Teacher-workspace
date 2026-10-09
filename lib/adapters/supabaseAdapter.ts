@@ -33,7 +33,38 @@ const COLUMN_MAP: Record<string, Record<string, string>> = {
     date: 'date',
     reason: 'reason',
   },
+  [COLLECTIONS.ACADEMIC_YEARS]: {
+    workspaceId: 'workspace_id',
+    label: 'label',
+    startDate: 'start_date',
+    endDate: 'end_date',
+    isActive: 'is_active',
+  },
+  [COLLECTIONS.CLASS_FUND]: {
+    workspaceId: 'workspace_id',
+    className: 'class_name',
+    studentId: 'student_id',
+    amount: 'amount',
+    type: 'type',
+  },
+  [COLLECTIONS.CLASS_INVENTORY]: {
+    workspaceId: 'workspace_id',
+    className: 'class_name',
+    name: 'name',
+    quantity: 'quantity',
+    unit: 'unit',
+  },
+  [COLLECTIONS.STUDENT_NOTES]: {
+    workspaceId: 'workspace_id',
+    className: 'class_name',
+    studentId: 'student_id',
+    teacherUid: 'teacher_uid',
+    category: 'category',
+  },
 };
+
+/** Koleksi yang sudah punya pemetaan kolom di adapter ini. */
+export const SUPABASE_MAPPED_COLLECTIONS = Object.keys(COLUMN_MAP);
 const SERVER_FIELDS = new Set(['createdAt', 'updatedAt']);
 const IDENT = /^[A-Za-z0-9_]+$/;
 
@@ -60,15 +91,15 @@ export function toRow(collectionName: string, data: Row, opts: { keepTimestamps?
   return row;
 }
 
-// Kolom bernilai null dihilangkan (Firestore: field tidak ada). createdAt/updatedAt
-// berupa string ISO, BUKAN Timestamp Firestore — pemanggil yang butuh .toDate() harus
+// Kolom null dipertahankan sebagai null (aplikasi menulis null eksplisit, mis. academic_years.endDate).
+// createdAt/updatedAt berupa string ISO, BUKAN Timestamp Firestore — pemanggil yang butuh .toDate() harus
 // disesuaikan sebelum koleksinya dialihkan.
 export function fromRow(collectionName: string, row: Row) {
   const map = columns(collectionName);
   const out: Row = { id: row.id };
   const reverse = Object.fromEntries(Object.entries(map).map(([k, v]) => [v, k]));
   for (const [col, value] of Object.entries(row)) {
-    if (reverse[col] && value !== null && value !== undefined) out[reverse[col]] = value;
+    if (reverse[col] && value !== undefined) out[reverse[col]] = value;
   }
   Object.assign(out, (row.metadata as Row | null) ?? {});
   if (row.created_at) out.createdAt = row.created_at;
@@ -227,10 +258,14 @@ export function createSupabaseAdapter(deps: SupabaseAdapterDeps) {
     },
 
     async addDocument(collectionName: string, data: Row) {
+      return api.addDocumentWithId(collectionName, newId(), data);
+    },
+
+    // Insert dengan id yang ditentukan pemanggil (id klien untuk antrean offline). Id sudah ada → error `conflict`.
+    async addDocumentWithId(collectionName: string, id: string, data: Row) {
       if (typeof data.workspaceId !== 'string' || !data.workspaceId) {
         throw new SupabaseAdapterError('bad_request', 'Dokumen wajib punya workspaceId.');
       }
-      const id = newId();
       const res = await request(collectionName, {
         method: 'POST', prefer: 'return=representation', body: JSON.stringify({ id, ...toRow(collectionName, data) }),
       });
