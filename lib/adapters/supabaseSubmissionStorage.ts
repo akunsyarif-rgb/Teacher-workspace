@@ -41,32 +41,51 @@ export async function uploadSubmissionFile(
   const timeout = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
   try {
     const idToken = await user.getIdToken();
-    const form = new FormData();
-    form.set('workspaceId', workspaceId);
-    form.set('assignmentId', assignmentId);
-    form.set('contentType', contentType);
-    form.set('file', file, file.name);
-
     const request = fetch('/api/submission-attachments/upload', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${idToken}` },
-      body: form,
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ workspaceId, assignmentId, fileName: file.name, fileSize: file.size, contentType }),
       signal: controller.signal,
       cache: 'no-store',
     });
     const response = await withTimeout(
       request,
-      `Unggah "${file.name}" terlalu lama. Periksa koneksi internetmu lalu coba lagi.`,
+      'Menyiapkan unggahan terlalu lama. Periksa koneksi internetmu lalu coba lagi.',
       UPLOAD_TIMEOUT_MS
     );
     const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw userError(result.error || 'Foto belum berhasil diunggah. Coba lagi.');
+    if (!response.ok) throw userError(result.error || 'Foto belum berhasil disiapkan untuk diunggah.');
+    if (!result.signedUrl || !result.path || !result.token) {
+      throw userError('Server tidak mengembalikan izin unggah sementara yang lengkap.');
     }
-    if (!result.fileUrl || !result.filePath) {
-      throw userError('Server tidak mengembalikan data lampiran yang lengkap.');
+
+    // File dikirim langsung ke Supabase, bukan lewat Vercel Function, supaya
+    // foto di bawah batas bucket (10 MB) tidak terhalang batas payload server.
+    const uploadResponse = await withTimeout(
+      fetch(result.signedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': contentType, 'x-upsert': 'false' },
+        body: file,
+        signal: controller.signal,
+        cache: 'no-store',
+      }),
+      `Unggah "${file.name}" terlalu lama. Periksa koneksi internetmu lalu coba lagi.`,
+      UPLOAD_TIMEOUT_MS
+    );
+    if (!uploadResponse.ok) {
+      const detail = await uploadResponse.text().catch(() => '');
+      console.error('Supabase signed upload failed:', uploadResponse.status, detail);
+      throw userError('Foto belum berhasil disimpan. Coba lagi setelah koneksi stabil.');
     }
-    return { fileUrl: result.fileUrl as string, fileName: result.fileName || file.name, filePath: result.filePath as string };
+
+    return {
+      fileUrl: `supabase-storage://submission-attachments/${result.path}`,
+      fileName: file.name,
+      filePath: result.path as string,
+    };
   } catch (error: any) {
     if (error?.name === 'AbortError') {
       throw userError(`Unggah "${file.name}" terlalu lama. Periksa koneksi internetmu lalu coba lagi.`);
