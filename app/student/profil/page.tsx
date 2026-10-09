@@ -143,8 +143,14 @@ function ProfileContent({ profile }: { profile: StudentProfile }) {
                 : []
               ).map((att: any, idx: number) => (
                 <a
-                  key={`${att.fileUrl}-${idx}`}
-                  href={att.fileUrl}
+                  key={`${att.filePath || att.fileUrl}-${idx}`}
+                  href={att.fileUrl.startsWith("supabase-storage://") ? "#" : att.fileUrl}
+                  onClick={(event) => {
+                    if (att.fileUrl.startsWith("supabase-storage://")) {
+                      event.preventDefault();
+                      void openSubmissionAttachment(att.fileUrl, att.filePath);
+                    }
+                  }}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline"
