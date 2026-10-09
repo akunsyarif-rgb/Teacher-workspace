@@ -317,6 +317,55 @@ async function run() {
       );
     }
 
+    // ---------- 6b. Menu Admin (hanya OWNER) ----------
+    console.log('\n→ Menu Admin: daftar guru & keluarkan guru');
+    if (joiner.url().startsWith(`${BASE_URL}/classes`)) {
+      // Guru biasa tidak boleh melihat isi menu admin.
+      await joiner.goto(`${BASE_URL}/admin`, { waitUntil: 'domcontentloaded' });
+      await joiner.waitForTimeout(3000);
+      const joinerAdminText = await joiner.locator('body').innerText();
+      if (/khusus pemilik/i.test(joinerAdminText) && !joinerAdminText.includes(OWNER_EMAIL)) {
+        pass('Menu Admin: guru biasa ditolak (daftar guru tidak terlihat)');
+      } else {
+        await failWithEvidence(joiner, 'Menu Admin: guru biasa ditolak (daftar guru tidak terlihat)', joinerAdminText.replace(/\n+/g, ' | ').slice(0, 200));
+      }
+
+      // Owner login lagi (sesi sudah di-logout di langkah 3).
+      await owner.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
+      await owner.fill('input[type="email"]', OWNER_EMAIL);
+      await owner.fill('input[type="password"]', PASSWORD);
+      await owner.click('button[type="submit"]');
+      await owner.waitForURL(`${BASE_URL}/`, { timeout: 30000 }).catch(() => {});
+      await owner.goto(`${BASE_URL}/admin`, { waitUntil: 'domcontentloaded' });
+      await owner.getByText(JOINER_EMAIL).waitFor({ timeout: 20000 }).catch(() => {});
+      const ownerAdminText = await owner.locator('body').innerText();
+      if (ownerAdminText.includes(JOINER_EMAIL) && ownerAdminText.includes(OWNER_EMAIL)) {
+        pass('Menu Admin: owner melihat daftar guru (dirinya dan guru yang baru join)');
+      } else {
+        await failWithEvidence(owner, 'Menu Admin: owner melihat daftar guru (dirinya dan guru yang baru join)', ownerAdminText.replace(/\n+/g, ' | ').slice(0, 250));
+      }
+
+      // Keluarkan guru yang baru join.
+      await owner.getByRole('button', { name: /^Keluarkan /i }).first().click();
+      await owner.getByRole('button', { name: /Ya, Hapus/i }).click();
+      await owner.waitForTimeout(3000);
+      const afterRemove = await owner.locator('body').innerText();
+      if (!afterRemove.includes(JOINER_EMAIL) && afterRemove.includes(OWNER_EMAIL)) {
+        pass('Menu Admin: guru dikeluarkan dari daftar');
+      } else {
+        await failWithEvidence(owner, 'Menu Admin: guru dikeluarkan dari daftar', afterRemove.replace(/\n+/g, ' | ').slice(0, 250));
+      }
+
+      // Aksesnya benar-benar dicabut (rules membaca profilnya), bukan cuma daftarnya.
+      await joiner.goto(`${BASE_URL}/classes`, { waitUntil: 'domcontentloaded' });
+      await joiner.waitForTimeout(3000);
+      const stillSees = await joiner.getByText(CLASS_NAME, { exact: true }).count();
+      if (stillSees === 0) pass('Menu Admin: guru yang dikeluarkan tidak lagi melihat data workspace');
+      else await failWithEvidence(joiner, 'Menu Admin: guru yang dikeluarkan tidak lagi melihat data workspace', `kelas ${CLASS_NAME} masih terlihat`);
+    } else {
+      fail('Menu Admin', 'dilewati: join sebelumnya gagal');
+    }
+
     // ---------- 7. Verify workspace isolation ----------
     // Guru ketiga yang SAMA SEKALI tidak berhubungan (workspace individual
     // sendiri) tidak boleh bisa melihat kelas milik workspace sekolah di

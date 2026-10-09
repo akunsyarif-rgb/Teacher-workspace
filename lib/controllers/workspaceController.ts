@@ -44,6 +44,35 @@ export async function submitJoinWorkspaceByCode(idToken: string, inviteCode: str
   return data.workspace;
 }
 
+export type WorkspaceMember = {
+  uid: string;
+  name: string;
+  subject: string;
+  email: string | null;
+  role: string;
+  isYou: boolean;
+};
+
+async function membersRequest(idToken: string, init: RequestInit, fallback: string) {
+  const res = await fetch('/api/workspace/members', {
+    ...init,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+    cache: 'no-store',
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || fallback);
+  return data;
+}
+
+// Menu Admin (OWNER): izin dicek ulang di server, idToken dari auth.currentUser.
+export async function fetchWorkspaceMembers(idToken: string): Promise<{ members: WorkspaceMember[]; seatLimit: number | null }> {
+  return membersRequest(idToken, { method: 'GET' }, 'Gagal memuat daftar guru.');
+}
+
+export async function removeWorkspaceMember(idToken: string, uid: string) {
+  await membersRequest(idToken, { method: 'DELETE', body: JSON.stringify({ uid }) }, 'Gagal mengeluarkan guru.');
+}
+
 export async function submitRegenerateInviteCode(workspaceId: string) {
   return regenerateInviteCode(workspaceId);
 }
