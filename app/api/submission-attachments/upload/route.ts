@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/server/firebaseAdmin';
+import { canStudentSubmit } from '@/lib/utils/submissionRules';
 
 export const runtime = 'nodejs';
 
@@ -65,10 +66,8 @@ export async function POST(request: NextRequest) {
     }
 
     const db = getAdminDb();
-    const [studentSnap, assignmentSnap] = await Promise.all([
-      db.collection('student_profiles').doc(uid).get(),
-      db.collection('assignments').doc(assignmentId).get(),
-    ]);
+    const studentSnap = await db.collection('student_profiles').doc(uid).get();
+    const assignmentSnap = await db.collection('assignments').doc(assignmentId).get();
     if (!studentSnap.exists) {
       return NextResponse.json({ error: 'Akun ini bukan akun siswa.' }, { status: 403 });
     }
@@ -82,6 +81,15 @@ export async function POST(request: NextRequest) {
       student.className !== assignment?.className
     ) {
       return NextResponse.json({ error: 'Tugas tidak ditemukan untuk kelas atau akun ini.' }, { status: 403 });
+    }
+
+    // Tegakkan tenggat dan status penilaian sebelum menerima file, agar
+    // endpoint upload tidak bisa dipakai mengumpulkan setelah ditutup atau
+    // mengunggah lampiran yatim untuk tugas yang sudah dikunci guru.
+    const existingSubmissionSnap = await db.collection('submissions').doc(`${assignmentId}_${student.studentId}`).get();
+    const gate = canStudentSubmit(existingSubmissionSnap.exists ? existingSubmissionSnap.data() : null, assignment?.dueDate);
+    if (!gate.allowed) {
+      return NextResponse.json({ error: gate.reason }, { status: 409 });
     }
 
     const { url, key } = supabaseConfig();
