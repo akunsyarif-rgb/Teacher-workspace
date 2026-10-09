@@ -84,7 +84,7 @@ grant execute on function public.join_workspace_by_code(text) to authenticated;
 
 -- C. Workspace baru hanya boleh berbatas gratis; plan/batas berbayar hanya lewat service_role
 --    (webhook pembayaran, Panel Pemilik). Nilai gratis = PLAN_CLASS_LIMITS/FREE_* di lib/config/plans.ts.
-drop policy workspaces_owner_insert on public.workspaces;
+drop policy if exists workspaces_owner_insert on public.workspaces;
 create policy workspaces_owner_insert on public.workspaces for insert to authenticated with check (
   owner_uid = (select private.current_uid())
   and plan_expires_at is null
@@ -93,7 +93,7 @@ create policy workspaces_owner_insert on public.workspaces for insert to authent
 );
 
 -- D. Profil siswa dibuat hanya lewat kode login yang valid (klaim identitas dari server).
-drop policy student_profiles_self_insert on public.student_profiles;
+drop policy if exists student_profiles_self_insert on public.student_profiles;
 revoke insert, update, delete on public.student_profiles from authenticated;
 create or replace function public.claim_student_profile(p_code text)
 returns table(student_id text, workspace_id text, class_name text, name text, nis text)
@@ -117,7 +117,7 @@ revoke all on function public.claim_student_profile(text) from public, anon;
 grant execute on function public.claim_student_profile(text) to authenticated;
 
 -- E. Pengumpulan baru dari siswa tidak boleh membawa nilai.
-drop policy submissions_student_insert on public.submissions;
+drop policy if exists submissions_student_insert on public.submissions;
 create policy submissions_student_insert on public.submissions for insert to authenticated with check (
   (select private.is_own_student(workspace_id, student_id)) and status = 'menunggu_penilaian'
   and coalesce(feedback, '') = '' and score is null

@@ -17,7 +17,7 @@ const SQL_ORDER = [
   'supabase/baseline/003_rls_policies_grants.sql',
 ];
 
-function psql(url: string, args: string[], input?: string) {
+export function psql(url: string, args: string[], input?: string) {
   return execFileSync('psql', [url, '-X', '-q', '-At', '-v', 'ON_ERROR_STOP=1', ...args], {
     input,
     encoding: 'utf8',
@@ -25,7 +25,7 @@ function psql(url: string, args: string[], input?: string) {
   });
 }
 
-function withDb(adminUrl: string, db: string) {
+export function withDb(adminUrl: string, db: string) {
   const u = new URL(adminUrl);
   u.pathname = `/${db}`;
   return u.toString();
@@ -83,3 +83,15 @@ export function runCases(url: string, cases: Case[]): Record<string, string[]> {
   }
   return results;
 }
+
+// Database kosong + daftar file SQL (relatif root repo), tanpa fixture. Untuk uji migrasi/rollback.
+export function createRawDatabase(adminUrl: string, files: string[]) {
+  const db = `rls_${process.pid}_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+  psql(adminUrl, ['-c', `create database ${db}`]);
+  const url = withDb(adminUrl, db);
+  for (const f of files) psql(url, ['-f', path.join(ROOT, f)]);
+  return { url, drop: () => psql(adminUrl, ['-c', `drop database if exists ${db} with (force)`]) };
+}
+
+export const BASELINE_FILES = SQL_ORDER;
+export const repoFile = (f: string) => path.join(ROOT, f);

@@ -108,3 +108,69 @@ Rollback tiap fase: matikan flag koleksi itu; Firestore tetap sumber kebenaran s
 2. Boleh dibuatkan project/branch Supabase staging terpisah (bukan Workflow)? Mungkin berbiaya.
 3. (selesai) G1–G3 Firestore sudah di-merge dan ter-deploy.
 4. Offline penuh di Chrome/Android wajib dipertahankan setelah migrasi?
+
+## 7. Verifikasi autentikasi Firebase → Supabase (dijalankan LOKAL oleh pemilik)
+
+Temuan konfigurasi: repo **tidak** menyetel claim `role: "authenticated"` di mana pun (tidak ada `setCustomUserClaims`
+atau blocking function). Supabase Third-Party Auth menolak token tanpa claim `role`, jadi tanpa langkah 1b di bawah
+semua permintaan akan 401 meski provider sudah ditambahkan.
+
+### Tindakan dashboard (sekali)
+1. **Supabase** (project Workflow) → Authentication → Sign In / Providers → **Third-Party Auth** → Add provider → **Firebase** →
+   isi Firebase Project ID (harus sama dengan `aud` token).
+2. **Claim role** — pilih satu (butuh keputusan Anda; belum diimplementasi):
+   - Firebase Authentication dengan Identity Platform → blocking function `beforeUserCreated` + `beforeSignIn` yang mengembalikan
+     `customClaims: { role: 'authenticated' }` (mencakup guru dan siswa anonim sejak token pertama); atau
+   - endpoint server kecil (Admin SDK `setCustomUserClaims(uid, {role:'authenticated'})`) yang dipanggil setelah login lalu
+     klien `getIdToken(true)` — tanpa Identity Platform, tapi ada satu langkah tambahan per sesi.
+
+### Jalankan di terminal Anda (token tidak pernah dicetak, tidak perlu ditempel ke percakapan)
+```bash
+export SUPABASE_URL=https://htutgpjcynbnyxwgorcb.supabase.co
+export SUPABASE_PUBLISHABLE_KEY=...        # kunci publik (Dashboard → API Keys)
+export FIREBASE_WEB_API_KEY=...            # NEXT_PUBLIC_FIREBASE_API_KEY
+export TEACHER_EMAIL=...                   # akun guru UJI
+read -s TEACHER_PASSWORD && export TEACHER_PASSWORD   # ketik sandi, tidak tampil/tersimpan di history
+node scripts/supabase/verify-auth.mjs                  # guru + siswa anonim, terpisah
+node scripts/supabase/verify-auth.mjs --skip-teacher   # hanya siswa anonim
+```
+Yang diperiksa per identitas: `iss`/`aud`, `sub`, **claim `role`**, provider (`password` vs `anonymous`), kedaluwarsa;
+kontrol negatif (tanpa token → tak ada data; token sampah → 401); lalu `rpc/auth_probe` (butuh migrasi
+`20261009000100_auth_probe.sql`; bila belum ada, otomatis memakai GET `teacher_profiles`) untuk memastikan Supabase membaca
+`role` dan `sub` yang sama; terakhir isolasi RLS (hanya jumlah baris). Exit code 0 lulus / 1 gagal / 2 konfigurasi kurang.
+Skrip hanya GET dan satu RPC read-only; ia membuat satu user anonim Firebase (sama seperti login siswa biasa).
+Hasil yang boleh dibagikan: baris `PASS/FAIL` di keluaran (sudah diredaksi dari JWT, sandi, dan kunci).
+
+## 8. Paket validasi staging
+
+**Prasyarat (butuh persetujuan Anda; berbayar):** project/branch Supabase non-produksi. Opsi: Supabase branch dari Workflow
+(`create_branch`, perlu konfirmasi biaya) atau project baru. Jangan Workflow produksi, jangan SmadaExam.
+
+### 8.1 Uji lokal (sudah bisa, tanpa biaya) — database kosong, idempoten, rollback
+```bash
+export RLS_TEST_ADMIN_URL=postgresql://postgres:pw@127.0.0.1:5432/postgres   # Postgres 16 lokal
+npx vitest run tests/rls-parity.test.ts        # 479 kasus RLS/RPC/grant/trigger terhadap baseline + migrasi
+npx vitest run tests/rls-migration.test.ts     # kosong→terapkan, terapkan 2×, rollback=baseline, terapkan lagi, auth_probe
+RLS_TEST_BASELINE_ONLY=1 npx vitest run tests/rls-parity.test.ts   # membuktikan celah ada tanpa migrasi (19 gagal)
+```
+
+### 8.2 Urutan di staging
+1. Buat staging, pastikan kosong atau berisi salinan baseline. Catat ref-nya (jangan `htutgpjcynbnyxwgorcb` / `abdkrhmxfpcmgzsxzfyz`).
+2. Bila staging project kosong (bukan branch): `psql "$STAGING_DB_URL" -f supabase/baseline/001_schema.sql -f .../002_functions_triggers.sql -f .../003_rls_policies_grants.sql`
+   (JANGAN `supabase/test-support/000_auth_stub.sql` — Supabase sudah punya skema `auth`).
+3. Terapkan `supabase/migrations/20261009000000_rls_hardening.sql` lalu `20261009000100_auth_probe.sql` (bisa diulang; idempoten, diuji).
+4. Verifikasi katalog: `select policyname from pg_policies where tablename in ('workspaces','student_profiles','submissions');`
+   harus memuat `workspaces_owner_insert`, `submissions_student_insert`, tanpa `student_profiles_self_insert`.
+5. Jalankan `tests/rls-parity.test.ts` terhadap staging dengan harness yang sama (fixture memakai skema sementara; untuk staging
+   nyata jalankan `scripts/supabase/verify-auth.mjs` dengan SUPABASE_URL staging dan akun uji).
+6. Backfill uji: `scripts/migration/backfill-skip-reasons.ts` (PR #60) dengan `SUPABASE_ALLOWED_REFS=<ref staging>`.
+
+### 8.3 Produksi (HANYA setelah staging lulus + persetujuan eksplisit)
+- **Backup** (wajib, sebelum apa pun): Dashboard → Database → Backups (catat waktu), dan `pg_dump --format=custom --no-owner "$PROD_DB_URL" > workflow-$(date +%F).dump`
+  disimpan di luar repo. Tabel produksi saat ini 0 baris, jadi pemulihan = skema + policy.
+- **Terapkan**: satu transaksi per file (`psql -1 -f ...`), urutan sama seperti 8.2 butir 3.
+- **Verifikasi pasca-migrasi**: query katalog 8.2 butir 4; `select public.auth_probe();` dengan token uji (lewat `verify-auth.mjs`);
+  `get_advisors` (security) tanpa temuan baru; klien lama tetap jalan karena Firestore masih sumber data.
+- **Rollback**: `psql -1 -f supabase/rollback/20261009000100_auth_probe_down.sql -f supabase/rollback/20261009000000_rls_hardening_down.sql`
+  (diuji: katalog kembali persis sama dengan baseline). Ini membuka lagi celah A–E, jadi hanya untuk regresi fungsional;
+  untuk kerusakan data pakai `pg_restore` dari backup.
