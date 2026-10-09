@@ -35,7 +35,7 @@ function encodedPath(path: string) {
 
 export async function POST(request: NextRequest) {
   const authHeader = request.headers.get('authorization') || '';
-  const idToken = authHeader.replace(/^Bearer\\s+/i, '').trim();
+  const idToken = authHeader.replace(/^Bearer\s+/i, '').trim();
   if (!idToken) return NextResponse.json({ error: 'Token otentikasi diperlukan.' }, { status: 401 });
 
   let uid: string;
