@@ -142,7 +142,7 @@ suite('CLI backfill-collection (proses nyata, emulator + Supabase palsu)', () =>
     expect(fake.store.get('ay1')).toMatchObject({ workspace_id: 'ws1', label: '2026/2027', start_date: '2026-07-13', end_date: null, is_active: true });
     expect((await run(['--collection', 'academic_years', '--workspace', 'ws1'])).code).toBe(0);
     hits = [];
-    expect((await run(['--collection', 'grades', '--workspace', 'ws1', '--apply'])).code).toBe(2);
+    expect((await run(['--collection', 'students', '--workspace', 'ws1', '--apply'])).code).toBe(2);
     expect(hits).toEqual([]);
   });
   it('dokumen workspace lain di Firestore tidak ikut disalin', async () => {
