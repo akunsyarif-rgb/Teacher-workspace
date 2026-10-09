@@ -7,7 +7,8 @@ import { SkeletonCard } from "@/src/components/ui/Skeleton";
 import InlineAlert from "@/src/components/ui/InlineAlert";
 import * as studentPortalController from "@/lib/controllers/studentPortalController";
 import * as submissionController from "@/lib/controllers/submissionController";
-import { uploadSubmissionFiles, validateUploadFile, MAX_SUBMISSION_FILES } from "@/lib/adapters/storageAdapter";
+import { validateUploadFile, MAX_SUBMISSION_FILES } from "@/lib/adapters/storageAdapter";
+import { uploadSubmissionFiles, openSubmissionAttachment } from "@/lib/adapters/supabaseSubmissionStorage";
 import { SUBMISSION_STATUS } from "@/lib/config/constants";
 import { canStudentSubmit, describeSubmissionError, isPastDue } from "@/lib/utils/submissionRules";
 import { isValidSubmissionLink, SUBMISSION_LINK_ERROR_MESSAGE } from "@/lib/utils/submissionLink";
@@ -531,8 +532,14 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                 )}
                 {existingAttachments.map((att, idx) => (
                   <a
-                    key={`${att.fileUrl}-${idx}`}
-                    href={att.fileUrl}
+                    key={`${att.filePath || att.fileUrl}-${idx}`}
+                    href={att.fileUrl.startsWith("supabase-storage://") ? "#" : att.fileUrl}
+                    onClick={(event) => {
+                      if (att.fileUrl.startsWith("supabase-storage://")) {
+                        event.preventDefault();
+                        void openSubmissionAttachment(att.fileUrl, att.filePath);
+                      }
+                    }}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline"
