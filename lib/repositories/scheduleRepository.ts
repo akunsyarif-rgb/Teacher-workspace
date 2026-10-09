@@ -1,9 +1,9 @@
-import { getDocuments, addDocument, deleteDocument } from '../adapters/firestoreAdapter';
+import { adapterFor } from '../adapters/dataAdapter';
 import { COLLECTIONS } from '../config/constants';
 
 export async function getAllSchedules(workspaceId: string) {
   if (!workspaceId) return [];
-  return getDocuments(COLLECTIONS.SCHEDULES, [['workspaceId', '==', workspaceId]]);
+  return adapterFor(COLLECTIONS.SCHEDULES).getDocuments(COLLECTIONS.SCHEDULES, [['workspaceId', '==', workspaceId]]);
 }
 
 // Dipakai Student Companion. Filter className bukan cuma demi efisiensi:
@@ -12,7 +12,7 @@ export async function getAllSchedules(workspaceId: string) {
 // getAllSchedules (workspaceId saja) akan ditolak untuk siswa.
 export async function getSchedulesByClass(workspaceId: string, className: string) {
   if (!workspaceId || !className) return [];
-  return getDocuments(COLLECTIONS.SCHEDULES, [
+  return adapterFor(COLLECTIONS.SCHEDULES).getDocuments(COLLECTIONS.SCHEDULES, [
     ['workspaceId', '==', workspaceId],
     ['className', '==', className],
   ]);
@@ -20,9 +20,9 @@ export async function getSchedulesByClass(workspaceId: string, className: string
 
 export async function createSchedule(workspaceId: string, data: Record<string, any>) {
   if (!workspaceId) throw new Error('workspaceId diperlukan');
-  return addDocument(COLLECTIONS.SCHEDULES, { ...data, workspaceId });
+  return adapterFor(COLLECTIONS.SCHEDULES).addDocument(COLLECTIONS.SCHEDULES, { ...data, workspaceId });
 }
 
 export async function deleteSchedule(id: string) {
-  return deleteDocument(COLLECTIONS.SCHEDULES, id);
+  return adapterFor(COLLECTIONS.SCHEDULES).deleteDocument(COLLECTIONS.SCHEDULES, id);
 }

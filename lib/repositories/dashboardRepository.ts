@@ -1,4 +1,5 @@
 import { getDocuments, countDocuments } from '../adapters/firestoreAdapter';
+import { adapterFor } from '../adapters/dataAdapter';
 import { COLLECTIONS } from '../config/constants';
 
 export async function getAllStudentsForSummary(workspaceId: string) {
@@ -32,7 +33,7 @@ export async function getAttendancesInRange(workspaceId: string, startDate: stri
 
 export async function getAllSchedulesForSummary(workspaceId: string) {
   if (!workspaceId) return [];
-  return getDocuments(COLLECTIONS.SCHEDULES, [['workspaceId', '==', workspaceId]]);
+  return adapterFor(COLLECTIONS.SCHEDULES).getDocuments(COLLECTIONS.SCHEDULES, [['workspaceId', '==', workspaceId]]);
 }
 
 // Total jurnal sepanjang masa — cuma angkanya (dipakai untuk kartu

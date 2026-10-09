@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('../lib/adapters/firestoreAdapter', () => ({}));
+vi.mock('../lib/adapters/supabaseClient', () => ({ getSupabaseAdapter: () => ({}) }));
 import { firestoreDocToRow, reconcileCollection } from '../lib/migration/collectionMigration';
 import { fromRow } from '../lib/adapters/supabaseAdapter';
 
@@ -8,6 +11,8 @@ const SAMPLES: Record<string, Record<string, unknown>> = {
   class_fund_transactions: { workspaceId: 'w', className: '7A', type: 'masuk', amount: 15000.5, description: 'kas minggu 1', createdBy: 'u1' },
   class_inventory: { workspaceId: 'w', className: '7A', name: 'Sapu', quantity: 3, condition: 'baik', note: '' },
   student_notes: { workspaceId: 'w', className: '7A', category: 'konseling', studentId: 's1', studentName: 'Budi', title: 'T', notes: 'rahasia' },
+  schedules: { workspaceId: 'w', className: '7A', day: 'Senin', timeSlot: '07:00-08:30', subject: 'IPA', teacherName: 'Bu Ani' },
+  grade_columns: { workspaceId: 'w', className: '7A', title: 'UH 1', type: 'harian' },
   session_skip_reasons: { workspaceId: 'w', scheduleId: 'sc', className: '7A', date: '2026-10-09', reason: 'Rapat', note: '' },
 };
 
@@ -29,4 +34,13 @@ describe.each(Object.entries(SAMPLES))('migrasi koleksi %s', (collection, data) 
 
 it('koleksi tak dipetakan ditolak', () => {
   expect(() => firestoreDocToRow('grades', 'a', { workspaceId: 'w' })).toThrow(/belum dipetakan/);
+});
+
+import { toMillis } from '../lib/repositories/gradeColumnRepository';
+it('urutan kolom nilai tetap benar untuk createdAt ISO (Supabase) maupun Timestamp Firestore', () => {
+  expect(toMillis('2026-10-09T00:00:01.000+00:00')).toBeGreaterThan(toMillis('2026-10-09T00:00:00.000+00:00'));
+  expect(toMillis({ seconds: 10 })).toBe(10000);
+  expect(toMillis({ toMillis: () => 5 })).toBe(5);
+  expect(toMillis('bukan tanggal')).toBe(0);
+  expect(toMillis(null)).toBe(0);
 });

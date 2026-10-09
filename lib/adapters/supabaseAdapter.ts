@@ -54,6 +54,23 @@ const COLUMN_MAP: Record<string, Record<string, string>> = {
     quantity: 'quantity',
     unit: 'unit',
   },
+  [COLLECTIONS.SCHEDULES]: {
+    workspaceId: 'workspace_id',
+    className: 'class_name',
+    date: 'date',
+    day: 'day',
+    timeSlot: 'time_slot',
+    subject: 'subject',
+    teacherName: 'teacher_name',
+  },
+  [COLLECTIONS.GRADE_COLUMNS]: {
+    workspaceId: 'workspace_id',
+    className: 'class_name',
+    name: 'name',
+    weight: 'weight',
+    title: 'title',
+    type: 'type',
+  },
   [COLLECTIONS.STUDENT_NOTES]: {
     workspaceId: 'workspace_id',
     className: 'class_name',

@@ -11,6 +11,8 @@ const CASES: { collection: string; mod: string; run: (r: Record<string, (...a: u
   { collection: 'class_fund_transactions', mod: 'classFundRepository', run: (r) => [r.getTransactions('w', '7A'), r.createTransaction({ workspaceId: 'w' }), r.deleteTransaction('i')] },
   { collection: 'class_inventory', mod: 'inventoryRepository', run: (r) => [r.getItems('w', '7A'), r.createItem({ workspaceId: 'w' }), r.updateItem('i', {}), r.deleteItem('i')] },
   { collection: 'student_notes', mod: 'studentNoteRepository', run: (r) => [r.getNotes('w', '7A', 'konseling'), r.createNote({ workspaceId: 'w' }), r.deleteNote('i')] },
+  { collection: 'schedules', mod: 'scheduleRepository', run: (r) => [r.getAllSchedules('w'), r.getSchedulesByClass('w', '7A'), r.createSchedule('w', { day: 'Senin' }), r.deleteSchedule('i')] },
+  { collection: 'grade_columns', mod: 'gradeColumnRepository', run: (r) => [r.getColumnsByClass('w', '7A'), r.createColumn({ workspaceId: 'w' }), r.updateColumnTitle('i', 't'), r.deleteColumn('i')] },
   { collection: 'session_skip_reasons', mod: 'sessionSkipReasonRepository', run: (r) => [r.getByDate('w', 'd'), r.createSkipReason({ workspaceId: 'w' }), r.updateSkipReason('i', {})] },
 ];
 

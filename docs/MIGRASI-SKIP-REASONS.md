@@ -1,8 +1,8 @@
 # Runbook: `session_skip_reasons` Firestore → Supabase (koleksi percobaan)
 
 **Status: jalur kode SIAP untuk 5 koleksi, flag default MATI.** Satu-satunya penghalang yang tersisa adalah yang tidak bisa saya kerjakan sendiri:
-auth Firebase→Supabase (Third-Party Auth + claim `role`) dan staging. Koleksi siap (`OFFLINE_PARITY_READY`): `session_skip_reasons`, `academic_years`,
-`class_fund_transactions`, `class_inventory`, `student_notes` — repository-nya sudah memakai `adapterFor(koleksi)`.
+auth Firebase→Supabase (Third-Party Auth + claim `role`) dan staging. Koleksi siap (`OFFLINE_PARITY_READY`, 7): `session_skip_reasons`, `academic_years`, `class_fund_transactions`, `class_inventory`,
+`student_notes`, `schedules`, `grade_columns` — repository-nya sudah memakai `adapterFor(koleksi)`.
 
 ## Gerbang aktivasi (kode, bukan sekadar dokumen)
 `isSupabaseCollection(c)` benar hanya bila `NEXT_PUBLIC_SUPABASE_COLLECTIONS` memuat `c` **dan** (`c` ∈ `OFFLINE_PARITY_READY`
@@ -69,8 +69,14 @@ Matikan flag → Firestore kembali dipakai. Tulisan yang terjadi saat flag aktif
 (Supabase→Firestore) sebelum rollback bila perlu. Backfill hanya menambah/menimpa baris Supabase; Firestore tak diubah.
 
 ## Koleksi (status)
-Sudah dialihkan di kode (flag mati): lima koleksi di atas. Berikutnya (butuh RPC `batch` atau tabel dengan perilaku khusus):
-1. (selesai di kode) `academic_years` — volume sangat kecil (1 dokumen/tahun), hanya dipakai panel Arsip/Unduh/Bersihkan data (layar admin, bukan alur harian), tanpa batch.
-2. (selesai di kode) `class_fund_transactions`, `class_inventory`, `student_notes`.
-3. `announcements` — dibaca siswa (butuh klaim auth siswa anonim terbukti).
-4. Terakhir: `students`/`student_achievements` (pakai `batchWrite`), `grades`, `attendances`, `journals`, `schedules`, `submissions` (alur inti, batch, offline kuat).
+Sudah dialihkan di kode (flag mati): tujuh koleksi di atas. Dampak lintas-modul yang sudah ditangani:
+- **Rename kelas** (`/api/classes/rename`, Admin SDK hanya mengubah Firestore): `renameClassInSupabase` (server, secret key, dibatasi workspace+kelas lama)
+  ikut mengganti `class_name` di koleksi berflag; gagal → error yang menyebut apa yang sudah berubah. Teruji (`tests/supabase-class-rename.test.ts`).
+- **Urutan kolom nilai** memakai `createdAt`: `toMillis` kini menerima string ISO (Supabase) — tanpa ini urutan kolom acak.
+- **Beranda**: alasan skip gagal tidak mematikan ringkasan.
+Belum bisa dialihkan (alasan konkret):
+- `journals`, `attendances`, `announcements`, `assignments`, `submissions`: disentuh langsung oleh Arsip/Cleanup/Export berbasis Firestore
+  (`dataLifecycleCollections`, `dataArchiveRepository`, `dataCleanupRepository` memakai `batchWrite`/range query) → butuh operator range
+  + RPC batch transaksional + routing lapisan itu sebelum aman.
+- `students`, `grades`, `student_achievements`, `student_login_codes`, `student_profiles`: `batchWrite` / klaim akses siswa (butuh RPC `claim_student_profile` + auth siswa anonim terbukti).
+Urutan berikutnya: RPC `batch_write` (migrasi, PR #59) → students/grades/achievements; lalu range operator + routing Arsip/Cleanup → journals/attendances/announcements/assignments; terakhir submissions.

@@ -1,5 +1,6 @@
 import { getAdminDb } from './firebaseAdmin';
 import { normalizeClassName, validateClassName } from '../utils/classNameValidation';
+import { renameClassInSupabase } from './supabaseClassRename';
 
 // Semua koleksi yang punya field className langsung, TERMASUK
 // student_profiles — satu-satunya alasan operasi ini harus lewat Admin
@@ -133,5 +134,11 @@ export async function renameClassServer(
     committed += chunk.length;
   }
 
-  return { renamedCount: refsToUpdate.length, className: newName };
+  // Koleksi yang sudah dialihkan ke Supabase (flag) ikut diganti namanya; default: tidak ada.
+  const supabaseCounts = await renameClassInSupabase({ workspaceId, oldName, newName }).catch((error: unknown) => {
+    const sebab = error instanceof Error ? error.message : 'penyebab tidak diketahui';
+    throw new Error(`Firestore sudah memakai nama "${newName}" (${refsToUpdate.length} dokumen), tetapi Supabase belum konsisten. ${sebab}`);
+  });
+
+  return { renamedCount: refsToUpdate.length + Object.values(supabaseCounts).reduce((a, b) => a + b, 0), className: newName };
 }
