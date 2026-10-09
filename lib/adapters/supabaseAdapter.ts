@@ -34,7 +34,7 @@ function columns(collectionName: string) {
   return map;
 }
 
-export function toRow(collectionName: string, data: Row) {
+export function toRow(collectionName: string, data: Row, opts: { keepTimestamps?: boolean } = {}) {
   const map = columns(collectionName);
   const row: Row = {};
   const metadata: Row = {};
@@ -44,6 +44,10 @@ export function toRow(collectionName: string, data: Row) {
     else metadata[key] = value;
   }
   if (Object.keys(metadata).length > 0) row.metadata = metadata;
+  if (opts.keepTimestamps) {
+    if (data.createdAt) row.created_at = data.createdAt;
+    if (data.updatedAt) row.updated_at = data.updatedAt;
+  }
   return row;
 }
 
