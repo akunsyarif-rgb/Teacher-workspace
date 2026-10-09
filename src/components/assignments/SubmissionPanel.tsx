@@ -27,7 +27,7 @@ import * as gradeController from '@/lib/controllers/gradeController';
 import { getCached, clearAllCached } from '@/lib/utils/sessionCache';
 import { downloadCsv } from '@/lib/utils/csvExport';
 import { SUBMISSION_STATUS } from '@/lib/config/constants';
-import { openSubmissionAttachment } from '@/lib/adapters/supabaseSubmissionStorage';
+import { useAttachmentViewer } from '@/src/components/assignments/AttachmentViewer';
 
 const SUBMISSION_CSV_COLUMNS = [
   { key: 'studentName', label: 'Nama Siswa' },
@@ -82,6 +82,7 @@ function formatSubmittedAt(iso?: string | null) {
 }
 
 export default function SubmissionPanel({ workspaceId, className, assignment, onBack }: SubmissionPanelProps) {
+  const { open: openAttachment, viewer } = useAttachmentViewer();
   const [rows, setRows] = useState<any[]>([]);
   const [scores, setScores] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -397,11 +398,9 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
                               key={`${att.filePath || att.fileUrl}-${idx}`}
                               href={att.fileUrl.startsWith('supabase-storage://') ? '#' : att.fileUrl}
                               onClick={(event) => {
-                                if (att.fileUrl.startsWith('supabase-storage://')) {
-                                  event.preventDefault();
-                                  void openSubmissionAttachment(att.fileUrl, att.filePath);
-                                }
-                              }}
+ event.preventDefault();
+ openAttachment(att);
+ }}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline"
@@ -587,6 +586,7 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
           </div>
         </div>
       </Modal>
+      {viewer}
     </div>
   );
 }

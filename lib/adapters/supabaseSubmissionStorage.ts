@@ -2,6 +2,7 @@ import { auth } from '@/src/config/firebase';
 import { MAX_SUBMISSION_FILES, MAX_UPLOAD_BYTES, resolveUploadContentType } from '@/lib/utils/uploadFileTypes';
 import { userError } from '@/lib/utils/submissionRules';
 import { withTimeout } from '@/lib/utils/withTimeout';
+import { compressImageForUpload } from '@/lib/utils/imageCompression';
 
 const UPLOAD_TIMEOUT_MS = 5 * 60_000;
 const SUPABASE_FILE_PREFIX = 'supabase-storage://submission-attachments/';
@@ -33,6 +34,11 @@ export async function uploadSubmissionFile(
   file: File,
   _uniquePrefix?: string
 ) {
+  validateSupabaseSubmissionFile(file);
+  // Foto dikompres di browser (maks 1600px, JPEG 80%) supaya hemat bucket;
+  // file lain / gagal kompres = file asli.
+  const originalType = resolveUploadContentType(file) as string;
+  file = await compressImageForUpload(file, originalType);
   const contentType = validateSupabaseSubmissionFile(file);
   const user = auth.currentUser;
   if (!user) throw userError('Sesi tidak valid, coba muat ulang halaman.', 'unauthenticated');
@@ -123,43 +129,30 @@ export async function uploadSubmissionFiles(workspaceId: string, assignmentId: s
 }
 
 /**
- * Membuka lampiran Supabase privat melalui URL bertanda tangan berumur 5 menit.
- * URL Firebase lama tetap dibuka seperti biasa agar lampiran lama tidak rusak.
+ * URL yang bisa dipakai browser untuk lampiran: signed URL 5 menit untuk
+ * file Supabase privat, atau URL Firebase lama apa adanya.
  */
-export async function openSubmissionAttachment(fileUrl?: string | null, filePath?: string | null) {
+export async function resolveSubmissionAttachmentUrl(fileUrl?: string | null, filePath?: string | null): Promise<string> {
   const path = submissionFilePath(fileUrl, filePath);
   if (!path) {
-    if (fileUrl) window.open(fileUrl, '_blank', 'noopener,noreferrer');
-    return;
+    if (!fileUrl) throw userError('Lampiran tidak ditemukan.');
+    return fileUrl;
   }
-
-  const tab = window.open('about:blank', '_blank');
-  try {
-    const user = auth.currentUser;
-    if (!user) throw userError('Sesi tidak valid. Silakan masuk kembali.', 'unauthenticated');
-    const idToken = await user.getIdToken();
-    const response = await fetch('/api/submission-attachments/sign', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${idToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ filePath: path }),
-      cache: 'no-store',
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok || !result.signedUrl) {
-      throw new Error(result.error || 'Lampiran belum bisa dibuka. Coba lagi.');
-    }
-    if (tab) {
-      tab.opener = null;
-      tab.location.href = result.signedUrl;
-    } else {
-      window.location.href = result.signedUrl;
-    }
-  } catch (error) {
-    if (tab) tab.close();
-    console.error('Gagal membuka lampiran:', error);
-    window.alert(error instanceof Error ? error.message : 'Lampiran belum bisa dibuka. Coba lagi.');
+  const user = auth.currentUser;
+  if (!user) throw userError('Sesi tidak valid. Silakan masuk kembali.', 'unauthenticated');
+  const idToken = await user.getIdToken();
+  const response = await fetch('/api/submission-attachments/sign', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ filePath: path }),
+    cache: 'no-store',
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.signedUrl) {
+    throw userError(result.error || 'Lampiran belum bisa dibuka. Coba lagi.');
   }
+  return result.signedUrl as string;
 }

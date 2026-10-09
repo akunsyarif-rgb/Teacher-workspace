@@ -8,7 +8,8 @@ import InlineAlert from "@/src/components/ui/InlineAlert";
 import * as studentPortalController from "@/lib/controllers/studentPortalController";
 import * as submissionController from "@/lib/controllers/submissionController";
 import { MAX_SUBMISSION_FILES } from "@/lib/adapters/storageAdapter";
-import { uploadSubmissionFiles, openSubmissionAttachment, validateSupabaseSubmissionFile } from "@/lib/adapters/supabaseSubmissionStorage";
+import { uploadSubmissionFiles, validateSupabaseSubmissionFile } from "@/lib/adapters/supabaseSubmissionStorage";
+import { useAttachmentViewer } from "@/src/components/assignments/AttachmentViewer";
 import { SUBMISSION_STATUS } from "@/lib/config/constants";
 import { canStudentSubmit, describeSubmissionError, isPastDue } from "@/lib/utils/submissionRules";
 import { isValidSubmissionLink, SUBMISSION_LINK_ERROR_MESSAGE } from "@/lib/utils/submissionLink";
@@ -51,6 +52,7 @@ function formatSubmittedAt(iso?: string | null) {
 }
 
 function AssignmentsContent({ profile }: { profile: StudentProfile }) {
+  const { open: openAttachment, viewer } = useAttachmentViewer();
   const [assignments, setAssignments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -541,11 +543,9 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                     key={`${att.filePath || att.fileUrl}-${idx}`}
                     href={att.fileUrl.startsWith("supabase-storage://") ? "#" : att.fileUrl}
                     onClick={(event) => {
-                      if (att.fileUrl.startsWith("supabase-storage://")) {
-                        event.preventDefault();
-                        void openSubmissionAttachment(att.fileUrl, att.filePath);
-                      }
-                    }}
+ event.preventDefault();
+ openAttachment(att);
+ }}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline"
@@ -570,6 +570,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
           </div>
         );
       })}
+      {viewer}
     </div>
   );
 }
