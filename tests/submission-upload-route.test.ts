@@ -115,9 +115,16 @@ describe('POST /upload', () => {
 
 describe('POST /sign (unduh)', () => {
   const path = 'submissions/w1/a1/u1/f.png';
+  it('200 untuk siswa yang sama di perangkat lain (uid beda, studentId sama)', async () => {
+    fetchMock.mockImplementation(async () => Response.json({ signedURL: '/object/sign/submission-attachments/x?token=T' }));
+    docs['student_profiles/u1'] = { workspaceId: 'w1', className: '7A', studentId: 's1' };
+    docs['student_profiles/u2'] = { workspaceId: 'w1', className: '7A', studentId: 's1' };
+    verifyIdToken.mockResolvedValue({ uid: 'u2' });
+    expect((await sign(req('/s', { filePath: path }))).status).toBe(200);
+  });
   it('403 untuk siswa lain', async () => {
     verifyIdToken.mockResolvedValue({ uid: 'u2' });
-    docs['student_profiles/u2'] = { workspaceId: 'w1', className: '7A' };
+    docs['student_profiles/u2'] = { workspaceId: 'w1', className: '7A', studentId: 's2' };
     expect((await sign(req('/s', { filePath: path }))).status).toBe(403);
   });
   it('200 untuk pemilik dan guru workspace', async () => {

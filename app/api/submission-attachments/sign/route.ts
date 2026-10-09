@@ -82,10 +82,13 @@ export async function POST(request: NextRequest) {
 
     const [, workspaceId, assignmentId, ownerUid] = parts;
     const db = getAdminDb();
-    const [studentSnap, teacherSnap, assignmentSnap] = await Promise.all([
+    const [studentSnap, teacherSnap, assignmentSnap, ownerProfileSnap] = await Promise.all([
       db.collection('student_profiles').doc(uid).get(),
       db.collection('teacher_profiles').doc(uid).get(),
       db.collection('assignments').doc(assignmentId).get(),
+      // uid di path = akun anonim perangkat yang mengunggah. Siswa yang sama
+      // di perangkat/login lain punya uid berbeda tapi studentId sama.
+      db.collection('student_profiles').doc(ownerUid).get(),
     ]);
 
     if (!assignmentSnap.exists || assignmentSnap.data()?.workspaceId !== workspaceId) {
@@ -96,7 +99,11 @@ export async function POST(request: NextRequest) {
     const teacher = teacherSnap.data();
     const isOwnerStudent =
       studentSnap.exists &&
-      uid === ownerUid &&
+      ownerProfileSnap.exists &&
+      !!student?.studentId &&
+      (uid === ownerUid ||
+        (ownerProfileSnap.data()?.studentId === student.studentId &&
+          ownerProfileSnap.data()?.workspaceId === workspaceId)) &&
       student?.workspaceId === workspaceId &&
       student?.className === assignmentSnap.data()?.className;
     const isWorkspaceTeacher = teacherSnap.exists && teacher?.workspaceId === workspaceId;
