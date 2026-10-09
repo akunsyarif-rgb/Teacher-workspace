@@ -34,6 +34,7 @@ export async function uploadSubmissionFile(
     const form = new FormData();
     form.set('workspaceId', workspaceId);
     form.set('assignmentId', assignmentId);
+    form.set('contentType', contentType);
     form.set('file', file, file.name);
 
     const request = fetch('/api/submission-attachments/upload', {
