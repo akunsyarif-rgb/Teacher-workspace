@@ -90,6 +90,12 @@ describe('POST /upload', () => {
     await upload(req('/u', body));
     expect(fetchMock.mock.calls[1][1].headers.Authorization).toBe('Bearer eyJhbGci.x.y');
   });
+  it('URL env yang memuat path (/rest/v1/) dinormalkan ke origin', async () => {
+    fetchMock.mockImplementation(async () => Response.json({ url: '/object/upload/sign/b/p?token=T' }));
+    process.env.SUPABASE_URL = ' https://x.supabase.co/rest/v1/ ';
+    await upload(req('/u', body));
+    expect(fetchMock.mock.calls[0][0]).toMatch(/^https:\/\/x\.supabase\.co\/storage\/v1\/object\/upload\/sign\/submission-attachments\//);
+  });
   it('503 bila env Supabase hilang', async () => {
     delete process.env.SUPABASE_URL;
     delete process.env.NEXT_PUBLIC_SUPABASE_URL;

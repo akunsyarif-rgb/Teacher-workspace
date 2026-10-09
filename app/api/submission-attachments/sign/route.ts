@@ -13,8 +13,17 @@ class SupabaseConfigError extends Error {
 }
 
 function supabaseConfig() {
-  const url = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)?.replace(/\/+$/, '');
-  const key = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const rawUrl = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)?.trim();
+  const key = (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)?.trim();
+  // Hanya origin yang dipakai: nilai env yang terlanjur memuat path
+  // (/rest/v1, /storage/v1, slash akhir) membuat Supabase membalas
+  // 404 "Invalid path specified in request URL".
+  let url: string | undefined;
+  try {
+    url = rawUrl ? new URL(rawUrl).origin : undefined;
+  } catch {
+    url = undefined;
+  }
   if (!url || !key) throw new SupabaseConfigError();
   return { url, key };
 }
