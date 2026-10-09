@@ -13,6 +13,8 @@ const SAMPLES: Record<string, Record<string, unknown>> = {
   student_notes: { workspaceId: 'w', className: '7A', category: 'konseling', studentId: 's1', studentName: 'Budi', title: 'T', notes: 'rahasia' },
   schedules: { workspaceId: 'w', className: '7A', day: 'Senin', timeSlot: '07:00-08:30', subject: 'IPA', teacherName: 'Bu Ani' },
   grade_columns: { workspaceId: 'w', className: '7A', title: 'UH 1', type: 'harian' },
+  grades: { workspaceId: 'w', className: '7A', studentId: 's1', columnId: 'c1', score: '85' },
+  student_achievements: { workspaceId: 'w', className: '7A', studentId: 's1', studentName: 'Budi', title: 'Juara', notes: '', date: '2026-10-01', migratedFromNoteId: 'n1' },
   session_skip_reasons: { workspaceId: 'w', scheduleId: 'sc', className: '7A', date: '2026-10-09', reason: 'Rapat', note: '' },
 };
 
@@ -33,7 +35,7 @@ describe.each(Object.entries(SAMPLES))('migrasi koleksi %s', (collection, data) 
 });
 
 it('koleksi tak dipetakan ditolak', () => {
-  expect(() => firestoreDocToRow('grades', 'a', { workspaceId: 'w' })).toThrow(/belum dipetakan/);
+  expect(() => firestoreDocToRow('students', 'a', { workspaceId: 'w' })).toThrow(/belum dipetakan/);
 });
 
 import { toMillis } from '../lib/repositories/gradeColumnRepository';

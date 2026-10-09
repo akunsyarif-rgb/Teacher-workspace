@@ -8,7 +8,7 @@
 // OFFLINE_PARITY_READY = koleksi yang sudah punya padanan perilaku offline Firestore lewat lapisan offline
 // (lib/adapters/offlineLayer.ts: cache baca + outbox tulis idempoten) DAN pemetaan kolom + RLS teruji.
 // Ini hanya "kesiapan kode"; SAKLAR-nya tetap NEXT_PUBLIC_SUPABASE_COLLECTIONS (default kosong).
-// Sengaja TIDAK masuk: koleksi ber-batchWrite (students, grades, achievements, submissions) dan koleksi yang
+// Sengaja TIDAK masuk: students/student_login_codes/submissions (batch lintas koleksi + klaim akses siswa) dan koleksi yang
 // disentuh langsung oleh Arsip/Cleanup/Export berbasis Firestore (journals, attendances, announcements, assignments).
 export const OFFLINE_PARITY_READY: readonly string[] = [
   'session_skip_reasons',
@@ -18,6 +18,9 @@ export const OFFLINE_PARITY_READY: readonly string[] = [
   'student_notes',
   'schedules',
   'grade_columns',
+  // Butuh migrasi RPC 20261009000200_batch_write.sql (PR #59) terpasang di Supabase sebelum flag dinyalakan.
+  'grades',
+  'student_achievements',
 ];
 
 export function isSupabaseCollection(

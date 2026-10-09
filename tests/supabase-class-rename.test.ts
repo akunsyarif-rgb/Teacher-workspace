@@ -9,7 +9,7 @@ describe('supabaseCollectionsToRename', () => {
     expect(supabaseCollectionsToRename(undefined, undefined)).toEqual([]);
   });
   it('hanya koleksi berflag yang punya class_name; academic_years dilewati', () => {
-    expect(supabaseCollectionsToRename('session_skip_reasons,academic_years,grades', undefined).sort()).toEqual(['session_skip_reasons']);
+    expect(supabaseCollectionsToRename('session_skip_reasons,academic_years,students', undefined).sort()).toEqual(['session_skip_reasons']);
   });
 });
 

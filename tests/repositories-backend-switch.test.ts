@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Lima repository yang bisa dialihkan: default Firestore, Supabase hanya bila koleksinya dicantumkan di flag.
-const fs = vi.hoisted(() => ({ getDocuments: vi.fn(), addDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn() }));
-const sb = vi.hoisted(() => ({ getDocuments: vi.fn(), addDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn() }));
+const fs = vi.hoisted(() => ({ getDocuments: vi.fn(), addDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), batchWrite: vi.fn() }));
+const sb = vi.hoisted(() => ({ getDocuments: vi.fn(), addDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), batchWrite: vi.fn() }));
 vi.mock('../lib/adapters/firestoreAdapter', () => fs);
 vi.mock('../lib/adapters/supabaseClient', () => ({ getSupabaseAdapter: () => sb }));
 
@@ -13,6 +13,8 @@ const CASES: { collection: string; mod: string; run: (r: Record<string, (...a: u
   { collection: 'student_notes', mod: 'studentNoteRepository', run: (r) => [r.getNotes('w', '7A', 'konseling'), r.createNote({ workspaceId: 'w' }), r.deleteNote('i')] },
   { collection: 'schedules', mod: 'scheduleRepository', run: (r) => [r.getAllSchedules('w'), r.getSchedulesByClass('w', '7A'), r.createSchedule('w', { day: 'Senin' }), r.deleteSchedule('i')] },
   { collection: 'grade_columns', mod: 'gradeColumnRepository', run: (r) => [r.getColumnsByClass('w', '7A'), r.createColumn({ workspaceId: 'w' }), r.updateColumnTitle('i', 't'), r.deleteColumn('i')] },
+  { collection: 'grades', mod: 'gradeRepository', run: (r) => [r.getGradesByClass('w', '7A'), r.getGradesByStudent('w', 's'), r.saveGradesBatch('w', '7A', [{ studentId: 's', columnId: 'c', score: '80' }])] },
+  { collection: 'student_achievements', mod: 'achievementRepository', run: (r) => [r.getAchievementsByClass('w', '7A'), r.getAchievementsByStudent('w', 's'), r.createAchievement({ workspaceId: 'w' }), r.deleteAchievement('i'), r.copyFromNotes([{ id: 'n', workspaceId: 'w' }])] },
   { collection: 'session_skip_reasons', mod: 'sessionSkipReasonRepository', run: (r) => [r.getByDate('w', 'd'), r.createSkipReason({ workspaceId: 'w' }), r.updateSkipReason('i', {})] },
 ];
 
@@ -31,10 +33,10 @@ describe.each(CASES)('$mod ($collection)', ({ collection, mod, run }) => {
     await Promise.all(run(await load(mod, '')));
     expect(Object.values(fs).some((m) => m.mock.calls.length > 0)).toBe(true);
     for (const m of Object.values(sb)) expect(m).not.toHaveBeenCalled();
-    for (const m of Object.values(fs)) for (const call of m.mock.calls) expect(call[0]).toBe(collection);
+    for (const m of Object.values(fs)) for (const call of m.mock.calls) if (typeof call[0] === 'string') expect(call[0]).toBe(collection);
   });
   it('flag koleksi lain: tetap Firestore', async () => {
-    await Promise.all(run(await load(mod, 'grades,journals')));
+    await Promise.all(run(await load(mod, 'students,journals')));
     for (const m of Object.values(sb)) expect(m).not.toHaveBeenCalled();
   });
   it('flag koleksi ini: seluruh operasi ke Supabase, Firestore tidak tersentuh; query selalu memuat workspaceId', async () => {

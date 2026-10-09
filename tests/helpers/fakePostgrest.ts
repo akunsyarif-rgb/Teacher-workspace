@@ -60,6 +60,21 @@ export function createFakePostgrest(opts: FakeOpts) {
       }
       return respond(200, list);
     }
+    if (method === 'POST' && url.pathname.endsWith('/rpc/batch_write')) {
+      // Emulasi semantik public.batch_write (diuji nyata di tests/rls/cases.ts bagian 10): atomik, merge, RLS.
+      const { p_ops } = JSON.parse(String(init.body)) as { p_ops: { op: string; table: string; id?: string; row?: Row }[] };
+      const snapshot = new Map([...store].map(([k, v]) => [k, { ...v }]));
+      for (const o of p_ops) {
+        if (o.op === 'delete') { const cur = store.get(String(o.id)); if (cur && visible(cur)) store.delete(String(o.id)); continue; }
+        const row = o.row as Row;
+        if (row.workspace_id !== ws) { store.clear(); snapshot.forEach((v, k) => store.set(k, v)); return respond(403, { code: '42501', message: 'rls' }); }
+        const cur = store.get(String(row.id));
+        if (cur && !visible(cur)) { store.clear(); snapshot.forEach((v, k) => store.set(k, v)); return respond(409, { code: '23505', message: 'dup' }); }
+        const meta = { ...((cur?.metadata as Row) ?? {}), ...((row.metadata as Row) ?? {}) };
+        store.set(String(row.id), { class_name: null, created_at: stamp(), ...(cur ?? {}), ...row, metadata: meta, updated_at: stamp() });
+      }
+      return respond(200, p_ops.length);
+    }
     if (method === 'POST') {
       const body = JSON.parse(String(init.body));
       const items: Row[] = Array.isArray(body) ? body : [body];

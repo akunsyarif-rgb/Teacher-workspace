@@ -134,6 +134,48 @@ describe('tulis offline → outbox → flush', () => {
   });
 });
 
+describe('batchWrite offline', () => {
+  const g = (id: string, over: Record<string, unknown> = {}) => ({ type: 'set' as const, collectionName: C, id, data: { workspaceId: 'wsA', className: '7A', reason: 'x', ...over } });
+  it('offline → satu entri outbox, terlihat di baca (overlay), terkirim sekali saat online', async () => {
+    const { adapter, fake, net } = setup();
+    await adapter.getDocuments(C, F);
+    net.online = false;
+    await adapter.batchWrite([g('a'), g('b'), { type: 'delete' as const, collectionName: C, id: 'zzz' }]);
+    expect(await adapter.getStatus()).toEqual({ pending: 1, failed: 0 });
+    expect((await adapter.getDocuments(C, F)).map((r) => r.id).sort()).toEqual(['a', 'b']);
+    net.online = true;
+    await adapter.flush(); await adapter.flush();
+    expect([...fake.store.keys()].sort()).toEqual(['a', 'b']);
+    expect(await adapter.getStatus()).toEqual({ pending: 0, failed: 0 });
+  });
+  it('jaringan putus saat batch → diantrekan; online + sukses langsung bila tak ada antrean', async () => {
+    const { adapter, fake, net } = setup();
+    await adapter.batchWrite([g('x1')]);
+    expect(fake.store.has('x1')).toBe(true);
+    net.dropWrites = true;
+    await adapter.batchWrite([g('x2')]);
+    expect(await adapter.getStatus()).toEqual({ pending: 1, failed: 0 });
+    net.dropWrites = false;
+    await adapter.flush();
+    expect(fake.store.has('x2')).toBe(true);
+  });
+  it('batch menyentuh dokumen yang punya antrean → ikut antre (urutan terjaga)', async () => {
+    const { adapter, fake, net } = setup();
+    net.online = false;
+    await adapter.setDocument(C, 'd1', doc());
+    net.online = true;
+    await adapter.batchWrite([g('d1', { reason: 'baru' })]);
+    expect(await adapter.getStatus()).toEqual({ pending: 2, failed: 0 });
+    await adapter.flush();
+    expect(fake.store.get('d1')).toMatchObject({ reason: 'baru' });
+  });
+  it('error non-jaringan (denied) dilempar langsung, tidak diantrekan', async () => {
+    const { adapter } = setup();
+    await expect(adapter.batchWrite([g('a', { workspaceId: 'wsLAIN' })])).rejects.toMatchObject({ kind: 'denied' });
+    expect(await adapter.getStatus()).toEqual({ pending: 0, failed: 0 });
+  });
+});
+
 describe('kegagalan', () => {
   it('error non-jaringan saat tulis langsung dilempar dan TIDAK diantrekan', async () => {
     const { adapter, net } = setup();
@@ -170,9 +212,8 @@ describe('kegagalan', () => {
     expect(seen).toContain(1);
     expect(seen[seen.length - 1]).toBe(0);
   });
-  it('batchWrite tetap ditolak; getDocumentFromCache null', async () => {
+  it('getDocumentFromCache null', async () => {
     const { adapter } = setup();
-    await expect(adapter.batchWrite([])).rejects.toMatchObject({ kind: 'bad_request' });
     expect(await adapter.getDocumentFromCache(C, 'x')).toBeNull();
   });
 });

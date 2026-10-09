@@ -1,4 +1,4 @@
-import { SupabaseAdapterError } from './supabaseAdapter';
+import { SupabaseAdapterError, type BatchOp } from './supabaseAdapter';
 
 // Lapisan offline untuk adapter Supabase: cache baca + antrean tulis (outbox) yang dikirim ulang
 // saat online. Setara tujuan Firestore persistent cache, tetapi eksplisit dan dapat diuji.
@@ -64,10 +64,11 @@ export interface BaseAdapter {
   setDocument(c: string, id: string, data: Row): Promise<Row>;
   updateDocument(c: string, id: string, data: Row): Promise<Row>;
   deleteDocument(c: string, id: string): Promise<boolean>;
+  batchWrite(ops: BatchOp[]): Promise<boolean>;
   generateId(c: string): string;
 }
 
-export type OutboxOp = { seq: number; type: 'set' | 'update' | 'delete'; collection: string; id: string; data?: Row; queuedAt: number };
+export type OutboxOp = { seq: number; type: 'set' | 'update' | 'delete' | 'batch'; collection: string; id: string; data?: Row; batch?: BatchOp[]; queuedAt: number };
 export interface SyncStatus { pending: number; failed: number }
 
 const NETWORK_KINDS = new Set(['offline', 'network', 'timeout']);
@@ -103,11 +104,14 @@ export function withOfflineSupport(base: BaseAdapter, opts: { store: KVStore; is
     await store.set(`o:${pad(seq)}`, { ...op, seq, queuedAt: now() });
     await notify();
   }
-  const hasPending = async (c: string, id: string) => (await ops()).some((o) => o.collection === c && o.id === id);
+  const hasPending = async (c: string, id: string) =>
+    (await ops()).some((o) => (o.type === 'batch' ? (o.batch ?? []).some((b) => b.collectionName === c && b.id === id) : o.collection === c && o.id === id));
 
   // Terapkan outbox ke hasil baca supaya perubahan offline langsung terlihat.
   async function overlay(c: string, rows: Row[], filters: Filter[]) {
-    const pending = (await ops()).filter((o) => o.collection === c);
+    const pending = (await ops()).flatMap((o) => (o.type === 'batch'
+      ? (o.batch ?? []).filter((b) => b.collectionName === c).map((b) => ({ ...o, type: b.type, collection: b.collectionName, id: b.id, data: b.type === 'set' ? b.data : undefined }))
+      : o.collection === c ? [o] : []));
     if (!pending.length) return rows;
     const byId = new Map(rows.map((r) => [String(r.id), r]));
     for (const o of pending) {
@@ -128,6 +132,7 @@ export function withOfflineSupport(base: BaseAdapter, opts: { store: KVStore; is
           try {
             if (op.type === 'set') await base.setDocument(op.collection, op.id, op.data ?? {});
             else if (op.type === 'update') await base.updateDocument(op.collection, op.id, op.data ?? {});
+            else if (op.type === 'batch') await base.batchWrite(op.batch ?? []);
             else await base.deleteDocument(op.collection, op.id);
             await store.del(`o:${pad(op.seq)}`);
           } catch (e) {
@@ -222,8 +227,17 @@ export function withOfflineSupport(base: BaseAdapter, opts: { store: KVStore; is
     generateId: (c: string) => base.generateId(c),
     getDocumentFromCache: async (_c: string, _id: string) => null as Row | null, // eslint-disable-line @typescript-eslint/no-unused-vars
     countDocuments: async (c: string, filters: Filter[] = []) => (await readThrough(c, filters)).length,
-    batchWrite: async (_ops: unknown[]): Promise<never> => { // eslint-disable-line @typescript-eslint/no-unused-vars
-      throw new SupabaseAdapterError('bad_request', 'batchWrite belum didukung adapter Supabase (butuh RPC transaksional).');
+    // Batch dikirim langsung bila online dan tak ada antrean untuk dokumen terkait; gagal jaringan → satu entri outbox 'batch'
+    // (replay idempoten: set-merge/delete). Error lain dilempar.
+    async batchWrite(operations: BatchOp[]) {
+      if (operations.length === 0) return true;
+      let blocked = false;
+      for (const o of operations) if (await hasPending(o.collectionName, o.id)) { blocked = true; break; }
+      if (isOnline() && !blocked) {
+        try { return await base.batchWrite(operations); } catch (e) { if (!isNetworkError(e)) throw e; }
+      }
+      await enqueue({ type: 'batch', collection: operations[0].collectionName, id: '*', batch: operations });
+      return true;
     },
   };
 }

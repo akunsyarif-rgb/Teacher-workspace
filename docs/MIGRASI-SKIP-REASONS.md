@@ -1,8 +1,9 @@
 # Runbook: `session_skip_reasons` Firestore → Supabase (koleksi percobaan)
 
 **Status: jalur kode SIAP untuk 5 koleksi, flag default MATI.** Satu-satunya penghalang yang tersisa adalah yang tidak bisa saya kerjakan sendiri:
-auth Firebase→Supabase (Third-Party Auth + claim `role`) dan staging. Koleksi siap (`OFFLINE_PARITY_READY`, 7): `session_skip_reasons`, `academic_years`, `class_fund_transactions`, `class_inventory`,
-`student_notes`, `schedules`, `grade_columns` — repository-nya sudah memakai `adapterFor(koleksi)`.
+auth Firebase→Supabase (Third-Party Auth + claim `role`) dan staging. Koleksi siap (`OFFLINE_PARITY_READY`, 9): `session_skip_reasons`, `academic_years`, `class_fund_transactions`, `class_inventory`,
+`student_notes`, `schedules`, `grade_columns`, `grades`, `student_achievements` — repository-nya sudah memakai `adapterFor(koleksi)`.
+`grades` dan `student_achievements` memakai `batchWrite` → butuh migrasi RPC `20261009000200_batch_write.sql` (PR #59) terpasang dulu.
 
 ## Gerbang aktivasi (kode, bukan sekadar dokumen)
 `isSupabaseCollection(c)` benar hanya bila `NEXT_PUBLIC_SUPABASE_COLLECTIONS` memuat `c` **dan** (`c` ∈ `OFFLINE_PARITY_READY`
@@ -20,10 +21,10 @@ Teruji di `tests/data-backend.test.ts` dan `tests/session-skip-reason-repository
 | `updateDocument` | gagal bila tak ada | sama (`not_found`); `workspaceId` immutable; compare-and-swap `updated_at` (3 percobaan) → `conflict` |
 | `setDocument` (merge) | upsert | baca→update atau insert; bentrok insert→update |
 | `deleteDocument` | tak ada = sukses | sama; 0 baris karena RLS = error `denied` (bukan sukses palsu) |
-| `batchWrite` | atomik ≤500 | **ditolak tegas** (butuh RPC transaksional) → koleksi yang memakai batch belum boleh dialihkan |
+| `batchWrite` | atomik ≤500 | RPC `public.batch_write` (SECURITY INVOKER, atomik per panggilan, chunk 500 berurutan; set = merge, delete); offline → satu entri outbox `batch` |
 | Error | `FirebaseError` | `SupabaseAdapterError{kind: offline/network/timeout/auth/denied/conflict/not_found/bad_request/server}` |
 | Retry | SDK | hanya GET (network/timeout/5xx, 2×); tulis TIDAK diulang; 401 → refresh token 1× |
-| Antrean offline | ya | **tidak** — `offline` dilempar tanpa memanggil jaringan |
+| Antrean offline | ya | ya — lapisan offline (bagian Offline); adapter mentah tanpa lapisan itu melempar `offline` |
 
 Perbedaan data yang disengaja: `createdAt/updatedAt` string ISO (bukan `Timestamp`); kolom `null` dihilangkan; field tak berkolom
 (mis. `scheduleId`, `note`) ada di `metadata` jsonb dan difilter lewat `metadata->>field` (tanpa indeks).
@@ -74,9 +75,11 @@ Sudah dialihkan di kode (flag mati): tujuh koleksi di atas. Dampak lintas-modul 
   ikut mengganti `class_name` di koleksi berflag; gagal → error yang menyebut apa yang sudah berubah. Teruji (`tests/supabase-class-rename.test.ts`).
 - **Urutan kolom nilai** memakai `createdAt`: `toMillis` kini menerima string ISO (Supabase) — tanpa ini urutan kolom acak.
 - **Beranda**: alasan skip gagal tidak mematikan ringkasan.
+Nilai `grades.score` dibaca sebagai string (Firestore menyimpan "85"; numeric PostgREST = number).
 Belum bisa dialihkan (alasan konkret):
 - `journals`, `attendances`, `announcements`, `assignments`, `submissions`: disentuh langsung oleh Arsip/Cleanup/Export berbasis Firestore
-  (`dataLifecycleCollections`, `dataArchiveRepository`, `dataCleanupRepository` memakai `batchWrite`/range query) → butuh operator range
-  + RPC batch transaksional + routing lapisan itu sebelum aman.
-- `students`, `grades`, `student_achievements`, `student_login_codes`, `student_profiles`: `batchWrite` / klaim akses siswa (butuh RPC `claim_student_profile` + auth siswa anonim terbukti).
-Urutan berikutnya: RPC `batch_write` (migrasi, PR #59) → students/grades/achievements; lalu range operator + routing Arsip/Cleanup → journals/attendances/announcements/assignments; terakhir submissions.
+  (`dataLifecycleCollections`, `dataArchiveRepository`, `dataCleanupRepository`: range query + `batchWrite`) → butuh operator range di adapter
+  dan routing lapisan itu lewat `adapterFor` sebelum aman.
+- `students` + `student_login_codes`: ditulis dalam SATU batch lintas koleksi dan dibaca alur klaim siswa (`studentAuthRepository`) → harus
+  dialihkan bersamaan dengan RPC `claim_student_login_code`/`claim_student_profile` dan auth siswa anonim yang terbukti.
+Urutan berikutnya: range operator + routing Arsip/Cleanup → journals/attendances/announcements/assignments; lalu students+login codes (bersama klaim siswa); terakhir submissions.

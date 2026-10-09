@@ -11,6 +11,9 @@ import { COLLECTIONS } from '../config/constants';
 // Supabase tidak — lihat docs/MIGRASI-SKIP-REASONS.md bagian Offline).
 
 type Filter = [string, string, unknown];
+export type BatchOp =
+  | { type: 'set'; collectionName: string; id: string; data: Record<string, unknown> }
+  | { type: 'delete'; collectionName: string; id: string };
 type Row = Record<string, unknown>;
 
 export type SupabaseErrorKind =
@@ -71,6 +74,21 @@ const COLUMN_MAP: Record<string, Record<string, string>> = {
     title: 'title',
     type: 'type',
   },
+  [COLLECTIONS.GRADES]: {
+    workspaceId: 'workspace_id',
+    className: 'class_name',
+    studentId: 'student_id',
+    columnId: 'column_id',
+    score: 'score',
+  },
+  [COLLECTIONS.STUDENT_ACHIEVEMENTS]: {
+    workspaceId: 'workspace_id',
+    className: 'class_name',
+    studentId: 'student_id',
+    title: 'title',
+    description: 'description',
+    date: 'date',
+  },
   [COLLECTIONS.STUDENT_NOTES]: {
     workspaceId: 'workspace_id',
     className: 'class_name',
@@ -83,6 +101,10 @@ const COLUMN_MAP: Record<string, Record<string, string>> = {
 /** Koleksi yang sudah punya pemetaan kolom di adapter ini. */
 export const SUPABASE_MAPPED_COLLECTIONS = Object.keys(COLUMN_MAP);
 const SERVER_FIELDS = new Set(['createdAt', 'updatedAt']);
+
+// Tipe baca yang harus sama dengan Firestore: nilai disimpan app sebagai string ("85"), kolom numeric
+// dikembalikan PostgREST sebagai number.
+const READ_AS_STRING: Record<string, string[]> = { [COLLECTIONS.GRADES]: ['score'] };
 const IDENT = /^[A-Za-z0-9_]+$/;
 
 function columns(collectionName: string) {
@@ -116,7 +138,9 @@ export function fromRow(collectionName: string, row: Row) {
   const out: Row = { id: row.id };
   const reverse = Object.fromEntries(Object.entries(map).map(([k, v]) => [v, k]));
   for (const [col, value] of Object.entries(row)) {
-    if (reverse[col] && value !== undefined) out[reverse[col]] = value;
+    if (reverse[col] && value !== undefined) {
+      out[reverse[col]] = value !== null && READ_AS_STRING[collectionName]?.includes(reverse[col]) ? String(value) : value;
+    }
   }
   Object.assign(out, (row.metadata as Row | null) ?? {});
   if (row.created_at) out.createdAt = row.created_at;
@@ -347,11 +371,24 @@ export function createSupabaseAdapter(deps: SupabaseAdapterDeps) {
       return newId();
     },
 
-    // Firestore batch = atomik lintas koleksi; PostgREST tidak punya padanannya. Menolak keras
-    // daripada meniru secara tidak atomik: koleksi yang butuh batch belum boleh dialihkan.
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- tanda tangan sejajar firestoreAdapter
-    async batchWrite(_operations: unknown[]): Promise<never> {
-      throw new SupabaseAdapterError('bad_request', 'batchWrite belum didukung adapter Supabase (butuh RPC transaksional).');
+    // Padanan writeBatch: RPC public.batch_write (SECURITY INVOKER, atomik per panggilan, maks. 500 operasi — chunk
+    // berurutan seperti firestoreAdapter, antar-chunk tidak atomik). Semua operasi harus pada koleksi bermap.
+    // Butuh migrasi 20261009000200_batch_write.sql; tanpa itu → error jelas, bukan sukses palsu.
+    async batchWrite(operations: BatchOp[]) {
+      for (let i = 0; i < operations.length; i += 500) {
+        const chunk = operations.slice(i, i + 500);
+        const p_ops = chunk.map((op) => {
+          columns(op.collectionName);
+          if (op.type === 'delete') return { op: 'delete', table: op.collectionName, id: op.id };
+          if (typeof op.data?.workspaceId !== 'string' || !op.data.workspaceId) {
+            throw new SupabaseAdapterError('bad_request', 'Operasi batch wajib punya workspaceId.');
+          }
+          return { op: 'set', table: op.collectionName, row: { ...toRow(op.collectionName, op.data), id: op.id } };
+        });
+        const res = await request('rpc/batch_write', { method: 'POST', body: JSON.stringify({ p_ops }) });
+        if (res.body !== chunk.length) throw new SupabaseAdapterError('server', 'Batch tidak terkonfirmasi (jumlah operasi tidak sama).');
+      }
+      return true;
     },
   };
   return api;

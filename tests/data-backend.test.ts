@@ -5,13 +5,13 @@ const C = 'session_skip_reasons';
 
 describe('isSupabaseCollection', () => {
   it('default (tanpa env) = Firestore untuk semua koleksi', () => {
-    for (const c of [C, 'grades', 'journals', 'attendances']) expect(isSupabaseCollection(c, undefined, undefined)).toBe(false);
+    for (const c of [C, 'grades', 'students', 'journals', 'attendances']) expect(isSupabaseCollection(c, undefined, undefined)).toBe(false);
     expect(isSupabaseCollection(C, '', 'yes')).toBe(false);
   });
   it('flag tanpa kesiapan offline TIDAK cukup (koleksi di luar daftar siap)', () => {
-    expect(OFFLINE_PARITY_READY).not.toContain('grades');
-    expect(isSupabaseCollection('grades', 'grades', undefined)).toBe(false);
-    expect(isSupabaseCollection('grades', 'grades', 'no')).toBe(false);
+    expect(OFFLINE_PARITY_READY).not.toContain('students');
+    expect(isSupabaseCollection('students', 'students', undefined)).toBe(false);
+    expect(isSupabaseCollection('students', 'students', 'no')).toBe(false);
   });
   it('koleksi siap tetap MATI tanpa flag; menyala hanya bila dicantumkan', () => {
     for (const c of OFFLINE_PARITY_READY) {
@@ -26,6 +26,6 @@ describe('isSupabaseCollection', () => {
   });
   it('override staging hanya membuka koleksi yang DICANTUMKAN, tidak koleksi lain', () => {
     expect(isSupabaseCollection(C, ` ${C} , x`, 'yes')).toBe(true);
-    expect(isSupabaseCollection('grades', C, 'yes')).toBe(false);
+    expect(isSupabaseCollection('students', C, 'yes')).toBe(false);
   });
 });

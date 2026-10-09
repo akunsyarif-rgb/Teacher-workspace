@@ -49,7 +49,7 @@ describe('mapping', () => {
     expect(buildFilterParams(C, [['reason', '==', null]]).get('reason')).toBe('is.null');
     expect(() => buildFilterParams(C, [['date', '>', 'x']])).toThrow(SupabaseAdapterError);
     expect(() => buildFilterParams(C, [['a;drop table x', '==', 'x']])).toThrow(SupabaseAdapterError);
-    expect(() => toRow('grades', {})).toThrow(SupabaseAdapterError);
+    expect(() => toRow('students', {})).toThrow(SupabaseAdapterError);
   });
 });
 
@@ -155,10 +155,6 @@ describe('tulis', () => {
     expect(await adapter.deleteDocument(C, 'b1')).toBe(true);
     expect(fake.store.has('b1')).toBe(true);
   });
-  it('batchWrite ditolak tegas (tidak ditiru tak-atomik)', async () => {
-    const { adapter } = setup();
-    expect((await err(adapter.batchWrite([]))).kind).toBe('bad_request');
-  });
 });
 
 describe('kegagalan', () => {
@@ -207,5 +203,45 @@ describe('kegagalan', () => {
   it('penulisan 2xx tanpa baris dikembalikan tidak dianggap sukses', async () => {
     const { adapter } = setup({ intercept: ({ method }) => (method === 'POST' ? { status: 201, body: [] } : undefined) });
     expect((await err(adapter.addDocument(C, skip()))).kind).toBe('server');
+  });
+});
+
+describe('batchWrite (RPC batch_write)', () => {
+  const g = (id: string, over: Record<string, unknown> = {}) => ({ type: 'set' as const, collectionName: 'session_skip_reasons', id, data: { workspaceId: 'wsA', className: '7A', reason: 'x', ...over } });
+  it('set + delete dalam satu panggilan; id dipertahankan; merge metadata', async () => {
+    const { adapter, fake } = setup({ rows: [{ id: 'del', workspace_id: 'wsA', metadata: {} }] });
+    await adapter.batchWrite([g('a', { scheduleId: 's1' }), g('b'), { type: 'delete', collectionName: C, id: 'del' }]);
+    expect([...fake.store.keys()].sort()).toEqual(['a', 'b']);
+    await adapter.batchWrite([g('a', { note: 'n' })]);
+    expect(fake.store.get('a')).toMatchObject({ metadata: { scheduleId: 's1', note: 'n' } });
+    expect(fake.log.filter((l) => l.path.startsWith('rpc/batch_write'))).toHaveLength(2);
+  });
+  it('>500 operasi dipecah per 500 berurutan', async () => {
+    const { adapter, fake } = setup();
+    await adapter.batchWrite(Array.from({ length: 1001 }, (_, i) => g(`k${i}`)));
+    expect(fake.log.filter((l) => l.path.startsWith('rpc/batch_write'))).toHaveLength(3);
+    expect(fake.store.size).toBe(1001);
+  });
+  it('workspace tenant lain → denied dan TIDAK ada yang tertulis (atomik)', async () => {
+    const { adapter, fake } = setup();
+    const e = await err(adapter.batchWrite([g('ok1'), g('x', { workspaceId: 'wsB' })]));
+    expect(e.kind).toBe('denied');
+    expect(fake.store.size).toBe(0);
+  });
+  it('tanpa workspaceId / koleksi tak dipetakan ditolak sebelum request; jumlah tak cocok = error', async () => {
+    const { adapter, fake } = setup();
+    expect((await err(adapter.batchWrite([{ type: 'set', collectionName: C, id: 'a', data: { reason: 'x' } }]))).kind).toBe('bad_request');
+    expect((await err(adapter.batchWrite([{ type: 'delete', collectionName: 'workspaces', id: 'a' }]))).kind).toBe('bad_request');
+    expect(fake.log).toHaveLength(0);
+    const odd = setup({ intercept: ({ url }) => (url.pathname.endsWith('batch_write') ? { status: 200, body: 0 } : undefined) });
+    expect((await err(odd.adapter.batchWrite([g('a')]))).kind).toBe('server');
+  });
+  it('fungsi RPC belum dipasang (404) → error jelas, bukan sukses', async () => {
+    const { adapter } = setup({ intercept: ({ url }) => (url.pathname.endsWith('batch_write') ? { status: 404, body: { code: 'PGRST202', message: 'not found' } } : undefined) });
+    expect((await err(adapter.batchWrite([g('a')]))).kind).toBe('not_found');
+  });
+  it('nilai grades dibaca sebagai string seperti Firestore', () => {
+    expect(fromRow('grades', { id: 'g', workspace_id: 'w', score: 85 })).toMatchObject({ score: '85' });
+    expect(fromRow('grades', { id: 'g', workspace_id: 'w', score: null })).toMatchObject({ score: null });
   });
 });
