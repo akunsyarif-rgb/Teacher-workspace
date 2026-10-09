@@ -123,7 +123,32 @@ describe('teacher_profiles', () => {
 describe('workspaces', () => {
   it('allows creating a workspace when ownerUid matches the caller', async () => {
     const db = testEnv.authenticatedContext('teacherA').firestore();
-    await assertSucceeds(setDoc(doc(db, 'workspaces/ws1'), { ownerUid: 'teacherA', name: 'Sekolah A' }));
+    await assertSucceeds(
+      setDoc(doc(db, 'workspaces/ws1'), { ownerUid: 'teacherA', name: 'Sekolah A', plan: 'individual_lifetime', classLimit: 3 })
+    );
+  });
+
+  // Celah G1: sebelumnya create hanya memeriksa ownerUid, sehingga plan/batas berbayar bisa ditulis sendiri.
+  it('allows creating a school workspace only with the FREE limits (3 classes, 1 seat)', async () => {
+    const db = testEnv.authenticatedContext('teacherA').firestore();
+    await assertSucceeds(
+      setDoc(doc(db, 'workspaces/ws1'), {
+        ownerUid: 'teacherA', name: 'Sekolah A', plan: 'school_annual', classLimit: 3, seatLimit: 1,
+        inviteCode: 'ABC123', inviteCodeExpiresAt: Date.now() + 100000,
+      })
+    );
+  });
+
+  it('denies creating a workspace with paid/unlimited limits (paywall bypass)', async () => {
+    const db = testEnv.authenticatedContext('teacherA').firestore();
+    const base = { ownerUid: 'teacherA', name: 'Sekolah A' };
+    await assertFails(setDoc(doc(db, 'workspaces/w1'), { ...base })); // tanpa plan/batas
+    await assertFails(setDoc(doc(db, 'workspaces/w2'), { ...base, plan: 'school_annual', classLimit: null, seatLimit: null }));
+    await assertFails(setDoc(doc(db, 'workspaces/w3'), { ...base, plan: 'school_annual', classLimit: 3, seatLimit: 500 }));
+    await assertFails(setDoc(doc(db, 'workspaces/w4'), { ...base, plan: 'individual_lifetime', classLimit: 500 }));
+    await assertFails(setDoc(doc(db, 'workspaces/w5'), { ...base, plan: 'individual_monthly', classLimit: null }));
+    await assertFails(setDoc(doc(db, 'workspaces/w6'), { ...base, plan: 'individual_lifetime', classLimit: 3, planExpiresAt: 9999999999999 }));
+    await assertFails(setDoc(doc(db, 'workspaces/w7'), { ...base, plan: 'individual_lifetime', classLimit: 3, seatLimit: 50 }));
   });
 
   it('denies creating a workspace claiming someone else as owner', async () => {
@@ -310,25 +335,45 @@ describe('audit T2 — join workspace via invite code', () => {
     await assertSucceeds(setDoc(doc(owner, 'workspace_invites/REAL01'), { workspaceId: 'ws1', expiresAt: Date.now() + 100000 }));
   });
 
-  it('full join: new teacher can join a real workspace with a valid, unexpired invite code', async () => {
+  // Celah G3: sebelumnya klaim TEACHER mandiri lolos selama undangan aktif — tanpa kode dan tanpa
+  // cek kuota kursi (juga membuat guru yang dikeluarkan bisa masuk lagi). Gabung kini hanya lewat
+  // /api/workspace/join (Admin SDK), jadi klien tidak boleh menulis role TEACHER sendiri.
+  it('new teacher can PREVIEW a workspace by invite code but can NOT self-claim TEACHER from the client', async () => {
     await seed((db) =>
       setDoc(doc(db, 'workspaces/ws1'), {
         ownerUid: 'ownerX',
         name: 'Sekolah X',
         inviteCode: 'ABC123',
         inviteCodeExpiresAt: Date.now() + 100000,
+        seatLimit: 1,
       })
     );
     await seed((db) => setDoc(doc(db, 'workspace_invites/ABC123'), { workspaceId: 'ws1', expiresAt: Date.now() + 100000 }));
     await seedProfile('newTeacher', null, 'TEACHER'); // profil awal kosong, workspaceId belum ada
 
     const db = testEnv.authenticatedContext('newTeacher').firestore();
-    // Langkah 1: temukan workspace lewat jembatan kode.
     const bridge = await getDoc(doc(db, 'workspace_invites/ABC123'));
     expect(bridge.exists()).toBe(true);
     await assertSucceeds(getDoc(doc(db, 'workspaces/ws1')));
-    // Langkah 2: gabung sungguhan.
-    await assertSucceeds(updateDoc(doc(db, 'teacher_profiles/newTeacher'), { workspaceId: 'ws1', role: 'TEACHER' }));
+    await assertFails(updateDoc(doc(db, 'teacher_profiles/newTeacher'), { workspaceId: 'ws1', role: 'TEACHER' }));
+  });
+
+  it('denies self-creating a TEACHER profile for a workspace with an active invite (no code, no seat check)', async () => {
+    await seed((db) =>
+      setDoc(doc(db, 'workspaces/ws1'), {
+        ownerUid: 'ownerX', name: 'Sekolah X', inviteCode: 'ABC123', inviteCodeExpiresAt: Date.now() + 100000, seatLimit: 1,
+      })
+    );
+    const db = testEnv.authenticatedContext('removedTeacher').firestore();
+    await assertFails(setDoc(doc(db, 'teacher_profiles/removedTeacher'), { workspaceId: 'ws1', role: 'TEACHER', name: 'x' }));
+  });
+
+  it('still lets the workspace OWNER create their own OWNER profile', async () => {
+    await seed((db) =>
+      setDoc(doc(db, 'workspaces/ws1'), { ownerUid: 'ownerX', name: 'Sekolah X', plan: 'individual_lifetime', classLimit: 3 })
+    );
+    const db = testEnv.authenticatedContext('ownerX').firestore();
+    await assertSucceeds(setDoc(doc(db, 'teacher_profiles/ownerX'), { workspaceId: 'ws1', role: 'OWNER', name: 'x' }));
   });
 
   it('denies joining with an EXPIRED invite code, even if the bridge doc still exists', async () => {
@@ -533,28 +578,42 @@ describe('student_login_codes — klaim akun Student Companion', () => {
 });
 
 describe('student_profiles — identitas akun siswa', () => {
-  it('lets a student create their own profile (claiming an access code)', async () => {
+  const profile = { studentId: 's1', workspaceId: 'ws1', className: 'XI-A', name: 'Budi', accessCode: 'ABC123' };
+  const seedCode = () =>
+    seed((db) => setDoc(doc(db, 'student_login_codes/ABC123'), { studentId: 's1', workspaceId: 'ws1', className: 'XI-A', name: 'Budi' }));
+
+  it('lets a student create their own profile (claiming a VALID access code)', async () => {
+    await seedCode();
     const db = testEnv.authenticatedContext('studentUidA').firestore();
-    await assertSucceeds(
-      setDoc(doc(db, 'student_profiles/studentUidA'), {
-        studentId: 's1',
-        workspaceId: 'ws1',
-        className: 'XI-A',
-        name: 'Budi',
-      })
-    );
+    await assertSucceeds(setDoc(doc(db, 'student_profiles/studentUidA'), profile));
+  });
+
+  // Celah G2: sebelumnya create hanya memeriksa uid — profil palsu untuk workspace/kelas mana pun lolos,
+  // lalu isStudentInClass() membuka data kelas itu.
+  it('denies a forged profile: no access code, unknown code, or fields that do not match the code', async () => {
+    await seedCode();
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    const { accessCode, ...noCode } = profile;
+    void accessCode;
+    await assertFails(setDoc(doc(db, 'student_profiles/studentUidA'), noCode));
+    await assertFails(setDoc(doc(db, 'student_profiles/studentUidA'), { ...profile, accessCode: 'NOPE99' }));
+    await assertFails(setDoc(doc(db, 'student_profiles/studentUidA'), { ...profile, className: 'XI-B' }));
+    await assertFails(setDoc(doc(db, 'student_profiles/studentUidA'), { ...profile, workspaceId: 'ws2' }));
+    await assertFails(setDoc(doc(db, 'student_profiles/studentUidA'), { ...profile, studentId: 's2' }));
+  });
+
+  it('a forged profile cannot read another class\'s assignments', async () => {
+    await seedCode();
+    await seed((db) => setDoc(doc(db, 'assignments/a1'), { workspaceId: 'ws1', className: 'XI-B', title: 'T' }));
+    const db = testEnv.authenticatedContext('evil').firestore();
+    await assertFails(setDoc(doc(db, 'student_profiles/evil'), { ...profile, className: 'XI-B' }));
+    await assertFails(getDoc(doc(db, 'assignments/a1')));
   });
 
   it('denies creating a profile document for a different uid', async () => {
+    await seedCode();
     const db = testEnv.authenticatedContext('studentUidA').firestore();
-    await assertFails(
-      setDoc(doc(db, 'student_profiles/studentUidB'), {
-        studentId: 's1',
-        workspaceId: 'ws1',
-        className: 'XI-A',
-        name: 'Budi',
-      })
-    );
+    await assertFails(setDoc(doc(db, 'student_profiles/studentUidB'), profile));
   });
 
   it('denies a stranger from reading another student\'s profile', async () => {
@@ -1082,6 +1141,7 @@ describe('alur klaim kode akses — semua baca yang dibutuhkan harus lolos', () 
         className: code.className,
         name: code.name,
         nis: code.nis,
+        accessCode: 'ABC123', // dicocokkan rules dengan dokumen kode login
       })
     );
 
