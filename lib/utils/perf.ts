@@ -31,10 +31,32 @@ export function startPerf(label: string) {
 /** Ukur satu promise. Error tetap dilempar; durasi tetap dicatat. */
 export async function measure<T>(label: string, fn: () => Promise<T>): Promise<T> {
   const done = startPerf(label);
+  // Tahap yang menggantung tidak pernah memanggil done(), jadi tanpa ini
+  // tidak ada jejaknya sama sekali. Penanda ini membuktikan tahap mana yang macet.
+  const timers = [3000, 8000].map((ms) => setTimeout(() => recordPerf(`${label} - MASIH MENUNGGU >${ms / 1000}s`, ms), ms));
   try {
     return await fn();
   } finally {
+    timers.forEach(clearTimeout);
     done();
+  }
+}
+
+/** Uji seberapa cepat IndexedDB bisa dibuka (Firestore cache lokal memakainya). */
+export function probeIndexedDb() {
+  if (typeof indexedDB === 'undefined') return;
+  const done = startPerf('probe: buka IndexedDB');
+  try {
+    const req = indexedDB.open('__perf_probe__');
+    req.onsuccess = () => {
+      done();
+      try { req.result.close(); indexedDB.deleteDatabase('__perf_probe__'); } catch {}
+    };
+    req.onerror = () => recordPerf('probe: IndexedDB ERROR', 0);
+    req.onblocked = () => recordPerf('probe: IndexedDB BLOCKED', 0);
+    setTimeout(() => recordPerf('probe: IndexedDB belum terbuka >3s', 3000), 3000);
+  } catch {
+    recordPerf('probe: IndexedDB exception', 0);
   }
 }
 

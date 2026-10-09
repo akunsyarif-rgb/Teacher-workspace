@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import type { PerfEntry } from '@/lib/utils/perf';
+import { probeIndexedDb, type PerfEntry } from '@/lib/utils/perf';
 
 // Tampil hanya kalau URL memuat ?perf=1 — untuk membaca hasil pengukuran
 // di perangkat tanpa devtools (mis. iPad). Tidak tampil bagi pengguna biasa.
@@ -15,6 +15,7 @@ export default function PerfOverlay() {
       try {
         if (new URLSearchParams(window.location.search).get('perf') === '1') {
           setEnabled(true);
+          probeIndexedDb();
           sync();
         }
       } catch {}
