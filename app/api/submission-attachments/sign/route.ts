@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
         method: 'POST',
         headers: {
           apikey: key,
-          Authorization: `Bearer ${key}`,
+          ...(key.startsWith('eyJ') ? { Authorization: `Bearer ${key}` } : {}),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ expiresIn: SIGNED_URL_TTL_SECONDS }),

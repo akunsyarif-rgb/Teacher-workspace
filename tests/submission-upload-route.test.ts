@@ -76,7 +76,19 @@ describe('POST /upload', () => {
   });
   it('502 bila Supabase error', async () => {
     fetchMock.mockResolvedValue(new Response('boom', { status: 500 }));
-    expect((await upload(req('/u', body))).status).toBe(502);
+    const res = await upload(req('/u', body));
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toContain('500');
+  });
+  it('key sb_secret_ dikirim hanya via apikey; JWT lama juga via Bearer', async () => {
+    fetchMock.mockImplementation(async () => Response.json({ url: '/object/upload/sign/b/p?token=T' }));
+    process.env.SUPABASE_SECRET_KEY = 'sb_secret_abc';
+    await upload(req('/u', body));
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBeUndefined();
+    expect(fetchMock.mock.calls[0][1].headers.apikey).toBe('sb_secret_abc');
+    process.env.SUPABASE_SECRET_KEY = 'eyJhbGci.x.y';
+    await upload(req('/u', body));
+    expect(fetchMock.mock.calls[1][1].headers.Authorization).toBe('Bearer eyJhbGci.x.y');
   });
   it('503 bila env Supabase hilang', async () => {
     delete process.env.SUPABASE_URL;

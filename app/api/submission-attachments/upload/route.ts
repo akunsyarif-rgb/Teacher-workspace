@@ -120,7 +120,9 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers: {
         apikey: key,
-        Authorization: `Bearer ${key}`,
+        // Secret key format baru (sb_secret_...) bukan JWT: kirim lewat
+        // apikey saja. Authorization Bearer hanya untuk service_role JWT lama.
+        ...(key.startsWith('eyJ') ? { Authorization: `Bearer ${key}` } : {}),
         'Content-Type': 'application/json',
         'x-upsert': 'false',
       },
@@ -130,8 +132,23 @@ export async function POST(request: NextRequest) {
     });
 
     if (!response.ok) {
-      console.error('Supabase signed upload URL failed:', response.status, await response.text().catch(() => ''));
-      return NextResponse.json({ error: 'Upload belum bisa disiapkan. Coba lagi setelah koneksi stabil.' }, { status: 502 });
+      const detail = await response.text().catch(() => '');
+      console.error('Supabase signed upload URL failed:', response.status, detail);
+      // Status + pesan error Supabase (mis. "Bucket not found", "Invalid JWT")
+      // aman ditampilkan — tidak memuat key — dan menghilangkan tebak-tebakan.
+      let upstreamMessage = '';
+      try {
+        const parsed = JSON.parse(detail);
+        upstreamMessage = String(parsed?.message || parsed?.error || '').slice(0, 120);
+      } catch {}
+      return NextResponse.json(
+        {
+          error: `Upload belum bisa disiapkan (penyimpanan menolak: ${response.status}${upstreamMessage ? ` – ${upstreamMessage}` : ''}).`,
+          code: 'supabase_sign_failed',
+          upstreamStatus: response.status,
+        },
+        { status: 502 }
+      );
     }
 
     const result = await response.json();
