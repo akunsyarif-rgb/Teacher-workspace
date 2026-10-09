@@ -14,7 +14,9 @@ export function submissionFilePath(fileUrl?: string | null, filePath?: string | 
   // filePath Firebase lama juga memakai submissions/...; hanya sentinel
   // provider yang membedakan file Supabase agar tautan lama tetap berfungsi.
   if (!isSupabaseSubmissionFile(fileUrl)) return null;
-  return fileUrl!.slice(SUPABASE_FILE_PREFIX.length);
+  const path = fileUrl!.slice(SUPABASE_FILE_PREFIX.length);
+  if (filePath && filePath !== path) return null;
+  return path;
 }
 
 export function validateSupabaseSubmissionFile(file: File) {
