@@ -37,7 +37,8 @@ export default function PlanStatusCard() {
         </div>
       </div>
 
-      <div className="p-3 bg-gray-50 rounded-xl text-xs space-y-1">
+      {/* text-gray-600 eksplisit: tanpa itu label mengikuti warna bawaan body, yang hampir putih di mode gelap (tak terbaca di atas latar abu muda). */}
+      <div className="p-3 bg-gray-50 rounded-xl text-xs text-gray-600 space-y-1">
         <p>
           Paket saat ini: <span className="font-bold text-gray-900">{planLabel}</span>
         </p>
