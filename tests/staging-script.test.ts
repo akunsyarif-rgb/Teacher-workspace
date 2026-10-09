@@ -9,7 +9,7 @@ import { psql, withDb } from './rls/harness';
 const ROOT = path.resolve(__dirname, '..');
 const run = (args: string[], url: string, env: Record<string, string> = {}) =>
   spawnSync('bash', ['scripts/supabase/staging.sh', ...args], {
-    cwd: ROOT, encoding: 'utf8', env: { PATH: process.env.PATH ?? '', STAGING_DB_URL: url, ...env } as NodeJS.ProcessEnv,
+    cwd: ROOT, encoding: 'utf8', env: { PATH: process.env.PATH ?? '', STAGING_DB_URL: url, ...env } as unknown as NodeJS.ProcessEnv,
   });
 
 const SMADA = 'postgresql://postgres:RAHASIA-1@db.abdkrhmxfpcmgzsxzfyz.supabase.co:5432/postgres';
