@@ -75,11 +75,22 @@ describe('runBackfill', () => {
     expect(r.exitCode).toBe(1);
     expect(r.report.missingInSupabase.sort()).toEqual(['a', 'b']);
   });
+  it('respons tulis berbadan kosong (201/204, return=minimal) diterima sebagai sukses — regresi bug nyata', async () => {
+    const store: unknown[] = [];
+    const fetchImpl = (async (_u: string, init?: RequestInit) => {
+      if (init?.method === 'POST') { store.push(...JSON.parse(String(init.body))); return { ok: true, status: 201, text: async () => '' }; }
+      return { ok: true, status: 200, text: async () => JSON.stringify(store) };
+    }) as unknown as typeof fetch;
+    const io = createSupabaseBackfillIO({ url: `https://${STAGING}.supabase.co`, key: 'k' }, { readFirestore: async () => [d('a')] }, fetchImpl);
+    const r = await runBackfill({ workspaceId: 'w1', apply: true }, io);
+    expect(r.failedBatches).toEqual([]);
+    expect(r.exitCode).toBe(0);
+  });
   it('dry-run di tingkat HTTP: hanya GET, tidak ada POST/PATCH/DELETE', async () => {
     const methods: string[] = [];
     const fetchImpl = (async (_u: string, init?: RequestInit) => {
       methods.push(init?.method ?? 'GET');
-      return { ok: true, status: 200, json: async () => [], text: async () => '' };
+      return { ok: true, status: 200, text: async () => '[]' };
     }) as unknown as typeof fetch;
     const io = createSupabaseBackfillIO({ url: `https://${STAGING}.supabase.co`, key: 'k' }, { readFirestore: async () => [d('a')] }, fetchImpl);
     await runBackfill({ workspaceId: 'w1', apply: false }, io);

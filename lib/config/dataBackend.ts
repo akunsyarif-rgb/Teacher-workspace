@@ -1,12 +1,22 @@
 // Pemilih backend data per koleksi. Default SEMUA koleksi memakai Firestore.
-// Supabase hanya aktif bila koleksi dicantumkan eksplisit di
-// NEXT_PUBLIC_SUPABASE_COLLECTIONS (daftar dipisah koma), mis. "session_skip_reasons".
+// Supabase aktif hanya bila SEMUA syarat terpenuhi:
+//   1. koleksi dicantumkan di NEXT_PUBLIC_SUPABASE_COLLECTIONS (dipisah koma), DAN
+//   2. koleksi ada di OFFLINE_PARITY_READY (punya padanan perilaku offline Firestore), ATAU
+//      NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE=yes (khusus Preview/staging uji — jangan di produksi).
 // Tidak ada dual-write: satu koleksi = satu sumber kebenaran pada satu waktu.
-// Jangan aktifkan di produksi sebelum backfill + verifikasi (docs/MIGRASI-SUPABASE.md).
+//
+// Kosong sengaja: aplikasi menjanjikan tulis-offline (OfflineBanner, tab Presensi/Jurnal/Nilai)
+// dan adapter Supabase belum punya antrean offline. Isi daftar ini hanya setelah padanannya
+// ada, teruji, dan disetujui (docs/MIGRASI-SKIP-REASONS.md).
+export const OFFLINE_PARITY_READY: readonly string[] = [];
+
 export function isSupabaseCollection(
   collectionName: string,
-  raw: string | undefined = process.env.NEXT_PUBLIC_SUPABASE_COLLECTIONS
+  raw: string | undefined = process.env.NEXT_PUBLIC_SUPABASE_COLLECTIONS,
+  stagingOverride: string | undefined = process.env.NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE
 ) {
   if (!raw) return false;
-  return raw.split(',').map((s) => s.trim()).filter(Boolean).includes(collectionName);
+  const listed = raw.split(',').map((s) => s.trim()).filter(Boolean).includes(collectionName);
+  if (!listed) return false;
+  return OFFLINE_PARITY_READY.includes(collectionName) || stagingOverride === 'yes';
 }

@@ -108,7 +108,9 @@ export function createSupabaseBackfillIO(
       headers: { apikey: cfg.key, Authorization: `Bearer ${cfg.key}`, 'Content-Type': 'application/json', ...(init.headers ?? {}) },
     });
     if (!res.ok) throw new Error(`Supabase ${res.status}: ${(await res.text()).slice(0, 200)}`);
-    return res.status === 204 ? null : res.json();
+    // 201/204 dengan Prefer: return=minimal berbadan kosong — jangan di-parse sebagai JSON.
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
   }
   return {
     readFirestore: base.readFirestore,

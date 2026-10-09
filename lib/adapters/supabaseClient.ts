@@ -14,7 +14,7 @@ export function getSupabaseAdapter() {
   instance = createSupabaseAdapter({
     url,
     publishableKey,
-    getToken: async () => (auth.currentUser ? auth.currentUser.getIdToken() : null),
+    getToken: async (forceRefresh) => (auth.currentUser ? auth.currentUser.getIdToken(forceRefresh === true) : null),
   });
   return instance;
 }
