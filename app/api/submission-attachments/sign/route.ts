@@ -7,7 +7,7 @@ const BUCKET = 'submission-attachments';
 const SIGNED_URL_TTL_SECONDS = 300;
 
 function supabaseConfig() {
-  const url = process.env.SUPABASE_URL?.replace(/\/+$/, '');
+  const url = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)?.replace(/\/+$/, '');
   const key = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error('Konfigurasi penyimpanan Supabase belum lengkap.');
   return { url, key };
