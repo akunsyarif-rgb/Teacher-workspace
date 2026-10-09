@@ -11,7 +11,8 @@ export function isSupabaseSubmissionFile(fileUrl?: string | null) {
 }
 
 export function submissionFilePath(fileUrl?: string | null, filePath?: string | null) {
-  if (filePath && filePath.startsWith('submissions/')) return filePath;
+  // filePath Firebase lama juga memakai submissions/...; hanya sentinel
+  // provider yang membedakan file Supabase agar tautan lama tetap berfungsi.
   if (!isSupabaseSubmissionFile(fileUrl)) return null;
   return fileUrl!.slice(SUPABASE_FILE_PREFIX.length);
 }
@@ -30,8 +31,7 @@ export async function uploadSubmissionFile(
   file: File,
   _uniquePrefix?: string
 ) {
-  if (file.size >= MAX_UPLOAD_BYTES) throw userError('Ukuran file maksimal 10 MB. Kecilkan dulu fotonya lalu coba lagi.');
-  if (!resolveUploadContentType(file)) throw userError('Format file harus gambar, PDF, atau dokumen Word.');
+  const contentType = validateSupabaseSubmissionFile(file);
   const user = auth.currentUser;
   if (!user) throw userError('Sesi tidak valid, coba muat ulang halaman.', 'unauthenticated');
 
