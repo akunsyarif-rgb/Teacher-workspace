@@ -46,15 +46,17 @@ export async function measure<T>(label: string, fn: () => Promise<T>): Promise<T
 export function probeIndexedDb() {
   if (typeof indexedDB === 'undefined') return;
   const done = startPerf('probe: buka IndexedDB');
+  let opened = false;
   try {
     const req = indexedDB.open('__perf_probe__');
     req.onsuccess = () => {
+      opened = true;
       done();
       try { req.result.close(); indexedDB.deleteDatabase('__perf_probe__'); } catch {}
     };
     req.onerror = () => recordPerf('probe: IndexedDB ERROR', 0);
     req.onblocked = () => recordPerf('probe: IndexedDB BLOCKED', 0);
-    setTimeout(() => recordPerf('probe: IndexedDB belum terbuka >3s', 3000), 3000);
+    setTimeout(() => { if (!opened) recordPerf('probe: IndexedDB belum terbuka >3s', 3000); }, 3000);
   } catch {
     recordPerf('probe: IndexedDB exception', 0);
   }

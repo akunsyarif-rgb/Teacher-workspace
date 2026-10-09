@@ -1,5 +1,12 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, connectAuthEmulator } from "firebase/auth";
+import {
+  getAuth,
+  initializeAuth,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
+  connectAuthEmulator,
+} from "firebase/auth";
 import {
   initializeFirestore,
   getFirestore,
@@ -27,7 +34,23 @@ const firebaseConfig = {
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-export const auth = getAuth(app);
+// Aplikasi hanya memakai login email-password dan anonim — tidak ada popup/
+// redirect. getAuth() bawaan tetap menyiapkan iframe login-popup ke domain
+// authDomain, dan di Safari (ITP memblokir penyimpanan lintas-domain) itu
+// bisa menunda pemulihan sesi belasan detik (terukur ~10 dtk di iPad).
+// initializeAuth tanpa popupRedirectResolver melewati iframe itu; persistensi
+// sama (IndexedDB lalu localStorage), jadi sesi yang sudah ada tetap terbaca.
+// try/catch: initializeAuth melempar kalau Auth sudah diinisialisasi (HMR).
+export const auth = (() => {
+  if (typeof window === "undefined") return getAuth(app);
+  try {
+    return initializeAuth(app, {
+      persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence],
+    });
+  } catch {
+    return getAuth(app);
+  }
+})();
 
 // Beberapa jaringan (WiFi sekolah/publik, kartu seluler tertentu) memblokir
 // koneksi streaming yang dipakai Firestore secara default, sehingga muncul
