@@ -16,6 +16,14 @@ export function submissionFilePath(fileUrl?: string | null, filePath?: string | 
   return fileUrl!.slice(SUPABASE_FILE_PREFIX.length);
 }
 
+export function validateSupabaseSubmissionFile(file: File) {
+  if (file.size <= 0 || file.size >= MAX_UPLOAD_BYTES) throw userError('Ukuran file maksimal 10 MB. Kecilkan dulu fotonya lalu coba lagi.');
+  const contentType = resolveUploadContentType(file);
+  const supabaseAllowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
+  if (!contentType || !supabaseAllowed.has(contentType)) throw userError('Format file belum didukung oleh penyimpanan tugas. Gunakan JPG, PNG, WebP, HEIC, PDF, atau Word.');
+  return contentType;
+}
+
 export async function uploadSubmissionFile(
   workspaceId: string,
   assignmentId: string,
