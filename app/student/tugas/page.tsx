@@ -232,8 +232,14 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
         // otomatis lanjut tanpa foto, supaya tidak mengejutkan).
         console.error("Gagal mengunggah lampiran:", uploadError);
         setShowDriveLink(true);
+        // Alasan spesifik (sesi habis, server belum dikonfigurasi, tenggat,
+        // ukuran/format) ditampilkan kalau memang ditulis untuk siswa —
+        // bukan lagi disamarkan jadi satu pesan generik.
+        const reason = (uploadError as { userFacing?: boolean; message?: string })?.userFacing
+          ? ` ${(uploadError as Error).message}`
+          : "";
         setSubmitError(
-          "Foto tidak dapat diunggah. Anda tetap dapat mengumpulkan tugas dengan menempelkan link Google Drive, atau coba unggah foto lagi."
+          `Foto tidak dapat diunggah.${reason} Anda tetap dapat mengumpulkan tugas dengan menempelkan link Google Drive, atau coba unggah foto lagi.`
         );
         submittingRef.current = false;
         setUploading(false);

@@ -18,10 +18,16 @@ const ALLOWED_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]);
 
+class SupabaseConfigError extends Error {
+  constructor() {
+    super('Konfigurasi penyimpanan Supabase belum lengkap.');
+  }
+}
+
 function supabaseConfig() {
   const url = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)?.replace(/\/+$/, '');
   const key = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error('Konfigurasi penyimpanan Supabase belum lengkap.');
+  if (!url || !key) throw new SupabaseConfigError();
   return { url, key };
 }
 
@@ -38,11 +44,26 @@ export async function POST(request: NextRequest) {
   const idToken = authHeader.replace(/^Bearer\s+/i, '').trim();
   if (!idToken) return NextResponse.json({ error: 'Token otentikasi diperlukan.' }, { status: 401 });
 
+  // Inisialisasi Admin SDK dipisah dari verifikasi token: env var service
+  // account yang hilang bukan "sesi tidak valid" milik siswa, jadi tidak
+  // boleh disamarkan sebagai 401.
+  let adminAuth: ReturnType<typeof getAdminAuth>;
+  try {
+    adminAuth = getAdminAuth();
+  } catch (error) {
+    console.error('Firebase Admin tidak dapat diinisialisasi:', error instanceof Error ? error.message : error);
+    return NextResponse.json(
+      { error: 'Server belum dikonfigurasi untuk unggah lampiran. Hubungi gurumu.', code: 'server_config' },
+      { status: 503 }
+    );
+  }
+
   let uid: string;
   try {
-    uid = (await getAdminAuth().verifyIdToken(idToken)).uid;
-  } catch {
-    return NextResponse.json({ error: 'Sesi tidak valid. Silakan masuk kembali.' }, { status: 401 });
+    uid = (await adminAuth.verifyIdToken(idToken)).uid;
+  } catch (error) {
+    console.error('Verifikasi token Firebase gagal:', error instanceof Error ? error.message : error);
+    return NextResponse.json({ error: 'Sesi tidak valid. Silakan masuk kembali.', code: 'invalid_token' }, { status: 401 });
   }
 
   try {
@@ -105,6 +126,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({}),
       cache: 'no-store',
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!response.ok) {
@@ -126,6 +148,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ signedUrl, token, path, fileName });
   } catch (error) {
+    if (error instanceof SupabaseConfigError) {
+      console.error('Env Supabase (URL / SECRET_KEY) tidak tersedia saat runtime.');
+      return NextResponse.json({ error: 'Penyimpanan lampiran belum dikonfigurasi. Hubungi gurumu.', code: 'server_config' }, { status: 503 });
+    }
     console.error('Submission upload authorization error:', error);
     return NextResponse.json({ error: 'Upload belum bisa disiapkan. Periksa koneksi dan coba lagi.' }, { status: 500 });
   }
