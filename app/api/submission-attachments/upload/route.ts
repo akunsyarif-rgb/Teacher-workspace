@@ -35,7 +35,7 @@ function encodedPath(path: string) {
 
 export async function POST(request: NextRequest) {
   const authHeader = request.headers.get('authorization') || '';
-  const idToken = authHeader.replace(/^Bearer\s+/i, '').trim();
+  const idToken = authHeader.replace(/^Bearer\\s+/i, '').trim();
   if (!idToken) return NextResponse.json({ error: 'Token otentikasi diperlukan.' }, { status: 401 });
 
   let uid: string;
@@ -46,19 +46,17 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const form = await request.formData();
-    const workspaceId = form.get('workspaceId');
-    const assignmentId = form.get('assignmentId');
-    const file = form.get('file');
-    const contentType = form.get('contentType');
-
-    if (typeof workspaceId !== 'string' || !workspaceId || typeof assignmentId !== 'string' || !assignmentId) {
-      return NextResponse.json({ error: 'Data tugas tidak valid.' }, { status: 400 });
+    const body = await request.json();
+    const { workspaceId, assignmentId, fileName, contentType, fileSize } = body ?? {};
+    if (
+      typeof workspaceId !== 'string' || !workspaceId ||
+      typeof assignmentId !== 'string' || !assignmentId ||
+      typeof fileName !== 'string' || !fileName ||
+      typeof fileSize !== 'number' || !Number.isInteger(fileSize)
+    ) {
+      return NextResponse.json({ error: 'Data tugas atau file tidak valid.' }, { status: 400 });
     }
-    if (!(file instanceof File)) {
-      return NextResponse.json({ error: 'File lampiran tidak ditemukan.' }, { status: 400 });
-    }
-    if (file.size <= 0 || file.size >= MAX_FILE_BYTES) {
+    if (fileSize <= 0 || fileSize >= MAX_FILE_BYTES) {
       return NextResponse.json({ error: 'Ukuran file harus kurang dari 10 MB.' }, { status: 413 });
     }
     if (typeof contentType !== 'string' || !ALLOWED_TYPES.has(contentType)) {
@@ -83,9 +81,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Tugas tidak ditemukan untuk kelas atau akun ini.' }, { status: 403 });
     }
 
-    // Tegakkan tenggat dan status penilaian sebelum menerima file, agar
-    // endpoint upload tidak bisa dipakai mengumpulkan setelah ditutup atau
-    // mengunggah lampiran yatim untuk tugas yang sudah dikunci guru.
+    // Tegakkan tenggat dan status penilaian sebelum membuat token upload,
+    // agar endpoint tidak bisa dipakai untuk tugas yang sudah ditutup.
     const existingSubmissionSnap = await db.collection('submissions').doc(`${assignmentId}_${student.studentId}`).get();
     const gate = canStudentSubmit(existingSubmissionSnap.exists ? existingSubmissionSnap.data() : null, assignment?.dueDate);
     if (!gate.allowed) {
@@ -93,34 +90,43 @@ export async function POST(request: NextRequest) {
     }
 
     const { url, key } = supabaseConfig();
-    const fileName = safeName(file.name);
-    const path = `submissions/${workspaceId}/${assignmentId}/${uid}/${randomUUID()}_${fileName}`;
-    const response = await fetch(`${url}/storage/v1/object/${BUCKET}/${encodedPath(path)}`, {
+    const safeFileName = safeName(fileName);
+    const path = `submissions/${workspaceId}/${assignmentId}/${uid}/${randomUUID()}_${safeFileName}`;
+    // File besar tidak melewati Vercel Function (yang memiliki batas payload
+    // lebih kecil dari batas bucket). Server hanya memberi token upload
+    // sekali pakai untuk path unik setelah memeriksa izin Firebase.
+    const response = await fetch(`${url}/storage/v1/object/upload/sign/${BUCKET}/${encodedPath(path)}`, {
       method: 'POST',
       headers: {
         apikey: key,
         Authorization: `Bearer ${key}`,
-        'Content-Type': contentType,
+        'Content-Type': 'application/json',
         'x-upsert': 'false',
       },
-      body: await file.arrayBuffer(),
+      body: JSON.stringify({}),
       cache: 'no-store',
     });
 
     if (!response.ok) {
-      console.error('Supabase submission upload failed:', response.status, await response.text().catch(() => ''));
-      return NextResponse.json({ error: 'Foto belum berhasil disimpan. Coba lagi setelah koneksi stabil.' }, { status: 502 });
+      console.error('Supabase signed upload URL failed:', response.status, await response.text().catch(() => ''));
+      return NextResponse.json({ error: 'Upload belum bisa disiapkan. Coba lagi setelah koneksi stabil.' }, { status: 502 });
     }
 
-    // URL stabil ini bukan tautan publik. File hanya dapat dibuka lewat
-    // endpoint penandatangan yang memverifikasi sesi Firebase dan hak akses.
-    return NextResponse.json({
-      fileUrl: `supabase-storage://${BUCKET}/${path}`,
-      fileName: file.name,
-      filePath: path,
-    });
+    const result = await response.json();
+    const token = result.token || new URL(result.url, `${url}/storage/v1`).searchParams.get('token');
+    if (typeof token !== 'string' || !token) {
+      return NextResponse.json({ error: 'Token upload sementara tidak berhasil dibuat.' }, { status: 502 });
+    }
+    const signedUrl = result.url?.startsWith('http')
+      ? result.url
+      : `${url}/storage/v1${String(result.url || '').startsWith('/') ? result.url : `/${result.url || ''}`}`;
+    if (!signedUrl || signedUrl.endsWith('/')) {
+      return NextResponse.json({ error: 'URL upload sementara tidak valid.' }, { status: 502 });
+    }
+
+    return NextResponse.json({ signedUrl, token, path, fileName });
   } catch (error) {
-    console.error('Submission upload error:', error);
-    return NextResponse.json({ error: 'Upload belum berhasil. Periksa koneksi dan coba lagi.' }, { status: 500 });
+    console.error('Submission upload authorization error:', error);
+    return NextResponse.json({ error: 'Upload belum bisa disiapkan. Periksa koneksi dan coba lagi.' }, { status: 500 });
   }
 }
