@@ -5,6 +5,7 @@ import {
   getAttendancesInRange,
   getJournalCount,
 } from '../repositories/dashboardRepository';
+import { measure } from '../utils/perf';
 import { getByDate as getSkipReasonsByDate } from '../repositories/sessionSkipReasonRepository';
 import { sortSchedulesChronologically, classifySessionState, SessionState } from '../utils/scheduleTime';
 import {
@@ -93,12 +94,12 @@ export async function loadDashboardSummary(workspaceId: string): Promise<Dashboa
   const sevenDaysAgo = getDaysAgo(6); // 6 hari lalu s/d hari ini = 7 hari
 
   const [students, journals, schedules, attendances, totalJournalsCount, skipReasonsToday] = await Promise.all([
-    getAllStudentsForSummary(workspaceId),
-    getJournalsInRange(workspaceId, sevenDaysAgo, todayDate),
-    getAllSchedulesForSummary(workspaceId),
-    getAttendancesInRange(workspaceId, sevenDaysAgo, todayDate),
-    getJournalCount(workspaceId),
-    getSkipReasonsByDate(workspaceId, todayDate),
+    measure('ringkasan: siswa', () => getAllStudentsForSummary(workspaceId)),
+    measure('ringkasan: jurnal 7 hari', () => getJournalsInRange(workspaceId, sevenDaysAgo, todayDate)),
+    measure('ringkasan: jadwal', () => getAllSchedulesForSummary(workspaceId)),
+    measure('ringkasan: presensi 7 hari', () => getAttendancesInRange(workspaceId, sevenDaysAgo, todayDate)),
+    measure('ringkasan: hitung jurnal', () => getJournalCount(workspaceId)),
+    measure('ringkasan: alasan skip', () => getSkipReasonsByDate(workspaceId, todayDate)),
   ]);
 
   const uniqueClasses = Array.from(

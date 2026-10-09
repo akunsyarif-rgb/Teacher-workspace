@@ -9,8 +9,10 @@ import StudentShell from "@/src/components/student/StudentShell";
 import { SkeletonCard } from "@/src/components/ui/Skeleton";
 import * as studentPortalController from "@/lib/controllers/studentPortalController";
 import type { StudentProfile } from "@/src/context/StudentAuthContext";
+import { useAttachmentViewer } from "@/src/components/assignments/AttachmentViewer";
 
 function ProfileContent({ profile }: { profile: StudentProfile }) {
+  const { open: openAttachment, viewer } = useAttachmentViewer();
   const router = useRouter();
   const [portfolio, setPortfolio] = useState<any[]>([]);
   const [achievements, setAchievements] = useState<any[]>([]);
@@ -143,8 +145,12 @@ function ProfileContent({ profile }: { profile: StudentProfile }) {
                 : []
               ).map((att: any, idx: number) => (
                 <a
-                  key={`${att.fileUrl}-${idx}`}
-                  href={att.fileUrl}
+                  key={`${att.filePath || att.fileUrl}-${idx}`}
+                  href={att.fileUrl.startsWith("supabase-storage://") ? "#" : att.fileUrl}
+                  onClick={(event) => {
+ event.preventDefault();
+ openAttachment(att);
+ }}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline"
@@ -164,6 +170,7 @@ function ProfileContent({ profile }: { profile: StudentProfile }) {
           ))
         )}
       </div>
+      {viewer}
     </div>
   );
 }

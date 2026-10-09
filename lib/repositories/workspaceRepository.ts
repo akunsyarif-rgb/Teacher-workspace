@@ -1,5 +1,6 @@
 import {
   getDocument,
+  getDocumentFromCache,
   setDocument,
   updateDocument,
   generateId,
@@ -48,6 +49,10 @@ export async function createWorkspaceDoc(data: WorkspaceDoc) {
     await writeInviteBridge(id, data.inviteCode, data.inviteCodeExpiresAt);
   }
   return id;
+}
+
+export async function getCachedWorkspaceById(workspaceId: string) {
+  return getDocumentFromCache(WORKSPACES_COLLECTION, workspaceId) as Promise<(WorkspaceDoc & { id: string }) | null>;
 }
 
 export async function getWorkspaceById(workspaceId: string) {

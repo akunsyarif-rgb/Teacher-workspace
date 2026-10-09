@@ -7,7 +7,10 @@ import { SkeletonCard } from "@/src/components/ui/Skeleton";
 import InlineAlert from "@/src/components/ui/InlineAlert";
 import * as studentPortalController from "@/lib/controllers/studentPortalController";
 import * as submissionController from "@/lib/controllers/submissionController";
-import { uploadSubmissionFiles, validateUploadFile, MAX_SUBMISSION_FILES } from "@/lib/adapters/storageAdapter";
+import { MAX_SUBMISSION_FILES } from "@/lib/adapters/storageAdapter";
+import { uploadSubmissionFiles, validateSupabaseSubmissionFile } from "@/lib/adapters/supabaseSubmissionStorage";
+import { measure } from "@/lib/utils/perf";
+import { useAttachmentViewer } from "@/src/components/assignments/AttachmentViewer";
 import { SUBMISSION_STATUS } from "@/lib/config/constants";
 import { canStudentSubmit, describeSubmissionError, isPastDue } from "@/lib/utils/submissionRules";
 import { isValidSubmissionLink, SUBMISSION_LINK_ERROR_MESSAGE } from "@/lib/utils/submissionLink";
@@ -50,6 +53,7 @@ function formatSubmittedAt(iso?: string | null) {
 }
 
 function AssignmentsContent({ profile }: { profile: StudentProfile }) {
+  const { open: openAttachment, viewer } = useAttachmentViewer();
   const [assignments, setAssignments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -91,11 +95,11 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
 
   const loadAssignments = useCallback(async () => {
     try {
-      const result = await studentPortalController.fetchAssignments({
+      const result = await measure('tugas: muat daftar tugas', () => studentPortalController.fetchAssignments({
         workspaceId: profile.workspaceId,
         className: profile.className,
         studentId: profile.studentId,
-      });
+      }));
       setAssignments(result);
     } catch (error) {
       console.error("Gagal memuat tugas:", error);
@@ -154,7 +158,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
       try {
         // Dicek di sini juga supaya siswa tahu file-nya ditolak sebelum
         // menunggu unggahan besar selesai lalu gagal di Storage rules.
-        validateUploadFile(candidate);
+        validateSupabaseSubmissionFile(candidate);
         toAdd.push(candidate);
       } catch (error: any) {
         setSubmitError(describeSubmissionError(error));
@@ -222,7 +226,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
     if (files.length > 0) {
       setUploading(true);
       try {
-        attachments = await uploadSubmissionFiles(scope.workspaceId, assignment.id, files);
+        attachments = await measure('kirim: unggah semua lampiran', () => uploadSubmissionFiles(scope.workspaceId, assignment.id, files));
       } catch (uploadError) {
         // Upload gagal BUKAN alasan menggagalkan seluruh pengumpulan kalau
         // siswa punya jawaban teks atau link Google Drive sebagai
@@ -231,8 +235,14 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
         // otomatis lanjut tanpa foto, supaya tidak mengejutkan).
         console.error("Gagal mengunggah lampiran:", uploadError);
         setShowDriveLink(true);
+        // Alasan spesifik (sesi habis, server belum dikonfigurasi, tenggat,
+        // ukuran/format) ditampilkan kalau memang ditulis untuk siswa —
+        // bukan lagi disamarkan jadi satu pesan generik.
+        const reason = (uploadError as { userFacing?: boolean; message?: string })?.userFacing
+          ? ` ${(uploadError as Error).message}`
+          : "";
         setSubmitError(
-          "Foto tidak dapat diunggah. Anda tetap dapat mengumpulkan tugas dengan menempelkan link Google Drive, atau coba unggah foto lagi."
+          `Foto tidak dapat diunggah.${reason} Anda tetap dapat mengumpulkan tugas dengan menempelkan link Google Drive, atau coba unggah foto lagi.`
         );
         submittingRef.current = false;
         setUploading(false);
@@ -246,14 +256,14 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
     // di atas), jangan sampai terhapus hanya karena teksnya diperbaiki.
 
     try {
-      await submissionController.submitAssignment(
+      await measure('kirim: simpan pengumpulan (Firestore)', () => submissionController.submitAssignment(
         scope.workspaceId,
         assignment.id,
         scope.studentId,
         scope.className,
         { textAnswer: answer, attachments, externalLink: resolvedExternalLink, answerPasted },
         assignment.dueDate
-      );
+      ));
       setOpenId(null);
       setAnswer("");
       setFiles([]);
@@ -531,8 +541,12 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                 )}
                 {existingAttachments.map((att, idx) => (
                   <a
-                    key={`${att.fileUrl}-${idx}`}
-                    href={att.fileUrl}
+                    key={`${att.filePath || att.fileUrl}-${idx}`}
+                    href={att.fileUrl.startsWith("supabase-storage://") ? "#" : att.fileUrl}
+                    onClick={(event) => {
+ event.preventDefault();
+ openAttachment(att);
+ }}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline"
@@ -557,6 +571,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
           </div>
         );
       })}
+      {viewer}
     </div>
   );
 }

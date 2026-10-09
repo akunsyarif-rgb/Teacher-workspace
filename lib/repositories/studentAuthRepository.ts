@@ -1,4 +1,4 @@
-import { getDocument, batchWrite, BatchOperation } from '../adapters/firestoreAdapter';
+import { getDocument, getDocumentFromCache, batchWrite, BatchOperation } from '../adapters/firestoreAdapter';
 import { COLLECTIONS } from '../config/constants';
 
 export async function getLoginCode(accessCode: string) {
@@ -16,6 +16,11 @@ export async function warmupConnection() {
 export async function getStudentProfile(authUid: string) {
   if (!authUid) return null;
   return getDocument(COLLECTIONS.STUDENT_PROFILES, authUid);
+}
+
+export async function getCachedStudentProfile(authUid: string) {
+  if (!authUid) return null;
+  return getDocumentFromCache(COLLECTIONS.STUDENT_PROFILES, authUid);
 }
 
 export async function saveStudentProfile(

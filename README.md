@@ -11,6 +11,12 @@ Keduanya hidup di satu project Next.js ini, tapi dengan sesi auth yang terpisah:
 guru memakai email/kata sandi, siswa memakai **kode akses** yang dibagikan
 gurunya.
 
+## Supabase Storage untuk lampiran tugas siswa
+
+Upload jawaban siswa menggunakan bucket privat `submission-attachments` di proyek Supabase Workflow. Tambahkan `SUPABASE_URL` dan `SUPABASE_SECRET_KEY` pada environment server (mis. Vercel Project Settings → Environment Variables). Jika proyek masih memakai key lama, `SUPABASE_SERVICE_ROLE_KEY` juga diterima. Jangan pernah memasukkan secret/service-role key ke variabel `NEXT_PUBLIC_*` atau kode client.
+
+Endpoint upload dan pembuatan signed URL memverifikasi ID token Firebase dan memeriksa workspace/kelas sebelum mengakses file privat. Signed URL berlaku 5 menit. Firebase Auth dan Firestore tetap menjadi sistem autentikasi serta metadata tugas; lampiran lama di Firebase tetap dapat dibuka.
+
 ## Menjalankan
 
 ### 1. Siapkan env
@@ -24,6 +30,10 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID=...
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=...
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=...
 NEXT_PUBLIC_FIREBASE_APP_ID=...
+
+# Server-only: Supabase Workflow private Storage for student submissions
+SUPABASE_URL=https://htutgpjcynbnyxwgorcb.supabase.co
+SUPABASE_SECRET_KEY=...  # Supabase secret key; never use NEXT_PUBLIC_ prefix
 ```
 
 ### 2. Jalankan

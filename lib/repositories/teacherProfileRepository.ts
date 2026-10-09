@@ -1,4 +1,4 @@
-import { getDocument, setDocument, updateDocument } from '../adapters/firestoreAdapter';
+import { getDocument, getDocumentFromCache, setDocument, updateDocument } from '../adapters/firestoreAdapter';
 
 const TEACHER_PROFILES_COLLECTION = 'teacher_profiles';
 
@@ -16,6 +16,10 @@ export type TeacherProfile = {
 
 export async function getTeacherProfile(uid: string): Promise<TeacherProfile | null> {
   return getDocument(TEACHER_PROFILES_COLLECTION, uid) as Promise<TeacherProfile | null>;
+}
+
+export async function getCachedTeacherProfile(uid: string): Promise<TeacherProfile | null> {
+  return getDocumentFromCache(TEACHER_PROFILES_COLLECTION, uid) as Promise<TeacherProfile | null>;
 }
 
 export async function saveTeacherProfile(uid: string, data: TeacherProfile) {
