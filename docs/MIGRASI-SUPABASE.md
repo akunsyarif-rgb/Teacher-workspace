@@ -56,8 +56,8 @@ Migrasi **belum diterapkan** ke produksi dan tidak boleh diterapkan tanpa perset
   bagi anggota workspace).
 - **G3** `teacher_profiles` create/update menerima role `TEACHER` selama undangan workspace aktif
   (tanpa kode, tanpa cek kursi); guru yang dikeluarkan bisa bergabung lagi.
-Perbaikan sudah disiapkan di branch `fix/firestore-rules-gaps` (belum di-merge dan belum di-deploy;
-`firestore.rules` produksi butuh persetujuan pemilik): `workspaces` create hanya plan/batas gratis; profil
+Perbaikan sudah di-merge (PR #57 klien, PR #58 rules) dan rules Firestore ter-deploy lewat workflow
+(run #13, langkah Firestore sukses; langkah Storage rules gagal karena API Firebase Storage belum diaktifkan): `workspaces` create hanya plan/batas gratis; profil
 siswa wajib cocok dengan dokumen kode login (field `accessCode`, diisi `studentAuthService.claimAccessCode`);
 klaim `TEACHER` mandiri dihapus (gabung tetap lewat `/api/workspace/join`). Diverifikasi: uji rules emulator
 190 lulus, E2E smoke 19/19, onboarding 11/11, submission 31/31, submission-drive-link 15/15, rename-class 14/14,
@@ -96,7 +96,7 @@ Butuh Postgres 15+ lokal (bukan Supabase). Tanpa `RLS_TEST_ADMIN_URL` test dilew
 1. Tinjau dan setujui `20261009000000_rls_hardening.sql`; terapkan dulu ke branch/project staging Supabase
    (bukan Workflow produksi), jalankan ulang `tests/rls-parity.test.ts` terhadap staging.
 2. Verifikasi login Firebase ↔ Supabase (butir 3.1) dengan token guru dan siswa anonim nyata.
-3. Tinjau dan setujui `fix/firestore-rules-gaps` (G1–G3); deploy rules hanya setelah persetujuan.
+3. ~~G1–G3 Firestore~~ selesai (PR #57, #58).
 4. Tulis `supabaseAdapter` (antarmuka sama dengan `firestoreAdapter`) di balik flag per koleksi, default mati.
 5. Backfill + dual-write satu koleksi percobaan (`session_skip_reasons`) — hanya setelah persetujuan.
 6. Server (6 file Admin SDK), koleksi inti satu per satu, lalu pensiun Firestore.
@@ -106,5 +106,5 @@ Rollback tiap fase: matikan flag koleksi itu; Firestore tetap sumber kebenaran s
 ## 6. Pertanyaan terbuka untuk pemilik
 1. Setujui migrasi hardening (bagian 2) untuk diuji di staging?
 2. Boleh dibuatkan project/branch Supabase staging terpisah (bukan Workflow)? Mungkin berbiaya.
-3. Setujui perubahan `firestore.rules` untuk G1–G3?
+3. (selesai) G1–G3 Firestore sudah di-merge dan ter-deploy.
 4. Offline penuh di Chrome/Android wajib dipertahankan setelah migrasi?
