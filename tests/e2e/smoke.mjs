@@ -13,6 +13,7 @@ import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 import net from 'node:net';
+import { startFakeSupabaseStorage } from './fakeSupabaseStorage.mjs';
 
 const BASE_URL = 'http://127.0.0.1:3100';
 const TEACHER_EMAIL = `guru${Date.now()}@contoh.sch.id`;
@@ -106,7 +107,13 @@ function isPortTaken(port) {
   });
 }
 
+let fakeStorage = null;
+
 async function startAppServer() {
+  // Lampiran siswa disimpan di Supabase Storage (PR #50); E2E memakai storage palsu lokal.
+  fakeStorage = await startFakeSupabaseStorage(4590);
+  APP_ENV.SUPABASE_URL = `${fakeStorage.url}/rest/v1/`;
+  APP_ENV.SUPABASE_SECRET_KEY = 'sb_secret_e2e_fake';
   // Kalau port sudah dipakai proses lain, JANGAN diteruskan: server baru
   // gagal bind, tapi pengecekan kesiapan tetap lolos karena yang menjawab
   // server lama. Akibatnya uji ini bisa melaporkan hijau padahal yang
@@ -448,18 +455,24 @@ async function run() {
       // (array, bukan cuma fileUrl tunggal) utuh sampai ke panel guru.
       let bothAttachmentsOpenable = true;
       for (const fileName of ['jawaban-tulis-tangan-1.png', 'jawaban-tulis-tangan-2.png']) {
+        // Lampiran Supabase dibuka lewat modal (bukan href langsung): klik tautan, gambar dari signed URL harus tampil.
         const attachmentLink = teacher.getByRole('link', { name: new RegExp(fileName.replace('.', '\\.'), 'i') }).first();
         if (await attachmentLink.count()) {
-          const href = await attachmentLink.getAttribute('href');
+          await attachmentLink.click();
+          const dialog = teacher.getByRole('dialog');
           try {
-            const res = await fetch(href);
-            if (!res.ok) {
+            await dialog.waitFor({ timeout: 8000 });
+            const img = dialog.locator('img');
+            await img.waitFor({ timeout: 8000 });
+            const loaded = await img.evaluate((el) => el.complete && el.naturalWidth > 0);
+            if (!loaded) {
               bothAttachmentsOpenable = false;
-              console.log(`  ⚠ ${fileName}: unduhan gagal HTTP ${res.status}`);
+              console.log(`  ⚠ ${fileName}: gambar di modal tidak termuat`);
             }
+            await dialog.getByRole('button', { name: /Tutup/i }).click();
           } catch (err) {
             bothAttachmentsOpenable = false;
-            console.log(`  ⚠ ${fileName}: unduhan error ${err.message}`);
+            console.log(`  ⚠ ${fileName}: modal/gambar tidak muncul: ${err.message}`);
           }
         } else {
           bothAttachmentsOpenable = false;
@@ -504,6 +517,7 @@ async function run() {
   } finally {
     await browser.close();
     stopServer(server);
+    await fakeStorage?.close();
   }
 
   // ---------- Ringkasan ----------

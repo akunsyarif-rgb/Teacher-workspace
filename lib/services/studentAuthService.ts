@@ -44,5 +44,7 @@ export async function claimAccessCode(accessCode: string, authUid: string) {
     className: loginCode.className,
     name: loginCode.name,
     nis: loginCode.nis || '-',
+    // Dicocokkan firestore.rules dengan dokumen kode login (mencegah profil palsu).
+    accessCode: code,
   });
 }
