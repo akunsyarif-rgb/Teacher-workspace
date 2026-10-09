@@ -49,17 +49,17 @@ service cloud.firestore {
     // pertama kali saat join — dua-duanya jalur nyata di app). Role tidak
     // pernah dipercaya dari body request begitu saja:
     // - null: belum gabung workspace apa pun, selalu boleh.
-    // - TEACHER: workspace tujuan harus SEDANG membuka invite code yang
-    //   belum kedaluwarsa (dicek ke dokumen workspaces sungguhan) — tanpa
-    //   ini, siapa pun bisa "gabung" ke workspace mana pun cuma dengan
-    //   menebak/tahu ID-nya (audit T2).
+    // - TEACHER: TIDAK PERNAH bisa diklaim sendiri dari client. Dulu boleh
+    //   selama undangan workspace aktif, tapi rules tidak bisa memeriksa KODE
+    //   maupun kuota kursi — siapa pun yang tahu workspaceId (termasuk guru
+    //   yang sudah dikeluarkan) bisa masuk lagi dan melewati seatLimit.
+    //   Bergabung sebagai TEACHER hanya lewat /api/workspace/join (Admin SDK:
+    //   cek kode, kedaluwarsa, dan kuota kursi).
     // - OWNER: workspace tujuan harus benar dimiliki uid ini.
     // - ADMIN: tidak pernah bisa diklaim sendiri — belum ada alur produk
     //   yang menghasilkannya (audit T1).
     function canClaimRoleForWorkspace(role, workspaceId) {
       return role == null ||
-        (role == 'TEACHER' &&
-          get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.inviteCodeExpiresAt > request.time.toMillis()) ||
         (role == 'OWNER' &&
           get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerUid == request.auth.uid);
     }
@@ -172,8 +172,24 @@ service cloud.firestore {
     // ============================================================
     match /workspaces/{workspaceId} {
       // Siapa pun bisa membuat workspace (dengan validasi)
+      //
+      // Workspace baru HANYA boleh berbatas gratis (individual_lifetime tanpa
+      // kursi tambahan, atau school_annual dengan 1 kursi), maksimal 3 kelas,
+      // tanpa masa berlaku. Plan/batas berbayar hanya lewat Admin SDK (webhook
+      // pembayaran, panel pemilik). Nilai gratis harus sama dengan
+      // FREE_CLASS_LIMIT/FREE_SEAT_LIMIT di lib/config/plans.ts.
+      function isFreeWorkspaceCreate(d) {
+        return !('planExpiresAt' in d.keys()) &&
+          d.get('classLimit', null) is int &&
+          d.get('classLimit', null) >= 1 &&
+          d.get('classLimit', null) <= 3 &&
+          ((d.get('plan', null) == 'individual_lifetime' && d.get('seatLimit', null) == null) ||
+           (d.get('plan', null) == 'school_annual' && d.get('seatLimit', null) == 1));
+      }
+
       allow create: if isAuthenticated() &&
-        request.resource.data.ownerUid == request.auth.uid;
+        request.resource.data.ownerUid == request.auth.uid &&
+        isFreeWorkspaceCreate(request.resource.data);
 
       // Owner bisa membaca workspace sendiri, teacher bisa membaca workspace-nya
       allow read: if isAuthenticated() &&
@@ -605,7 +621,21 @@ service cloud.firestore {
       // Sekali buat, tidak bisa diubah lagi — identitas siswa terkunci
       // begitu ter-klaim (kalau kode disebar ke device lain, device itu
       // dapat dokumen profilnya sendiri, bukan menimpa yang ini).
-      allow create: if isAuthenticated() && request.auth.uid == authUid;
+      //
+      // Isinya WAJIB cocok dengan dokumen kode login yang disebut di field
+      // `accessCode` (workspaceId, studentId, className). Tanpa ini, siapa pun
+      // bisa membuat profil siswa palsu untuk workspace/kelas mana pun lalu
+      // membaca data kelas itu lewat isStudentInClass().
+      function matchesLoginCode(d) {
+        return d.get('accessCode', null) is string &&
+          exists(/databases/$(database)/documents/student_login_codes/$(d.accessCode)) &&
+          get(/databases/$(database)/documents/student_login_codes/$(d.accessCode)).data.workspaceId == d.workspaceId &&
+          get(/databases/$(database)/documents/student_login_codes/$(d.accessCode)).data.studentId == d.studentId &&
+          get(/databases/$(database)/documents/student_login_codes/$(d.accessCode)).data.className == d.className;
+      }
+
+      allow create: if isAuthenticated() && request.auth.uid == authUid &&
+        matchesLoginCode(request.resource.data);
       allow update, delete: if false;
     }
 
