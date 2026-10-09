@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
     const workspaceId = form.get('workspaceId');
     const assignmentId = form.get('assignmentId');
     const file = form.get('file');
+    const contentType = form.get('contentType');
 
     if (typeof workspaceId !== 'string' || !workspaceId || typeof assignmentId !== 'string' || !assignmentId) {
       return NextResponse.json({ error: 'Data tugas tidak valid.' }, { status: 400 });
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
     if (file.size <= 0 || file.size >= MAX_FILE_BYTES) {
       return NextResponse.json({ error: 'Ukuran file harus kurang dari 10 MB.' }, { status: 413 });
     }
-    if (!ALLOWED_TYPES.has(file.type)) {
+    if (typeof contentType !== 'string' || !ALLOWED_TYPES.has(contentType)) {
       return NextResponse.json({ error: 'Format file harus gambar, PDF, atau dokumen Word.' }, { status: 415 });
     }
 
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
       headers: {
         apikey: key,
         Authorization: `Bearer ${key}`,
-        'Content-Type': file.type,
+        'Content-Type': contentType,
         'x-upsert': 'false',
       },
       body: await file.arrayBuffer(),
