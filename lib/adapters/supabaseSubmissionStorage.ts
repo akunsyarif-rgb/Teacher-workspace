@@ -1,5 +1,5 @@
 import { auth } from '@/src/config/firebase';
-import { validateUploadFile, MAX_SUBMISSION_FILES } from '@/lib/adapters/storageAdapter';
+import { MAX_SUBMISSION_FILES, MAX_UPLOAD_BYTES, resolveUploadContentType } from '@/lib/utils/uploadFileTypes';
 import { userError } from '@/lib/utils/submissionRules';
 import { withTimeout } from '@/lib/utils/withTimeout';
 
@@ -22,7 +22,8 @@ export async function uploadSubmissionFile(
   file: File,
   _uniquePrefix?: string
 ) {
-  validateUploadFile(file);
+  if (file.size >= MAX_UPLOAD_BYTES) throw userError('Ukuran file maksimal 10 MB. Kecilkan dulu fotonya lalu coba lagi.');
+  if (!resolveUploadContentType(file)) throw userError('Format file harus gambar, PDF, atau dokumen Word.');
   const user = auth.currentUser;
   if (!user) throw userError('Sesi tidak valid, coba muat ulang halaman.', 'unauthenticated');
 
