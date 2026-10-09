@@ -9,6 +9,7 @@ import StudentShell from "@/src/components/student/StudentShell";
 import { SkeletonCard } from "@/src/components/ui/Skeleton";
 import * as studentPortalController from "@/lib/controllers/studentPortalController";
 import type { StudentProfile } from "@/src/context/StudentAuthContext";
+import { openSubmissionAttachment } from "@/lib/adapters/supabaseSubmissionStorage";
 
 function ProfileContent({ profile }: { profile: StudentProfile }) {
   const router = useRouter();
