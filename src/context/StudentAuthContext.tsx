@@ -3,7 +3,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '@src/config/firebase';
-import { fetchCurrentStudentProfile } from '../../lib/controllers/studentAuthController';
+import { fetchCachedStudentProfile, fetchCurrentStudentProfile } from '../../lib/controllers/studentAuthController';
 import { markSinceNavigation, measure } from '../../lib/utils/perf';
 
 export type StudentProfile = {
@@ -55,13 +55,29 @@ export function StudentAuthProvider({ children }: { children: React.ReactNode })
       setState({ user: null, profile: null, loading: false });
       return;
     }
+    // Stale-while-revalidate: profil yang sudah ada di cache lokal langsung
+    // ditampilkan (tanpa menunggu koneksi Firestore yang kadang lambat di
+    // awal), lalu diverifikasi ke server di bawah. Keputusan akses tetap
+    // dari server (Security Rules / API); ini hanya soal kecepatan tampil.
+    let shownFromCache = false;
+    try {
+      const cached = await measure('startup: baca profil dari cache', () => fetchCachedStudentProfile(user.uid));
+      if (cached) {
+        shownFromCache = true;
+        setState({ user, profile: cached as StudentProfile, loading: false });
+        markSinceNavigation('startup: profil tampil dari cache (sejak halaman dibuka)');
+      }
+    } catch {
+      // cache gagal dibaca = lanjut ke server
+    }
     try {
       const profile = await measure('startup: baca profil siswa (Firestore)', () => fetchCurrentStudentProfile(user.uid));
       markSinceNavigation('startup: profil siap (sejak halaman dibuka)');
       setState({ user, profile: profile as StudentProfile | null, loading: false });
     } catch (err) {
       console.error('Gagal memuat profil siswa:', err);
-      setState((prev) => ({ ...prev, user, loading: false }));
+      // Server gagal tapi cache sudah tampil: biarkan, jangan dikosongkan.
+      if (!shownFromCache) setState((prev) => ({ ...prev, user, loading: false }));
     }
   }, []);
 

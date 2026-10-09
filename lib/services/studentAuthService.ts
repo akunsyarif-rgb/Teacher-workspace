@@ -4,6 +4,10 @@ export async function getCurrentStudentProfile(authUid: string) {
   return studentAuthRepository.getStudentProfile(authUid);
 }
 
+export async function getCachedStudentProfile(authUid: string) {
+  return studentAuthRepository.getCachedStudentProfile(authUid);
+}
+
 // Dipanggil sedini mungkin di halaman login siswa (bukan untuk hasilnya) —
 // tujuannya cuma memaksa Firestore menyelesaikan negosiasi transport
 // (WebChannel vs long-polling; lihat komentar experimentalAutoDetectLongPolling

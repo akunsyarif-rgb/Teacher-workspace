@@ -3,6 +3,7 @@ import {
   collection,
   doc,
   getDoc,
+  getDocFromCache,
   getDocs,
   getCountFromServer,
   addDoc,
@@ -36,6 +37,18 @@ export async function getDocuments(collectionName: string, filters: [string, any
 export async function getDocument(collectionName: string, id: string) {
   const snap = await getDoc(doc(db, collectionName, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+// Baca dari cache lokal Firestore saja (tanpa menunggu jaringan). null kalau
+// belum ada di cache — dipakai untuk menampilkan data yang sudah pernah
+// dimuat secepatnya sebelum versi server tiba.
+export async function getDocumentFromCache(collectionName: string, id: string) {
+  try {
+    const snap = await getDocFromCache(doc(db, collectionName, id));
+    return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+  } catch {
+    return null;
+  }
 }
 
 // Hitung jumlah dokumen lewat aggregation query Firestore (getCountFromServer)
