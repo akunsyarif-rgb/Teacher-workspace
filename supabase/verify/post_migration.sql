@@ -17,7 +17,7 @@ with checks(name, ok, in_mode) as (
   ('anon TIDAK boleh execute join_workspace_by_code', to_regprocedure('public.join_workspace_by_code(text)') is null or not has_function_privilege('anon','public.join_workspace_by_code(text)','EXECUTE'), 'any'),
   ('anon TIDAK boleh execute claim_student_profile', to_regprocedure('public.claim_student_profile(text)') is null or not has_function_privilege('anon','public.claim_student_profile(text)','EXECUTE'), 'any'),
   ('anon TIDAK boleh execute batch_write', to_regprocedure('public.batch_write(jsonb)') is null or not has_function_privilege('anon','public.batch_write(jsonb)','EXECUTE'), 'any'),
-  ('batch_write SECURITY INVOKER (RLS berlaku)', to_regprocedure('public.batch_write(jsonb)') is null or not (select prosecdef from pg_proc where oid='public.batch_write(jsonb)'::regprocedure), 'any'),
+  ('batch_write SECURITY INVOKER (RLS berlaku)', not exists (select 1 from pg_proc where oid = to_regprocedure('public.batch_write(jsonb)') and prosecdef), 'any'),
   ('anon TIDAK boleh execute auth_probe', to_regprocedure('public.auth_probe()') is null or not has_function_privilege('anon','public.auth_probe()','EXECUTE'), 'any'),
   ('authenticated boleh execute join_workspace_by_code', to_regprocedure('public.join_workspace_by_code(text)') is null or has_function_privilege('authenticated','public.join_workspace_by_code(text)','EXECUTE'), 'any'),
   ('can_claim_role tanpa cabang TEACHER', not exists (select 1 from pg_proc where oid='private.can_claim_role(text,text)'::regprocedure and prosrc like '%''TEACHER''%'), 'migrated'),
