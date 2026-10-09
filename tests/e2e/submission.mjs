@@ -21,6 +21,7 @@ import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 import net from 'node:net';
+import { startFakeSupabaseStorage } from './fakeSupabaseStorage.mjs';
 
 const BASE_URL = 'http://127.0.0.1:3100';
 const TEACHER_EMAIL = `guru${Date.now()}@contoh.sch.id`;
@@ -111,8 +112,15 @@ function isPortTaken(port) {
   });
 }
 
+let fakeStorage = null;
+
 async function startAppServer() {
   await buildApp();
+  // Lampiran siswa disimpan di Supabase Storage; di E2E dipakai storage palsu
+  // lokal. URL sengaja memuat /rest/v1/ untuk menguji normalisasi origin.
+  fakeStorage = await startFakeSupabaseStorage(4590);
+  APP_ENV.SUPABASE_URL = `${fakeStorage.url}/rest/v1/`;
+  APP_ENV.SUPABASE_SECRET_KEY = 'sb_secret_e2e_fake';
   console.log('→ Menjalankan server...');
   if (await isPortTaken(3100)) {
     throw new Error('Port 3100 sudah dipakai proses lain — hentikan dulu supaya tidak menguji server yang salah.');
@@ -366,15 +374,22 @@ async function run() {
       if (reviewText.includes(STUDENT_ANSWER)) pass('Guru melihat isi jawaban siswa saat review');
       else fail('Guru melihat isi jawaban siswa saat review', reviewText.replace(/\n+/g, ' | ').slice(0, 200));
 
+      // Lampiran Supabase dibuka lewat modal (bukan href langsung): klik
+      // tautannya, lalu gambar dari signed URL harus tampil di dialog.
       const attachmentLink = teacher.getByRole('link', { name: /foto-jawaban\.jpg/i }).first();
       if (await attachmentLink.count()) {
-        const href = await attachmentLink.getAttribute('href');
+        await attachmentLink.click();
+        const dialog = teacher.getByRole('dialog');
         try {
-          const res = await fetch(href);
-          if (res.ok) pass('Guru bisa membuka lampiran siswa', `HTTP ${res.status}`);
-          else fail('Guru bisa membuka lampiran siswa', `unduhan gagal HTTP ${res.status}`);
+          await dialog.waitFor({ timeout: 8000 });
+          const img = dialog.locator('img');
+          await img.waitFor({ timeout: 8000 });
+          const loaded = await img.evaluate((el) => el.complete && el.naturalWidth > 0);
+          if (loaded) pass('Guru bisa membuka lampiran siswa', 'gambar tampil di modal lewat signed URL');
+          else fail('Guru bisa membuka lampiran siswa', 'gambar di modal tidak termuat');
+          await dialog.getByRole('button', { name: /Tutup/i }).click();
         } catch (err) {
-          fail('Guru bisa membuka lampiran siswa', `unduhan error ${err.message}`);
+          fail('Guru bisa membuka lampiran siswa', `modal/gambar tidak muncul: ${err.message}`);
         }
       } else {
         fail('Guru bisa membuka lampiran siswa', 'tautan lampiran tidak muncul di panel review');
@@ -588,6 +603,7 @@ async function run() {
   } finally {
     await browser.close();
     stopServer(server);
+    await fakeStorage?.close();
   }
 
   console.log('\n' + '='.repeat(60));
