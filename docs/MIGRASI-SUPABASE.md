@@ -174,3 +174,20 @@ RLS_TEST_BASELINE_ONLY=1 npx vitest run tests/rls-parity.test.ts   # membuktikan
 - **Rollback**: `psql -1 -f supabase/rollback/20261009000100_auth_probe_down.sql -f supabase/rollback/20261009000000_rls_hardening_down.sql`
   (diuji: katalog kembali persis sama dengan baseline). Ini membuka lagi celah A–E, jadi hanya untuk regresi fungsional;
   untuk kerusakan data pakai `pg_restore` dari backup.
+
+### 8.4 Skrip siap pakai begitu staging ada (`scripts/supabase/staging.sh`, teruji di Postgres lokal)
+```bash
+export STAGING_DB_URL='postgresql://postgres:<sandi>@db.<ref-staging>.supabase.co:5432/postgres'   # dari Dashboard → Connect; jangan ditempel ke percakapan
+scripts/supabase/staging.sh check                     # read-only: ref target, skema ada/kosong
+scripts/supabase/staging.sh apply --with-baseline     # staging kosong: baseline 001–003 lalu migrasi (tiap file 1 transaksi)
+scripts/supabase/staging.sh verify migrated           # katalog: policy/grant/fungsi/trigger → PASS/FAIL, exit 1 bila ada FAIL
+scripts/supabase/staging.sh apply                     # ulang: idempoten
+scripts/supabase/staging.sh down && scripts/supabase/staging.sh verify baseline   # rollback + bukti kembali ke baseline
+```
+Guard skrip (teruji): SmadaExam ditolak (host langsung maupun pooler); host selain `*.supabase.co`/lokal ditolak; Workflow
+produksi hanya bila `PRODUCTION_APPROVED=htutgpjcynbnyxwgorcb` **dan** `BACKUP_FILE` (dump tidak kosong) ada, baseline tidak pernah
+diterapkan ke produksi, rollback produksi butuh `PRODUCTION_ROLLBACK_APPROVED=yes`. Sandi tidak pernah dicetak.
+Setelah staging lulus: `node scripts/supabase/verify-auth.mjs` (bagian 7) terhadap staging, lalu backfill (PR #60).
+Kompatibilitas token Firebase: `tests/rls/cases.ts` bagian 9 memakai klaim berbentuk token Firebase asli (iss/aud/user_id/firebase{}),
+membuktikan RLS memakai `sub` saja (`user_id` palsu diabaikan, `sub` kosong = tanpa identitas, siswa anonim tanpa profil tidak melihat apa pun).
+Yang BELUM terbukti: penerimaan token oleh Supabase (Third-Party Auth) dan claim `role`.

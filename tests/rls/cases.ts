@@ -207,4 +207,25 @@ addRaw('sub:guru-memberi-nilai', 'teachA',
   ["update public.submissions set status='dinilai', score=95, feedback='ok' where id='aA7A_sA1'", { raw: "select score::text||'/'||feedback from public.submissions where id='aA7A_sA1'" }],
   ['ok:1', '95.000/ok']);
 
+// ---------- 9. Klaim berbentuk token Firebase ASLI (bukan hanya {sub, role}) ----------
+// Token Firebase membawa iss/aud/user_id/firebase{...}; RLS hanya boleh memakai `sub`.
+const fbClaims = (uid: string, provider: 'password' | 'anonymous', extra: Record<string, unknown> = {}) => ({
+  iss: 'https://securetoken.google.com/proj', aud: 'proj', auth_time: 1760000000, user_id: uid, sub: uid,
+  iat: 1760000000, exp: 4102444800, firebase: { identities: provider === 'anonymous' ? {} : { email: [`${uid}@x.id`] }, sign_in_provider: provider },
+  role: 'authenticated', ...extra,
+});
+const addFb = (id: string, claims: Record<string, unknown>, steps: string | string[], expect: (string | RegExp) | (string | RegExp)[]) =>
+  cases.push({ id, as: String(claims.sub ?? 'x'), claims, steps: [steps].flat(), expect: [expect].flat() });
+
+addFb('fb:guru-baca-skip-reasons-workspace-sendiri', fbClaims('ownerA', 'password'), "select * from public.session_skip_reasons where workspace_id='wsA'", OK1);
+addFb('fb:guru-lain-tenant-tidak-melihat', fbClaims('ownerB', 'password'), "select * from public.session_skip_reasons where workspace_id='wsA'", OK0);
+addFb('fb:guru-insert-skip-reason-sendiri', fbClaims('teachA', 'password'), "insert into public.session_skip_reasons(id, workspace_id, class_name, date, reason, metadata) values ('skFb','wsA','7A',current_date,'rapat','{\"scheduleId\":\"s\"}')", 'ok:1');
+addFb('fb:guru-insert-skip-reason-tenant-lain', fbClaims('teachA', 'password'), "insert into public.session_skip_reasons(id, workspace_id) values ('skFb','wsB')", DENY);
+addFb('fb:siswa-anonim-baca-tugas-kelasnya', fbClaims('stuA1', 'anonymous'), "select * from public.assignments", 'ok:1');
+addFb('fb:siswa-anonim-tak-bisa-baca-catatan', fbClaims('stuA1', 'anonymous'), "select * from public.student_notes", OK0);
+addFb('fb:siswa-anonim-tak-bisa-baca-skip-reasons', fbClaims('stuA1', 'anonymous'), "select * from public.session_skip_reasons", OK0);
+addFb('fb:siswa-anonim-tanpa-profil-tidak-melihat-apa-pun', fbClaims('anonNew', 'anonymous'), "select * from public.assignments", OK0);
+addFb('fb:user_id-dipalsukan-sub-yang-dipakai', fbClaims('outsider', 'password', { user_id: 'ownerA' }), "select * from public.session_skip_reasons where workspace_id='wsA'", OK0);
+addFb('fb:sub-kosong-tidak-punya-identitas', fbClaims('', 'password', { user_id: 'ownerA' }), "select * from public.teacher_profiles", OK0);
+
 export default cases;

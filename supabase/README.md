@@ -10,3 +10,4 @@ Uji: lihat `docs/MIGRASI-SUPABASE.md` bagian 4 (`tests/rls-parity.test.ts`).
 - `rollback/`: skrip kebalikan tiap migrasi (diuji: hasilnya identik dengan baseline).
 
 Verifikasi auth, paket staging, backup dan rollback: `docs/MIGRASI-SUPABASE.md` bagian 7–8.
+- `verify/post_migration.sql` + `scripts/supabase/staging.sh`: verifikasi katalog, apply/rollback ber-guard untuk staging.

@@ -7,7 +7,7 @@ import path from 'node:path';
 // (tiap kasus = transaksi yang di-rollback). Hanya lokal; tidak menyentuh Supabase.
 
 export type Step = string | { raw: string };
-export type Case = { id: string; as: string; steps: Step[]; expect: (string | RegExp)[] };
+export type Case = { id: string; as: string; steps: Step[]; expect: (string | RegExp)[]; claims?: Record<string, unknown> };
 
 const ROOT = path.resolve(__dirname, '../..');
 const SQL_ORDER = [
@@ -51,7 +51,7 @@ const q = (tag: string, sql: string) => `$${tag}$${sql}$${tag}$`;
 export function runCases(url: string, cases: Case[]): Record<string, string[]> {
   const out: string[] = [];
   for (const c of cases) {
-    const claims = c.as === 'anon' ? '{"role":"anon"}' : JSON.stringify({ sub: c.as, role: 'authenticated' });
+    const claims = c.claims ? JSON.stringify(c.claims) : c.as === 'anon' ? '{"role":"anon"}' : JSON.stringify({ sub: c.as, role: 'authenticated' });
     const role = c.as === 'anon' ? 'anon' : 'authenticated';
     out.push('begin;');
     let inRole = false;
