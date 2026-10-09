@@ -7,8 +7,8 @@ import { SkeletonCard } from "@/src/components/ui/Skeleton";
 import InlineAlert from "@/src/components/ui/InlineAlert";
 import * as studentPortalController from "@/lib/controllers/studentPortalController";
 import * as submissionController from "@/lib/controllers/submissionController";
-import { validateUploadFile, MAX_SUBMISSION_FILES } from "@/lib/adapters/storageAdapter";
-import { uploadSubmissionFiles, openSubmissionAttachment } from "@/lib/adapters/supabaseSubmissionStorage";
+import { MAX_SUBMISSION_FILES } from "@/lib/adapters/storageAdapter";
+import { uploadSubmissionFiles, openSubmissionAttachment, validateSupabaseSubmissionFile } from "@/lib/adapters/supabaseSubmissionStorage";
 import { SUBMISSION_STATUS } from "@/lib/config/constants";
 import { canStudentSubmit, describeSubmissionError, isPastDue } from "@/lib/utils/submissionRules";
 import { isValidSubmissionLink, SUBMISSION_LINK_ERROR_MESSAGE } from "@/lib/utils/submissionLink";
@@ -155,7 +155,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
       try {
         // Dicek di sini juga supaya siswa tahu file-nya ditolak sebelum
         // menunggu unggahan besar selesai lalu gagal di Storage rules.
-        validateUploadFile(candidate);
+        validateSupabaseSubmissionFile(candidate);
         toAdd.push(candidate);
       } catch (error: any) {
         setSubmitError(describeSubmissionError(error));
