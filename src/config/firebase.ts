@@ -8,6 +8,7 @@ import {
   connectFirestoreEmulator,
 } from "firebase/firestore";
 import { getStorage, connectStorageEmulator } from "firebase/storage";
+import { shouldUsePersistentCache } from "../../lib/utils/browserSupport";
 
 // Mode emulator hanya aktif kalau env var ini di-set secara eksplisit
 // (lihat README "Menjalankan dengan emulator"). Tanpa itu, aplikasi selalu
@@ -51,7 +52,11 @@ export const db = (() => {
       // Cache IndexedDB dimatikan saat memakai emulator: data uji jadi
       // tidak "menempel" antar-sesi dan hasil test tidak dipengaruhi
       // sisa percobaan sebelumnya.
-      ...(typeof window !== "undefined" && !USE_EMULATOR
+      // Browser WebKit (Safari/iOS/iPadOS) memakai cache memori bawaan —
+      // lihat lib/utils/browserSupport.ts untuk alasannya.
+      ...(typeof window !== "undefined" &&
+      !USE_EMULATOR &&
+      shouldUsePersistentCache(navigator.userAgent, navigator.platform, navigator.maxTouchPoints)
         ? { localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({}) }) }
         : {}),
     });
