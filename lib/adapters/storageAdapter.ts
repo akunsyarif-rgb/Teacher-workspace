@@ -99,62 +99,7 @@ function sanitizeFileName(name: string) {
   return cleaned.slice(-80) || 'lampiran';
 }
 
-/**
- * Mengunggah lampiran jawaban tugas. Path memuat UID pengunggah karena
- * itulah yang dipakai storage.rules untuk membuktikan kepemilikan.
- */
-export async function uploadSubmissionFile(
-  workspaceId: string,
-  assignmentId: string,
-  file: File,
-  // Prefix unik per file (index/timestamp) supaya beberapa foto yang
-  // kebetulan bernama sama (mis. "IMG_0001.jpg" dari kamera HP) tidak
-  // saling menimpa di path Storage yang sama.
-  uniquePrefix?: string
-) {
-  validateUploadFile(file);
-
-  const uid = auth.currentUser?.uid;
-  if (!uid) throw userError('Sesi tidak valid, coba muat ulang halaman.', 'unauthenticated');
-
-  const fileName = sanitizeFileName(file.name);
-  const path = `submissions/${workspaceId}/${assignmentId}/${uid}/${uniquePrefix ? `${uniquePrefix}_${fileName}` : fileName}`;
-  const fileRef = ref(storage, path);
-
-  // contentType dikirim eksplisit dari resolveUploadContentType, BUKAN dari
-  // file.type mentah: kalau HP tidak melaporkan tipe yang sah, file.type
-  // yang kosong/octet-stream akan ditolak storage.rules.
-  await uploadFileWithStallTimeout(
-    fileRef,
-    file,
-    resolveUploadContentType(file) as string,
-    `Unggah "${file.name}" terlalu lama, periksa koneksi internetmu lalu coba lagi.`
-  );
-  const url = await withTimeout(
-    getDownloadURL(fileRef),
-    `Gagal mengambil tautan "${file.name}", periksa koneksi internetmu lalu coba lagi.`,
-    UPLOAD_TIMEOUT_MS
-  );
-
-  return { fileUrl: url, fileName: file.name, filePath: path };
-}
-
-/**
- * Mengunggah beberapa lampiran jawaban tugas sekaligus (maks
- * MAX_SUBMISSION_FILES foto/dokumen per pengumpulan).
- */
-export async function uploadSubmissionFiles(
-  workspaceId: string,
-  assignmentId: string,
-  files: File[]
-) {
-  if (files.length > MAX_SUBMISSION_FILES) {
-    throw userError(`Maksimal ${MAX_SUBMISSION_FILES} file per pengumpulan.`);
-  }
-  return Promise.all(
-    files.map((file, index) => uploadSubmissionFile(workspaceId, assignmentId, file, String(index)))
-  );
-}
+export { uploadSubmissionFile, uploadSubmissionFiles } from './supabaseSubmissionStorage';
 
 /**
  * Mengunggah materi/lampiran tugas dari guru (bukan jawaban siswa). Path
