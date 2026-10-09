@@ -9,6 +9,7 @@ import * as studentPortalController from "@/lib/controllers/studentPortalControl
 import * as submissionController from "@/lib/controllers/submissionController";
 import { MAX_SUBMISSION_FILES } from "@/lib/adapters/storageAdapter";
 import { uploadSubmissionFiles, validateSupabaseSubmissionFile } from "@/lib/adapters/supabaseSubmissionStorage";
+import { measure } from "@/lib/utils/perf";
 import { useAttachmentViewer } from "@/src/components/assignments/AttachmentViewer";
 import { SUBMISSION_STATUS } from "@/lib/config/constants";
 import { canStudentSubmit, describeSubmissionError, isPastDue } from "@/lib/utils/submissionRules";
@@ -94,11 +95,11 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
 
   const loadAssignments = useCallback(async () => {
     try {
-      const result = await studentPortalController.fetchAssignments({
+      const result = await measure('tugas: muat daftar tugas', () => studentPortalController.fetchAssignments({
         workspaceId: profile.workspaceId,
         className: profile.className,
         studentId: profile.studentId,
-      });
+      }));
       setAssignments(result);
     } catch (error) {
       console.error("Gagal memuat tugas:", error);
@@ -225,7 +226,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
     if (files.length > 0) {
       setUploading(true);
       try {
-        attachments = await uploadSubmissionFiles(scope.workspaceId, assignment.id, files);
+        attachments = await measure('kirim: unggah semua lampiran', () => uploadSubmissionFiles(scope.workspaceId, assignment.id, files));
       } catch (uploadError) {
         // Upload gagal BUKAN alasan menggagalkan seluruh pengumpulan kalau
         // siswa punya jawaban teks atau link Google Drive sebagai
@@ -255,14 +256,14 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
     // di atas), jangan sampai terhapus hanya karena teksnya diperbaiki.
 
     try {
-      await submissionController.submitAssignment(
+      await measure('kirim: simpan pengumpulan (Firestore)', () => submissionController.submitAssignment(
         scope.workspaceId,
         assignment.id,
         scope.studentId,
         scope.className,
         { textAnswer: answer, attachments, externalLink: resolvedExternalLink, answerPasted },
         assignment.dueDate
-      );
+      ));
       setOpenId(null);
       setAnswer("");
       setFiles([]);

@@ -4,6 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '@src/config/firebase';
 import { fetchCurrentStudentProfile } from '../../lib/controllers/studentAuthController';
+import { markSinceNavigation, measure } from '../../lib/utils/perf';
 
 export type StudentProfile = {
   id: string;
@@ -55,7 +56,8 @@ export function StudentAuthProvider({ children }: { children: React.ReactNode })
       return;
     }
     try {
-      const profile = await fetchCurrentStudentProfile(user.uid);
+      const profile = await measure('startup: baca profil siswa (Firestore)', () => fetchCurrentStudentProfile(user.uid));
+      markSinceNavigation('startup: profil siap (sejak halaman dibuka)');
       setState({ user, profile: profile as StudentProfile | null, loading: false });
     } catch (err) {
       console.error('Gagal memuat profil siswa:', err);
@@ -65,6 +67,7 @@ export function StudentAuthProvider({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, () => {
+      markSinceNavigation('startup: Firebase Auth siap (sejak halaman dibuka)');
       // Sengaja tidak memakai `user` dari callback: refreshProfile selalu
       // membaca auth.currentUser terbaru, jadi hanya ada satu jalur pemuatan.
       refreshProfile();

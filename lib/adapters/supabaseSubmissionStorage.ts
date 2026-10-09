@@ -2,6 +2,7 @@ import { auth } from '@/src/config/firebase';
 import { MAX_SUBMISSION_FILES, MAX_UPLOAD_BYTES, resolveUploadContentType } from '@/lib/utils/uploadFileTypes';
 import { userError } from '@/lib/utils/submissionRules';
 import { withTimeout } from '@/lib/utils/withTimeout';
+import { measure } from '@/lib/utils/perf';
 import { compressImageForUpload } from '@/lib/utils/imageCompression';
 
 const UPLOAD_TIMEOUT_MS = 5 * 60_000;
@@ -38,7 +39,9 @@ export async function uploadSubmissionFile(
   // Foto dikompres di browser (maks 1600px, JPEG 80%) supaya hemat bucket;
   // file lain / gagal kompres = file asli.
   const originalType = resolveUploadContentType(file) as string;
-  file = await compressImageForUpload(file, originalType);
+  const originalBytes = file.size;
+  file = await measure(`unggah: kompres ${file.name}`, () => compressImageForUpload(file, originalType));
+  console.info(`[perf] unggah: ukuran ${originalBytes} -> ${file.size} byte`);
   const contentType = validateSupabaseSubmissionFile(file);
   const user = auth.currentUser;
   if (!user) throw userError('Sesi tidak valid, coba muat ulang halaman.', 'unauthenticated');
@@ -49,7 +52,7 @@ export async function uploadSubmissionFile(
     const idToken = await user.getIdToken();
     let response: Response;
     try {
-      response = await withTimeout(
+      response = await measure('unggah: siapkan izin (server)', () => withTimeout(
         fetch('/api/submission-attachments/upload', {
           method: 'POST',
           headers: {
@@ -62,7 +65,7 @@ export async function uploadSubmissionFile(
         }),
         'Menyiapkan unggahan terlalu lama. Periksa koneksi internetmu lalu coba lagi.',
         UPLOAD_TIMEOUT_MS
-      );
+      ));
     } catch (error) {
       if ((error as { userFacing?: boolean })?.userFacing || (error as Error)?.name === 'AbortError') throw error;
       console.error('Gagal menghubungi server untuk menyiapkan unggahan:', error);
@@ -84,7 +87,7 @@ export async function uploadSubmissionFile(
     form.append('', new Blob([file], { type: contentType }), file.name);
     let uploadResponse: Response;
     try {
-      uploadResponse = await withTimeout(
+      uploadResponse = await measure('unggah: kirim file ke Supabase', () => withTimeout(
         fetch(result.signedUrl, {
           method: 'PUT',
           headers: { 'x-upsert': 'false' },
@@ -94,7 +97,7 @@ export async function uploadSubmissionFile(
         }),
         `Unggah "${file.name}" terlalu lama. Periksa koneksi internetmu lalu coba lagi.`,
         UPLOAD_TIMEOUT_MS
-      );
+      ));
     } catch (error) {
       if ((error as { userFacing?: boolean })?.userFacing || (error as Error)?.name === 'AbortError') throw error;
       console.error('Gagal mengirim file ke penyimpanan Supabase:', error);
