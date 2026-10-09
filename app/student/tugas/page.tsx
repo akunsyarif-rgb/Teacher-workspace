@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Circle, Clock, Send, Paperclip, FileText, X, CalendarX, Link2 } from "lucide-react";
+import { CheckCircle2, Circle, Clock, Send, Paperclip, FileText, X, CalendarX, Link2, type LucideIcon } from "lucide-react";
 import StudentShell from "@/src/components/student/StudentShell";
 import { SkeletonCard } from "@/src/components/ui/Skeleton";
 import InlineAlert from "@/src/components/ui/InlineAlert";
@@ -16,7 +16,7 @@ import { canStudentSubmit, describeSubmissionError, isPastDue } from "@/lib/util
 import { isValidSubmissionLink, SUBMISSION_LINK_ERROR_MESSAGE } from "@/lib/utils/submissionLink";
 import type { StudentProfile } from "@/src/context/StudentAuthContext";
 
-const STATUS_LABEL: Record<string, { label: string; className: string; icon: any }> = {
+const STATUS_LABEL: Record<string, { label: string; className: string; icon: LucideIcon }> = {
   [SUBMISSION_STATUS.BELUM_MENGUMPULKAN]: { label: "Belum dikumpulkan", className: "text-gray-400", icon: Circle },
   [SUBMISSION_STATUS.MENUNGGU_PENILAIAN]: { label: "Sudah dikumpulkan", className: "text-amber-600", icon: Clock },
   [SUBMISSION_STATUS.DINILAI]: { label: "Sudah dinilai", className: "text-emerald-600", icon: CheckCircle2 },
@@ -25,14 +25,34 @@ const STATUS_LABEL: Record<string, { label: string; className: string; icon: any
 type Attachment = { fileUrl: string; fileName: string; filePath?: string };
 type ExternalLink = { provider: string; url: string; label: string };
 
-function attachmentsOf(assignment: any): Attachment[] {
+// Bentuk baris tugas dari studentPortalService.getAssignments — hanya field
+// yang dipakai halaman ini. Semuanya opsional karena dokumen lama bisa tidak
+// memilikinya.
+type AssignmentRow = {
+  id: string;
+  title?: string;
+  description?: string;
+  dueDate?: string;
+  status?: string;
+  submittedAt?: string | null;
+  textAnswer?: string;
+  attachments?: Attachment[];
+  fileUrl?: string;
+  fileName?: string;
+  externalLink?: ExternalLink | null;
+  feedback?: string | null;
+  materialFileName?: string;
+  materialFileUrl?: string;
+};
+
+function attachmentsOf(assignment: AssignmentRow): Attachment[] {
   if (assignment.attachments && assignment.attachments.length > 0) return assignment.attachments;
-  if (assignment.fileUrl) return [{ fileUrl: assignment.fileUrl, fileName: assignment.fileName }];
+  if (assignment.fileUrl) return [{ fileUrl: assignment.fileUrl, fileName: assignment.fileName ?? "" }];
   return [];
 }
 
-function externalLinkOf(assignment: any): ExternalLink | null {
-  return assignment?.externalLink?.url ? assignment.externalLink : null;
+function externalLinkOf(assignment: AssignmentRow): ExternalLink | null {
+  return assignment.externalLink?.url ? assignment.externalLink : null;
 }
 
 // Waktu pengumpulan ditampilkan dalam zona yang sama dengan seluruh
@@ -54,7 +74,7 @@ function formatSubmittedAt(iso?: string | null) {
 
 function AssignmentsContent({ profile }: { profile: StudentProfile }) {
   const { open: openAttachment, viewer } = useAttachmentViewer();
-  const [assignments, setAssignments] = useState<any[]>([]);
+  const [assignments, setAssignments] = useState<AssignmentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
   const [answer, setAnswer] = useState("");
@@ -93,24 +113,43 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
     [profile.workspaceId, profile.className, profile.studentId]
   );
 
-  const loadAssignments = useCallback(async () => {
-    try {
-      const result = await measure('tugas: muat daftar tugas', () => studentPortalController.fetchAssignments({
+  const fetchRows = useCallback(
+    () =>
+      measure('tugas: muat daftar tugas', () => studentPortalController.fetchAssignments({
         workspaceId: profile.workspaceId,
         className: profile.className,
         studentId: profile.studentId,
-      }));
-      setAssignments(result);
+      })) as Promise<AssignmentRow[]>,
+    [profile.workspaceId, profile.className, profile.studentId]
+  );
+
+  // Muat ulang setelah pengumpulan berhasil.
+  const loadAssignments = useCallback(async () => {
+    try {
+      setAssignments(await fetchRows());
     } catch (error) {
       console.error("Gagal memuat tugas:", error);
     } finally {
       setLoading(false);
     }
-  }, [profile.workspaceId, profile.className, profile.studentId]);
+  }, [fetchRows]);
 
+  // Muat awal. State hanya diubah di callback promise (bukan sinkron di body
+  // effect) dan dibatalkan kalau komponen sudah dilepas.
   useEffect(() => {
-    loadAssignments();
-  }, [loadAssignments]);
+    let cancelled = false;
+    fetchRows()
+      .then((rows) => {
+        if (!cancelled) setAssignments(rows);
+      })
+      .catch((error) => console.error("Gagal memuat tugas:", error))
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchRows]);
 
   useEffect(() => {
     return () => {
@@ -118,7 +157,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
     };
   }, []);
 
-  function openForm(assignment: any) {
+  function openForm(assignment: AssignmentRow) {
     setOpenId(assignment.id);
     setAnswer(assignment.textAnswer || "");
     setFiles([]);
@@ -160,7 +199,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
         // menunggu unggahan besar selesai lalu gagal di Storage rules.
         validateSupabaseSubmissionFile(candidate);
         toAdd.push(candidate);
-      } catch (error: any) {
+      } catch (error) {
         setSubmitError(describeSubmissionError(error));
         return;
       }
@@ -177,7 +216,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
-  async function handleSubmit(assignment: any) {
+  async function handleSubmit(assignment: AssignmentRow) {
     if (submittingRef.current) return;
 
     const existingAttachments = attachmentsOf(assignment);
@@ -275,7 +314,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
       setJustSubmittedId(assignment.id);
       flashTimerRef.current = setTimeout(() => setJustSubmittedId(null), 6000);
       await loadAssignments();
-    } catch (error: any) {
+    } catch (error) {
       // Ditampilkan sebagai InlineAlert (bukan alert() browser) supaya
       // pesan gagal-kirim/unggah-timeout pasti terlihat, bukan cuma
       // spinner yang diam-diam berhenti tanpa penjelasan apa pun.
@@ -309,7 +348,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
   return (
     <div className="space-y-3">
       {assignments.map((assignment) => {
-        const status = STATUS_LABEL[assignment.status] || STATUS_LABEL[SUBMISSION_STATUS.BELUM_MENGUMPULKAN];
+        const status = STATUS_LABEL[assignment.status ?? ""] || STATUS_LABEL[SUBMISSION_STATUS.BELUM_MENGUMPULKAN];
         const StatusIcon = status.icon;
         const isOpen = openId === assignment.id;
         const existingAttachments = attachmentsOf(assignment);
