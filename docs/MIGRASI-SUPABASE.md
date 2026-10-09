@@ -1,82 +1,107 @@
-# Rencana Migrasi Firestore → Supabase (Postgres)
+# Migrasi Firestore → Supabase (Postgres)
 
-Status: **usulan, belum disetujui, tidak ada perubahan data atau kode aplikasi.**
-Dokumen ini hanya Fase 0 (perencanaan). Setiap fase berikutnya butuh persetujuan eksplisit
-pemilik (lihat AGENTS.md: breaking change dan migrasi data wajib disetujui lebih dulu).
+Status per 2026-10-09: **skema + RLS sudah ada di Supabase, belum ada data dan belum ada kode aplikasi
+yang memakainya.** Aplikasi masih 100% Firestore. Dokumen ini menggantikan versi awal yang keliru
+mengira skema belum dibuat.
 
-## Tujuan
-Kemudahan maintenance dan pengembangan:
-- Asisten pengembang (Claude) bisa membaca tabel, menjalankan SQL, melihat log, dan membuat
-  migrasi skema langsung lewat konektor Supabase, tanpa pemilik membuka Console tiap kali.
-- Skema dan aturan akses tercatat sebagai migrasi SQL di git (bisa direview, diuji, dibatalkan).
-- Laporan/statistik cukup dengan SQL, tanpa membaca dokumen satu per satu.
+Aturan kerja (AGENTS.md): tidak ada backfill, dual-write, atau feature flag sebelum persetujuan
+eksplisit pemilik. Produksi (project "Workflow") hanya diinspeksi read-only; semua uji mutasi
+berjalan di Postgres lokal.
 
-Bukan tujuan: mengganti Firebase Auth, mengubah fitur, atau memindahkan lampiran
-(lampiran siswa sudah di Supabase Storage, lihat PR #50).
+## 1. Kondisi aktual (diverifikasi, read-only)
 
-## Kondisi saat ini (fakta dari repo)
-- 21 koleksi Firestore: `teacher_profiles`, `workspaces`, `workspace_invites`, `payments`,
-  `students`, `schedules`, `journals`, `session_skip_reasons`, `academic_years`, `attendances`,
-  `grades`, `grade_columns`, `assignments`, `announcements`, `submissions`,
-  `student_login_codes`, `student_profiles`, `class_fund_transactions`, `class_inventory`,
-  `student_notes`, `student_achievements`.
-- `firestore.rules`: 717 baris (multi-tenant per `workspaceId`, peran OWNER/ADMIN/TEACHER,
-  akses siswa lewat `student_profiles`). Ini bagian paling rawan saat dipindah.
-- Lapisan kode: UI → Controller → Service → Repository (22 file) → **`lib/adapters/firestoreAdapter.ts`**.
-  Hanya adapter itu (dan `src/config/firebase.ts`) yang memakai SDK Firestore klien.
-  Adapter hanya ~11 fungsi generik: `getDocument(s)`, `countDocuments`, `addDocument`,
-  `setDocument`, `updateDocument`, `deleteDocument`, `batchWrite`, `generateId`, cache.
-- Tidak ada `onSnapshot` (tanpa listener realtime): semua baca/tulis berbentuk request-response.
-- Admin SDK (server) dipakai di 6 file: `lib/server/{firebaseAdmin,classAdminService,paymentService,workspaceAdminService,ownerAdminService}.ts` dan route API terkait.
-- Login: Firebase Auth (guru email-password, siswa anonim + kode akses). Tidak ikut dipindah.
-- Offline: cache persisten Firestore (kecuali Safari/iOS yang memakai cache memori).
+Project Supabase **Workflow** (`htutgpjcynbnyxwgorcb`):
+- 21 tabel di `public`, satu per koleksi Firestore, RLS aktif di semuanya, **0 baris**.
+- 19 migrasi (4–5 Okt 2026): skema dasar, kolom pembayaran, pemetaan identitas dari uid Firebase
+  (`private.current_uid()` = `auth.jwt()->>'sub'`), trigger kolom immutable, FK dan indeks.
+- Fungsi bantu RLS di skema `private`; RPC `claim_student_login_code`, `lookup_workspace_invite`.
+- `anon` tidak punya hak apa pun; `authenticated` punya CRUD yang dibatasi RLS (`payments`: SELECT saja).
+- Advisor keamanan Supabase: hanya 2 peringatan (dua RPC di atas, memang dipanggil sebelum pengguna jadi
+  anggota) dan "leaked password protection" (tidak relevan: login tetap Firebase).
+- SQL migrasi **tidak ada di repo**. Salinan baseline hasil ekspor katalog ada di `supabase/baseline/`.
 
-## Keputusan arsitektur yang diusulkan
-1. **Pertahankan Firebase Auth.** Supabase mendukung Firebase sebagai penyedia login pihak ketiga:
-   token Firebase dipakai langsung ke Supabase, `auth.jwt()->>'sub'` = uid Firebase.
-   Menghindari migrasi akun dan login ulang semua pengguna.
-2. **Tulis `supabaseAdapter` dengan antarmuka yang sama** dengan `firestoreAdapter`, dipilih lewat
-   env (`DATA_BACKEND=firestore|supabase`) per koleksi (feature flag). Service/Repository tidak diubah.
-3. **Skema:** satu tabel per koleksi, `id text primary key` (id Firestore dipertahankan),
-   `workspace_id text not null` di semua tabel tenant, `created_at/updated_at timestamptz default now()`,
-   kolom jelas untuk field yang sering difilter, `jsonb` untuk field lepas/jarang.
-4. **RLS** menggantikan `firestore.rules`: fungsi `current_workspace_id()` (dari `teacher_profiles`),
-   `current_role()`, `is_student_in_class(...)`. Field immutable (`workspace_id`, `created_by`,
-   `created_at`) dijaga trigger. Setiap aturan lama dipetakan 1:1 dan diuji.
-5. **Operasi server-only** (join workspace, rename kelas, pembayaran, panel admin/pemilik) dipindah
-   ke fungsi/RPC Postgres atau tetap di route API memakai `service_role`.
+Sisi aplikasi: Firestore hanya disentuh lewat `lib/adapters/firestoreAdapter.ts` (11 fungsi generik)
+dan Admin SDK di 6 file server. Tidak ada `onSnapshot`. Belum ada `supabaseAdapter`.
 
-## Fase
-| Fase | Isi | Risiko | Gerbang persetujuan |
+## 2. Hasil audit RLS
+
+Uji paritas: `tests/rls-parity.test.ts` (479 kasus, Postgres lokal, tiap kasus di transaksi yang
+di-rollback). Menjalankan baseline produksi + stub `auth.jwt()`, membandingkan perilaku dengan
+`firestore.rules` untuk 8 aktor (owner, admin, guru, wali kelas, siswa kelas A, siswa kelas B,
+guru workspace lain, tanpa profil) di 21 tabel.
+
+Hasil:
+- **Baseline saja: 460 lulus, 19 gagal.** 460 kasus membuktikan paritas dan isolasi tenant (baca/tulis per
+  peran, isolasi lintas workspace, pindah workspace ditolak, kunci field plan, catatan konseling hanya
+  wali kelas/admin, siswa hanya data kelas/miliknya, kunci submission setelah dinilai, validasi link Drive,
+  `payments` tanpa tulis). 19 kegagalan = celah di bawah + fungsi pengganti yang belum ada.
+- **Dengan `supabase/migrations/20261009000000_rls_hardening.sql`: 479 lulus.**
+
+### Celah yang terbukti di baseline (ditutup oleh migrasi usulan)
+| # | Celah | Bukti | Perbaikan |
 |---|---|---|---|
-| 0 | Dokumen ini + inventarisasi field per koleksi | tidak ada | pemilik menyetujui arah |
-| 1 | Skema + RLS + test RLS untuk 1 koleksi percobaan non-kritis (mis. `session_skip_reasons`) di project **terpisah/branch Supabase**; `supabaseAdapter` + flag; data baru ditulis ganda (dual-write) | rendah | persetujuan sebelum menyentuh data produksi |
-| 2 | Backfill data koleksi percobaan, bandingkan hasil, ganti baca ke Supabase untuk koleksi itu | sedang | persetujuan tiap koleksi |
-| 3 | Koleksi inti satu per satu (`workspaces`, `teacher_profiles`, `students`, ... ) dengan pola yang sama | tinggi (multi-tenant) | persetujuan tiap koleksi |
-| 4 | Pensiunkan Firestore + `firestore.rules`, hapus dual-write | sedang | persetujuan akhir + backup |
+| A | `lookup_workspace_invite` menerima kode undangan LAMA dan mengembalikan kode AKTIF | kode `OLDA` → baris berisi kode aktif | hanya kode yang sama dengan `workspaces.invite_code` |
+| B | Guru bisa menulis profil `TEACHER` ke workspace mana pun yang punya undangan aktif, tanpa kode dan melewati batas kursi (juga memungkinkan guru yang dikeluarkan bergabung lagi) | insert/update profil lolos | klaim mandiri TEACHER ditutup; gabung lewat `join_workspace_by_code(kode)` (cek kode, kedaluwarsa, kursi, kunci baris) |
+| C | Siapa pun bisa membuat workspace `school_annual` tanpa batas/ plan bulanan gratis | insert lolos | insert hanya plan gratis dengan batas gratis (3 kelas / 1 kursi) |
+| D | Siapa pun bisa membuat `student_profiles` palsu untuk workspace/kelas/siswa mana pun lalu membaca data kelas itu | insert lolos | insert langsung dicabut; hanya `claim_student_profile(kode)` |
+| E | Siswa bisa mengisi `submissions.score` saat insert | insert lolos | `score is null` pada policy insert |
 
-Rollback tiap fase: matikan flag koleksi itu; Firestore tetap sumber kebenaran sampai Fase 4.
+Migrasi **belum diterapkan** ke produksi dan tidak boleh diterapkan tanpa persetujuan.
 
-## Risiko dan hal yang hilang
-- **Offline:** antrean tulis offline Firestore tidak punya padanan langsung di Supabase. Bila fitur
-  offline penuh harus dipertahankan, perlu antrean tulis sendiri di klien (pekerjaan tambahan).
-- **Transaksi/batch:** `batchWrite` harus jadi transaksi (RPC) agar tetap atomik.
-- **Timestamp:** `serverTimestamp()` → `default now()` + trigger; jangan percaya waktu klien (AGENTS.md).
-- **Kebocoran antar-sekolah:** kesalahan RLS = data satu sekolah terbaca sekolah lain. Wajib ada test
-  RLS per tabel setara `tests/firestore-rules.test.ts` sebelum koleksi apa pun dialihkan.
-- **Biaya dan operasi:** Supabase punya batas plan (koneksi, ukuran DB); perlu backup terjadwal.
-- **Dua sistem sekaligus** selama fase 1-3: lebih banyak hal untuk dirawat sementara.
+### Celah serupa di `firestore.rules` produksi (terbukti di emulator Firestore)
+- **G1** `workspaces` create hanya memeriksa `ownerUid`: client bisa membuat workspace dengan
+  `plan: 'school_annual'`, `classLimit/seatLimit: null` (paywall terlewati).
+- **G2** `student_profiles` create hanya memeriksa uid: client bisa membuat profil siswa palsu untuk
+  workspace/kelas mana pun, lalu membaca tugas/jadwal/presensi kelas itu (butuh `workspaceId`, tidak rahasia
+  bagi anggota workspace).
+- **G3** `teacher_profiles` create/update menerima role `TEACHER` selama undangan workspace aktif
+  (tanpa kode, tanpa cek kursi); guru yang dikeluarkan bisa bergabung lagi.
+Belum diperbaiki di Firestore (perubahan rules produksi butuh persetujuan). Perbaikan yang disarankan ada
+di bagian 5.
 
-## Perkiraan usaha (kasar, untuk perencanaan, bukan janji)
-Fase 1: beberapa hari. Fase 2: sekitar satu minggu. Fase 3: beberapa minggu (21 koleksi, 717 baris
-rules untuk dipetakan dan diuji). Fase 4: beberapa hari.
+### Risiko terbuka lain
+- `claim_student_login_code`/`claim_student_profile`: tanpa pembatasan laju; keamanan bergantung pada
+  kode acak (sama seperti Firestore). Pertimbangkan rate limit di sisi aplikasi/WAF.
+- Siswa bisa mengumpulkan ke tugas kelas lain di workspace yang sama (paritas Firestore; validasi kelas
+  hanya di route API). Bisa ditambah ke policy insert.
+- `submissions` tidak memeriksa tenggat di RLS (hanya di service); paritas.
+- `student_login_codes.id` vs `code`: RPC mencocokkan `id`; backfill harus memastikan `id = code`.
 
-## Alternatif yang lebih murah (untuk masalah "bolak-balik buka Console")
-- Beri asisten akses **baca saja** ke Firebase (service account read-only di environment sesi).
-- Panel pemilik `/owner` untuk mengubah plan/kuota tanpa Console (PR terpisah).
+## 3. Yang belum terbukti / butuh dashboard (hambatan, bukan asumsi)
+1. **Login Firebase ke Supabase belum terverifikasi.** Skema memetakan `sub` = uid Firebase, tapi Supabase
+   (Authentication → Third-party) harus dikonfigurasi untuk Firebase dan token wajib memuat klaim
+   `role: "authenticated"` (custom claim Firebase, termasuk untuk siswa anonim). Tanpa itu semua
+   request ditolak/anon. Perlu uji dengan token nyata sebelum fase berikutnya.
+2. Pemetaan field Firestore → kolom/`metadata` per koleksi belum dibuktikan terhadap data nyata
+   (butuh akses baca Firestore). Beberapa field (mis. `subject`, `quickNote`, `isActive`) tidak punya kolom
+   dan diharapkan masuk `metadata`.
+3. Tipe `bigint` untuk `*_expires_at` (ms) dan `date` untuk tanggal Firestore (string `YYYY-MM-DD`)
+   perlu konversi eksplisit di adapter.
+4. Keputusan offline: cache persisten Firestore tidak punya padanan; Safari/iOS sudah memakai cache memori.
 
-## Pertanyaan terbuka untuk pemilik
-1. Apakah fitur offline penuh (tulis saat offline bertahan setelah tab ditutup) wajib dipertahankan?
-2. Koleksi percobaan mana yang boleh dipindah dulu?
-3. Boleh membuat project/branch Supabase terpisah untuk uji (bukan project Workflow yang berisi bucket produksi)?
-4. Tenggat atau alasan biaya yang mendorong migrasi (agar fase bisa diprioritaskan)?
+## 4. Cara menjalankan uji RLS (lokal)
+```
+RLS_TEST_ADMIN_URL=postgresql://postgres:<pw>@127.0.0.1:5432/postgres npx vitest run tests/rls-parity.test.ts
+RLS_TEST_BASELINE_ONLY=1 ... # tanpa migrasi usulan: memperlihatkan celah A–E
+```
+Butuh Postgres 15+ lokal (bukan Supabase). Tanpa `RLS_TEST_ADMIN_URL` test dilewati (CI tidak punya Postgres).
+`supabase/test-support/000_auth_stub.sql` hanya untuk uji lokal; jangan dijalankan di Supabase.
+
+## 5. Langkah berikutnya (urut)
+1. Tinjau dan setujui `20261009000000_rls_hardening.sql`; terapkan dulu ke branch/project staging Supabase
+   (bukan Workflow produksi), jalankan ulang `tests/rls-parity.test.ts` terhadap staging.
+2. Verifikasi login Firebase ↔ Supabase (butir 3.1) dengan token guru dan siswa anonim nyata.
+3. Perbaiki G1–G3 di `firestore.rules` (usulan, perlu persetujuan): batasi `workspaces` create ke plan/batas
+   gratis; `student_profiles` create harus menyertakan kode login yang cocok; hapus klaim `TEACHER` mandiri
+   (gabung sudah lewat `/api/workspace/join`).
+4. Tulis `supabaseAdapter` (antarmuka sama dengan `firestoreAdapter`) di balik flag per koleksi, default mati.
+5. Backfill + dual-write satu koleksi percobaan (`session_skip_reasons`) — hanya setelah persetujuan.
+6. Server (6 file Admin SDK), koleksi inti satu per satu, lalu pensiun Firestore.
+
+Rollback tiap fase: matikan flag koleksi itu; Firestore tetap sumber kebenaran sampai fase terakhir.
+
+## 6. Pertanyaan terbuka untuk pemilik
+1. Setujui migrasi hardening (bagian 2) untuk diuji di staging?
+2. Boleh dibuatkan project/branch Supabase staging terpisah (bukan Workflow)? Mungkin berbiaya.
+3. Setujui perubahan `firestore.rules` untuk G1–G3?
+4. Offline penuh di Chrome/Android wajib dipertahankan setelah migrasi?
