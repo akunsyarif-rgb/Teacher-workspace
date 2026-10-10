@@ -9,9 +9,11 @@ vi.mock('../lib/adapters/supabaseClient', () => ({ getSupabaseAdapter: () => sb 
 const C = 'session_skip_reasons';
 async function load(env: Record<string, string | undefined>) {
   vi.resetModules();
-  for (const k of ['NEXT_PUBLIC_SUPABASE_COLLECTIONS', 'NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE']) {
-    if (env[k] === undefined) vi.stubEnv(k, ''); else vi.stubEnv(k, env[k]!);
-  }
+  // Koleksi data di Supabase mensyaratkan unit identitas + auth guru terverifikasi.
+  const flag = env.NEXT_PUBLIC_SUPABASE_COLLECTIONS ? `${env.NEXT_PUBLIC_SUPABASE_COLLECTIONS},workspaces,teacher_profiles` : '';
+  vi.stubEnv('NEXT_PUBLIC_SUPABASE_COLLECTIONS', flag);
+  vi.stubEnv('NEXT_PUBLIC_SUPABASE_TEACHER_AUTH_VERIFIED', flag ? 'yes' : '');
+  vi.stubEnv('NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE', env.NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE ?? '');
   return import('../lib/repositories/sessionSkipReasonRepository');
 }
 
