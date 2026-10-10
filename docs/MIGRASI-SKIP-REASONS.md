@@ -69,17 +69,31 @@ Belum pernah dijalankan terhadap Supabase nyata.
 Matikan flag → Firestore kembali dipakai. Tulisan yang terjadi saat flag aktif hanya ada di Supabase: jalankan rekonsiliasi dibalik
 (Supabase→Firestore) sebelum rollback bila perlu. Backfill hanya menambah/menimpa baris Supabase; Firestore tak diubah.
 
-## Koleksi (status)
-Sudah dialihkan di kode (flag mati): tujuh koleksi di atas. Dampak lintas-modul yang sudah ditangani:
-- **Rename kelas** (`/api/classes/rename`, Admin SDK hanya mengubah Firestore): `renameClassInSupabase` (server, secret key, dibatasi workspace+kelas lama)
-  ikut mengganti `class_name` di koleksi berflag; gagal → error yang menyebut apa yang sudah berubah. Teruji (`tests/supabase-class-rename.test.ts`).
-- **Urutan kolom nilai** memakai `createdAt`: `toMillis` kini menerima string ISO (Supabase) — tanpa ini urutan kolom acak.
-- **Beranda**: alasan skip gagal tidak mematikan ringkasan.
-Nilai `grades.score` dibaca sebagai string (Firestore menyimpan "85"; numeric PostgREST = number).
-Belum bisa dialihkan (alasan konkret):
-- `journals`, `attendances`, `announcements`, `assignments`, `submissions`: disentuh langsung oleh Arsip/Cleanup/Export berbasis Firestore
-  (`dataLifecycleCollections`, `dataArchiveRepository`, `dataCleanupRepository`: range query + `batchWrite`) → butuh operator range di adapter
-  dan routing lapisan itu lewat `adapterFor` sebelum aman.
-- `students` + `student_login_codes`: ditulis dalam SATU batch lintas koleksi dan dibaca alur klaim siswa (`studentAuthRepository`) → harus
-  dialihkan bersamaan dengan RPC `claim_student_login_code`/`claim_student_profile` dan auth siswa anonim yang terbukti.
-Urutan berikutnya: range operator + routing Arsip/Cleanup → journals/attendances/announcements/assignments; lalu students+login codes (bersama klaim siswa); terakhir submissions.
+## Status migrasi per koleksi
+Kategori: **0** Belum diimplementasikan · **1** Implementasi selesai, tes lokal lulus · **2** Siap divalidasi di staging (kode + tes lokal + runbook/backfill siap; hanya menunggu staging/auth) · **3** Terverifikasi di staging · **4** Aktif digunakan.
+Saat ini TIDAK ADA koleksi di kategori 3 atau 4 (belum ada staging; semua flag mati; aplikasi 100% Firestore).
+
+| Koleksi | Kategori | Gerbang aktivasi | Catatan |
+|---|---|---|---|
+| `session_skip_reasons`, `academic_years`, `class_fund_transactions`, `class_inventory`, `student_notes` | 2 | flag | guru-saja |
+| `journals`, `attendances` | 2 | flag | range query `>=`/`<=` + count; Arsip/Cleanup/Export ikut lewat `adapterFor` |
+| `schedules`, `grade_columns`, `grades`, `student_achievements`, `announcements`, `assignments`, `submissions` | 2 | flag **+ `STUDENT_AUTH_VERIFIED=yes`** | dibaca/ditulis juga oleh sesi siswa; `grades`/`submissions`/`student_achievements` memakai RPC `batch_write` (PR #59) |
+| `students` + `student_login_codes` + `student_profiles` | 2 | flag **ketiganya sekaligus** + `STUDENT_AUTH_VERIFIED=yes` | satu unit; klaim lewat RPC `claim_student_profile`; profil hanya-baca dari klien |
+| `teacher_profiles`, `workspaces`, `workspace_invites`, `payments` | 0 | — | identitas/langganan; juga disentuh Admin SDK server (join, pembayaran, panel owner/admin) → fase terakhir |
+
+Modul server yang masih Firestore (kategori 0): `workspaceAdminService`, `ownerAdminService`, `/api/workspace/join`, `/api/payments/*`, `app/admin/migrate` (alat lama; menulis Firestore langsung — hanya relevan sebelum cutover).
+Yang sudah mengikuti flag di server: rename kelas (`renameClassInSupabase`, `supabaseClassExists`, termasuk unit siswa).
+
+### Mengapa tiga `student_*` satu unit
+`createStudent*`/`backfillAccessCodes`/`deleteStudent*` menulis `students` dan `student_login_codes` dalam SATU batch (atomik); klaim siswa membaca kode login lalu membuat `student_profiles`.
+Memecah backend di antara ketiganya akan membuat kode login menunjuk siswa yang tidak ada atau sebaliknya. `dataBackend.UNITS` memaksa ketiganya menyala bersamaan (diuji);
+di Supabase satu `batch_write` menulis dua tabel dalam satu transaksi, dan klaim = satu RPC atomik. Profil siswa yang sudah ada di Firestore HARUS di-backfill
+(`--collection student_profiles`, service_role; kunci `user_id`) atau semua siswa diminta memasukkan kode lagi.
+
+### Gerbang siswa
+Flag deployment berlaku untuk semua sesi, termasuk siswa anonim. Koleksi siswa-facing tambahan butuh `NEXT_PUBLIC_SUPABASE_STUDENT_AUTH_VERIFIED=yes` — set HANYA setelah
+`scripts/supabase/verify-auth.mjs` membuktikan token siswa anonim diterima Supabase (Third-Party Auth + claim `role`) di staging. Tanpa itu koleksi tetap Firestore (diuji).
+
+### Urutan cutover yang disarankan (setelah staging + auth)
+1. Guru-saja (5 koleksi) → 2. `journals`/`attendances` → 3. koleksi siswa-facing non-unit → 4. unit siswa (backfill `students`, `student_login_codes`, `student_profiles` bersamaan, lalu flag ketiganya) → 5. server/identitas.
+Backfill + rekonsiliasi per koleksi: `npm run migrate:collection -- --collection <nama> --workspace <id>` (dry-run → `--apply` → dry-run harus bersih).

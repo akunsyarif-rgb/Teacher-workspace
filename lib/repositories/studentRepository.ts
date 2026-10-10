@@ -1,15 +1,16 @@
-import { getDocument, getDocuments, deleteDocument, batchWrite, generateId, BatchOperation } from '../adapters/firestoreAdapter';
+import type { BatchOperation } from '../adapters/firestoreAdapter';
+import { adapterFor } from '../adapters/dataAdapter';
 import { COLLECTIONS } from '../config/constants';
 import { generateAccessCode } from '../utils/accessCode';
 
 export async function getAllStudents(workspaceId: string) {
   if (!workspaceId) return [];
-  return getDocuments(COLLECTIONS.STUDENTS, [['workspaceId', '==', workspaceId]]);
+  return adapterFor(COLLECTIONS.STUDENTS).getDocuments(COLLECTIONS.STUDENTS, [['workspaceId', '==', workspaceId]]);
 }
 
 export async function getStudentsByClass(workspaceId: string, className: string) {
   if (!workspaceId || !className) return [];
-  const students = await getDocuments(COLLECTIONS.STUDENTS, [
+  const students = await adapterFor(COLLECTIONS.STUDENTS).getDocuments(COLLECTIONS.STUDENTS, [
     ['workspaceId', '==', workspaceId],
     ['className', '==', className],
   ]);
@@ -45,7 +46,7 @@ export async function createStudent(
   data: { name: string; nis: string; className: string }
 ) {
   if (!workspaceId) throw new Error('workspaceId diperlukan');
-  const id = generateId(COLLECTIONS.STUDENTS);
+  const id = adapterFor(COLLECTIONS.STUDENTS).generateId(COLLECTIONS.STUDENTS);
   const accessCode = generateAccessCode();
   const operations: BatchOperation[] = [
     {
@@ -61,7 +62,7 @@ export async function createStudent(
       data: buildLoginCodeDoc(id, workspaceId, data),
     },
   ];
-  await batchWrite(operations);
+  await adapterFor(COLLECTIONS.STUDENTS).batchWrite(operations);
   return { id, ...data, workspaceId, accessCode };
 }
 
@@ -72,7 +73,7 @@ export async function createStudentsBatch(
   if (!workspaceId) throw new Error('workspaceId diperlukan');
   const operations: BatchOperation[] = [];
   students.forEach((student) => {
-    const id = generateId(COLLECTIONS.STUDENTS);
+    const id = adapterFor(COLLECTIONS.STUDENTS).generateId(COLLECTIONS.STUDENTS);
     const accessCode = generateAccessCode();
     operations.push({
       type: 'set',
@@ -88,7 +89,7 @@ export async function createStudentsBatch(
     });
   });
 
-  await batchWrite(operations);
+  await adapterFor(COLLECTIONS.STUDENTS).batchWrite(operations);
   return students.length;
 }
 
@@ -120,7 +121,7 @@ export async function backfillAccessCodes(
     });
   });
 
-  await batchWrite(operations);
+  await adapterFor(COLLECTIONS.STUDENTS).batchWrite(operations);
   return missing.length;
 }
 
@@ -134,11 +135,11 @@ export async function backfillAccessCodes(
 // kode tidak bisa dienumerasi) — makanya di sini TIDAK query koleksi itu,
 // cukup pakai accessCode yang sudah tersimpan di dokumen siswa sendiri.
 export async function deleteStudent(id: string) {
-  const student: any = await getDocument(COLLECTIONS.STUDENTS, id);
+  const student: any = await adapterFor(COLLECTIONS.STUDENTS).getDocument(COLLECTIONS.STUDENTS, id);
   if (!student?.accessCode) {
-    return deleteDocument(COLLECTIONS.STUDENTS, id);
+    return adapterFor(COLLECTIONS.STUDENTS).deleteDocument(COLLECTIONS.STUDENTS, id);
   }
-  await batchWrite([
+  await adapterFor(COLLECTIONS.STUDENTS).batchWrite([
     { type: 'delete', collectionName: COLLECTIONS.STUDENTS, id },
     { type: 'delete', collectionName: COLLECTIONS.STUDENT_LOGIN_CODES, id: student.accessCode },
   ]);
@@ -164,6 +165,6 @@ export async function deleteStudentsByClass(workspaceId: string, className: stri
     }
   });
 
-  await batchWrite(operations);
+  await adapterFor(COLLECTIONS.STUDENTS).batchWrite(operations);
   return students.length;
 }

@@ -1,6 +1,6 @@
 import { getAdminDb } from './firebaseAdmin';
 import { normalizeClassName, validateClassName } from '../utils/classNameValidation';
-import { renameClassInSupabase } from './supabaseClassRename';
+import { renameClassInSupabase, supabaseClassExists, supabaseCollectionsToRename } from './supabaseClassRename';
 
 // Semua koleksi yang punya field className langsung, TERMASUK
 // student_profiles — satu-satunya alasan operasi ini harus lewat Admin
@@ -88,7 +88,7 @@ export async function renameClassServer(
     .where('className', '==', newName)
     .limit(1)
     .get();
-  if (!collisionSnap.empty) {
+  if (!collisionSnap.empty || (await supabaseClassExists({ workspaceId, className: newName }))) {
     throw new Error(`Kelas "${newName}" sudah ada. Pilih nama lain.`);
   }
 
@@ -102,7 +102,11 @@ export async function renameClassServer(
     snap.docs.forEach((docSnap) => refsToUpdate.push(docSnap.ref));
   }
 
-  if (refsToUpdate.length === 0) {
+  // Bila students sudah di Supabase, daftar siswa Firestore bisa basi/kosong: kelas dianggap ada selama salah satu
+  // backend memilikinya (diputuskan setelah rename Supabase di bawah).
+  const supabaseFlagged = supabaseCollectionsToRename(
+    process.env.NEXT_PUBLIC_SUPABASE_COLLECTIONS, process.env.NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE, process.env.NEXT_PUBLIC_SUPABASE_STUDENT_AUTH_VERIFIED).length > 0;
+  if (refsToUpdate.length === 0 && !supabaseFlagged) {
     throw new Error(`Kelas "${oldName}" tidak ditemukan.`);
   }
 
@@ -140,5 +144,7 @@ export async function renameClassServer(
     throw new Error(`Firestore sudah memakai nama "${newName}" (${refsToUpdate.length} dokumen), tetapi Supabase belum konsisten. ${sebab}`);
   });
 
-  return { renamedCount: refsToUpdate.length + Object.values(supabaseCounts).reduce((a, b) => a + b, 0), className: newName };
+  const renamedCount = refsToUpdate.length + Object.values(supabaseCounts).reduce((a, b) => a + b, 0);
+  if (renamedCount === 0) throw new Error(`Kelas "${oldName}" tidak ditemukan.`);
+  return { renamedCount, className: newName };
 }

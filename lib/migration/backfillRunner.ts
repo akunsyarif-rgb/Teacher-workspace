@@ -1,3 +1,4 @@
+import { idColumn } from '../adapters/supabaseAdapter';
 import { assertMappedCollection, firestoreDocToRow, reconcileCollection, type ReconcileReport } from './collectionMigration';
 
 type Row = Record<string, unknown>;
@@ -124,7 +125,7 @@ export function createSupabaseBackfillIO(
     readSupabase: async (ws, collection) =>
       (await call(`${collection}?workspace_id=eq.${encodeURIComponent(ws)}&select=*`)) as Row[],
     upsert: async (rows, collection) => {
-      await call(`${collection}?on_conflict=id`, {
+      await call(`${collection}?on_conflict=${idColumn(collection)}`, {
         method: 'POST',
         headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
         body: JSON.stringify(rows),

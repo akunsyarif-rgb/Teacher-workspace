@@ -66,6 +66,7 @@ export interface BaseAdapter {
   deleteDocument(c: string, id: string): Promise<boolean>;
   batchWrite(ops: BatchOp[]): Promise<boolean>;
   generateId(c: string): string;
+  rpc?(name: string, args?: Row): Promise<unknown>;
 }
 
 export type OutboxOp = { seq: number; type: 'set' | 'update' | 'delete' | 'batch'; collection: string; id: string; data?: Row; batch?: BatchOp[]; queuedAt: number };
@@ -77,8 +78,19 @@ const RETRY_LATER = new Set(['offline', 'network', 'timeout', 'auth', 'server', 
 const pad = (n: number) => String(n).padStart(12, '0');
 const hash = (v: unknown) => JSON.stringify(v);
 
+// Padanan filter di sisi klien untuk overlay outbox. Rentang membandingkan string/angka secara leksikal/numerik
+// (sama dengan Firestore untuk tanggal ISO); baris tanpa field itu tidak lolos filter rentang.
 function matches(row: Row, filters: Filter[]) {
-  return filters.every(([f, op, v]) => op === '==' && (row[f] ?? null) === (v ?? null));
+  return filters.every(([f, op, v]) => {
+    const x = row[f];
+    if (op === '==') return (x ?? null) === (v ?? null);
+    if (x === null || x === undefined || v === null || v === undefined) return false;
+    if (op === '>=') return (x as string | number) >= (v as string | number);
+    if (op === '<=') return (x as string | number) <= (v as string | number);
+    if (op === '>') return (x as string | number) > (v as string | number);
+    if (op === '<') return (x as string | number) < (v as string | number);
+    return false;
+  });
 }
 
 export function withOfflineSupport(base: BaseAdapter, opts: { store: KVStore; isOnline: () => boolean; now?: () => number }) {
@@ -225,7 +237,12 @@ export function withOfflineSupport(base: BaseAdapter, opts: { store: KVStore; is
     /** Dead letter: operasi yang ditolak permanen (untuk ditampilkan/diekspor, tidak dihapus otomatis). */
     async listFailed() { return (await Promise.all((await store.keys('x:')).map((k) => store.get(k)))) as (OutboxOp & { error: string })[]; },
     generateId: (c: string) => base.generateId(c),
-    getDocumentFromCache: async (_c: string, _id: string) => null as Row | null, // eslint-disable-line @typescript-eslint/no-unused-vars
+    // Cache lokal (diisi getDocument): dipakai untuk memuat profil secepatnya sebelum versi server tiba.
+    getDocumentFromCache: async (c: string, id: string) => {
+      const cached = (await store.get(`d:${c}:${id}`)) as { row: Row | null } | undefined;
+      return cached?.row ?? null;
+    },
+    rpc: (name: string, args?: Row) => (base.rpc ? base.rpc(name, args) : Promise.reject(new SupabaseAdapterError('bad_request', 'rpc tidak tersedia'))),
     countDocuments: async (c: string, filters: Filter[] = []) => (await readThrough(c, filters)).length,
     // Batch dikirim langsung bila online dan tak ada antrean untuk dokumen terkait; gagal jaringan → satu entri outbox 'batch'
     // (replay idempoten: set-merge/delete). Error lain dilempar.

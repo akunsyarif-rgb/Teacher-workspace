@@ -1,4 +1,5 @@
-import { getDocument, getDocuments, batchWrite, BatchOperation } from '../adapters/firestoreAdapter';
+import type { BatchOperation } from '../adapters/firestoreAdapter';
+import { adapterFor } from '../adapters/dataAdapter';
 import { COLLECTIONS } from '../config/constants';
 
 // Satu dokumen per (assignment, siswa) — bukan satu dokumen per assignment
@@ -11,7 +12,7 @@ function submissionId(assignmentId: string, studentId: string) {
 
 export async function getSubmissionsByAssignment(workspaceId: string, assignmentId: string) {
   if (!workspaceId || !assignmentId) return [];
-  return getDocuments(COLLECTIONS.SUBMISSIONS, [
+  return adapterFor(COLLECTIONS.SUBMISSIONS).getDocuments(COLLECTIONS.SUBMISSIONS, [
     ['workspaceId', '==', workspaceId],
     ['assignmentId', '==', assignmentId],
   ]);
@@ -25,12 +26,12 @@ export async function getSubmissionsByAssignment(workspaceId: string, assignment
  */
 export async function getSubmission(assignmentId: string, studentId: string) {
   if (!assignmentId || !studentId) return null;
-  return getDocument(COLLECTIONS.SUBMISSIONS, submissionId(assignmentId, studentId));
+  return adapterFor(COLLECTIONS.SUBMISSIONS).getDocument(COLLECTIONS.SUBMISSIONS, submissionId(assignmentId, studentId));
 }
 
 export async function getSubmissionsByStudent(workspaceId: string, studentId: string) {
   if (!workspaceId || !studentId) return [];
-  return getDocuments(COLLECTIONS.SUBMISSIONS, [
+  return adapterFor(COLLECTIONS.SUBMISSIONS).getDocuments(COLLECTIONS.SUBMISSIONS, [
     ['workspaceId', '==', workspaceId],
     ['studentId', '==', studentId],
   ]);
@@ -49,6 +50,6 @@ export async function upsertSubmission(
       data: { ...data, assignmentId, studentId, updatedAt: new Date().toISOString() },
     },
   ];
-  await batchWrite(operations);
+  await adapterFor(COLLECTIONS.SUBMISSIONS).batchWrite(operations);
   return true;
 }

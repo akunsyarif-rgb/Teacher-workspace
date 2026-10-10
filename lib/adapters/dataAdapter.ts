@@ -14,6 +14,11 @@ export interface DataAdapter {
   updateDocument(c: string, id: string, data: Record<string, any>): Promise<any>;
   deleteDocument(c: string, id: string): Promise<any>;
   batchWrite(operations: any[]): Promise<any>;
+  countDocuments(c: string, filters?: [string, any, any][]): Promise<number>;
+  generateId(c: string): string;
+  getDocumentFromCache(c: string, id: string): Promise<any | null>;
+  /** Hanya Supabase: panggil fungsi Postgres. */
+  rpc?(name: string, args?: Record<string, any>): Promise<any>;
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 

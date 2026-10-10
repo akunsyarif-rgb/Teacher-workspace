@@ -1,4 +1,4 @@
-import { toRow, SUPABASE_MAPPED_COLLECTIONS } from '../adapters/supabaseAdapter';
+import { backfillRow, idColumn, SUPABASE_MAPPED_COLLECTIONS } from '../adapters/supabaseAdapter';
 
 type Row = Record<string, unknown>;
 
@@ -22,16 +22,13 @@ function toIso(value: unknown): string | undefined {
 }
 
 // Dokumen Firestore -> baris Supabase (id dipertahankan agar backfill idempoten).
-export function firestoreDocToRow(collection: string, id: string, data: Row): Row & { id: string } {
+export function firestoreDocToRow(collection: string, id: string, data: Row): Row {
   assertMappedCollection(collection);
   if (!id) throw new Error('Dokumen tanpa id — tidak dimigrasi.');
   if (!data.workspaceId || typeof data.workspaceId !== 'string') {
     throw new Error(`Dokumen ${id} tanpa workspaceId — tidak dimigrasi.`);
   }
-  return {
-    id,
-    ...toRow(collection, { ...data, createdAt: toIso(data.createdAt), updatedAt: toIso(data.updatedAt) }, { keepTimestamps: true }),
-  };
+  return backfillRow(collection, id, { ...data, createdAt: toIso(data.createdAt), updatedAt: toIso(data.updatedAt) });
 }
 
 // Urutkan key secara rekursif agar perbandingan tidak peka urutan jsonb.
@@ -43,7 +40,7 @@ function stable(value: unknown): unknown {
   return value;
 }
 
-const IGNORED = new Set(['id', 'created_at', 'updated_at']);
+const IGNORED = new Set(['id', 'user_id', 'code', 'created_at', 'updated_at']);
 
 // Semua kolom data + metadata, tanpa timestamp (presisi Firestore vs Postgres berbeda).
 // null/undefined dianggap sama; metadata kosong == tidak ada.
@@ -52,7 +49,10 @@ function comparable(row: Row) {
   for (const [k, v] of Object.entries(row)) {
     if (IGNORED.has(k)) continue;
     if (k === 'metadata') { const m = (v as Row | null) ?? {}; if (Object.keys(m).length) out.metadata = stable(m); continue; }
-    if (v !== null && v !== undefined) out[k] = v;
+    if (v === null || v === undefined) continue;
+    // jsonb mengurutkan ulang key objek; kolom *_at (timestamptz) dikembalikan Postgres dengan format '+00:00'.
+    if (k.endsWith('_at') && typeof v === 'string' && !Number.isNaN(Date.parse(v))) out[k] = new Date(v).toISOString();
+    else out[k] = stable(v);
   }
   return out;
 }
@@ -73,8 +73,9 @@ export function reconcileCollection(collection: string, firestoreDocs: { id: str
   };
   const dup = new Set<string>();
   const sb = new Map<string, Row>();
+  const key = idColumn(collection);
   for (const r of supabaseRows) {
-    const id = String(r.id);
+    const id = String(r[key]);
     if (sb.has(id)) dup.add(id);
     sb.set(id, r);
   }

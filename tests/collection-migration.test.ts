@@ -15,6 +15,14 @@ const SAMPLES: Record<string, Record<string, unknown>> = {
   grade_columns: { workspaceId: 'w', className: '7A', title: 'UH 1', type: 'harian' },
   grades: { workspaceId: 'w', className: '7A', studentId: 's1', columnId: 'c1', score: '85' },
   student_achievements: { workspaceId: 'w', className: '7A', studentId: 's1', studentName: 'Budi', title: 'Juara', notes: '', date: '2026-10-01', migratedFromNoteId: 'n1' },
+  journals: { workspaceId: 'w', className: '7A', date: '2026-10-09', teacherUid: 'u1', subject: 'IPA', scheduleId: 'sc', topic: 'Gaya', notes: 'ok' },
+  attendances: { workspaceId: 'w', className: '7A', date: '2026-10-09', scheduleId: 'sc', records: [{ studentId: 's1', status: 'hadir' }, { studentId: 's2', status: 'sakit' }] },
+  announcements: { workspaceId: 'w', className: '7A', title: 'Libur', body: 'Besok libur', date: '2026-10-09', subject: 'IPA' },
+  assignments: { workspaceId: 'w', className: '7A', title: 'PR', description: 'hal 5', dueDate: '2026-10-20', subject: 'IPA', gradeColumnId: 'gc1', materialFileUrl: 'u', materialFileName: 'n.pdf', materialFilePath: 'p' },
+  submissions: { workspaceId: 'w', className: '7A', assignmentId: 'a1', studentId: 's1', submittedAt: '2026-10-09T01:02:03.000Z', status: 'dinilai', score: 90, feedback: 'bagus', textAnswer: 'jawab', externalLink: { provider: 'google-drive', url: 'https://drive.google.com/x' }, attachments: [{ fileName: 'a.jpg', fileUrl: 'supabase-storage://submission-attachments/x', filePath: 'x' }] },
+  students: { workspaceId: 'w', className: '7A', name: 'Budi', nis: '1001', accessCode: 'ABC123' },
+  student_login_codes: { workspaceId: 'w', studentId: 's1', className: '7A', name: 'Budi', nis: '1001' },
+  student_profiles: { workspaceId: 'w', studentId: 's1', className: '7A', name: 'Budi', nis: '1001', accessCode: 'ABC123' },
   session_skip_reasons: { workspaceId: 'w', scheduleId: 'sc', className: '7A', date: '2026-10-09', reason: 'Rapat', note: '' },
 };
 
@@ -35,7 +43,7 @@ describe.each(Object.entries(SAMPLES))('migrasi koleksi %s', (collection, data) 
 });
 
 it('koleksi tak dipetakan ditolak', () => {
-  expect(() => firestoreDocToRow('students', 'a', { workspaceId: 'w' })).toThrow(/belum dipetakan/);
+  expect(() => firestoreDocToRow('workspaces', 'a', { workspaceId: 'w' })).toThrow(/belum dipetakan/);
 });
 
 import { toMillis } from '../lib/repositories/gradeColumnRepository';
@@ -45,4 +53,27 @@ it('urutan kolom nilai tetap benar untuk createdAt ISO (Supabase) maupun Timesta
   expect(toMillis({ toMillis: () => 5 })).toBe(5);
   expect(toMillis('bukan tanggal')).toBe(0);
   expect(toMillis(null)).toBe(0);
+});
+
+it('rekonsiliasi tidak false-positive: urutan key jsonb & format timestamp Postgres berbeda', () => {
+  const data = SAMPLES.submissions;
+  const row = firestoreDocToRow('submissions', 's1', data);
+  const fromPg = {
+    ...row,
+    submitted_at: '2026-10-09T01:02:03+00:00', // format Postgres, bukan 'Z'
+    external_link: { url: 'https://drive.google.com/x', provider: 'google-drive' }, // jsonb mengurutkan ulang key
+    attachments: [{ filePath: 'x', fileUrl: 'supabase-storage://submission-attachments/x', fileName: 'a.jpg' }],
+    score: 90,
+  };
+  expect(reconcileCollection('submissions', [{ id: 's1', data }], [fromPg]).ok).toBe(true);
+  const bad = { ...fromPg, submitted_at: '2026-10-09T01:02:04+00:00' };
+  expect(reconcileCollection('submissions', [{ id: 's1', data }], [bad]).mismatched[0].fields).toEqual(['submitted_at']);
+});
+
+it('kunci baris: student_profiles memakai user_id; kode login mengisi kolom code dari id', () => {
+  const p = firestoreDocToRow('student_profiles', 'uid1', SAMPLES.student_profiles);
+  expect(p).toMatchObject({ user_id: 'uid1', workspace_id: 'w', student_id: 's1' });
+  expect('id' in p).toBe(false);
+  expect(reconcileCollection('student_profiles', [{ id: 'uid1', data: SAMPLES.student_profiles }], [p]).ok).toBe(true);
+  expect(firestoreDocToRow('student_login_codes', 'ABC123', SAMPLES.student_login_codes)).toMatchObject({ id: 'ABC123', code: 'ABC123' });
 });

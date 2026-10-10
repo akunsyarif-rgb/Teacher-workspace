@@ -89,6 +89,78 @@ const COLUMN_MAP: Record<string, Record<string, string>> = {
     description: 'description',
     date: 'date',
   },
+  [COLLECTIONS.JOURNALS]: {
+    workspaceId: 'workspace_id',
+    className: 'class_name',
+    date: 'date',
+    teacherUid: 'teacher_uid',
+    subject: 'subject',
+  },
+  [COLLECTIONS.ATTENDANCES]: {
+    workspaceId: 'workspace_id',
+    className: 'class_name',
+    studentId: 'student_id',
+    date: 'date',
+    status: 'status',
+  },
+  [COLLECTIONS.ANNOUNCEMENTS]: {
+    workspaceId: 'workspace_id',
+    className: 'class_name',
+    teacherUid: 'teacher_uid',
+    title: 'title',
+    body: 'body',
+    date: 'date',
+  },
+  [COLLECTIONS.ASSIGNMENTS]: {
+    workspaceId: 'workspace_id',
+    className: 'class_name',
+    teacherUid: 'teacher_uid',
+    title: 'title',
+    description: 'description',
+    dueDate: 'due_date',
+    subject: 'subject',
+    gradeColumnId: 'grade_column_id',
+    materialFileUrl: 'material_file_url',
+    materialFileName: 'material_file_name',
+    materialFilePath: 'material_file_path',
+  },
+  [COLLECTIONS.SUBMISSIONS]: {
+    workspaceId: 'workspace_id',
+    className: 'class_name',
+    assignmentId: 'assignment_id',
+    studentId: 'student_id',
+    submittedAt: 'submitted_at',
+    status: 'status',
+    score: 'score',
+    feedback: 'feedback',
+    textAnswer: 'text_answer',
+    externalLink: 'external_link',
+    attachments: 'attachments',
+  },
+  [COLLECTIONS.STUDENTS]: {
+    workspaceId: 'workspace_id',
+    className: 'class_name',
+    name: 'name',
+    nis: 'nis',
+    nisn: 'nisn',
+    gender: 'gender',
+    accessCode: 'access_code',
+  },
+  [COLLECTIONS.STUDENT_LOGIN_CODES]: {
+    workspaceId: 'workspace_id',
+    studentId: 'student_id',
+    className: 'class_name',
+    name: 'name',
+    nis: 'nis',
+  },
+  // Hanya-baca dari klien (hak tulis dicabut): dibuat lewat RPC claim_student_profile. Kunci = user_id.
+  [COLLECTIONS.STUDENT_PROFILES]: {
+    workspaceId: 'workspace_id',
+    studentId: 'student_id',
+    className: 'class_name',
+    name: 'name',
+    nis: 'nis',
+  },
   [COLLECTIONS.STUDENT_NOTES]: {
     workspaceId: 'workspace_id',
     className: 'class_name',
@@ -101,6 +173,21 @@ const COLUMN_MAP: Record<string, Record<string, string>> = {
 /** Koleksi yang sudah punya pemetaan kolom di adapter ini. */
 export const SUPABASE_MAPPED_COLLECTIONS = Object.keys(COLUMN_MAP);
 const SERVER_FIELDS = new Set(['createdAt', 'updatedAt']);
+
+// Kolom kunci utama bila bukan `id`, dan kolom wajib yang diturunkan dari id dokumen.
+const ID_COLUMN: Record<string, string> = { [COLLECTIONS.STUDENT_PROFILES]: 'user_id' };
+const READ_ONLY = new Set<string>([COLLECTIONS.STUDENT_PROFILES]);
+// Dokumen kode login Firestore memakai kodenya sebagai id; di Postgres kolom `code` NOT NULL ikut diisi.
+const ROW_FROM_ID: Record<string, (id: string) => Row> = { [COLLECTIONS.STUDENT_LOGIN_CODES]: (id) => ({ code: id }) };
+export const idColumn = (c: string) => ID_COLUMN[c] ?? 'id';
+function writeRow(c: string, id: string, data: Row) {
+  if (READ_ONLY.has(c)) throw new SupabaseAdapterError('bad_request', `Koleksi ${c} hanya-baca dari klien.`);
+  return { ...toRow(c, data), ...(ROW_FROM_ID[c]?.(id) ?? {}), [idColumn(c)]: id };
+}
+/** Baris untuk backfill server-side (service_role): boleh menulis koleksi hanya-baca-klien, timestamp dipertahankan. */
+export function backfillRow(c: string, id: string, data: Row) {
+  return { ...toRow(c, data, { keepTimestamps: true }), ...(ROW_FROM_ID[c]?.(id) ?? {}), [idColumn(c)]: id };
+}
 
 // Tipe baca yang harus sama dengan Firestore: nilai disimpan app sebagai string ("85"), kolom numeric
 // dikembalikan PostgREST sebagai number.
@@ -135,7 +222,7 @@ export function toRow(collectionName: string, data: Row, opts: { keepTimestamps?
 // disesuaikan sebelum koleksinya dialihkan.
 export function fromRow(collectionName: string, row: Row) {
   const map = columns(collectionName);
-  const out: Row = { id: row.id };
+  const out: Row = { id: row[idColumn(collectionName)] };
   const reverse = Object.fromEntries(Object.entries(map).map(([k, v]) => [v, k]));
   for (const [col, value] of Object.entries(row)) {
     if (reverse[col] && value !== undefined) {
@@ -148,14 +235,19 @@ export function fromRow(collectionName: string, row: Row) {
   return out;
 }
 
+const OPERATORS: Record<string, string> = { '==': 'eq', '>=': 'gte', '<=': 'lte', '>': 'gt', '<': 'lt' };
+
 export function buildFilterParams(collectionName: string, filters: Filter[]) {
   const map = columns(collectionName);
   const params = new URLSearchParams();
   for (const [field, op, value] of filters) {
-    if (op !== '==') throw new SupabaseAdapterError('bad_request', `Operator ${op} belum didukung adapter Supabase.`);
+    const pg = OPERATORS[op];
+    if (!pg) throw new SupabaseAdapterError('bad_request', `Operator ${op} belum didukung adapter Supabase.`);
     if (!IDENT.test(field)) throw new SupabaseAdapterError('bad_request', `Nama field tidak valid: ${field}`);
-    const column = field === 'id' ? 'id' : map[field] ?? `metadata->>${field}`;
-    params.append(column, value === null ? 'is.null' : `eq.${value}`);
+    if (value === null && op !== '==') throw new SupabaseAdapterError('bad_request', 'Perbandingan rentang dengan null tidak didukung.');
+    const column = field === 'id' ? idColumn(collectionName) : map[field] ?? `metadata->>${field}`;
+    // Filter ganda pada kolom yang sama (>= dan <=) ditambahkan sebagai parameter berulang → AND di PostgREST.
+    params.append(column, value === null ? 'is.null' : `${pg}.${value}`);
   }
   return params;
 }
@@ -251,12 +343,12 @@ export function createSupabaseAdapter(deps: SupabaseAdapterDeps) {
   }
 
   const rows = (res: Res) => (Array.isArray(res.body) ? (res.body as Row[]) : []);
-  const idParam = (id: string) => `id=eq.${encodeURIComponent(id)}`;
+  const idParam = (c: string, id: string) => `${idColumn(c)}=eq.${encodeURIComponent(id)}`;
   const newId = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}${Math.random().toString(36).slice(2)}`;
 
   async function fetchRaw(collectionName: string, id: string): Promise<Row | null> {
     columns(collectionName);
-    const res = await request(`${collectionName}?${idParam(id)}&select=*`);
+    const res = await request(`${collectionName}?${idParam(collectionName, id)}&select=*`);
     return rows(res)[0] ?? null;
   }
 
@@ -268,7 +360,7 @@ export function createSupabaseAdapter(deps: SupabaseAdapterDeps) {
       for (let offset = 0; ; offset += pageSize) {
         const qs = buildFilterParams(collectionName, filters);
         qs.set('select', '*');
-        qs.set('order', 'id');
+        qs.set('order', idColumn(collectionName));
         const res = await request(`${collectionName}?${qs}`, { range: `${offset}-${offset + pageSize - 1}` });
         const page = rows(res);
         out.push(...page);
@@ -291,7 +383,7 @@ export function createSupabaseAdapter(deps: SupabaseAdapterDeps) {
     async countDocuments(collectionName: string, filters: Filter[] = []) {
       requireWorkspace(filters);
       const qs = buildFilterParams(collectionName, filters);
-      qs.set('select', 'id');
+      qs.set('select', idColumn(collectionName));
       const res = await request(`${collectionName}?${qs}`, { prefer: 'count=exact', range: '0-0' });
       const total = Number(String(res.headers.get('content-range') ?? '').split('/')[1]);
       if (!Number.isFinite(total)) throw new SupabaseAdapterError('server', 'Supabase tidak mengembalikan jumlah baris.');
@@ -308,7 +400,7 @@ export function createSupabaseAdapter(deps: SupabaseAdapterDeps) {
         throw new SupabaseAdapterError('bad_request', 'Dokumen wajib punya workspaceId.');
       }
       const res = await request(collectionName, {
-        method: 'POST', prefer: 'return=representation', body: JSON.stringify({ id, ...toRow(collectionName, data) }),
+        method: 'POST', prefer: 'return=representation', body: JSON.stringify(writeRow(collectionName, id, data)),
       });
       if (rows(res).length !== 1) throw new SupabaseAdapterError('server', 'Penulisan tidak terkonfirmasi (baris tidak dikembalikan).');
       return { id, ...data };
@@ -317,6 +409,7 @@ export function createSupabaseAdapter(deps: SupabaseAdapterDeps) {
     // Seperti Firestore updateDoc: gagal bila dokumen tidak ada; field yang tidak disebut dipertahankan.
     // Compare-and-swap pada updated_at supaya update bersamaan tidak saling menimpa metadata.
     async updateDocument(collectionName: string, id: string, data: Row) {
+      if (READ_ONLY.has(collectionName)) throw new SupabaseAdapterError('bad_request', `Koleksi ${collectionName} hanya-baca dari klien.`);
       for (let attempt = 0; attempt < 3; attempt++) {
         const current = await fetchRaw(collectionName, id);
         if (!current) throw new SupabaseAdapterError('not_found', 'Dokumen tidak ditemukan atau tidak boleh diakses.');
@@ -328,7 +421,7 @@ export function createSupabaseAdapter(deps: SupabaseAdapterDeps) {
         const patch = toRow(collectionName, merged);
         delete patch.workspace_id;
         const guard = current.updated_at ? `&updated_at=eq.${encodeURIComponent(String(current.updated_at))}` : '';
-        const res = await request(`${collectionName}?${idParam(id)}${guard}`, {
+        const res = await request(`${collectionName}?${idParam(collectionName, id)}${guard}`, {
           method: 'PATCH', prefer: 'return=representation', body: JSON.stringify(patch),
         });
         if (rows(res).length === 1) return { id, ...data };
@@ -346,7 +439,7 @@ export function createSupabaseAdapter(deps: SupabaseAdapterDeps) {
       }
       try {
         const res = await request(collectionName, {
-          method: 'POST', prefer: 'return=representation', body: JSON.stringify({ id, ...toRow(collectionName, data) }),
+          method: 'POST', prefer: 'return=representation', body: JSON.stringify(writeRow(collectionName, id, data)),
         });
         if (rows(res).length !== 1) throw new SupabaseAdapterError('server', 'Penulisan tidak terkonfirmasi (baris tidak dikembalikan).');
         return { id, ...data };
@@ -360,13 +453,20 @@ export function createSupabaseAdapter(deps: SupabaseAdapterDeps) {
     // TIDAK boleh tampak sukses, jadi dibedakan dengan membaca ulang.
     async deleteDocument(collectionName: string, id: string) {
       columns(collectionName);
-      const res = await request(`${collectionName}?${idParam(id)}`, { method: 'DELETE', prefer: 'return=representation' });
+      if (READ_ONLY.has(collectionName)) throw new SupabaseAdapterError('bad_request', `Koleksi ${collectionName} hanya-baca dari klien.`);
+      const res = await request(`${collectionName}?${idParam(collectionName, id)}`, { method: 'DELETE', prefer: 'return=representation' });
       if (rows(res).length === 1) return true;
       if (await fetchRaw(collectionName, id)) throw new SupabaseAdapterError('denied', 'Penghapusan ditolak (tidak berwenang).');
       return true;
     },
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars -- tanda tangan sejajar firestoreAdapter
+    // Panggil fungsi Postgres (RPC) sebagai pengguna; nama dibatasi ke identifier aman.
+    async rpc(name: string, args: Row = {}) {
+      if (!IDENT.test(name)) throw new SupabaseAdapterError('bad_request', `Nama RPC tidak valid: ${name}`);
+      return (await request(`rpc/${name}`, { method: 'POST', body: JSON.stringify(args) })).body;
+    },
+
     generateId(_collectionName: string) {
       return newId();
     },
@@ -379,11 +479,12 @@ export function createSupabaseAdapter(deps: SupabaseAdapterDeps) {
         const chunk = operations.slice(i, i + 500);
         const p_ops = chunk.map((op) => {
           columns(op.collectionName);
+          if (READ_ONLY.has(op.collectionName)) throw new SupabaseAdapterError('bad_request', `Koleksi ${op.collectionName} hanya-baca dari klien.`);
           if (op.type === 'delete') return { op: 'delete', table: op.collectionName, id: op.id };
           if (typeof op.data?.workspaceId !== 'string' || !op.data.workspaceId) {
             throw new SupabaseAdapterError('bad_request', 'Operasi batch wajib punya workspaceId.');
           }
-          return { op: 'set', table: op.collectionName, row: { ...toRow(op.collectionName, op.data), id: op.id } };
+          return { op: 'set', table: op.collectionName, row: writeRow(op.collectionName, op.id, op.data) };
         });
         const res = await request('rpc/batch_write', { method: 'POST', body: JSON.stringify({ p_ops }) });
         if (res.body !== chunk.length) throw new SupabaseAdapterError('server', 'Batch tidak terkonfirmasi (jumlah operasi tidak sama).');

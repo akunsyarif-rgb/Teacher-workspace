@@ -134,6 +134,20 @@ describe('tulis offline → outbox → flush', () => {
   });
 });
 
+describe('overlay dengan filter rentang', () => {
+  it('tulisan offline hanya tampil di query yang rentangnya mencakup tanggalnya', async () => {
+    const { adapter, net } = setup();
+    const IN: [string, string, unknown][] = [['workspaceId', '==', 'wsA'], ['date', '>=', '2026-10-01'], ['date', '<=', '2026-10-31']];
+    const OUT: [string, string, unknown][] = [['workspaceId', '==', 'wsA'], ['date', '>=', '2026-11-01']];
+    await adapter.getDocuments(C, IN);
+    await adapter.getDocuments(C, OUT);
+    net.online = false;
+    const r = await adapter.addDocument(C, doc({ date: '2026-10-09' }));
+    expect((await adapter.getDocuments(C, IN)).map((x) => x.id)).toEqual([r.id]);
+    expect(await adapter.getDocuments(C, OUT)).toEqual([]);
+  });
+});
+
 describe('batchWrite offline', () => {
   const g = (id: string, over: Record<string, unknown> = {}) => ({ type: 'set' as const, collectionName: C, id, data: { workspaceId: 'wsA', className: '7A', reason: 'x', ...over } });
   it('offline → satu entri outbox, terlihat di baca (overlay), terkirim sekali saat online', async () => {

@@ -8,8 +8,32 @@ import { SUPABASE_MAPPED_COLLECTIONS } from '../adapters/supabaseAdapter';
 // Koleksi yang tidak punya kolom class_name (academic_years) otomatis dilewati.
 const NO_CLASS_COLUMN = new Set(['academic_years']);
 
-export function supabaseCollectionsToRename(flag?: string, override?: string) {
-  return SUPABASE_MAPPED_COLLECTIONS.filter((c) => !NO_CLASS_COLUMN.has(c) && isSupabaseCollection(c, flag, override));
+export function supabaseCollectionsToRename(flag?: string, override?: string, studentAuth?: string) {
+  return SUPABASE_MAPPED_COLLECTIONS.filter((c) => !NO_CLASS_COLUMN.has(c) && isSupabaseCollection(c, flag, override, studentAuth));
+}
+
+function supabaseEnv(url?: string, key?: string) {
+  const u = (url ?? process.env.SUPABASE_URL ?? '').replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
+  const k = key ?? process.env.SUPABASE_SECRET_KEY;
+  if (!u || !k) throw new Error('Konfigurasi Supabase server belum lengkap: pemeriksaan/rename kelas pada koleksi Supabase tidak bisa dijalankan.');
+  return { u, k };
+}
+
+/** Apakah kelas sudah ada di tabel students Supabase? `null` bila students belum dialihkan (pakai Firestore). */
+export async function supabaseClassExists(opts: {
+  workspaceId: string; className: string; flagged?: boolean; url?: string; secretKey?: string; fetchImpl?: typeof fetch;
+}): Promise<boolean | null> {
+  const flagged = opts.flagged ?? supabaseCollectionsToRename(
+    process.env.NEXT_PUBLIC_SUPABASE_COLLECTIONS, process.env.NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE, process.env.NEXT_PUBLIC_SUPABASE_STUDENT_AUTH_VERIFIED).includes('students');
+  if (!flagged) return null;
+  const { u, k } = supabaseEnv(opts.url, opts.secretKey);
+  const res = await (opts.fetchImpl ?? fetch)(
+    `${u}/rest/v1/students?workspace_id=eq.${encodeURIComponent(opts.workspaceId)}&class_name=eq.${encodeURIComponent(opts.className)}&select=id&limit=1`,
+    { headers: { apikey: k, Authorization: `Bearer ${k}` } }
+  );
+  if (!res.ok) throw new Error(`Pemeriksaan kelas di Supabase gagal (HTTP ${res.status}).`);
+  const text = await res.text();
+  return (text ? (JSON.parse(text) as unknown[]) : []).length > 0;
 }
 
 export interface RenameInSupabaseOptions {
@@ -24,11 +48,9 @@ export interface RenameInSupabaseOptions {
 
 export async function renameClassInSupabase(opts: RenameInSupabaseOptions) {
   const collections = opts.collections ?? supabaseCollectionsToRename(
-    process.env.NEXT_PUBLIC_SUPABASE_COLLECTIONS, process.env.NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE);
+    process.env.NEXT_PUBLIC_SUPABASE_COLLECTIONS, process.env.NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE, process.env.NEXT_PUBLIC_SUPABASE_STUDENT_AUTH_VERIFIED);
   if (collections.length === 0) return {} as Record<string, number>;
-  const url = (opts.url ?? process.env.SUPABASE_URL ?? '').replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
-  const key = opts.secretKey ?? process.env.SUPABASE_SECRET_KEY;
-  if (!url || !key) throw new Error('Konfigurasi Supabase server belum lengkap: rename kelas pada koleksi Supabase tidak bisa dijalankan.');
+  const { u: url, k: key } = supabaseEnv(opts.url, opts.secretKey);
   const doFetch = opts.fetchImpl ?? fetch;
 
   const done: Record<string, number> = {};

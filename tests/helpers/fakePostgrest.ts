@@ -21,8 +21,16 @@ export function createFakePostgrest(opts: FakeOpts) {
       if (['select', 'order', 'limit', 'offset', 'on_conflict'].includes(k)) continue;
       const actual = k.startsWith('metadata->>') ? (row.metadata as Row | null)?.[k.slice(11)] : row[k];
       if (v === 'is.null') { if (actual !== null && actual !== undefined) return false; continue; }
-      if (!v.startsWith('eq.')) throw new Error(`filter tak didukung: ${k}=${v}`);
-      if (String(actual) !== v.slice(3)) return false;
+      const m = /^(eq|gte|lte|gt|lt)\.(.*)$/.exec(v);
+      if (!m) throw new Error(`filter tak didukung: ${k}=${v}`);
+      const [, op, rhs] = m;
+      if (op === 'eq') { if (String(actual) !== rhs) return false; continue; }
+      if (actual === null || actual === undefined) return false;
+      const a = String(actual);
+      if (op === 'gte' && !(a >= rhs)) return false;
+      if (op === 'lte' && !(a <= rhs)) return false;
+      if (op === 'gt' && !(a > rhs)) return false;
+      if (op === 'lt' && !(a < rhs)) return false;
     }
     return true;
   };

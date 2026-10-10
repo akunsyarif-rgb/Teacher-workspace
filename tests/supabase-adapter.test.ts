@@ -47,9 +47,9 @@ describe('mapping', () => {
   it('filter: metadata, null, operator & nama field berbahaya, koleksi tak dipetakan', () => {
     expect(buildFilterParams(C, [['scheduleId', '==', 's']]).toString()).toContain('metadata-%3E%3EscheduleId=eq.s');
     expect(buildFilterParams(C, [['reason', '==', null]]).get('reason')).toBe('is.null');
-    expect(() => buildFilterParams(C, [['date', '>', 'x']])).toThrow(SupabaseAdapterError);
+    expect(() => buildFilterParams(C, [['date', '!=', 'x']])).toThrow(SupabaseAdapterError);
     expect(() => buildFilterParams(C, [['a;drop table x', '==', 'x']])).toThrow(SupabaseAdapterError);
-    expect(() => toRow('students', {})).toThrow(SupabaseAdapterError);
+    expect(() => toRow('workspaces', {})).toThrow(SupabaseAdapterError);
   });
 });
 
@@ -243,5 +243,54 @@ describe('batchWrite (RPC batch_write)', () => {
   it('nilai grades dibaca sebagai string seperti Firestore', () => {
     expect(fromRow('grades', { id: 'g', workspace_id: 'w', score: 85 })).toMatchObject({ score: '85' });
     expect(fromRow('grades', { id: 'g', workspace_id: 'w', score: null })).toMatchObject({ score: null });
+  });
+});
+
+describe('operator rentang', () => {
+  const J = 'journals';
+  const mk = (id: string, date: string, extra: Record<string, unknown> = {}) => ({ id, workspace_id: 'wsA', class_name: '7A', date, metadata: {}, ...extra });
+  it('>= dan <= pada kolom date menjadi parameter berulang (AND) dan membatasi hasil', async () => {
+    const { adapter, fake } = setup({ rows: [mk('j1', '2026-09-30'), mk('j2', '2026-10-01'), mk('j3', '2026-10-15'), mk('j4', '2026-10-31'), mk('j5', '2026-11-01'), { ...mk('j6', '2026-10-10'), workspace_id: 'wsB' }] });
+    const got = await adapter.getDocuments(J, [['workspaceId', '==', 'wsA'], ['date', '>=', '2026-10-01'], ['date', '<=', '2026-10-31']]);
+    expect(got.map((g) => g.id)).toEqual(['j2', 'j3', 'j4']);
+    const url = fake.log.find((l) => l.method === 'GET')!.path;
+    expect(url).toContain('date=gte.2026-10-01');
+    expect(url).toContain('date=lte.2026-10-31');
+  });
+  it('> dan < ; rentang pada field metadata; rentang timestamp ISO (submitted_at)', async () => {
+    const { adapter } = setup({ rows: [mk('a', '2026-10-01', { metadata: { n: '5' } }), mk('b', '2026-10-02', { metadata: { n: '7' } })] });
+    expect((await adapter.getDocuments(J, [['workspaceId', '==', 'wsA'], ['date', '>', '2026-10-01']])).map((x) => x.id)).toEqual(['b']);
+    expect((await adapter.getDocuments(J, [['workspaceId', '==', 'wsA'], ['date', '<', '2026-10-02']])).map((x) => x.id)).toEqual(['a']);
+    const sub = setup({ rows: [{ id: 's1', workspace_id: 'wsA', submitted_at: '2026-10-31T10:00:00.000Z', metadata: {} }, { id: 's2', workspace_id: 'wsA', submitted_at: '2026-11-02T00:00:00.000Z', metadata: {} }] });
+    expect((await sub.adapter.getDocuments('submissions', [['workspaceId', '==', 'wsA'], ['submittedAt', '<=', '2026-10-31T23:59:59.999Z']])).map((x) => x.id)).toEqual(['s1']);
+  });
+  it('rentang + paginasi + count memakai filter yang sama', async () => {
+    const rows = Array.from({ length: 25 }, (_, i) => mk(`r${String(i).padStart(2, '0')}`, `2026-10-${String(i + 1).padStart(2, '0')}`));
+    const { adapter } = setup({ rows }, { pageSize: 10 });
+    const f: [string, string, unknown][] = [['workspaceId', '==', 'wsA'], ['date', '>=', '2026-10-06']];
+    expect(await adapter.getDocuments(J, f)).toHaveLength(20);
+    expect(await adapter.countDocuments(J, f)).toBe(20);
+  });
+  it('rentang dengan null / operator tak dikenal ditolak', () => {
+    expect(() => buildFilterParams(J, [['date', '>=', null]])).toThrow(SupabaseAdapterError);
+    expect(() => buildFilterParams(J, [['date', '!=', 'x']])).toThrow(SupabaseAdapterError);
+    expect(() => buildFilterParams(J, [['date', 'in', ['x']]])).toThrow(SupabaseAdapterError);
+  });
+  it('student_profiles memakai user_id sebagai kunci dan hanya-baca', async () => {
+    const { adapter, fake } = setup({ rows: [{ id: 'u1', user_id: 'u1', workspace_id: 'wsA', student_id: 's1', class_name: '7A', name: 'Budi', nis: '1', metadata: {} }] });
+    expect(await adapter.getDocument('student_profiles', 'u1')).toMatchObject({ id: 'u1', workspaceId: 'wsA', studentId: 's1', className: '7A' });
+    expect(fake.log[0].path).toContain('user_id=eq.u1');
+    for (const run of [
+      () => adapter.addDocument('student_profiles', { workspaceId: 'wsA' }),
+      () => adapter.updateDocument('student_profiles', 'u1', { name: 'x' }),
+      () => adapter.deleteDocument('student_profiles', 'u1'),
+      () => adapter.batchWrite([{ type: 'delete', collectionName: 'student_profiles', id: 'u1' }]),
+    ]) expect((await err(run())).kind).toBe('bad_request');
+  });
+  it('kode login: kolom code ikut diisi dari id (batch & set); rpc divalidasi namanya', async () => {
+    const { adapter, fake } = setup();
+    await adapter.batchWrite([{ type: 'set', collectionName: 'student_login_codes', id: 'ABC123', data: { workspaceId: 'wsA', studentId: 's1', className: '7A', name: 'Budi', nis: '1' } }]);
+    expect(fake.store.get('ABC123')).toMatchObject({ code: 'ABC123', student_id: 's1', class_name: '7A' });
+    expect((await err(adapter.rpc('x; drop table y', {}))).kind).toBe('bad_request');
   });
 });
