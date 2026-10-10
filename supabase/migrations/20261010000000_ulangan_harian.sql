@@ -694,7 +694,6 @@ begin
   foreach t in array array['ulh_packages', 'ulh_questions', 'ulh_options', 'ulh_question_keys', 'ulh_exams', 'ulh_exam_classes',
                            'ulh_attempts', 'ulh_attempt_questions', 'ulh_answers', 'ulh_integrity_events', 'ulh_audit_log'] loop
     execute format('alter table public.%I enable row level security', t);
-    execute format('alter table public.%I force row level security', t);
     execute format('revoke all on public.%I from public, anon, authenticated', t);
     execute format('grant select on public.%I to authenticated', t);
   end loop;

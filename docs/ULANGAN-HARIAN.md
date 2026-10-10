@@ -11,7 +11,7 @@ Branch: `feat/ulangan-harian-supabase` (dasar: PR #60 + PR #59 digabung; keduany
 ## Model keamanan
 | Hal | Penegakan |
 |---|---|
-| Isolasi workspace/kelas/guru | RLS `FORCE` pada semua tabel `ulh_*`; SELECT hanya untuk guru pengelola (pembuat atau OWNER/ADMIN); tidak ada policy/grant tulis → tulis hanya lewat RPC |
+| Isolasi workspace/kelas/guru | RLS aktif pada semua tabel `ulh_*`; SELECT hanya untuk guru pengelola (pembuat atau OWNER/ADMIN); tidak ada policy/grant tulis → tulis hanya lewat RPC |
 | Siswa | Tanpa grant/policy pada tabel; hanya 6 RPC (`ulh_list_my_exams`, `start_attempt`, `get_attempt`, `save_answer`, `submit_attempt`, `report_integrity_event`). Identitas dari `student_profiles` via `sub` JWT; kelas/workspace dari server |
 | Kunci jawaban | Tabel `ulh_question_keys` terpisah; dibaca hanya oleh guru pengelola dan fungsi penilaian private; payload soal siswa tanpa kunci |
 | Timer | `expires_at = least(mulai + durasi, closes_at)` dari `clock_timestamp()` server; `save_answer` setelah batas ditolak; `submit` setelah batas menutup sebagai `expired` dengan jawaban yang tersimpan sebelum batas |
