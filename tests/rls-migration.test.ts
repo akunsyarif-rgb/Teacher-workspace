@@ -10,8 +10,10 @@ const UP = [
   'supabase/migrations/20261009000000_rls_hardening.sql',
   'supabase/migrations/20261009000100_auth_probe.sql',
   'supabase/migrations/20261009000200_batch_write.sql',
+  'supabase/migrations/20261009000300_workspace_admin.sql',
 ];
 const DOWN = [
+  'supabase/rollback/20261009000300_workspace_admin_down.sql',
   'supabase/rollback/20261009000200_batch_write_down.sql',
   'supabase/rollback/20261009000100_auth_probe_down.sql',
   'supabase/rollback/20261009000000_rls_hardening_down.sql',

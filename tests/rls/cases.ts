@@ -302,4 +302,17 @@ add('rng:guru-journals-rentang-di-luar', 'teachA', "select * from public.journal
 add('rng:tenant-lain-tak-melihat-rentang', 'teachB', "select * from public.journals where workspace_id='wsA' and date >= current_date - 1", OK0);
 add('rng:submissions-rentang-submitted_at', 'teachA', "select * from public.submissions where workspace_id='wsA' and submitted_at <= now() + interval '1 day'", 'ok:2');
 
+// ---------- 12. Menu Admin sekolah: remove_workspace_member (tanpa kaitan pembayaran) ----------
+const mem = (uid: string) => `select coalesce(workspace_id,'-')||'/'||coalesce(role,'-')||'/'||coalesce(homeroom_class_name,'-') from public.teacher_profiles where user_id='${uid}'`;
+addRaw('adm:owner-keluarkan-guru-bersih', 'ownerA',
+  ["select public.remove_workspace_member('hmA')", { raw: mem('hmA') }], ['ok:1', '-/-/-']);
+add('adm:guru-biasa-tak-bisa-keluarkan', 'teachA', "select public.remove_workspace_member('hmA')", DENY);
+add('adm:admin-bukan-owner-tak-bisa', 'adminA', "select public.remove_workspace_member('hmA')", DENY);
+add('adm:owner-tenant-lain-tak-bisa', 'ownerB', "select public.remove_workspace_member('hmA')", DENY);
+add('adm:tidak-bisa-keluarkan-diri-sendiri', 'ownerA', "select public.remove_workspace_member('ownerA')", ANYERR);
+add('adm:tidak-ada-target', 'ownerA', "select public.remove_workspace_member('tidak-ada')", ANYERR);
+add('adm:target-kosong', 'ownerA', "select public.remove_workspace_member('')", ANYERR);
+add('adm:anon-ditolak', 'anon', "select public.remove_workspace_member('hmA')", DENY);
+addRaw('adm:tidak-menghapus-data-yang-dibuat-guru', 'ownerA',
+  ["select public.remove_workspace_member('teachA')", { raw: "select count(*) from public.journals where teacher_uid='teachA'" }], ['ok:1', '1']);
 export default cases;
