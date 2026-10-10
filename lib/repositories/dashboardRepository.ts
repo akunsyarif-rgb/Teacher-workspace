@@ -1,9 +1,9 @@
-import { getDocuments, countDocuments } from '../adapters/firestoreAdapter';
+import { adapterFor } from '../adapters/dataAdapter';
 import { COLLECTIONS } from '../config/constants';
 
 export async function getAllStudentsForSummary(workspaceId: string) {
   if (!workspaceId) return [];
-  return getDocuments(COLLECTIONS.STUDENTS, [['workspaceId', '==', workspaceId]]);
+  return adapterFor(COLLECTIONS.STUDENTS).getDocuments(COLLECTIONS.STUDENTS, [['workspaceId', '==', workspaceId]]);
 }
 
 // Cuma rentang tanggal yang diminta (dipakai untuk 7 hari terakhir), BUKAN
@@ -14,7 +14,7 @@ export async function getAllStudentsForSummary(workspaceId: string) {
 // Presensi yang memang sengaja menampilkan semua pertemuan.
 export async function getJournalsInRange(workspaceId: string, startDate: string, endDate: string) {
   if (!workspaceId) return [];
-  return getDocuments(COLLECTIONS.JOURNALS, [
+  return adapterFor(COLLECTIONS.JOURNALS).getDocuments(COLLECTIONS.JOURNALS, [
     ['workspaceId', '==', workspaceId],
     ['date', '>=', startDate],
     ['date', '<=', endDate],
@@ -23,7 +23,7 @@ export async function getJournalsInRange(workspaceId: string, startDate: string,
 
 export async function getAttendancesInRange(workspaceId: string, startDate: string, endDate: string) {
   if (!workspaceId) return [];
-  return getDocuments(COLLECTIONS.ATTENDANCES, [
+  return adapterFor(COLLECTIONS.ATTENDANCES).getDocuments(COLLECTIONS.ATTENDANCES, [
     ['workspaceId', '==', workspaceId],
     ['date', '>=', startDate],
     ['date', '<=', endDate],
@@ -32,7 +32,7 @@ export async function getAttendancesInRange(workspaceId: string, startDate: stri
 
 export async function getAllSchedulesForSummary(workspaceId: string) {
   if (!workspaceId) return [];
-  return getDocuments(COLLECTIONS.SCHEDULES, [['workspaceId', '==', workspaceId]]);
+  return adapterFor(COLLECTIONS.SCHEDULES).getDocuments(COLLECTIONS.SCHEDULES, [['workspaceId', '==', workspaceId]]);
 }
 
 // Total jurnal sepanjang masa — cuma angkanya (dipakai untuk kartu
@@ -40,5 +40,5 @@ export async function getAllSchedulesForSummary(workspaceId: string) {
 // semua dokumen hanya untuk menghitung jumlahnya.
 export async function getJournalCount(workspaceId: string) {
   if (!workspaceId) return 0;
-  return countDocuments(COLLECTIONS.JOURNALS, [['workspaceId', '==', workspaceId]]);
+  return adapterFor(COLLECTIONS.JOURNALS).countDocuments(COLLECTIONS.JOURNALS, [['workspaceId', '==', workspaceId]]);
 }

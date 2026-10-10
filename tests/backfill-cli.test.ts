@@ -1,0 +1,243 @@
+import { spawn } from 'node:child_process';
+import { createServer, type Server } from 'node:http';
+import path from 'node:path';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { createFakePostgrest } from './helpers/fakePostgrest';
+
+// CLI backfill dijalankan SUNGGUHAN sebagai proses (jiti) terhadap Firestore EMULATOR dan server
+// Supabase PALSU lokal. Hanya jalan di bawah emulator (npm run test:rules). Tidak menyentuh Supabase nyata.
+const emu = process.env.FIRESTORE_EMULATOR_HOST;
+const suite = emu ? describe : describe.skip;
+
+const ROOT = path.resolve(__dirname, '..');
+const REF = 'abcdefghijklmnopqrst';
+const SMADA = 'abdkrhmxfpcmgzsxzfyz';
+const PROD = 'htutgpjcynbnyxwgorcb';
+const KEY = 'svc-key-uji';
+
+type Fake = ReturnType<typeof createFakePostgrest>;
+let fake: Fake;
+let server: Server;
+let port = 0;
+let hits: string[] = [];
+let failPostNo = 0; // POST ke-N dibuat 500
+let wsMissing = false; // simulasi: workspace belum ada di Supabase
+let posts = 0;
+
+function mkFake() {
+  posts = 0;
+  fake = createFakePostgrest({
+    tokens: { [KEY]: 'ws1' },
+    // service_role melewati RLS; di fake: baris milik ws1 (workspaces: id sendiri) boleh terlihat/ditulis.
+    visible: (r, ws) => r.workspace_id === ws || r.id === ws,
+    canInsert: (r, ws) => r.workspace_id === ws || r.id === ws,
+    intercept: ({ method, url }) => {
+      // Pemeriksaan prasyarat FK (workspaceExists): workspace dianggap sudah ada kecuali tes menyatakan sebaliknya.
+      if (method === 'GET' && url.pathname.endsWith('/workspaces') && url.searchParams.get('select') === 'id') return { status: 200, body: wsMissing ? [] : [{ id: 'ws1' }] };
+      if (method === 'POST' && ++posts === failPostNo) return { status: 500, body: { message: 'boom' } };
+    },
+  });
+}
+
+async function seed(ids: string[], workspaceId = 'ws1') {
+  const { initializeApp, getApps, getApp } = await import('firebase-admin/app');
+  const { getFirestore, Timestamp } = await import('firebase-admin/firestore');
+  const app = getApps().find((a) => a.name === 'seed') ?? initializeApp({ projectId: 'demo-teacher-workspace' }, 'seed');
+  void getApp;
+  const db = getFirestore(app);
+  const batch = () => db.batch();
+  for (let i = 0; i < ids.length; i += 400) {
+    const b = batch();
+    ids.slice(i, i + 400).forEach((id) =>
+      b.set(db.collection('session_skip_reasons').doc(id), {
+        workspaceId, scheduleId: `sch-${id}`, className: '7A', date: '2026-10-09', reason: 'sakit', note: `n-${id}`,
+        createdAt: Timestamp.fromMillis(1760000000000),
+      }));
+    await b.commit();
+  }
+}
+async function clearFirestore() {
+  await fetch(`http://${emu}/emulator/v1/projects/demo-teacher-workspace/databases/(default)/documents`, { method: 'DELETE' });
+}
+
+function run(args: string[], env: Record<string, string> = {}) {
+  return new Promise<{ code: number; out: string }>((resolve) => {
+    const child = spawn(process.execPath, [path.join(ROOT, 'node_modules/.bin/jiti'), 'scripts/migration/backfill-collection.ts', ...args], {
+      cwd: ROOT,
+      env: {
+        PATH: process.env.PATH ?? '', NODE_ENV: 'test', FIRESTORE_EMULATOR_HOST: emu!, GCLOUD_PROJECT: 'demo-teacher-workspace',
+        SUPABASE_URL: `https://${REF}.supabase.co`, SUPABASE_SECRET_KEY: KEY, SUPABASE_ALLOWED_REFS: REF,
+        BACKFILL_TEST_FETCH_MODULE: path.join(ROOT, 'tests/helpers/redirectFetch.mjs'),
+        BACKFILL_TEST_REDIRECT: `http://127.0.0.1:${port}`, ...env,
+      },
+    });
+    let out = '';
+    child.stdout.on('data', (d) => (out += d));
+    child.stderr.on('data', (d) => (out += d));
+    child.on('close', (code) => resolve({ code: code ?? -1, out }));
+  });
+}
+
+suite('CLI backfill-collection (proses nyata, emulator + Supabase palsu)', () => {
+  beforeAll(async () => {
+    server = createServer(async (req, res) => {
+      const chunks: Buffer[] = [];
+      for await (const c of req) chunks.push(c as Buffer);
+      hits.push(`${req.method} ${req.url}`);
+      const r = (await fake.fetchImpl(`https://x.supabase.co${req.url}`, {
+        method: req.method,
+        headers: { Authorization: String(req.headers.authorization), Prefer: String(req.headers.prefer ?? ''), Range: String(req.headers.range ?? '') } as Record<string, string>,
+        body: chunks.length ? Buffer.concat(chunks).toString() : undefined,
+      })) as unknown as { status: number; headers: Headers; text: () => Promise<string> };
+      res.writeHead(r.status, { 'content-type': 'application/json', 'content-range': r.headers.get('content-range') ?? '' });
+      res.end(await r.text());
+    });
+    await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
+    port = (server.address() as { port: number }).port;
+  });
+  afterAll(() => new Promise<void>((ok) => server.close(() => ok())));
+  beforeEach(async () => { hits = []; failPostNo = 0; wsMissing = false; mkFake(); await clearFirestore(); });
+
+  it('tanpa --workspace → exit 2, nol request', async () => {
+    const r = await run([]);
+    expect(r.code).toBe(2);
+    expect(hits).toEqual([]);
+  });
+  it.each([
+    ['SmadaExam walau di allowlist', { SUPABASE_URL: `https://${SMADA}.supabase.co`, SUPABASE_ALLOWED_REFS: SMADA }],
+    ['project di luar allowlist', { SUPABASE_URL: 'https://zzzzzzzzzzzzzzzzzzzz.supabase.co' }],
+    ['allowlist kosong', { SUPABASE_ALLOWED_REFS: '' }],
+    ['produksi tanpa izin eksplisit', { SUPABASE_URL: `https://${PROD}.supabase.co`, SUPABASE_ALLOWED_REFS: PROD }],
+  ])('target ditolak: %s → exit 2, nol request, --apply tidak berefek', async (_n, env) => {
+    await seed(['a']);
+    const r = await run(['--workspace', 'ws1', '--apply'], env);
+    expect(r.code).toBe(2);
+    expect(hits).toEqual([]);
+    expect(fake.store.size).toBe(0);
+  });
+  it('dry-run: hanya GET, tidak ada mutasi, exit 1 karena data belum ada', async () => {
+    await seed(['a', 'b', 'c']);
+    const r = await run(['--workspace', 'ws1']);
+    expect(r.code).toBe(1);
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.every((h) => h.startsWith('GET '))).toBe(true);
+    expect(fake.store.size).toBe(0);
+    expect(r.out).toContain('DRY-RUN');
+  });
+  it('--apply: ID & timestamp dipertahankan, exit 0; ulang tidak menggandakan; dry-run sesudahnya bersih', async () => {
+    await seed(['a', 'b', 'c']);
+    expect((await run(['--workspace', 'ws1', '--apply'])).code).toBe(0);
+    expect([...fake.store.keys()].sort()).toEqual(['a', 'b', 'c']);
+    expect(fake.store.get('a')).toMatchObject({
+      workspace_id: 'ws1', class_name: '7A', reason: 'sakit', metadata: { scheduleId: 'sch-a', note: 'n-a' },
+      created_at: new Date(1760000000000).toISOString(),
+    });
+    expect((await run(['--workspace', 'ws1', '--apply'])).code).toBe(0);
+    expect(fake.store.size).toBe(3);
+    hits = [];
+    expect((await run(['--workspace', 'ws1'])).code).toBe(0);
+    expect(hits.every((h) => h.startsWith('GET '))).toBe(true);
+  });
+  it('--collection academic_years: tipe date/boolean/null bertahan, rekonsiliasi bersih; koleksi tak dipetakan exit 2', async () => {
+    const { initializeApp, getApps } = await import('firebase-admin/app');
+    const { getFirestore } = await import('firebase-admin/firestore');
+    const app = getApps().find((a) => a.name === 'seed') ?? initializeApp({ projectId: 'demo-teacher-workspace' }, 'seed');
+    await getFirestore(app).collection('academic_years').doc('ay1').set({ workspaceId: 'ws1', label: '2026/2027', startDate: '2026-07-13', endDate: null, isActive: true });
+    const r = await run(['--collection', 'academic_years', '--workspace', 'ws1', '--apply']);
+    expect(r.code, r.out).toBe(0);
+    expect(fake.store.get('ay1')).toMatchObject({ workspace_id: 'ws1', label: '2026/2027', start_date: '2026-07-13', end_date: null, is_active: true });
+    expect((await run(['--collection', 'academic_years', '--workspace', 'ws1'])).code).toBe(0);
+    hits = [];
+    expect((await run(['--collection', 'payments', '--workspace', 'ws1', '--apply'])).code).toBe(2);
+    expect(hits).toEqual([]);
+  });
+  it('--collection workspaces (dokumen tunggal by id) lalu teacher_profiles (kunci user_id); urutan FK: workspace dulu', async () => {
+    const { initializeApp, getApps } = await import('firebase-admin/app');
+    const { getFirestore } = await import('firebase-admin/firestore');
+    const app = getApps().find((a) => a.name === 'seed') ?? initializeApp({ projectId: 'demo-teacher-workspace' }, 'seed');
+    const fdb = getFirestore(app);
+    await fdb.collection('workspaces').doc('ws1').set({ name: 'SMA 1', plan: 'school_annual', ownerUid: 'owner1', classLimit: 3, seatLimit: 5, inviteCode: 'ABC234', inviteCodeExpiresAt: 1760000000000 });
+    await fdb.collection('workspaces').doc('wsLain').set({ name: 'Lain', ownerUid: 'x' });
+    await fdb.collection('teacher_profiles').doc('owner1').set({ workspaceId: 'ws1', role: 'OWNER', name: 'Pak Budi', subject: 'Matematika', quickNote: 'rahasia' });
+    await fdb.collection('teacher_profiles').doc('g2').set({ workspaceId: 'ws1', role: 'TEACHER', name: 'Bu Ani' });
+    await fdb.collection('teacher_profiles').doc('gLain').set({ workspaceId: 'wsLain', role: 'OWNER' });
+    fake.store.clear();
+    const w = await run(['--collection', 'workspaces', '--workspace', 'ws1', '--apply']);
+    expect(w.code, w.out).toBe(0);
+    expect([...fake.store.keys()]).toEqual(['ws1']);
+    expect(fake.store.get('ws1')).toMatchObject({ owner_uid: 'owner1', seat_limit: 5, invite_code: 'ABC234', invite_code_expires_at: 1760000000000 });
+    // teacher_profiles memakai user_id sebagai kunci → fake menyimpan dengan kunci itu; token palsu memetakan ke ws1
+    const t = await run(['--collection', 'teacher_profiles', '--workspace', 'ws1', '--apply']);
+    expect(t.code, t.out).toBe(0);
+    expect(fake.store.get('owner1')).toMatchObject({ user_id: 'owner1', workspace_id: 'ws1', role: 'OWNER', metadata: { subject: 'Matematika', quickNote: 'rahasia' } });
+    expect(fake.store.has('gLain')).toBe(false);
+    expect((await run(['--collection', 'teacher_profiles', '--workspace', 'ws1'])).code).toBe(0);
+  });
+  it('tahap identity (satu perintah) + laporan jumlah; ROLLBACK --reverse menyalin tulisan Supabase ke Firestore tanpa menghapus', async () => {
+    const { initializeApp, getApps } = await import('firebase-admin/app');
+    const { getFirestore } = await import('firebase-admin/firestore');
+    const app = getApps().find((a) => a.name === 'seed') ?? initializeApp({ projectId: 'demo-teacher-workspace' }, 'seed');
+    const fdb = getFirestore(app);
+    await fdb.collection('workspaces').doc('ws1').set({ name: 'SMAN 2', plan: 'school_annual', ownerUid: 'owner1', classLimit: 60, seatLimit: 100 });
+    await fdb.collection('teacher_profiles').doc('owner1').set({ workspaceId: 'ws1', role: 'OWNER', name: 'Pak Budi' });
+    await fdb.collection('teacher_profiles').doc('hanyaFs').set({ workspaceId: 'ws1', role: 'TEACHER', name: 'Hanya di Firestore' });
+    fake.store.clear();
+    const dry = await run(['--collection', 'identity', '--workspace', 'ws1']);
+    expect(dry.code).toBe(1);
+    expect(dry.out).toContain('| workspaces | 1 | 0 |');
+    expect(fake.store.size).toBe(0);
+    const apply = await run(['--collection', 'identity', '--workspace', 'ws1', '--apply']);
+    expect(apply.code, apply.out).toBe(0);
+    expect(apply.out).toContain('| teacher_profiles | 2 | 2 | 2 |');
+    expect(apply.out).toContain('BERSIH');
+    // Simulasi: saat Supabase jadi sumber kebenaran, guru baru bergabung + nama diubah (hanya di Supabase).
+    fake.store.set('g9', { user_id: 'g9', workspace_id: 'ws1', role: 'TEACHER', name: 'Bu Baru', metadata: { subject: 'IPA' } });
+    fake.store.set('owner1', { ...fake.store.get('owner1')!, name: 'Pak Budi (diubah)' });
+    const rdry = await run(['--collection', 'teacher_profiles', '--workspace', 'ws1', '--reverse']);
+    expect(rdry.code).toBe(1);
+    expect((await fdb.collection('teacher_profiles').doc('g9').get()).exists).toBe(false);
+    const rapply = await run(['--collection', 'teacher_profiles', '--workspace', 'ws1', '--reverse', '--apply']);
+    expect(rapply.code, rapply.out).toBe(0);
+    expect((await fdb.collection('teacher_profiles').doc('g9').get()).data()).toMatchObject({ name: 'Bu Baru', workspaceId: 'ws1', role: 'TEACHER', subject: 'IPA' });
+    expect((await fdb.collection('teacher_profiles').doc('owner1').get()).data()).toMatchObject({ name: 'Pak Budi (diubah)' });
+    expect((await fdb.collection('teacher_profiles').doc('hanyaFs').get()).exists).toBe(true); // tidak dihapus
+    expect(fake.store.size).toBe(4); // Supabase tidak diubah oleh reverse (ws1, owner1, hanyaFs, g9)
+  });
+  it('apply teacher_profiles sebelum workspaces di Supabase → ditolak (prasyarat FK), exit 1, tidak menulis', async () => {
+    const { initializeApp, getApps } = await import('firebase-admin/app');
+    const { getFirestore } = await import('firebase-admin/firestore');
+    const app = getApps().find((a) => a.name === 'seed') ?? initializeApp({ projectId: 'demo-teacher-workspace' }, 'seed');
+    await getFirestore(app).collection('teacher_profiles').doc('owner1').set({ workspaceId: 'ws1', role: 'OWNER', name: 'Pak Budi' });
+    wsMissing = true;
+    const r = await run(['--collection', 'teacher_profiles', '--workspace', 'ws1', '--apply']);
+    expect(r.code).toBe(1);
+    expect(r.out).toContain("backfill 'workspaces'");
+    expect(fake.store.size).toBe(0);
+  });
+  it('dokumen workspace lain di Firestore tidak ikut disalin', async () => {
+    await seed(['a']);
+    await seed(['zzz'], 'ws-lain');
+    expect((await run(['--workspace', 'ws1', '--apply'])).code).toBe(0);
+    expect([...fake.store.keys()]).toEqual(['a']);
+  });
+  it('baris berlebih di Supabase → exit 1 dan TIDAK dihapus', async () => {
+    await seed(['a']);
+    fake.store.set('ghost', { id: 'ghost', workspace_id: 'ws1', metadata: {} });
+    const r = await run(['--workspace', 'ws1', '--apply']);
+    expect(r.code).toBe(1);
+    expect(fake.store.has('ghost')).toBe(true);
+    expect(r.out).toContain('ghost');
+  });
+  it('kegagalan parsial (batch ke-2 500) → exit 1, laporan batch gagal; dijalankan ulang → exit 0', async () => {
+    await seed(Array.from({ length: 205 }, (_, i) => `d${String(i).padStart(3, '0')}`));
+    failPostNo = 2;
+    const r = await run(['--workspace', 'ws1', '--apply']);
+    expect(r.code).toBe(1);
+    expect(r.out).toContain('failedBatches');
+    expect(r.out).toContain('boom');
+    expect(fake.store.size).toBe(200);
+    failPostNo = 0;
+    expect((await run(['--workspace', 'ws1', '--apply'])).code).toBe(0);
+    expect(fake.store.size).toBe(205);
+  }, 60_000);
+});

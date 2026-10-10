@@ -129,7 +129,7 @@ export function isClassLimitReached(workspace: WorkspaceDoc, currentClassCount: 
 export function assertClassLimitNotReached(workspace: WorkspaceDoc, currentClassCount: number) {
   if (isClassLimitReached(workspace, currentClassCount)) {
     throw new Error(
-      `Paket Anda dibatasi maksimal ${workspace.classLimit} kelas. Hubungi admin untuk upgrade paket.`
+      `Workspace ini dibatasi maksimal ${workspace.classLimit} kelas. Hubungi pemilik aplikasi untuk menambah batas kelas.`
     );
   }
 }

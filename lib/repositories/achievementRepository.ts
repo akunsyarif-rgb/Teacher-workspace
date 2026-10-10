@@ -1,10 +1,11 @@
-import { getDocuments, addDocument, deleteDocument, batchWrite, BatchOperation } from '../adapters/firestoreAdapter';
+import type { BatchOperation } from '../adapters/firestoreAdapter';
+import { adapterFor } from '../adapters/dataAdapter';
 import { COLLECTIONS } from '../config/constants';
 
 // Dipakai guru (wali kelas) untuk mengelola prestasi satu kelas.
 export async function getAchievementsByClass(workspaceId: string, className: string) {
   if (!workspaceId || !className) return [];
-  return getDocuments(COLLECTIONS.STUDENT_ACHIEVEMENTS, [
+  return adapterFor(COLLECTIONS.STUDENT_ACHIEVEMENTS).getDocuments(COLLECTIONS.STUDENT_ACHIEVEMENTS, [
     ['workspaceId', '==', workspaceId],
     ['className', '==', className],
   ]);
@@ -15,18 +16,18 @@ export async function getAchievementsByClass(workspaceId: string, className: str
 // kalau filternya menjamin hal itu.
 export async function getAchievementsByStudent(workspaceId: string, studentId: string) {
   if (!workspaceId || !studentId) return [];
-  return getDocuments(COLLECTIONS.STUDENT_ACHIEVEMENTS, [
+  return adapterFor(COLLECTIONS.STUDENT_ACHIEVEMENTS).getDocuments(COLLECTIONS.STUDENT_ACHIEVEMENTS, [
     ['workspaceId', '==', workspaceId],
     ['studentId', '==', studentId],
   ]);
 }
 
 export async function createAchievement(data: Record<string, any>) {
-  return addDocument(COLLECTIONS.STUDENT_ACHIEVEMENTS, data);
+  return adapterFor(COLLECTIONS.STUDENT_ACHIEVEMENTS).addDocument(COLLECTIONS.STUDENT_ACHIEVEMENTS, data);
 }
 
 export async function deleteAchievement(id: string) {
-  return deleteDocument(COLLECTIONS.STUDENT_ACHIEVEMENTS, id);
+  return adapterFor(COLLECTIONS.STUDENT_ACHIEVEMENTS).deleteDocument(COLLECTIONS.STUDENT_ACHIEVEMENTS, id);
 }
 
 /**
@@ -53,6 +54,6 @@ export async function copyFromNotes(notes: { id: string; [key: string]: any }[])
       migratedFromNoteId: note.id,
     },
   }));
-  await batchWrite(operations);
+  await adapterFor(COLLECTIONS.STUDENT_ACHIEVEMENTS).batchWrite(operations);
   return operations.length;
 }

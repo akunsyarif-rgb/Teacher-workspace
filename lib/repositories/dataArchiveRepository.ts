@@ -1,4 +1,4 @@
-import { countDocuments, getDocuments } from '../adapters/firestoreAdapter';
+import { adapterFor } from '../adapters/dataAdapter';
 import { COLLECTIONS } from '../config/constants';
 import { DATA_LIFECYCLE_COLLECTIONS, getLifecycleCollection } from '../config/dataLifecycleCollections';
 import { buildDateRangeFilters, DateRange } from '../utils/periodRange';
@@ -18,7 +18,7 @@ async function fetchLifecycleDocs(collectionKey: string, workspaceId: string, ra
     ['workspaceId', '==', workspaceId],
     ...buildDateRangeFilters(config.dateField, config.dateFormat, range),
   ];
-  const docs = await getDocuments(config.collectionName, filters);
+  const docs = await adapterFor(config.collectionName).getDocuments(config.collectionName, filters);
   if (!className) return docs;
   return docs.filter((d: any) => d.className === className);
 }
@@ -52,5 +52,5 @@ export async function listLifecycleData(
 // per periode sesuai keputusan "roster diurus manual oleh guru").
 export async function countStudentsInWorkspace(workspaceId: string): Promise<number> {
   if (!workspaceId) return 0;
-  return countDocuments(COLLECTIONS.STUDENTS, [['workspaceId', '==', workspaceId]]);
+  return adapterFor(COLLECTIONS.STUDENTS).countDocuments(COLLECTIONS.STUDENTS, [['workspaceId', '==', workspaceId]]);
 }

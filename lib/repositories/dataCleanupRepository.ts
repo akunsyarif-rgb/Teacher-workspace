@@ -1,4 +1,5 @@
-import { batchWrite, BatchOperation } from '../adapters/firestoreAdapter';
+import type { BatchOperation } from '../adapters/firestoreAdapter';
+import { adapterFor } from '../adapters/dataAdapter';
 import { getLifecycleCollection } from '../config/dataLifecycleCollections';
 import { listLifecycleData } from './dataArchiveRepository';
 import { DateRange } from '../utils/periodRange';
@@ -24,6 +25,6 @@ export async function deleteLifecycleData(
     collectionName: config.collectionName,
     id: doc.id,
   }));
-  await batchWrite(operations);
+  await adapterFor(config.collectionName).batchWrite(operations);
   return docs.length;
 }

@@ -27,6 +27,18 @@ export async function claimAccessCode(accessCode: string, authUid: string) {
   if (!code) throw new Error('Kode akses wajib diisi.');
   if (!authUid) throw new Error('Sesi tidak valid, coba muat ulang halaman.');
 
+  if (studentAuthRepository.usesSupabaseStudentAuth()) {
+    try {
+      return await studentAuthRepository.claimProfileViaRpc(authUid, code);
+    } catch (e) {
+      // RPC memakai errcode P0002 'invalid login code' untuk kode yang tidak ada.
+      if (e instanceof Error && /invalid login code/i.test(e.message)) {
+        throw new Error('Kode akses tidak ditemukan. Periksa kembali kode dari gurumu.');
+      }
+      throw e;
+    }
+  }
+
   const loginCode: any = await studentAuthRepository.getLoginCode(code);
   if (!loginCode) throw new Error('Kode akses tidak ditemukan. Periksa kembali kode dari gurumu.');
 

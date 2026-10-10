@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Kode undangan diperlukan.' }, { status: 400 });
     }
 
-    const workspace = await joinWorkspaceByCodeServer(uid, inviteCode);
+    const workspace = await joinWorkspaceByCodeServer(uid, inviteCode, idToken);
     return NextResponse.json({ workspace });
   } catch (error: any) {
     console.error('workspace join error:', error);
