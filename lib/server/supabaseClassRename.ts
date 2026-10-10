@@ -6,10 +6,12 @@ import { SUPABASE_MAPPED_COLLECTIONS } from '../adapters/supabaseAdapter';
 // kehilangan akses lewat RLS yang mencocokkan class_name). Dijalankan server-side dengan secret key
 // (service_role) dan SELALU dibatasi workspace_id + class_name lama; satu PATCH atomik per tabel.
 // Koleksi yang tidak punya kolom class_name (academic_years) otomatis dilewati.
-const NO_CLASS_COLUMN = new Set(['academic_years']);
+const NO_CLASS_COLUMN = new Set(['academic_years', 'workspaces']);
+// teacher_profiles tidak punya kolom class_name (homeroom_class_name diganti terpisah di bawah).
+NO_CLASS_COLUMN.add('teacher_profiles');
 
-export function supabaseCollectionsToRename(flag?: string, override?: string, studentAuth?: string) {
-  return SUPABASE_MAPPED_COLLECTIONS.filter((c) => !NO_CLASS_COLUMN.has(c) && isSupabaseCollection(c, flag, override, studentAuth));
+export function supabaseCollectionsToRename(flag?: string, override?: string, studentAuth?: string, teacherAuth?: string) {
+  return SUPABASE_MAPPED_COLLECTIONS.filter((c) => !NO_CLASS_COLUMN.has(c) && isSupabaseCollection(c, flag, override, studentAuth, teacherAuth));
 }
 
 function supabaseEnv(url?: string, key?: string) {
@@ -24,7 +26,7 @@ export async function supabaseClassExists(opts: {
   workspaceId: string; className: string; flagged?: boolean; url?: string; secretKey?: string; fetchImpl?: typeof fetch;
 }): Promise<boolean | null> {
   const flagged = opts.flagged ?? supabaseCollectionsToRename(
-    process.env.NEXT_PUBLIC_SUPABASE_COLLECTIONS, process.env.NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE, process.env.NEXT_PUBLIC_SUPABASE_STUDENT_AUTH_VERIFIED).includes('students');
+    process.env.NEXT_PUBLIC_SUPABASE_COLLECTIONS, process.env.NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE, process.env.NEXT_PUBLIC_SUPABASE_STUDENT_AUTH_VERIFIED, process.env.NEXT_PUBLIC_SUPABASE_TEACHER_AUTH_VERIFIED).includes('students');
   if (!flagged) return null;
   const { u, k } = supabaseEnv(opts.url, opts.secretKey);
   const res = await (opts.fetchImpl ?? fetch)(
@@ -48,7 +50,7 @@ export interface RenameInSupabaseOptions {
 
 export async function renameClassInSupabase(opts: RenameInSupabaseOptions) {
   const collections = opts.collections ?? supabaseCollectionsToRename(
-    process.env.NEXT_PUBLIC_SUPABASE_COLLECTIONS, process.env.NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE, process.env.NEXT_PUBLIC_SUPABASE_STUDENT_AUTH_VERIFIED);
+    process.env.NEXT_PUBLIC_SUPABASE_COLLECTIONS, process.env.NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE, process.env.NEXT_PUBLIC_SUPABASE_STUDENT_AUTH_VERIFIED, process.env.NEXT_PUBLIC_SUPABASE_TEACHER_AUTH_VERIFIED);
   if (collections.length === 0) return {} as Record<string, number>;
   const { u: url, k: key } = supabaseEnv(opts.url, opts.secretKey);
   const doFetch = opts.fetchImpl ?? fetch;

@@ -40,6 +40,11 @@ async function main() {
   }
   const io = createSupabaseBackfillIO(cfg, {
     readFirestore: async (ws, collection) => {
+      // workspaces: dokumen tunggal (id = workspace); koleksi lain: semua dokumen milik workspace itu.
+      if (collection === 'workspaces') {
+        const one = await getFirestore().collection('workspaces').doc(ws).get();
+        return one.exists ? [{ id: one.id, data: one.data() as Record<string, unknown> }] : [];
+      }
       const snap = await getFirestore().collection(collection).where('workspaceId', '==', ws).get();
       return snap.docs.map((d) => ({ id: d.id, data: d.data() as Record<string, unknown> }));
     },

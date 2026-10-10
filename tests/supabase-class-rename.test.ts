@@ -9,7 +9,7 @@ describe('supabaseCollectionsToRename', () => {
     expect(supabaseCollectionsToRename(undefined, undefined)).toEqual([]);
   });
   it('hanya koleksi berflag yang punya class_name; academic_years dilewati', () => {
-    expect(supabaseCollectionsToRename('session_skip_reasons,academic_years,workspaces', undefined).sort()).toEqual(['session_skip_reasons']);
+    expect(supabaseCollectionsToRename('session_skip_reasons,academic_years,workspaces,teacher_profiles', undefined, undefined, 'yes').sort()).toEqual(['session_skip_reasons']);
   });
 });
 
@@ -42,9 +42,10 @@ describe('renameClassInSupabase', () => {
 describe('unit siswa pada rename kelas', () => {
   const UNIT = 'students,student_login_codes,student_profiles';
   it('unit lengkap + auth siswa: students, kode login, dan profil ikut di-rename', () => {
-    expect(supabaseCollectionsToRename(UNIT, undefined, 'yes').sort()).toEqual(['student_login_codes', 'student_profiles', 'students']);
-    expect(supabaseCollectionsToRename(UNIT, undefined, undefined)).toEqual([]);
-    expect(supabaseCollectionsToRename('students', undefined, 'yes')).toEqual([]);
+    expect(supabaseCollectionsToRename(`${UNIT},workspaces,teacher_profiles`, undefined, 'yes', 'yes').sort()).toEqual(['student_login_codes', 'student_profiles', 'students']);
+    expect(supabaseCollectionsToRename(`${UNIT},workspaces,teacher_profiles`, undefined, undefined, 'yes')).toEqual([]);
+    expect(supabaseCollectionsToRename(UNIT, undefined, 'yes', 'yes')).toEqual([]); // tanpa unit identitas
+    expect(supabaseCollectionsToRename('students,workspaces,teacher_profiles', undefined, 'yes', 'yes')).toEqual([]);
   });
   it('supabaseClassExists: null bila students belum dialihkan; true/false sesuai isi', async () => {
     const fake = createFakePostgrest({ tokens: { svc: 'wsA' }, rows: [{ id: 's1', workspace_id: 'wsA', class_name: '7A', metadata: {} }] });

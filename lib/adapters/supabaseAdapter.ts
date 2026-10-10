@@ -161,6 +161,24 @@ const COLUMN_MAP: Record<string, Record<string, string>> = {
     name: 'name',
     nis: 'nis',
   },
+  // Identitas & akses workspace sekolah. `workspaces` tidak punya kolom workspace_id (kuncinya `id`); teacher_profiles berkunci user_id.
+  workspaces: {
+    ownerUid: 'owner_uid',
+    name: 'name',
+    inviteCode: 'invite_code',
+    inviteCodeExpiresAt: 'invite_code_expires_at',
+    plan: 'plan',
+    classLimit: 'class_limit',
+    seatLimit: 'seat_limit',
+    planExpiresAt: 'plan_expires_at',
+  },
+  teacher_profiles: {
+    workspaceId: 'workspace_id',
+    role: 'role',
+    homeroomClassName: 'homeroom_class_name',
+    name: 'name',
+    email: 'email',
+  },
   [COLLECTIONS.STUDENT_NOTES]: {
     workspaceId: 'workspace_id',
     className: 'class_name',
@@ -175,10 +193,24 @@ export const SUPABASE_MAPPED_COLLECTIONS = Object.keys(COLUMN_MAP);
 const SERVER_FIELDS = new Set(['createdAt', 'updatedAt']);
 
 // Kolom kunci utama bila bukan `id`, dan kolom wajib yang diturunkan dari id dokumen.
-const ID_COLUMN: Record<string, string> = { [COLLECTIONS.STUDENT_PROFILES]: 'user_id' };
+const ID_COLUMN: Record<string, string> = { [COLLECTIONS.STUDENT_PROFILES]: 'user_id', teacher_profiles: 'user_id' };
+
+// Kunci isolasi tenant per koleksi. `null` = tidak ada kolom workspace pada penulisan (profil guru baru belum punya workspace).
+// workspaces: pemilik; daftar (list) dari klien dilarang untuk keduanya — hanya get by id.
+const SCOPE_KEY: Record<string, string | null> = { workspaces: 'ownerUid', teacher_profiles: null };
+const LIST_FORBIDDEN = new Set(['workspaces', 'teacher_profiles']);
+const scopeKey = (c: string) => (c in SCOPE_KEY ? SCOPE_KEY[c] : 'workspaceId');
+function requireScopeOnWrite(c: string, data: Row) {
+  const k = scopeKey(c);
+  if (k && (typeof data[k] !== 'string' || !data[k])) {
+    throw new SupabaseAdapterError('bad_request', `Dokumen wajib punya ${k}.`);
+  }
+}
 const READ_ONLY = new Set<string>([COLLECTIONS.STUDENT_PROFILES]);
 // Dokumen kode login Firestore memakai kodenya sebagai id; di Postgres kolom `code` NOT NULL ikut diisi.
 const ROW_FROM_ID: Record<string, (id: string) => Row> = { [COLLECTIONS.STUDENT_LOGIN_CODES]: (id) => ({ code: id }) };
+/** Kolom isolasi tenant di tabel (untuk backfill/rekonsiliasi per workspace): workspaces memakai id-nya sendiri. */
+export const scopeColumn = (c: string) => (c === 'workspaces' ? 'id' : 'workspace_id');
 export const idColumn = (c: string) => ID_COLUMN[c] ?? 'id';
 function writeRow(c: string, id: string, data: Row) {
   if (READ_ONLY.has(c)) throw new SupabaseAdapterError('bad_request', `Koleksi ${c} hanya-baca dari klien.`);
@@ -354,6 +386,7 @@ export function createSupabaseAdapter(deps: SupabaseAdapterDeps) {
 
   const api = {
     async getDocuments(collectionName: string, filters: Filter[] = []) {
+      if (LIST_FORBIDDEN.has(collectionName)) throw new SupabaseAdapterError('bad_request', `Daftar ${collectionName} tidak tersedia dari klien (RLS hanya mengizinkan get by id).`);
       requireWorkspace(filters);
       const out: Row[] = [];
       // Paginasi eksplisit: batas baris PostgREST (default 1000) tidak boleh memotong hasil diam-diam.
@@ -381,6 +414,7 @@ export function createSupabaseAdapter(deps: SupabaseAdapterDeps) {
     },
 
     async countDocuments(collectionName: string, filters: Filter[] = []) {
+      if (LIST_FORBIDDEN.has(collectionName)) throw new SupabaseAdapterError('bad_request', `Hitung ${collectionName} tidak tersedia dari klien.`);
       requireWorkspace(filters);
       const qs = buildFilterParams(collectionName, filters);
       qs.set('select', idColumn(collectionName));
@@ -396,9 +430,7 @@ export function createSupabaseAdapter(deps: SupabaseAdapterDeps) {
 
     // Insert dengan id yang ditentukan pemanggil (id klien untuk antrean offline). Id sudah ada → error `conflict`.
     async addDocumentWithId(collectionName: string, id: string, data: Row) {
-      if (typeof data.workspaceId !== 'string' || !data.workspaceId) {
-        throw new SupabaseAdapterError('bad_request', 'Dokumen wajib punya workspaceId.');
-      }
+      requireScopeOnWrite(collectionName, data);
       const res = await request(collectionName, {
         method: 'POST', prefer: 'return=representation', body: JSON.stringify(writeRow(collectionName, id, data)),
       });
@@ -413,13 +445,19 @@ export function createSupabaseAdapter(deps: SupabaseAdapterDeps) {
       for (let attempt = 0; attempt < 3; attempt++) {
         const current = await fetchRaw(collectionName, id);
         if (!current) throw new SupabaseAdapterError('not_found', 'Dokumen tidak ditemukan atau tidak boleh diakses.');
-        if (data.workspaceId !== undefined && data.workspaceId !== current.workspace_id) {
-          throw new SupabaseAdapterError('bad_request', 'workspaceId tidak boleh diubah.');
+        // workspaceId immutable; satu-satunya pengecualian: profil guru yang BELUM punya workspace boleh diklaim sekali
+        // (RLS + trigger guard menegakkan siapa yang boleh). ownerUid workspace immutable.
+        if (data.workspaceId !== undefined && data.workspaceId !== (current.workspace_id ?? undefined)) {
+          const claim = collectionName === 'teacher_profiles' && (current.workspace_id === null || current.workspace_id === undefined);
+          if (!claim) throw new SupabaseAdapterError('bad_request', 'workspaceId tidak boleh diubah.');
+        }
+        if (collectionName === 'workspaces' && data.ownerUid !== undefined && data.ownerUid !== current.owner_uid) {
+          throw new SupabaseAdapterError('bad_request', 'ownerUid tidak boleh diubah.');
         }
         const merged: Row = { ...fromRow(collectionName, current), ...data };
         delete merged.id;
         const patch = toRow(collectionName, merged);
-        delete patch.workspace_id;
+        if (collectionName !== 'teacher_profiles') delete patch.workspace_id;
         const guard = current.updated_at ? `&updated_at=eq.${encodeURIComponent(String(current.updated_at))}` : '';
         const res = await request(`${collectionName}?${idParam(collectionName, id)}${guard}`, {
           method: 'PATCH', prefer: 'return=representation', body: JSON.stringify(patch),
@@ -434,9 +472,7 @@ export function createSupabaseAdapter(deps: SupabaseAdapterDeps) {
     async setDocument(collectionName: string, id: string, data: Row) {
       const existing = await fetchRaw(collectionName, id);
       if (existing) return api.updateDocument(collectionName, id, data);
-      if (typeof data.workspaceId !== 'string' || !data.workspaceId) {
-        throw new SupabaseAdapterError('bad_request', 'Dokumen wajib punya workspaceId.');
-      }
+      requireScopeOnWrite(collectionName, data);
       try {
         const res = await request(collectionName, {
           method: 'POST', prefer: 'return=representation', body: JSON.stringify(writeRow(collectionName, id, data)),
@@ -481,9 +517,7 @@ export function createSupabaseAdapter(deps: SupabaseAdapterDeps) {
           columns(op.collectionName);
           if (READ_ONLY.has(op.collectionName)) throw new SupabaseAdapterError('bad_request', `Koleksi ${op.collectionName} hanya-baca dari klien.`);
           if (op.type === 'delete') return { op: 'delete', table: op.collectionName, id: op.id };
-          if (typeof op.data?.workspaceId !== 'string' || !op.data.workspaceId) {
-            throw new SupabaseAdapterError('bad_request', 'Operasi batch wajib punya workspaceId.');
-          }
+          requireScopeOnWrite(op.collectionName, op.data ?? {});
           return { op: 'set', table: op.collectionName, row: writeRow(op.collectionName, op.id, op.data) };
         });
         const res = await request('rpc/batch_write', { method: 'POST', body: JSON.stringify({ p_ops }) });

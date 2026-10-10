@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Lima repository yang bisa dialihkan: default Firestore, Supabase hanya bila koleksinya dicantumkan di flag.
-const fs = vi.hoisted(() => ({ getDocuments: vi.fn(), getDocument: vi.fn(), addDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), batchWrite: vi.fn(), countDocuments: vi.fn(), generateId: vi.fn(() => 'gid'), getDocumentFromCache: vi.fn() }));
-const sb = vi.hoisted(() => ({ getDocuments: vi.fn(), getDocument: vi.fn(), addDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), batchWrite: vi.fn(), countDocuments: vi.fn(), generateId: vi.fn(() => 'gid'), getDocumentFromCache: vi.fn(), rpc: vi.fn() }));
+const fs = vi.hoisted(() => ({ getDocuments: vi.fn(), getDocument: vi.fn(), addDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), batchWrite: vi.fn(), countDocuments: vi.fn(), generateId: vi.fn(() => 'gid'), getDocumentFromCache: vi.fn(), setDocument: vi.fn(), serverTimestamp: vi.fn(() => ({ sentinel: true })) }));
+const sb = vi.hoisted(() => ({ getDocuments: vi.fn(), getDocument: vi.fn(), addDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), batchWrite: vi.fn(), countDocuments: vi.fn(), generateId: vi.fn(() => 'gid'), getDocumentFromCache: vi.fn(), setDocument: vi.fn(), rpc: vi.fn() }));
 vi.mock('../lib/adapters/firestoreAdapter', () => fs);
 vi.mock('../lib/adapters/supabaseClient', () => ({ getSupabaseAdapter: () => sb }));
 
 const UNIT_FLAG = 'students,student_login_codes,student_profiles';
+const IDENTITY_CASES = [
+  { collection: 'teacher_profiles', mod: 'teacherProfileRepository', run: (r: Record<string, (...a: unknown[]) => Promise<unknown>>) => [r.getTeacherProfile('u'), r.getCachedTeacherProfile('u'), r.saveTeacherProfile('u', { name: 'x' }), r.setTeacherWorkspace('u', 'w', 'OWNER'), r.updateTeacherQuickNote('u', 'n')] },
+  { collection: 'workspaces', mod: 'workspaceRepository', run: (r: Record<string, (...a: unknown[]) => Promise<unknown>>) => [r.getWorkspaceById('w'), r.getCachedWorkspaceById('w'), r.createWorkspaceDoc({ name: 'S', plan: 'school_annual', ownerUid: 'u', classLimit: 3, inviteCode: 'ABC123', inviteCodeExpiresAt: 1 }), r.updateWorkspaceInviteCode('w', 'ZZZ999', 2)] },
+];
 const CASES: { collection: string; mod: string; run: (r: Record<string, (...a: unknown[]) => Promise<unknown>>) => Promise<unknown>[] }[] = [
   { collection: 'academic_years', mod: 'academicYearRepository', run: (r) => [r.listByWorkspace('w'), r.getActive('w'), r.create({ workspaceId: 'w' }), r.update('i', { label: 'x' })] },
   { collection: 'class_fund_transactions', mod: 'classFundRepository', run: (r) => [r.getTransactions('w', '7A'), r.createTransaction({ workspaceId: 'w' }), r.deleteTransaction('i')] },
@@ -29,8 +33,11 @@ const CASES: { collection: string; mod: string; run: (r: Record<string, (...a: u
   { collection: 'session_skip_reasons', mod: 'sessionSkipReasonRepository', run: (r) => [r.getByDate('w', 'd'), r.createSkipReason({ workspaceId: 'w' }), r.updateSkipReason('i', {})] },
 ];
 
-async function load(mod: string, flag: string, studentAuth = 'yes') {
+async function load(mod: string, flagIn: string, studentAuth = 'yes', identity = true) {
   vi.resetModules();
+  // Koleksi data di Supabase mensyaratkan unit identitas (workspaces + teacher_profiles) aktif + auth guru terverifikasi.
+  const flag = flagIn && identity && !flagIn.includes('workspaces') ? `${flagIn},workspaces,teacher_profiles` : flagIn;
+  vi.stubEnv('NEXT_PUBLIC_SUPABASE_TEACHER_AUTH_VERIFIED', identity ? 'yes' : '');
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_COLLECTIONS', flag);
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE', '');
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_STUDENT_AUTH_VERIFIED', studentAuth);
@@ -38,6 +45,7 @@ async function load(mod: string, flag: string, studentAuth = 'yes') {
 }
 beforeEach(() => {
   for (const m of [...Object.values(fs), ...Object.values(sb)]) m.mockReset().mockResolvedValue([]);
+  fs.generateId.mockReturnValue('gid'); sb.generateId.mockReturnValue('gid'); fs.serverTimestamp.mockReturnValue({ sentinel: true });
 });
 
 describe.each(CASES)('$mod ($collection)', ({ collection, mod, run }) => {
@@ -133,5 +141,48 @@ describe('dataArchive / dataCleanup mengikuti flag per koleksi lifecycle', () =>
     sb.getDocuments.mockRejectedValue(new Error('gagal-sb'));
     const arch = await load('dataArchiveRepository', 'journals');
     await expect(arch.countLifecycleData('w', range as never)).rejects.toThrow('gagal-sb');
+  });
+});
+
+describe.each(IDENTITY_CASES)('identitas: $mod ($collection)', ({ collection, mod, run }) => {
+  const load2 = async (flag: string, teacher = 'yes') => { const m = await load(mod, flag, 'yes', false); void teacher; return m; };
+  it('default: Firestore', async () => {
+    await Promise.all(run(await load2('')));
+    for (const m of Object.values(sb)) expect(m).not.toHaveBeenCalled();
+    expect(Object.values(fs).some((m) => m.mock.calls.length > 0)).toBe(true);
+  });
+  it('unit identitas lengkap + auth guru terverifikasi → Supabase, Firestore tidak tersentuh (kecuali sentinel waktu)', async () => {
+    vi.resetModules();
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_COLLECTIONS', 'workspaces,teacher_profiles');
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_TEACHER_AUTH_VERIFIED', 'yes');
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_STUDENT_AUTH_VERIFIED', '');
+    const r = (await import(`../lib/repositories/${mod}.ts`)) as Record<string, (...a: unknown[]) => Promise<unknown>>;
+    await Promise.all(run(r));
+    // serverTimestamp() hanya pembuat sentinel (bukan I/O); dibuang oleh adapter Supabase.
+    for (const [name, m] of Object.entries(fs)) if (name !== 'serverTimestamp') expect(m, name).not.toHaveBeenCalled();
+    expect(Object.values(sb).some((m) => m.mock.calls.length > 0)).toBe(true);
+  });
+  it('hanya salah satu dari unit identitas, atau tanpa TEACHER_AUTH_VERIFIED → tetap Firestore', async () => {
+    for (const [flag, teacher] of [[collection, 'yes'], ['workspaces,teacher_profiles', '']] as const) {
+      for (const m of [...Object.values(fs), ...Object.values(sb)]) m.mockReset();
+      vi.resetModules();
+      vi.stubEnv('NEXT_PUBLIC_SUPABASE_COLLECTIONS', flag);
+      vi.stubEnv('NEXT_PUBLIC_SUPABASE_TEACHER_AUTH_VERIFIED', teacher);
+      const r = (await import(`../lib/repositories/${mod}.ts`)) as Record<string, (...a: unknown[]) => Promise<unknown>>;
+      await Promise.all(run(r));
+      for (const m of Object.values(sb)) expect(m).not.toHaveBeenCalled();
+    }
+  });
+});
+
+describe('koleksi data tanpa unit identitas di Supabase → tetap Firestore (RLS bergantung pada teacher_profiles)', () => {
+  it.each(CASES.slice(0, 6))('$collection', async ({ collection, mod, run }) => {
+    vi.resetModules();
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_COLLECTIONS', collection);
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_TEACHER_AUTH_VERIFIED', 'yes');
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_STUDENT_AUTH_VERIFIED', 'yes');
+    const r = (await import(`../lib/repositories/${mod}.ts`)) as Record<string, (...a: unknown[]) => Promise<unknown>>;
+    await Promise.all(run(r));
+    for (const m of Object.values(sb)) expect(m).not.toHaveBeenCalled();
   });
 });

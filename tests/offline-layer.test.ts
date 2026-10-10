@@ -190,6 +190,19 @@ describe('batchWrite offline', () => {
   });
 });
 
+describe('serialisasi outbox', () => {
+  it('sentinel serverTimestamp (objek kelas) dan undefined dibuang sebelum disimpan; flush tetap berhasil', async () => {
+    class FieldValueLike { _methodName = 'serverTimestamp'; fn() { return 1; } }
+    const { adapter, fake, net } = setup();
+    net.online = false;
+    const r = await adapter.addDocument(C, { ...doc(), createdAt: new FieldValueLike(), updatedAt: new FieldValueLike(), kosong: undefined } as never);
+    net.online = true;
+    await adapter.flush();
+    expect(fake.store.has(r.id as string)).toBe(true);
+    expect(await adapter.getStatus()).toEqual({ pending: 0, failed: 0 });
+  });
+});
+
 describe('kegagalan', () => {
   it('error non-jaringan saat tulis langsung dilempar dan TIDAK diantrekan', async () => {
     const { adapter, net } = setup();

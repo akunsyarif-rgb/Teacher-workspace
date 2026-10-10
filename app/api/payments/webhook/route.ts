@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { identityOnSupabase } from '@/lib/server/supabaseServer';
 import { handleMidtransNotification } from '@/lib/server/paymentService';
 
 export const runtime = 'nodejs';
@@ -8,6 +9,12 @@ export const runtime = 'nodejs';
 // dari Midtrans — keasliannya diverifikasi lewat signature_key di dalam
 // payload itu sendiri (lihat handleMidtransNotification).
 export async function POST(request: NextRequest) {
+  // Pembayaran/langganan di luar scope migrasi Supabase: saat identitas workspace berjalan di Supabase, rute ini
+  // MENOLAK (bukan menulis ke Firestore yang sudah tidak menjadi sumber kebenaran workspace). Tidak ada akses guru
+  // yang bergantung pada rute ini.
+  if (identityOnSupabase()) {
+    return NextResponse.json({ error: 'Pembayaran belum tersedia pada konfigurasi ini.' }, { status: 501 });
+  }
   let payload: unknown;
   try {
     payload = await request.json();

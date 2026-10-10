@@ -75,6 +75,13 @@ export interface SyncStatus { pending: number; failed: number }
 const NETWORK_KINDS = new Set(['offline', 'network', 'timeout']);
 const isNetworkError = (e: unknown) => e instanceof SupabaseAdapterError && NETWORK_KINDS.has(e.kind);
 const RETRY_LATER = new Set(['offline', 'network', 'timeout', 'auth', 'server', 'conflict']);
+// Data yang masuk outbox harus dapat diserialisasi: buang field server (createdAt/updatedAt bisa berupa sentinel
+// serverTimestamp() milik Firestore) dan nilai undefined.
+const SERVER_FIELDS = new Set(['createdAt', 'updatedAt']);
+function clean(data: Row | undefined): Row | undefined {
+  if (!data) return data;
+  return JSON.parse(JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k, v]) => !SERVER_FIELDS.has(k) && v !== undefined)))) as Row;
+}
 const pad = (n: number) => String(n).padStart(12, '0');
 const hash = (v: unknown) => JSON.stringify(v);
 
@@ -203,7 +210,7 @@ export function withOfflineSupport(base: BaseAdapter, opts: { store: KVStore; is
         try { return await base.addDocumentWithId(c, id, data); } catch (e) { if (!isNetworkError(e)) throw e; }
       }
       // Bisa jadi sudah sampai ke server sebelum jaringan putus: replay `set` idempoten (buat-atau-gabung).
-      await enqueue({ type: 'set', collection: c, id, data });
+      await enqueue({ type: 'set', collection: c, id, data: clean(data) });
       return { id, ...data };
     },
 
@@ -211,7 +218,7 @@ export function withOfflineSupport(base: BaseAdapter, opts: { store: KVStore; is
       if (isOnline() && !(await hasPending(c, id))) {
         try { return await base.setDocument(c, id, data); } catch (e) { if (!isNetworkError(e)) throw e; }
       }
-      await enqueue({ type: 'set', collection: c, id, data });
+      await enqueue({ type: 'set', collection: c, id, data: clean(data) });
       return { id, ...data };
     },
 
@@ -219,7 +226,7 @@ export function withOfflineSupport(base: BaseAdapter, opts: { store: KVStore; is
       if (isOnline() && !(await hasPending(c, id))) {
         try { return await base.updateDocument(c, id, data); } catch (e) { if (!isNetworkError(e)) throw e; }
       }
-      await enqueue({ type: 'update', collection: c, id, data });
+      await enqueue({ type: 'update', collection: c, id, data: clean(data) });
       return { id, ...data };
     },
 
@@ -253,7 +260,7 @@ export function withOfflineSupport(base: BaseAdapter, opts: { store: KVStore; is
       if (isOnline() && !blocked) {
         try { return await base.batchWrite(operations); } catch (e) { if (!isNetworkError(e)) throw e; }
       }
-      await enqueue({ type: 'batch', collection: operations[0].collectionName, id: '*', batch: operations });
+      await enqueue({ type: 'batch', collection: operations[0].collectionName, id: '*', batch: operations.map((o) => (o.type === 'set' ? { ...o, data: clean(o.data) as Row } : o)) });
       return true;
     },
   };

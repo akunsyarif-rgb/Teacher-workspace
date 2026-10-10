@@ -1,4 +1,4 @@
-import { idColumn } from '../adapters/supabaseAdapter';
+import { idColumn, scopeColumn } from '../adapters/supabaseAdapter';
 import { assertMappedCollection, firestoreDocToRow, reconcileCollection, type ReconcileReport } from './collectionMigration';
 
 type Row = Record<string, unknown>;
@@ -81,7 +81,7 @@ export async function runBackfill(
       seen.add(d.id);
       try {
         const row = firestoreDocToRow(collection, d.id, d.data);
-        if (row.workspace_id !== cfg.workspaceId) throw new Error('workspace berbeda');
+        if (collection === 'workspaces' ? row.id !== cfg.workspaceId : row.workspace_id !== cfg.workspaceId) throw new Error('workspace berbeda');
         rows.push(row);
       } catch {
         result.skippedInvalid.push(d.id);
@@ -123,7 +123,7 @@ export function createSupabaseBackfillIO(
   return {
     readFirestore: base.readFirestore,
     readSupabase: async (ws, collection) =>
-      (await call(`${collection}?workspace_id=eq.${encodeURIComponent(ws)}&select=*`)) as Row[],
+      (await call(`${collection}?${scopeColumn(collection)}=eq.${encodeURIComponent(ws)}&select=*`)) as Row[],
     upsert: async (rows, collection) => {
       await call(`${collection}?on_conflict=${idColumn(collection)}`, {
         method: 'POST',

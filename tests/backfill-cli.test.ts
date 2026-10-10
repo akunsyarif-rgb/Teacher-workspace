@@ -27,6 +27,9 @@ function mkFake() {
   posts = 0;
   fake = createFakePostgrest({
     tokens: { [KEY]: 'ws1' },
+    // service_role melewati RLS; di fake: baris milik ws1 (workspaces: id sendiri) boleh terlihat/ditulis.
+    visible: (r, ws) => r.workspace_id === ws || r.id === ws,
+    canInsert: (r, ws) => r.workspace_id === ws || r.id === ws,
     intercept: ({ method }) => {
       if (method === 'POST' && ++posts === failPostNo) return { status: 500, body: { message: 'boom' } };
     },
@@ -142,8 +145,30 @@ suite('CLI backfill-collection (proses nyata, emulator + Supabase palsu)', () =>
     expect(fake.store.get('ay1')).toMatchObject({ workspace_id: 'ws1', label: '2026/2027', start_date: '2026-07-13', end_date: null, is_active: true });
     expect((await run(['--collection', 'academic_years', '--workspace', 'ws1'])).code).toBe(0);
     hits = [];
-    expect((await run(['--collection', 'workspaces', '--workspace', 'ws1', '--apply'])).code).toBe(2);
+    expect((await run(['--collection', 'payments', '--workspace', 'ws1', '--apply'])).code).toBe(2);
     expect(hits).toEqual([]);
+  });
+  it('--collection workspaces (dokumen tunggal by id) lalu teacher_profiles (kunci user_id); urutan FK: workspace dulu', async () => {
+    const { initializeApp, getApps } = await import('firebase-admin/app');
+    const { getFirestore } = await import('firebase-admin/firestore');
+    const app = getApps().find((a) => a.name === 'seed') ?? initializeApp({ projectId: 'demo-teacher-workspace' }, 'seed');
+    const fdb = getFirestore(app);
+    await fdb.collection('workspaces').doc('ws1').set({ name: 'SMA 1', plan: 'school_annual', ownerUid: 'owner1', classLimit: 3, seatLimit: 5, inviteCode: 'ABC234', inviteCodeExpiresAt: 1760000000000 });
+    await fdb.collection('workspaces').doc('wsLain').set({ name: 'Lain', ownerUid: 'x' });
+    await fdb.collection('teacher_profiles').doc('owner1').set({ workspaceId: 'ws1', role: 'OWNER', name: 'Pak Budi', subject: 'Matematika', quickNote: 'rahasia' });
+    await fdb.collection('teacher_profiles').doc('g2').set({ workspaceId: 'ws1', role: 'TEACHER', name: 'Bu Ani' });
+    await fdb.collection('teacher_profiles').doc('gLain').set({ workspaceId: 'wsLain', role: 'OWNER' });
+    fake.store.clear();
+    const w = await run(['--collection', 'workspaces', '--workspace', 'ws1', '--apply']);
+    expect(w.code, w.out).toBe(0);
+    expect([...fake.store.keys()]).toEqual(['ws1']);
+    expect(fake.store.get('ws1')).toMatchObject({ owner_uid: 'owner1', seat_limit: 5, invite_code: 'ABC234', invite_code_expires_at: 1760000000000 });
+    // teacher_profiles memakai user_id sebagai kunci → fake menyimpan dengan kunci itu; token palsu memetakan ke ws1
+    const t = await run(['--collection', 'teacher_profiles', '--workspace', 'ws1', '--apply']);
+    expect(t.code, t.out).toBe(0);
+    expect(fake.store.get('owner1')).toMatchObject({ user_id: 'owner1', workspace_id: 'ws1', role: 'OWNER', metadata: { subject: 'Matematika', quickNote: 'rahasia' } });
+    expect(fake.store.has('gLain')).toBe(false);
+    expect((await run(['--collection', 'teacher_profiles', '--workspace', 'ws1'])).code).toBe(0);
   });
   it('dokumen workspace lain di Firestore tidak ikut disalin', async () => {
     await seed(['a']);

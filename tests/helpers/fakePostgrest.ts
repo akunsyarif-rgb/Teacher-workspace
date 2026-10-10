@@ -7,11 +7,15 @@ export interface FakeOpts {
   tokens: Record<string, string>; // token -> workspaceId yang boleh diakses
   rows?: Row[];
   /** Tindakan khusus per permintaan: kembalikan Response-like untuk menimpa, atau undefined. */
+  /** Override visibilitas baris (RLS) dan kunci baris untuk tabel non-standar (workspaces: id; teacher_profiles: user_id). */
+  visible?: (row: Row, ws: string, token: string) => boolean;
+  canInsert?: (row: Row, ws: string, token: string) => boolean;
   intercept?: (req: { method: string; url: URL; token: string }) => { status: number; body?: unknown } | 'network' | 'hang' | undefined;
 }
 
 export function createFakePostgrest(opts: FakeOpts) {
-  const store = new Map<string, Row>((opts.rows ?? []).map((r) => [String(r.id), { ...r }]));
+  const keyOf = (r: Row) => String(r.id ?? r.user_id);
+  const store = new Map<string, Row>((opts.rows ?? []).map((r) => [keyOf(r), { ...r }]));
   let tick = 0;
   const stamp = () => new Date(Date.UTC(2026, 9, 9, 0, 0, 0, 0) + ++tick * 1000).toISOString().replace('Z', '+00:00');
   const log: { method: string; path: string; token: string }[] = [];
@@ -52,7 +56,7 @@ export function createFakePostgrest(opts: FakeOpts) {
 
     const ws = opts.tokens[token];
     if (!ws) return respond(401, { code: 'PGRST301', message: 'JWT invalid' });
-    const visible = (r: Row) => r.workspace_id === ws;
+    const visible = (r: Row) => (opts.visible ? opts.visible(r, ws, token) : r.workspace_id === ws);
     const prefer = headers.Prefer ?? '';
     const wantsRep = prefer.includes('return=representation');
 
@@ -88,11 +92,11 @@ export function createFakePostgrest(opts: FakeOpts) {
       const items: Row[] = Array.isArray(body) ? body : [body];
       const out: Row[] = [];
       for (const it of items) {
-        if (it.workspace_id !== ws) return respond(403, { code: '42501', message: 'new row violates row-level security policy' });
-        const exists = store.has(String(it.id));
+        if (opts.canInsert ? !opts.canInsert(it, ws, token) : it.workspace_id !== ws) return respond(403, { code: '42501', message: 'new row violates row-level security policy' });
+        const exists = store.has(keyOf(it));
         if (exists && !prefer.includes('merge-duplicates')) return respond(409, { code: '23505', message: 'duplicate key' });
-        const row = { class_name: null, teacher_uid: null, date: null, reason: null, metadata: {}, created_at: stamp(), ...(exists ? store.get(String(it.id)) : {}), ...it, updated_at: stamp() };
-        store.set(String(it.id), row);
+        const row = { metadata: {}, created_at: stamp(), ...(exists ? store.get(keyOf(it)) : {}), ...it, updated_at: stamp() };
+        store.set(keyOf(it), row);
         out.push(row);
       }
       return respond(201, wantsRep ? out : undefined);
@@ -101,11 +105,11 @@ export function createFakePostgrest(opts: FakeOpts) {
       const hit = [...store.values()].filter(visible).filter((r) => matchFilters(r, url));
       if (method === 'PATCH') {
         const patch = JSON.parse(String(init.body)) as Row;
-        for (const r of hit) { if (patch.workspace_id && patch.workspace_id !== r.workspace_id) return respond(403, { code: '42501', message: 'rls' }); }
-        for (const r of hit) store.set(String(r.id), { ...r, ...patch, updated_at: stamp() });
-        return wantsRep ? respond(200, hit.map((r) => store.get(String(r.id)))) : respond(204);
+        for (const r of hit) { if (patch.workspace_id && r.workspace_id && patch.workspace_id !== r.workspace_id) return respond(403, { code: '42501', message: 'rls' }); }
+        for (const r of hit) store.set(keyOf(r), { ...r, ...patch, updated_at: stamp() });
+        return wantsRep ? respond(200, hit.map((r) => store.get(keyOf(r)))) : respond(204);
       }
-      for (const r of hit) store.delete(String(r.id));
+      for (const r of hit) store.delete(keyOf(r));
       return wantsRep ? respond(200, hit) : respond(204);
     }
     return respond(405, { message: 'method' });

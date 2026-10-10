@@ -25,7 +25,8 @@ function toIso(value: unknown): string | undefined {
 export function firestoreDocToRow(collection: string, id: string, data: Row): Row {
   assertMappedCollection(collection);
   if (!id) throw new Error('Dokumen tanpa id — tidak dimigrasi.');
-  if (!data.workspaceId || typeof data.workspaceId !== 'string') {
+  // Dokumen workspaces tidak punya field workspaceId: id dokumennya ADALAH workspace.
+  if (collection !== 'workspaces' && (!data.workspaceId || typeof data.workspaceId !== 'string')) {
     throw new Error(`Dokumen ${id} tanpa workspaceId — tidak dimigrasi.`);
   }
   return backfillRow(collection, id, { ...data, createdAt: toIso(data.createdAt), updatedAt: toIso(data.updatedAt) });

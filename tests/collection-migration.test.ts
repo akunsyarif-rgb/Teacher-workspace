@@ -22,6 +22,8 @@ const SAMPLES: Record<string, Record<string, unknown>> = {
   submissions: { workspaceId: 'w', className: '7A', assignmentId: 'a1', studentId: 's1', submittedAt: '2026-10-09T01:02:03.000Z', status: 'dinilai', score: 90, feedback: 'bagus', textAnswer: 'jawab', externalLink: { provider: 'google-drive', url: 'https://drive.google.com/x' }, attachments: [{ fileName: 'a.jpg', fileUrl: 'supabase-storage://submission-attachments/x', filePath: 'x' }] },
   students: { workspaceId: 'w', className: '7A', name: 'Budi', nis: '1001', accessCode: 'ABC123' },
   student_login_codes: { workspaceId: 'w', studentId: 's1', className: '7A', name: 'Budi', nis: '1001' },
+  workspaces: { name: 'SMA 1', plan: 'school_annual', ownerUid: 'owner1', classLimit: 3, seatLimit: 1, inviteCode: 'ABC234', inviteCodeExpiresAt: 1760000000000 },
+  teacher_profiles: { workspaceId: 'w', role: 'TEACHER', name: 'Bu Ani', subject: 'IPA', isActive: true, quickNote: 'catatan', homeroomClassName: '7A' },
   student_profiles: { workspaceId: 'w', studentId: 's1', className: '7A', name: 'Budi', nis: '1001', accessCode: 'ABC123' },
   session_skip_reasons: { workspaceId: 'w', scheduleId: 'sc', className: '7A', date: '2026-10-09', reason: 'Rapat', note: '' },
 };
@@ -43,7 +45,7 @@ describe.each(Object.entries(SAMPLES))('migrasi koleksi %s', (collection, data) 
 });
 
 it('koleksi tak dipetakan ditolak', () => {
-  expect(() => firestoreDocToRow('workspaces', 'a', { workspaceId: 'w' })).toThrow(/belum dipetakan/);
+  expect(() => firestoreDocToRow('payments', 'a', { workspaceId: 'w' })).toThrow(/belum dipetakan/);
 });
 
 import { toMillis } from '../lib/repositories/gradeColumnRepository';
@@ -76,4 +78,14 @@ it('kunci baris: student_profiles memakai user_id; kode login mengisi kolom code
   expect('id' in p).toBe(false);
   expect(reconcileCollection('student_profiles', [{ id: 'uid1', data: SAMPLES.student_profiles }], [p]).ok).toBe(true);
   expect(firestoreDocToRow('student_login_codes', 'ABC123', SAMPLES.student_login_codes)).toMatchObject({ id: 'ABC123', code: 'ABC123' });
+});
+
+it('workspaces: id dokumen ADALAH workspace (tanpa field workspaceId); teacher_profiles berkunci user_id', () => {
+  const w = firestoreDocToRow('workspaces', 'ws1', SAMPLES.workspaces);
+  expect(w).toMatchObject({ id: 'ws1', owner_uid: 'owner1', invite_code: 'ABC234', invite_code_expires_at: 1760000000000, seat_limit: 1 });
+  expect('workspace_id' in w).toBe(false);
+  expect(reconcileCollection('workspaces', [{ id: 'ws1', data: SAMPLES.workspaces }], [{ ...w, created_at: 'x' }]).ok).toBe(true);
+  const t = firestoreDocToRow('teacher_profiles', 'uid1', SAMPLES.teacher_profiles);
+  expect(t).toMatchObject({ user_id: 'uid1', workspace_id: 'w', role: 'TEACHER', homeroom_class_name: '7A', metadata: { subject: 'IPA', isActive: true, quickNote: 'catatan' } });
+  expect('id' in t).toBe(false);
 });

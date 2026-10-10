@@ -1,5 +1,6 @@
 import { getAdminDb } from './firebaseAdmin';
 import { normalizeClassName, validateClassName } from '../utils/classNameValidation';
+import { identityOnSupabase, serviceRequest } from './supabaseServer';
 import { renameClassInSupabase, supabaseClassExists, supabaseCollectionsToRename } from './supabaseClassRename';
 
 // Semua koleksi yang punya field className langsung, TERMASUK
@@ -60,8 +61,15 @@ export async function renameClassServer(
 ) {
   const adminDb = db ?? getAdminDb();
 
-  const profileSnap = await adminDb.collection('teacher_profiles').doc(uid).get();
-  const workspaceId = profileSnap.exists ? (profileSnap.data() as { workspaceId?: string })?.workspaceId : null;
+  let workspaceId: string | null | undefined;
+  if (identityOnSupabase()) {
+    // uid sudah diverifikasi route (Firebase Admin); profil dibaca dengan service_role dan dibatasi uid itu saja.
+    const rows = (await serviceRequest(`teacher_profiles?user_id=eq.${encodeURIComponent(uid)}&select=workspace_id`)) as { workspace_id: string | null }[];
+    workspaceId = rows[0]?.workspace_id ?? null;
+  } else {
+    const profileSnap = await adminDb.collection('teacher_profiles').doc(uid).get();
+    workspaceId = profileSnap.exists ? (profileSnap.data() as { workspaceId?: string })?.workspaceId : null;
+  }
   if (!workspaceId) {
     throw new Error('Akun ini belum terhubung ke workspace mana pun.');
   }
@@ -105,7 +113,7 @@ export async function renameClassServer(
   // Bila students sudah di Supabase, daftar siswa Firestore bisa basi/kosong: kelas dianggap ada selama salah satu
   // backend memilikinya (diputuskan setelah rename Supabase di bawah).
   const supabaseFlagged = supabaseCollectionsToRename(
-    process.env.NEXT_PUBLIC_SUPABASE_COLLECTIONS, process.env.NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE, process.env.NEXT_PUBLIC_SUPABASE_STUDENT_AUTH_VERIFIED).length > 0;
+    process.env.NEXT_PUBLIC_SUPABASE_COLLECTIONS, process.env.NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE, process.env.NEXT_PUBLIC_SUPABASE_STUDENT_AUTH_VERIFIED, process.env.NEXT_PUBLIC_SUPABASE_TEACHER_AUTH_VERIFIED).length > 0;
   if (refsToUpdate.length === 0 && !supabaseFlagged) {
     throw new Error(`Kelas "${oldName}" tidak ditemukan.`);
   }

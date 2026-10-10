@@ -80,10 +80,24 @@ Saat ini TIDAK ADA koleksi di kategori 3 atau 4 (belum ada staging; semua flag m
 | `journals`, `attendances` | 2 | flag | range query `>=`/`<=` + count; Arsip/Cleanup/Export ikut lewat `adapterFor` |
 | `schedules`, `grade_columns`, `grades`, `student_achievements`, `announcements`, `assignments`, `submissions` | 2 | flag **+ `STUDENT_AUTH_VERIFIED=yes`** | dibaca/ditulis juga oleh sesi siswa; `grades`/`submissions`/`student_achievements` memakai RPC `batch_write` (PR #59) |
 | `students` + `student_login_codes` + `student_profiles` | 2 | flag **ketiganya sekaligus** + `STUDENT_AUTH_VERIFIED=yes` | satu unit; klaim lewat RPC `claim_student_profile`; profil hanya-baca dari klien |
-| `teacher_profiles`, `workspaces`, `workspace_invites`, `payments` | 0 | — | identitas/langganan; juga disentuh Admin SDK server (join, pembayaran, panel owner/admin) → fase terakhir |
+| `workspaces` + `teacher_profiles` (**unit identitas**) | 2 | flag **keduanya** + `TEACHER_AUTH_VERIFIED=yes`; wajib aktif sebelum koleksi data apa pun | RLS semua koleksi bergantung padanya; backfill: `workspaces` (per workspace, dokumen by id) lalu `teacher_profiles` |
+| `workspace_invites` | tidak dimigrasi | — | jembatan Firestore saja; di Supabase diganti `workspaces.invite_code` + RPC `join_workspace_by_code` |
+| `payments` | di luar scope | — | monetisasi masa depan; tidak disentuh |
 
-Modul server yang masih Firestore (kategori 0): `workspaceAdminService`, `ownerAdminService`, `/api/workspace/join`, `/api/payments/*`, `app/admin/migrate` (alat lama; menulis Firestore langsung — hanya relevan sebelum cutover).
-Yang sudah mengikuti flag di server: rename kelas (`renameClassInSupabase`, `supabaseClassExists`, termasuk unit siswa).
+### Pemisahan modul: operasional sekolah (gratis) vs monetisasi (masa depan)
+| Modul | Peran | Status |
+|---|---|---|
+| Profil guru, peran, wali kelas (`teacherProfileRepository`) | identitas & pemisahan akses | 1 — jalur Supabase selesai, tes lokal lulus |
+| Workspace, kode undangan (`workspaceRepository`) | akses sekolah | 1 — idem; kode undangan = kolom `invite_code`, tanpa jembatan |
+| `/api/workspace/join` (`joinWorkspaceByCodeServer`) | guru bergabung dengan kode | 1 — Supabase lewat RPC `join_workspace_by_code` dengan token pengguna (bukan secret key); Firestore Admin tetap default |
+| `/api/workspace/members` (Menu Admin) | daftar & keluarkan guru | 1 — Supabase: daftar via RLS + kolom eksplisit (tanpa quickNote), keluarkan via RPC `remove_workspace_member` (PR #59) |
+| Panel Pemilik Aplikasi (`ownerAdminService`) | atur kuota guru/kelas sekolah | 1 — Supabase via service_role, tetap dijaga `APP_OWNER_UIDS` |
+| Rename kelas (`classAdminService`) | operasional kelas | 1 — profil/workspace dibaca dari Supabase bila identitas aktif |
+| `paymentService`, `/api/payments/*`, Midtrans | MONETISASI masa depan | 0 — TIDAK dimigrasi; saat identitas di Supabase, rute membalas 501 agar tidak menulis Firestore yang bukan lagi sumber kebenaran |
+Tidak ada penguncian akses berdasarkan pembayaran yang ditambahkan. Batas kuota guru/kelas tetap berupa DATA di `workspaces` (`seat_limit`, `class_limit`) yang diatur pemilik aplikasi lewat panel;
+pesan "kuota penuh" di jalur Supabase tidak lagi menyebut pembelian/upgrade. Catatan keputusan: nilai awal workspace sekolah baru dibatasi 3 kelas / 1 guru (kode lama + rules Firestore + policy Supabase);
+agar seluruh guru di sekolah Anda bisa bergabung, naikkan `seat_limit`/`class_limit` lewat panel `/owner` (atau hapus batas) — saya tidak mengubah nilai default tanpa persetujuan.
+Alat lama `app/admin/migrate` menulis Firestore langsung (hanya relevan sebelum cutover).
 
 ### Mengapa tiga `student_*` satu unit
 `createStudent*`/`backfillAccessCodes`/`deleteStudent*` menulis `students` dan `student_login_codes` dalam SATU batch (atomik); klaim siswa membaca kode login lalu membuat `student_profiles`.
@@ -96,5 +110,6 @@ Flag deployment berlaku untuk semua sesi, termasuk siswa anonim. Koleksi siswa-f
 `scripts/supabase/verify-auth.mjs` membuktikan token siswa anonim diterima Supabase (Third-Party Auth + claim `role`) di staging. Tanpa itu koleksi tetap Firestore (diuji).
 
 ### Urutan cutover yang disarankan (setelah staging + auth)
-1. Guru-saja (5 koleksi) → 2. `journals`/`attendances` → 3. koleksi siswa-facing non-unit → 4. unit siswa (backfill `students`, `student_login_codes`, `student_profiles` bersamaan, lalu flag ketiganya) → 5. server/identitas.
+0. **Unit identitas dulu** (`workspaces` lalu `teacher_profiles`; backfill per workspace, FK mengharuskan workspace lebih dulu) + `TEACHER_AUTH_VERIFIED=yes`. Tanpa ini koleksi lain otomatis tetap Firestore (diuji).
+1. Guru-saja (5 koleksi) → 2. `journals`/`attendances` → 3. koleksi siswa-facing non-unit → 4. unit siswa (backfill `students`, `student_login_codes`, `student_profiles` bersamaan, lalu flag ketiganya) → 5. (selesai di langkah 0) modul server identitas.
 Backfill + rekonsiliasi per koleksi: `npm run migrate:collection -- --collection <nama> --workspace <id>` (dry-run → `--apply` → dry-run harus bersih).

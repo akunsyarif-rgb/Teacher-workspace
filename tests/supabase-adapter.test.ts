@@ -49,7 +49,7 @@ describe('mapping', () => {
     expect(buildFilterParams(C, [['reason', '==', null]]).get('reason')).toBe('is.null');
     expect(() => buildFilterParams(C, [['date', '!=', 'x']])).toThrow(SupabaseAdapterError);
     expect(() => buildFilterParams(C, [['a;drop table x', '==', 'x']])).toThrow(SupabaseAdapterError);
-    expect(() => toRow('workspaces', {})).toThrow(SupabaseAdapterError);
+    expect(() => toRow('payments', {})).toThrow(SupabaseAdapterError);
   });
 });
 
@@ -231,7 +231,7 @@ describe('batchWrite (RPC batch_write)', () => {
   it('tanpa workspaceId / koleksi tak dipetakan ditolak sebelum request; jumlah tak cocok = error', async () => {
     const { adapter, fake } = setup();
     expect((await err(adapter.batchWrite([{ type: 'set', collectionName: C, id: 'a', data: { reason: 'x' } }]))).kind).toBe('bad_request');
-    expect((await err(adapter.batchWrite([{ type: 'delete', collectionName: 'workspaces', id: 'a' }]))).kind).toBe('bad_request');
+    expect((await err(adapter.batchWrite([{ type: 'delete', collectionName: 'payments', id: 'a' }]))).kind).toBe('bad_request');
     expect(fake.log).toHaveLength(0);
     const odd = setup({ intercept: ({ url }) => (url.pathname.endsWith('batch_write') ? { status: 200, body: 0 } : undefined) });
     expect((await err(odd.adapter.batchWrite([g('a')]))).kind).toBe('server');
@@ -292,5 +292,60 @@ describe('operator rentang', () => {
     await adapter.batchWrite([{ type: 'set', collectionName: 'student_login_codes', id: 'ABC123', data: { workspaceId: 'wsA', studentId: 's1', className: '7A', name: 'Budi', nis: '1' } }]);
     expect(fake.store.get('ABC123')).toMatchObject({ code: 'ABC123', student_id: 's1', class_name: '7A' });
     expect((await err(adapter.rpc('x; drop table y', {}))).kind).toBe('bad_request');
+  });
+});
+
+describe('identitas: teacher_profiles & workspaces', () => {
+  const TP = 'teacher_profiles';
+  const WS = 'workspaces';
+  const idSetup = (rows: Record<string, unknown>[] = []) => setup({
+    rows,
+    visible: (r, ws) => r.workspace_id === ws || r.id === ws || r.user_id === ws || r.owner_uid === ws, // token 'tok-A' = pengguna 'wsA' pada uji identitas
+    canInsert: (r, ws) => r.user_id === ws || r.owner_uid === ws,
+  });
+  const profile = { user_id: 'wsA', workspace_id: null, role: null, name: 'Bu Ani', homeroom_class_name: null, email: null, metadata: { subject: 'IPA', quickNote: 'catatan', isActive: true }, updated_at: 'u1' };
+
+  it('baca profil: kunci user_id; metadata (subject, quickNote, isActive) dikembalikan di level atas', async () => {
+    const { adapter, fake } = idSetup([profile]);
+    expect(await adapter.getDocument(TP, 'wsA')).toMatchObject({ id: 'wsA', name: 'Bu Ani', subject: 'IPA', quickNote: 'catatan', isActive: true, workspaceId: null, role: null });
+    expect(fake.log[0].path).toContain('user_id=eq.wsA');
+  });
+  it('profil baru TANPA workspaceId boleh dibuat (insert memakai user_id, tanpa kolom id)', async () => {
+    const { adapter, fake } = idSetup();
+    await adapter.setDocument(TP, 'wsA', { name: 'Bu Ani' });
+    expect(fake.store.get('wsA')).toMatchObject({ user_id: 'wsA', name: 'Bu Ani' });
+    expect('id' in fake.store.get('wsA')!).toBe(false);
+  });
+  it('klaim workspace SEKALI: profil tanpa workspace boleh diisi workspaceId + role; kemudian tidak boleh pindah', async () => {
+    const { adapter, fake } = idSetup([profile]);
+    await adapter.updateDocument(TP, 'wsA', { workspaceId: 'wsX', role: 'OWNER', isActive: true });
+    expect(fake.store.get('wsA')).toMatchObject({ workspace_id: 'wsX', role: 'OWNER' });
+    expect((await err(adapter.updateDocument(TP, 'wsA', { workspaceId: 'wsY' }))).kind).toBe('bad_request');
+    await adapter.updateDocument(TP, 'wsA', { name: 'Ani Baru' }); // tidak menyentuh workspace
+    expect(fake.store.get('wsA')).toMatchObject({ workspace_id: 'wsX', name: 'Ani Baru' });
+  });
+  it('update catatan cepat tidak menghapus metadata lain', async () => {
+    const { adapter, fake } = idSetup([profile]);
+    await adapter.updateDocument(TP, 'wsA', { quickNote: 'baru' });
+    expect(fake.store.get('wsA')).toMatchObject({ metadata: { subject: 'IPA', quickNote: 'baru', isActive: true } });
+  });
+  it('daftar/hitung teacher_profiles & workspaces dari klien dilarang', async () => {
+    const { adapter } = idSetup();
+    for (const c of [TP, WS]) {
+      expect((await err(adapter.getDocuments(c, [['workspaceId', '==', 'w']]))).kind).toBe('bad_request');
+      expect((await err(adapter.countDocuments(c, [['workspaceId', '==', 'w']]))).kind).toBe('bad_request');
+    }
+  });
+  it('workspace: dibuat dengan ownerUid; kolom dipetakan; kode undangan bisa diganti; ownerUid immutable', async () => {
+    const { adapter, fake } = idSetup();
+    const id = adapter.generateId(WS);
+    await adapter.setDocument(WS, id, { name: 'SMA 1', plan: 'school_annual', ownerUid: 'wsA', classLimit: 3, seatLimit: 1, inviteCode: 'ABC234', inviteCodeExpiresAt: 1760000000000, createdAt: { sentinel: true } });
+    expect(fake.store.get(id)).toMatchObject({ name: 'SMA 1', plan: 'school_annual', owner_uid: 'wsA', class_limit: 3, seat_limit: 1, invite_code: 'ABC234', invite_code_expires_at: 1760000000000 });
+    expect('workspace_id' in fake.store.get(id)!).toBe(false);
+    await adapter.updateDocument(WS, id, { inviteCode: 'ZZZ999', inviteCodeExpiresAt: 1760000999999 });
+    expect(fake.store.get(id)).toMatchObject({ invite_code: 'ZZZ999', owner_uid: 'wsA' });
+    expect(await adapter.getDocument(WS, id)).toMatchObject({ id, ownerUid: 'wsA', classLimit: 3, seatLimit: 1, inviteCode: 'ZZZ999' });
+    expect((await err(adapter.updateDocument(WS, id, { ownerUid: 'orangLain' }))).kind).toBe('bad_request');
+    expect((await err(adapter.setDocument(WS, adapter.generateId(WS), { name: 'tanpa pemilik' }))).kind).toBe('bad_request');
   });
 });
