@@ -4,6 +4,15 @@ name: Ulangan Harian - tes database lokal
 # GRATIS dan terisolasi: TIDAK memakai Supabase (tanpa secret, tanpa project/branch), tidak menyentuh Workflow maupun SmadaExam.
 # Ini BUKAN validasi Supabase cloud (gateway, Third-Party Auth Firebase, advisor); itu tetap butuh staging yang disetujui.
 on:
+  # push ke branch fitur: workflow baru yang belum ada di branch default tidak bisa di-dispatch, tetapi push tetap menjalankannya.
+  push:
+    branches: ["feat/ulangan-harian-supabase"]
+    paths:
+      - "supabase/**"
+      - "tests/**"
+      - "lib/**"
+      - "app/api/ulangan/**"
+      - ".github/workflows/ulangan-db-tests.yml"
   pull_request:
     paths:
       - "supabase/**"
