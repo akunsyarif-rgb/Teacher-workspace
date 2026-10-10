@@ -259,4 +259,47 @@ addRaw('bw:set-tanpa-metadata-tidak-menghapus-metadata-lama', 'teachA',
   [bw(`[${rowOf('students', 'sA1', 'wsA', ',"metadata":{"a":1}')}]`), bw(`[${rowOf('students', 'sA1', 'wsA', ',"name":"X"')}]`), { raw: "select metadata->>'a' from public.students where id='sA1'" }],
   ['ok:1', 'ok:1', '1']);
 
+const fbUid = (u: string) => u; // alias keterbacaan
+// ---------- 11. Jalur siswa & unit students/student_login_codes lewat batch_write ----------
+const subRow = (id: string, extra: string) => `{"op":"set","table":"submissions","row":{"id":"${id}","workspace_id":"wsA","class_name":"7A","assignment_id":"aA7A","student_id":"sA1"${extra}}}`;
+addRaw('bw11:siswa-kumpul-tugas-lain-insert-lalu-update', 'stuA1',
+  [bw(`[{"op":"set","table":"submissions","row":{"id":"aA7B_sA1","workspace_id":"wsA","class_name":"7B","assignment_id":"aA7B","student_id":"sA1","status":"menunggu_penilaian","text_answer":"v1"}}]`),
+   bw(`[{"op":"set","table":"submissions","row":{"id":"aA7B_sA1","workspace_id":"wsA","class_name":"7B","assignment_id":"aA7B","student_id":"sA1","status":"menunggu_penilaian","text_answer":"v2"}}]`),
+   { raw: "select text_answer from public.submissions where id='aA7B_sA1'" }],
+  ['ok:1', 'ok:1', 'v2']);
+// Skor dari siswa diabaikan trigger guard (sama seperti update langsung: ok tetapi nilai tidak berubah); insert baru dengan skor ditolak.
+addRaw('bw11:siswa-menyisipkan-nilai-pada-update-diabaikan', 'stuA1',
+  [bw(`[${subRow('aA7A_sA1', ',"status":"menunggu_penilaian","score":100,"feedback":"hack"')}]`), { raw: "select coalesce(score::text,'<null>')||'/'||coalesce(feedback,'<null>') from public.submissions where id='aA7A_sA1'" }],
+  ['ok:1', '<null>/<null>']);
+add('bw11:siswa-insert-baru-dengan-nilai-ditolak', 'stuA1', bw(`[{"op":"set","table":"submissions","row":{"id":"aA7B_sA1","workspace_id":"wsA","class_name":"7B","assignment_id":"aA7B","student_id":"sA1","status":"menunggu_penilaian","score":100}}]`), DENY);
+add('bw11:siswa-tidak-bisa-kumpul-atas-nama-orang-lain', 'stuA1', bw(`[{"op":"set","table":"submissions","row":{"id":"aA7B_sA2","workspace_id":"wsA","assignment_id":"aA7B","student_id":"sA2","status":"menunggu_penilaian"}}]`), ANYERR);
+addRaw('bw11:siswa-delete-tak-berefek', 'stuA1', [bw('[{"op":"delete","table":"submissions","id":"aA7A_sA1"}]'), { raw: "select count(*) from public.submissions where id='aA7A_sA1'" }], ['ok:1', '1']);
+add('bw11:siswa-tidak-bisa-menulis-grades', 'stuA1', bw(`[{"op":"set","table":"grades","row":{"id":"sA1_gcA7A","workspace_id":"wsA","class_name":"7A","student_id":"sA1","column_id":"gcA7A","score":100}}]`), DENY);
+// unit siswa: guru membuat siswa + kode dalam satu transaksi (pola createStudent), kode langsung bisa diklaim siswa baru
+addRaw('bw11:unit-guru-buat-siswa-dan-kode-atomik-lalu-diklaim', 'teachA',
+  [bw(`[{"op":"set","table":"students","row":{"id":"stNew","workspace_id":"wsA","class_name":"7A","name":"Baru","nis":"9","access_code":"NEWCODE"}},{"op":"set","table":"student_login_codes","row":{"id":"NEWCODE","code":"NEWCODE","workspace_id":"wsA","student_id":"stNew","class_name":"7A","name":"Baru","nis":"9"}}]`),
+   { raw: "select (select count(*) from public.students where id='stNew')||'/'||(select count(*) from public.student_login_codes where id='NEWCODE')" }],
+  ['ok:1', '1/1']);
+addRaw('bw11:unit-gagal-di-tengah-tidak-meninggalkan-kode-yatim', 'teachA',
+  [`select public.batch_write('[{"op":"set","table":"students","row":{"id":"stOrph","workspace_id":"wsA","class_name":"7A","name":"X"}},{"op":"set","table":"student_login_codes","row":{"id":"ORPH","code":"ORPH","workspace_id":"wsB","student_id":"stOrph","class_name":"7A"}}]'::jsonb)`,
+   { raw: "select (select count(*) from public.students where id='stOrph')||'/'||(select count(*) from public.student_login_codes where id='ORPH')" }],
+  [DENY, '0/0']);
+addRaw('bw11:unit-hapus-siswa-dan-kode-atomik', 'teachA',
+  [bw('[{"op":"delete","table":"students","id":"sA1"},{"op":"delete","table":"student_login_codes","id":"CODEA1"}]'),
+   { raw: "select (select count(*) from public.students where id='sA1')||'/'||(select count(*) from public.student_login_codes where id='CODEA1')" }],
+  ['ok:1', '0/0']);
+addRaw('bw11:siswa-baru-klaim-kode-yang-dibuat-guru', 'stuNew',
+  [`select * from public.claim_student_profile('CODEA1')`, { raw: "select student_id||'/'||class_name from public.student_profiles where user_id='stuNew'" }],
+  ['ok:1', 'sA1/7A']);
+add('bw11:siswa-tidak-bisa-batch-ke-student_profiles', 'stuA1', bw(`[{"op":"set","table":"student_profiles","row":{"id":"x","workspace_id":"wsA"}}]`), ANYERR);
+add('bw11:guru-tidak-bisa-batch-ke-student_profiles', 'teachA', bw(`[{"op":"set","table":"student_profiles","row":{"id":"x","workspace_id":"wsA"}}]`), ANYERR);
+// Fixture memakai student_profiles.user_id sebagai kunci; query by user_id untuk profil sendiri (jalur getStudentProfile)
+add('bw11:siswa-membaca-profil-sendiri-by-user_id', fbUid('stuA1'), "select * from public.student_profiles where user_id='stuA1'", 'ok:1');
+add('bw11:siswa-tak-bisa-membaca-profil-orang-lain', 'stuA1', "select * from public.student_profiles where user_id='stuA2'", OK0);
+// Range query seperti Arsip/Cleanup: tanggal & timestamp
+add('rng:guru-journals-rentang-tanggal', 'teachA', "select * from public.journals where workspace_id='wsA' and date >= current_date - 1 and date <= current_date + 1", 'ok:1');
+add('rng:guru-journals-rentang-di-luar', 'teachA', "select * from public.journals where workspace_id='wsA' and date >= current_date + 5", OK0);
+add('rng:tenant-lain-tak-melihat-rentang', 'teachB', "select * from public.journals where workspace_id='wsA' and date >= current_date - 1", OK0);
+add('rng:submissions-rentang-submitted_at', 'teachA', "select * from public.submissions where workspace_id='wsA' and submitted_at <= now() + interval '1 day'", 'ok:2');
+
 export default cases;

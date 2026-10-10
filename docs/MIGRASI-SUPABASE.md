@@ -191,3 +191,9 @@ Setelah staging lulus: `node scripts/supabase/verify-auth.mjs` (bagian 7) terhad
 Kompatibilitas token Firebase: `tests/rls/cases.ts` bagian 9 memakai klaim berbentuk token Firebase asli (iss/aud/user_id/firebase{}),
 membuktikan RLS memakai `sub` saja (`user_id` palsu diabaikan, `sub` kosong = tanpa identitas, siswa anonim tanpa profil tidak melihat apa pun).
 Yang BELUM terbukti: penerimaan token oleh Supabase (Third-Party Auth) dan claim `role`.
+
+### 8.5 Perilaku RLS yang BERBEDA dari Firestore (didokumentasikan, teruji di `tests/rls/cases.ts` bagian 10–11)
+- Siswa yang mengirim `score`/`feedback` pada pembaruan submission: Firestore menolak seluruh tulisan; Supabase **menerima tulisan tetapi mengabaikan** skor/feedback (trigger guard). Insert baru dengan skor ditolak di kedua sistem.
+- `batch_write` delete atas baris yang tidak terlihat (RLS) = no-op berhasil (sama seperti menghapus dokumen yang tak ada di Firestore), tidak membocorkan keberadaan baris.
+- Unit siswa: `students` + `student_login_codes` ditulis atomik dalam satu `batch_write` (gagal di tengah → tidak ada kode yatim); klaim siswa = satu RPC `claim_student_profile`; `student_profiles` hanya-baca dari klien.
+- Range query (`>=`/`<=` pada `date`, `submitted_at`) tunduk pada RLS yang sama; tenant lain tidak melihat hasil.
