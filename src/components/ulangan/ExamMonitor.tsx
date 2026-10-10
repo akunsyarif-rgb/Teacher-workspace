@@ -15,7 +15,7 @@ export default function ExamMonitor({ examId, onClose }: { examId: string; onClo
 
   useEffect(() => {
     let off = false;
-    const load = () => ulangan.fetchExamMonitor(examId)
+    const load = () => ulangan.fetchExamResults(examId)
       .then((v) => { if (!off) setView(v); })
       .catch((e) => { if (!off) setError(ulangan.describeError(e)); });
     void load();

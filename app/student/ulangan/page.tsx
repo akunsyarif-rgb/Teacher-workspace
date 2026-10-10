@@ -30,7 +30,7 @@ function List() {
   async function open(exam: StudentExam) {
     setBusy(exam.id); setError("");
     try {
-      const a = exam.attempt ?? (await ulangan.beginAttempt(exam.id));
+      const a = await ulangan.beginAttempt(exam.id); // idempoten; juga memulihkan pengerjaan aktif dari perangkat/sesi baru
       router.push(`/student/ulangan/${a.id}`);
     } catch (e) { setError(ulangan.describeError(e)); setBusy(""); }
   }

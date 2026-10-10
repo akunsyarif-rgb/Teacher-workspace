@@ -118,7 +118,7 @@ suite('migrasi Ulangan Harian: hanya menambah objek ulh_*, rollback bersih', () 
       expect(catalog(before.url)).toEqual(catalog(after.url));
       // dan baseline saja (tanpa #59) tetap menerima migrasi ulangan tanpa galat
       const bare = createRawDatabase(adminUrl as string, [...BASELINE_FILES, UP]);
-      try { expect(catalog(bare.url).some((l) => l.startsWith('rel|public.ulh_members|'))).toBe(true); } finally { bare.drop(); }
+      try { expect(catalog(bare.url).some((l) => l.startsWith('rel|public.ulh_exams|'))).toBe(true); } finally { bare.drop(); }
     } finally { after.drop(); before.drop(); }
   });
 
@@ -130,7 +130,7 @@ suite('migrasi Ulangan Harian: hanya menambah objek ulh_*, rollback bersih', () 
       expect(down, String(re)).not.toMatch(re);
     }
     const drops = down.match(/drop\s+(?:table|function)\s+if\s+exists[^;]*;/gi) ?? [];
-    expect(drops.length).toBeGreaterThan(20);
+    expect(drops.length).toBeGreaterThanOrEqual(18);
     for (const d of drops) {
       const names = d.replace(/drop\s+(table|function)\s+if\s+exists/i, '').replace(/\([^)]*\)/g, '').split(',').map((x) => x.replace(/[;\s]|cascade/gi, ''));
       for (const n of names) expect(n, d).toMatch(/^(public|private)\.ulh_\w+$/);
@@ -138,13 +138,13 @@ suite('migrasi Ulangan Harian: hanya menambah objek ulh_*, rollback bersih', () 
     expect(down).not.toMatch(/\bdelete\s+from\b/i);
   });
 
-  it('dependensi di luar modul hanya fungsi yang ada di Workflow', () => {
+  it('mandiri: tidak memanggil fungsi di luar modul; tidak memberi hak ke klien; tidak membuat policy', () => {
     const up = readFileSync(repoFile(UP), 'utf8').replace(/--.*$/gm, '');
     const used = new Set([...up.matchAll(/\b(private|public|auth)\.([a-z_]+)\(/g)].map((m) => `${m[1]}.${m[2]}`).filter((n) => !/\.ulh_/.test(n)));
-    // terverifikasi ada di Workflow (query katalog read-only 2026-10-10)
-    const EXISTING = new Set(['private.current_uid', 'private.protect_immutable_columns', 'public.set_updated_at', 'auth.jwt', 'auth.role']);
-    for (const n of used) expect(EXISTING.has(n), `${n} tidak terverifikasi ada di Workflow`).toBe(true);
-    const trg = [...up.matchAll(/execute function ([\w.]+)\(/g)].map((m) => m[1]).filter((n) => !/\.ulh_/.test(n));
-    for (const t of trg) expect(EXISTING.has(t), t).toBe(true);
+    expect([...used], 'fungsi di luar modul (tidak boleh ada: migrasi harus mandiri)').toEqual([]);
+    expect([...up.matchAll(/execute function ([\w.]+)\(/g)].map((m) => m[1])).toEqual(['private.ulh_touch', 'private.ulh_touch']);
+    expect(up).not.toMatch(/grant[^;]*\bto\s+(authenticated|anon|public)\b/i); // hanya revoke untuk klien; grant hanya ke service_role
+    expect(up).not.toMatch(/create\s+policy/i); // RLS aktif tanpa policy: tidak ada jalan klien
+    expect([...up.matchAll(/grant[^;]*?\bto\s+(\w+)/gi)].map((m) => m[1].toLowerCase())).toEqual(['service_role']);
   });
 });

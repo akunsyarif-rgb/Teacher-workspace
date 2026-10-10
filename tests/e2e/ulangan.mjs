@@ -1,11 +1,11 @@
 /**
- * E2E browser Ulangan Harian: guru membuat paket + ulangan + menerbitkan, siswa mengerjakan (autosave, peringatan integritas,
- * submit), guru melihat rekap — memakai aplikasi (build produksi) di Chromium, Firebase Emulator (auth+firestore), Postgres LOKAL
+ * E2E browser Ulangan Harian: guru membuat ulangan (soal+kelas+jadwal) dan menerbitkan, siswa mengerjakan (autosave, peringatan integritas,
+ * pindah perangkat, submit), guru melihat hasil — aplikasi (build produksi) di Chromium, Firebase Emulator (auth+firestore), Postgres LOKAL
  * dengan migrasi nyata, dan PostgREST resmi.
  *
- * "Gateway" kecil di port 4600 menggantikan gateway Supabase: menerima token Firebase (emulator) bercalm role=authenticated lalu
- * meneruskannya ke PostgREST sebagai JWT HS256 dengan sub yang sama (peran Third-Party Auth), dan memetakan secret key → service_role.
- * Ini BUKAN Supabase nyata; yang diuji: UI, controller, adapter, endpoint claim & sync-identity, RLS/RPC, di jalur yang sama dengan produksi.
+ * Arsitektur: browser → /api/ulangan (Next, Admin SDK, identitas dari Firestore) → Supabase. Klien tidak memanggil Supabase. "Gateway" kecil
+ * di port 4600 menggantikan gateway Supabase untuk SERVER saja: memetakan secret key → JWT service_role dan awalan /rest/v1 → PostgREST.
+ * Ini BUKAN Supabase nyata; yang diuji: UI, route, identitas Firestore, RPC, RLS/grant, di jalur yang sama dengan produksi.
  *
  * Jalankan (butuh Postgres lokal + biner PostgREST):
  *   POSTGREST_BIN=/path/postgrest RLS_TEST_ADMIN_URL=postgresql://postgres:pw@127.0.0.1:5432/postgres npm run test:e2e:ulangan
@@ -70,40 +70,21 @@ function signJwt(claims) {
   const body = b64({ aud: 'authenticated', exp: Math.floor(Date.now() / 1000) + 3600, ...claims });
   return `${head}.${body}.${createHmac('sha256', JWT_SECRET).update(`${head}.${body}`).digest('base64url')}`;
 }
-function firebaseClaims(token) {
-  try { return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8')); } catch { return null; }
-}
-
 function startGateway() {
   const gateway = http.createServer(async (req, res) => {
-    const cors = {
-      'access-control-allow-origin': '*',
-      'access-control-allow-headers': 'authorization, apikey, content-type, prefer, range, range-unit, x-client-info',
-      'access-control-allow-methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-      'access-control-expose-headers': 'content-range',
-    };
-    if (req.method === 'OPTIONS') { res.writeHead(204, cors); return res.end(); }
     const url = new URL(req.url, 'http://x');
-    if (!url.pathname.startsWith('/rest/v1/')) { res.writeHead(404, cors); return res.end(); }
+    if (!url.pathname.startsWith('/rest/v1/')) { res.writeHead(404); return res.end(); }
     const chunks = [];
     for await (const c of req) chunks.push(c);
     const bearer = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-    const headers = { 'content-type': req.headers['content-type'] || 'application/json' };
+    if (bearer !== SECRET_KEY) { res.writeHead(401, { 'content-type': 'application/json' }); return res.end('{"message":"Invalid API key"}'); }
+    const headers = { 'content-type': req.headers['content-type'] || 'application/json', authorization: `Bearer ${signJwt({ role: 'service_role' })}` };
     for (const h of ['prefer', 'range', 'range-unit']) if (req.headers[h]) headers[h] = req.headers[h];
-    if (bearer === SECRET_KEY) headers.authorization = `Bearer ${signJwt({ role: 'service_role' })}`;
-    else if (bearer) {
-      const c = firebaseClaims(bearer);
-      // Peran Third-Party Auth: hanya token Firebase yang membawa role=authenticated dan belum kedaluwarsa yang diteruskan.
-      if (c?.role === 'authenticated' && c.exp > Date.now() / 1000 && (c.user_id || c.sub)) headers.authorization = `Bearer ${signJwt({ sub: c.user_id || c.sub, role: 'authenticated' })}`;
-      else { res.writeHead(401, { ...cors, 'content-type': 'application/json' }); return res.end('{"message":"JWT invalid"}'); }
-    }
     const upstream = await fetch(`http://127.0.0.1:${PGRST_PORT}${url.pathname.replace('/rest/v1', '')}${url.search}`, {
       method: req.method, headers, body: ['GET', 'HEAD'].includes(req.method) ? undefined : Buffer.concat(chunks),
     });
     const text = await upstream.text();
-    const out = { ...cors, 'content-type': upstream.headers.get('content-type') || 'application/json' };
-    if (upstream.headers.get('content-range')) out['content-range'] = upstream.headers.get('content-range');
-    res.writeHead(upstream.status, out);
+    res.writeHead(upstream.status, { 'content-type': upstream.headers.get('content-type') || 'application/json' });
     res.end(text);
   });
   return new Promise((resolve) => gateway.listen(GATEWAY_PORT, '127.0.0.1', () => resolve(gateway)));
@@ -132,14 +113,10 @@ const APP_ENV = {
   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: 'demo-teacher-workspace.appspot.com',
   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '000000000000',
   NEXT_PUBLIC_FIREBASE_APP_ID: '1:000000000000:web:demo',
-  // Ulangan Harian → "Supabase" lokal (gateway) — flag koleksi migrasi TETAP kosong (semua data lain tetap di Firestore).
+  // Ulangan Harian → "Supabase" lokal lewat gateway (hanya dipakai server). Data akademik lain tetap di Firestore.
   NEXT_PUBLIC_ULANGAN_ENABLED: 'yes',
-  NEXT_PUBLIC_SUPABASE_URL: `http://127.0.0.1:${GATEWAY_PORT}`,
-  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_e2e',
   SUPABASE_URL: `http://127.0.0.1:${GATEWAY_PORT}`,
   SUPABASE_SECRET_KEY: SECRET_KEY,
-  ENABLE_SUPABASE_CLAIM: 'yes',
-  ENABLE_ULANGAN_IDENTITY_SYNC: 'yes',
 };
 
 const isPortTaken = (port) => new Promise((resolve) => {
@@ -184,13 +161,20 @@ async function run() {
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
   const teacher = await (await browser.newContext()).newPage();
   const student = await (await browser.newContext()).newPage();
+  const student2 = await (await browser.newContext()).newPage(); // perangkat/sesi anonim baru untuk siswa yang sama
   const pageErrors = [];
-  for (const [label, page] of [['guru', teacher], ['siswa', student]]) page.on('pageerror', (e) => pageErrors.push(`[${label}] ${e.message}`));
+  for (const [label, page] of [['guru', teacher], ['siswa', student], ['siswa-2', student2]]) page.on('pageerror', (e) => pageErrors.push(`[${label}] ${e.message}`));
 
   let accessCode = null;
+  const loginStudent = async (page) => {
+    await page.goto(`${BASE_URL}/student/login`, { waitUntil: 'domcontentloaded' });
+    await page.fill('input[placeholder*="CONTOH"]', accessCode);
+    await page.getByRole('button', { name: /Masuk/i }).click();
+    await page.waitForURL(`${BASE_URL}/student`, { timeout: 25000 });
+  };
   try {
-    // ---------- 1. Guru: daftar, kelas + siswa, kode akses ----------
-    console.log('\n→ Persiapan (guru, kelas, siswa)');
+    // ---------- 1. Guru: daftar, kelas + siswa, kode akses (alur TW yang sudah ada, data di Firestore) ----------
+    console.log('\n→ Persiapan (guru, kelas, siswa — Firestore)');
     await teacher.goto(`${BASE_URL}/signup`, { waitUntil: 'domcontentloaded' });
     await teacher.fill('input[type="email"]', TEACHER_EMAIL);
     await teacher.fill('input[placeholder="Minimal 6 karakter"]', TEACHER_PASSWORD);
@@ -214,12 +198,11 @@ async function run() {
     if (await codeButton.count()) { accessCode = (await codeButton.innerText()).trim().split('\n')[0].trim(); pass('Kode akses siswa tersedia', accessCode); }
     else fail('Kode akses siswa tersedia', 'tombol kode tidak ditemukan');
 
-    // ---------- 2. Guru: paket soal ----------
+    // ---------- 2. Guru: satu form → terbitkan ----------
     console.log('\n→ Guru membuat dan menerbitkan ulangan');
     await teacher.goto(`${BASE_URL}/ulangan`, { waitUntil: 'domcontentloaded' });
-    await teacher.getByRole('button', { name: 'Paket Soal', exact: true }).click({ timeout: 30000 });
-    await teacher.getByRole('button', { name: /\+ Paket Soal Baru/ }).click();
-    await teacher.fill('input[placeholder*="Judul paket"]', 'UH Bab 1');
+    await teacher.getByRole('button', { name: /\+ Ulangan Baru/ }).click({ timeout: 30000 });
+    await teacher.fill('input[placeholder*="Judul ulangan"]', 'UH 1 IPA');
     await teacher.fill('input[placeholder="Mata pelajaran"]', 'IPA');
     const bodies = teacher.locator('textarea[placeholder="Teks soal"]');
     await bodies.nth(0).fill('Soal satu?');
@@ -229,16 +212,6 @@ async function run() {
     await bodies.nth(1).fill('Soal dua?');
     for (const l of ['A', 'B', 'C', 'D']) await teacher.locator(`input[placeholder="Pilihan ${l}"]`).nth(1).fill(`${l}2`);
     await teacher.locator('input[aria-label="Kunci soal 2 pilihan 3"]').check(); // kunci: C2
-    await teacher.getByRole('button', { name: 'Simpan Final' }).click();
-    await teacher.getByText('UH Bab 1').first().waitFor({ timeout: 20000 });
-    check(q("select count(*) from public.ulh_packages where status = 'final'") === '1', 'Paket soal final tersimpan di database (Supabase lokal)');
-    check(q('select count(*) from public.ulh_members') >= '1', 'Identitas guru terproyeksi oleh /api/ulangan/sync-identity (dari Firestore)');
-    check(q("select count(*) from public.ulh_roster where class_name = '" + CLASS_NAME + "'") === '1', 'Roster siswa terproyeksi', CLASS_NAME);
-
-    // ---------- 3. Guru: ulangan ----------
-    await teacher.getByRole('button', { name: 'Ulangan', exact: true }).click();
-    await teacher.getByRole('button', { name: /\+ Ulangan Baru/ }).click();
-    await teacher.fill('input[placeholder="Judul ulangan"]', 'UH 1 IPA');
     const now = new Date();
     await teacher.locator('input[type="datetime-local"]').nth(0).fill(localDateTime(new Date(now.getTime() - 3600_000)));
     await teacher.locator('input[type="datetime-local"]').nth(1).fill(localDateTime(new Date(now.getTime() + 2 * 3600_000)));
@@ -246,18 +219,16 @@ async function run() {
     await teacher.getByLabel(/Tampilkan nilai ke siswa/).check();
     await teacher.getByRole('button', { name: 'Terbitkan' }).click();
     await teacher.getByText('UH 1 IPA').first().waitFor({ timeout: 20000 });
-    check(q("select status from public.ulh_exams") === 'published', 'Ulangan diterbitkan', q('select title || \' / \' || duration_minutes || \' mnt\' from public.ulh_exams'));
+    check(q("select status from public.ulh_exams") === 'published', 'Ulangan diterbitkan', q("select title || ' / ' || duration_minutes || ' mnt / ' || (select count(*) from public.ulh_questions) || ' soal' from public.ulh_exams"));
+    check(q("select workspace_id from public.ulh_exams") !== '' && q('select class_name from public.ulh_exam_classes') === CLASS_NAME, 'Workspace dari Firestore (bukan dari klien); kelas tersimpan', q('select workspace_id from public.ulh_exams'));
 
-    // ---------- 4. Siswa mengerjakan ----------
+    // ---------- 3. Siswa mengerjakan ----------
     console.log('\n→ Siswa mengerjakan');
     if (!accessCode) throw new Error('kode akses tidak ada');
-    await student.goto(`${BASE_URL}/student/login`, { waitUntil: 'domcontentloaded' });
-    await student.fill('input[placeholder*="CONTOH"]', accessCode);
-    await student.getByRole('button', { name: /Masuk/i }).click();
-    await student.waitForURL(`${BASE_URL}/student`, { timeout: 25000 });
+    await loginStudent(student);
     await student.goto(`${BASE_URL}/student/ulangan`, { waitUntil: 'domcontentloaded' });
     await student.getByText('UH 1 IPA').waitFor({ timeout: 30000 });
-    pass('Siswa melihat ulangan kelasnya (identitas siswa terproyeksi saat dibutuhkan)');
+    pass('Siswa melihat ulangan kelasnya');
     await student.getByRole('button', { name: /Mulai Ulangan/ }).click();
     await student.waitForURL(/\/student\/ulangan\/[0-9a-f-]{36}/, { timeout: 20000 });
     await student.getByText('Soal satu?').waitFor({ timeout: 20000 });
@@ -274,14 +245,13 @@ async function run() {
     await student.getByText(/Peringatan 1/).waitFor({ timeout: 15000 });
     check(q("select count(*) from public.ulh_integrity_events where warning_level = 1") === '1', 'Peringatan 1 tercatat server setelah >3 detik di luar halaman');
     await student.getByRole('button', { name: 'Mengerti' }).click();
-    // Di bawah 3 detik: tidak dicatat
     await student.evaluate(() => window.dispatchEvent(new Event('blur')));
     await student.waitForTimeout(1000);
     await student.evaluate(() => window.dispatchEvent(new Event('focus')));
     await student.waitForTimeout(1500);
     check(q('select count(*) from public.ulh_integrity_events') === '1', 'Keluar halaman <3 detik tidak dicatat');
 
-    // Autosave: jawab Q1 benar, Q2 salah
+    // Autosave: jawab Q1 benar, Q2 salah; reload memulihkan
     await student.getByRole('button', { name: 'B1', exact: true }).click();
     await student.getByRole('button', { name: 'A2', exact: true }).click();
     await student.waitForTimeout(2500);
@@ -292,40 +262,48 @@ async function run() {
       && (await student.getByRole('button', { name: 'A2', exact: true }).getAttribute('aria-pressed')) === 'true';
     check(restored, 'Setelah reload, jawaban dipulihkan dari server');
 
-    // Ganti jawaban Q2 ke yang benar lalu kembalikan ke salah (autosave memakai jawaban terakhir)
-    await student.getByRole('button', { name: 'C2', exact: true }).click();
-    await student.getByRole('button', { name: 'A2', exact: true }).click();
-    await student.waitForTimeout(2000);
+    // Pindah perangkat: siswa yang sama masuk dari sesi anonim baru dan MELANJUTKAN pengerjaan yang sama
+    const oldOwner = q('select user_id from public.ulh_attempts');
+    await loginStudent(student2);
+    await student2.goto(`${BASE_URL}/student/ulangan`, { waitUntil: 'domcontentloaded' });
+    await student2.getByRole('button', { name: /Lanjutkan/ }).click({ timeout: 30000 });
+    await student2.waitForURL(/\/student\/ulangan\/[0-9a-f-]{36}/, { timeout: 20000 });
+    await student2.getByText('Soal satu?').waitFor({ timeout: 20000 });
+    check(q('select count(*) from public.ulh_attempts') === '1' && q('select user_id from public.ulh_attempts') !== oldOwner, 'Pindah perangkat: pengerjaan aktif yang sama dilanjutkan oleh sesi baru (tanpa attempt ganda)');
+    check((await student2.getByRole('button', { name: 'B1', exact: true }).getAttribute('aria-pressed')) === 'true', 'Pindah perangkat: jawaban sebelumnya terbawa');
+    await student2.getByRole('button', { name: 'C2', exact: true }).click(); // ganti jawaban Q2 ke yang benar
+    await student2.waitForTimeout(2000);
 
-    // Submit
-    await student.getByRole('button', { name: /Selesai & Kumpulkan/ }).click();
-    await student.getByRole('button', { name: /Kumpulkan \(2\/2 terjawab\)/ }).click();
-    await student.getByText(/Jawabanmu sudah dikumpulkan/).waitFor({ timeout: 20000 });
-    await student.getByText(/Nilai:/).waitFor({ timeout: 10000 });
-    const resultText = (await student.getByText(/Nilai:/).innerText()).replace(/\s+/g, ' ');
-    check(/Nilai: 50/.test(resultText), 'Submit: skor dihitung server, siswa melihat nilai', resultText);
-    check(q("select status || '|' || score || '|' || correct_count from public.ulh_attempts") === 'submitted|50.00|1', 'Database: attempt submitted, skor 50, 1 benar');
+    // Submit dari perangkat baru
+    await student2.getByRole('button', { name: /Selesai & Kumpulkan/ }).click();
+    await student2.getByRole('button', { name: /Kumpulkan \(2\/2 terjawab\)/ }).click();
+    await student2.getByText(/Jawabanmu sudah dikumpulkan/).waitFor({ timeout: 20000 });
+    await student2.getByText(/Nilai:/).waitFor({ timeout: 10000 });
+    const resultText = (await student2.getByText(/Nilai:/).innerText()).replace(/\s+/g, ' ');
+    check(/Nilai: 100/.test(resultText), 'Submit: skor dihitung server, siswa melihat nilai', resultText);
+    check(q("select status || '|' || score || '|' || correct_count from public.ulh_attempts") === 'submitted|100.00|2', 'Database: attempt submitted, skor 100, 2 benar');
+    // Sesi lama tidak bisa lagi menjawab/submit
+    await student.reload({ waitUntil: 'domcontentloaded' });
+    await student.waitForTimeout(2500);
+    check((await student.getByText(/Tidak berwenang|tidak tersedia/).count()) > 0 || (await student.getByText('Soal satu?').count()) === 0, 'Sesi lama kehilangan akses ke pengerjaan yang sudah dipindah/selesai');
 
-    // Kembali ke daftar → ulangan selesai, tidak bisa mulai lagi
-    await student.goto(`${BASE_URL}/student/ulangan`, { waitUntil: 'domcontentloaded' });
-    await student.getByText(/Nilai: 50/).waitFor({ timeout: 20000 });
-    check((await student.getByRole('button', { name: /Mulai Ulangan|Lanjutkan/ }).count()) === 0, 'Ulangan yang sudah dikumpulkan tidak dapat diulang');
+    await student2.goto(`${BASE_URL}/student/ulangan`, { waitUntil: 'domcontentloaded' });
+    await student2.getByText(/Nilai: 100/).waitFor({ timeout: 20000 });
+    check((await student2.getByRole('button', { name: /Mulai Ulangan|Lanjutkan/ }).count()) === 0, 'Ulangan yang sudah dikumpulkan tidak dapat diulang');
 
-    // ---------- 5. Guru: rekap ----------
-    console.log('\n→ Guru melihat rekap');
+    // ---------- 4. Guru: hasil ----------
+    console.log('\n→ Guru melihat hasil');
     await teacher.goto(`${BASE_URL}/ulangan`, { waitUntil: 'domcontentloaded' });
     await teacher.getByRole('button', { name: /Pantau & Hasil/ }).first().click({ timeout: 30000 });
     await teacher.getByText(STUDENT_NAME).first().waitFor({ timeout: 20000 });
     const rowText = (await teacher.locator('tr', { hasText: STUDENT_NAME }).first().innerText()).replace(/\s+/g, ' ');
-    check(/Selesai/.test(rowText) && /50/.test(rowText) && /2\/2/.test(rowText), 'Rekap guru: Selesai, terjawab 2/2, nilai 50', rowText);
-    check(/1× keluar halaman/.test(rowText), 'Rekap guru menampilkan sinyal integritas (indikasi, bukan sanksi)', rowText);
+    check(/Selesai/.test(rowText) && /100/.test(rowText) && /2\/2/.test(rowText), 'Hasil guru: nama dari Firestore, Selesai, terjawab 2/2, nilai 100', rowText);
+    check(/1× keluar halaman/.test(rowText), 'Hasil guru menampilkan sinyal integritas (indikasi, bukan sanksi)', rowText);
     check(q("select status from public.ulh_attempts") === 'submitted', 'Tidak ada sanksi otomatis: status tetap submitted normal');
-    const audit = q("select string_agg(action, ',' order by id) from public.ulh_audit_log");
-    check(audit === 'package.create,exam.create,exam.publish', 'Audit guru tercatat', audit);
     check(pageErrors.length === 0, 'Tidak ada pageerror JavaScript di browser', pageErrors.slice(0, 3).join(' | '));
   } catch (e) {
     fail('Alur e2e', e instanceof Error ? e.message.split('\n')[0] : String(e));
-    for (const [label, page] of [['guru', teacher], ['siswa', student]]) {
+    for (const [label, page] of [['guru', teacher], ['siswa', student], ['siswa2', student2]]) {
       try { await page.screenshot({ path: `/tmp/e2e-ulangan-${label}.png`, fullPage: true }); console.log(`  (layar ${label}: /tmp/e2e-ulangan-${label}.png)`); } catch { /* halaman tertutup */ }
     }
   } finally {

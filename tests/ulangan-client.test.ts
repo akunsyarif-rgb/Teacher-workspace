@@ -1,16 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-// Sisi klien Ulangan Harian dengan adapter palsu (tanpa jaringan/Supabase): memastikan repository hanya memanggil RPC
-// bernama, tidak mengirim identitas/skor/waktu dari klien, dan memetakan hasil server.
-const rpc = vi.fn();
-vi.mock('../lib/adapters/supabaseClient', () => ({ getSupabaseAdapter: () => ({ rpc }) }));
-
 import * as repo from '../lib/repositories/ulanganRepository';
 import * as service from '../lib/services/ulanganService';
 import * as controller from '../lib/controllers/ulanganController';
 import { isUlanganEnabled } from '../lib/config/ulangan';
+import type { ExamInput } from '../lib/types/ulangan';
 
-beforeEach(() => rpc.mockReset());
+// Sisi klien Ulangan Harian dengan fetch palsu (tanpa jaringan): semua lewat /api/ulangan, tanpa identitas/skor/waktu dari klien.
+const fetchImpl = vi.fn();
+const reply = (data: unknown, status = 200) => fetchImpl.mockResolvedValueOnce(new Response(JSON.stringify(status < 400 ? { data } : data), { status }));
+const sent = (i = 0) => JSON.parse(fetchImpl.mock.calls[i][1].body);
+beforeEach(() => { fetchImpl.mockReset(); repo.__setUlanganDeps({ getToken: async () => 'tok', fetchImpl: fetchImpl as never }); });
+
+const exam = (extra: Partial<ExamInput> = {}): ExamInput => ({
+  title: 'UH', subject: 'IPA', durationMinutes: 30, opensAt: '2026-01-01T00:00:00Z', closesAt: '2026-01-02T00:00:00Z', classNames: ['7A'], shuffle: true, showResult: false,
+  questions: [{ body: 'Q', options: ['a', 'b'], correctIndex: 1 }], ...extra,
+});
 
 describe('flag & validasi UX', () => {
   it('modul mati kecuali flag persis "yes"', () => {
@@ -18,46 +22,63 @@ describe('flag & validasi UX', () => {
     expect(isUlanganEnabled('true')).toBe(false);
     expect(isUlanganEnabled('yes')).toBe(true);
   });
-  it('menolak paket/ujian tidak valid sebelum ke server', () => {
-    const q = { body: 'a', options: ['x', 'y'], correctIndex: 0 };
-    expect(service.validatePackageInput({ title: '', subject: '', status: 'draft', questions: [] })).toMatch(/Judul/);
-    expect(service.validatePackageInput({ title: 't', subject: '', status: 'final', questions: [] })).toMatch(/minimal/);
-    expect(service.validatePackageInput({ title: 't', subject: '', status: 'draft', questions: [{ ...q, correctIndex: 5 }] })).toMatch(/kunci/);
-    expect(service.validatePackageInput({ title: 't', subject: '', status: 'final', questions: [q] })).toBeNull();
-    const e = { packageId: 'p', title: 't', durationMinutes: 30, opensAt: '2026-01-02T00:00:00Z', closesAt: '2026-01-01T00:00:00Z', classNames: ['7A'], shuffleQuestions: true, shuffleOptions: true, showResult: false };
-    expect(service.validateExamInput(e)).toMatch(/setelah/);
-    expect(service.validateExamInput({ ...e, closesAt: '2026-01-03T00:00:00Z', classNames: [] })).toMatch(/kelas/i);
-    expect(service.validateExamInput({ ...e, closesAt: '2026-01-03T00:00:00Z' })).toBeNull();
+  it('menolak ulangan tidak valid sebelum ke server', () => {
+    expect(service.validateExamInput(exam({ title: ' ' }))).toMatch(/Judul/);
+    expect(service.validateExamInput(exam({ durationMinutes: 0 }))).toMatch(/Durasi/);
+    expect(service.validateExamInput(exam({ closesAt: '2025-01-01T00:00:00Z' }))).toMatch(/setelah/);
+    expect(service.validateExamInput(exam({ classNames: [] }))).toMatch(/kelas/i);
+    expect(service.validateExamInput(exam({ questions: [] }))).toMatch(/minimal 1 soal/);
+    expect(service.validateExamInput(exam({ questions: [{ body: 'Q', options: ['a', 'b'], correctIndex: 5 }] }))).toMatch(/kunci/);
+    expect(service.validateExamInput(exam({ questions: [{ body: 'Q', options: ['a', ''], correctIndex: 0 }] }))).toMatch(/kosong/);
+    expect(service.validateExamInput(exam())).toBeNull();
   });
 });
 
-describe('repository: tidak mengirim identitas/skor/waktu dari klien', () => {
-  it('payload save_answer hanya id attempt/soal/opsi + seq', async () => {
-    rpc.mockResolvedValue(true);
-    await controller.answerQuestion('att', 'q', 'o');
-    const [name, args] = rpc.mock.calls[0];
-    expect(name).toBe('ulh_save_answer');
-    expect(Object.keys(args).sort()).toEqual(['p_attempt_id', 'p_client_seq', 'p_option_id', 'p_question_id']);
+describe('repository: semua lewat /api/ulangan, tanpa identitas/skor/waktu dari klien', () => {
+  it('payload hanya aksi + id/data ulangan; token di header; tidak ada workspace/uid/peran/skor', async () => {
+    reply('id1'); await repo.saveExam(exam());
+    reply({ ok: true }); await repo.publishExam('e1');
+    reply({ id: 'a', exam_id: 'e', title: 't', status: 'active', expires_at: '', server_now: '', remaining_seconds: 5, result: null }); await repo.startAttempt('e1');
+    reply(true); await controller.answerQuestion('att', 'q', 'o');
+    reply({ id: 'a', exam_id: 'e', title: 't', status: 'submitted', expires_at: '', server_now: '', remaining_seconds: 0, result: null }); await repo.submitAttempt('att');
+    const forbidden = /workspace|uid|user_id|student_id|role|admin|score|expires_at|started_at|submitted_at|created_by/i;
+    for (let i = 0; i < fetchImpl.mock.calls.length; i++) {
+      const [url, init] = fetchImpl.mock.calls[i];
+      expect(url).toBe('/api/ulangan');
+      expect(init.headers.Authorization).toBe('Bearer tok');
+      expect(JSON.stringify(sent(i))).not.toMatch(forbidden);
+    }
+    expect(sent(0)).toMatchObject({ action: 'exam.save', exam: { title: 'UH', duration_minutes: 30, class_names: ['7A'], questions: [{ correct_index: 1 }] } });
+    expect(sent(3)).toMatchObject({ action: 'attempt.answer', attemptId: 'att', questionId: 'q', optionId: 'o' });
+    expect(Object.keys(sent(3)).sort()).toEqual(['action', 'attemptId', 'optionId', 'questionId', 'seq']);
   });
-  it('start/submit/save paket/ujian tidak membawa user_id, student_id, workspace_id, skor, status, waktu server', async () => {
-    rpc.mockResolvedValue({ id: 'x', exam_id: 'e', title: 't', status: 'active', expires_at: '', server_now: '', remaining_seconds: 5, result: null });
-    await repo.startAttempt('e');
-    await repo.submitAttempt('a');
-    rpc.mockResolvedValue('id');
-    await repo.savePackage({ title: 't', subject: '', status: 'final', questions: [{ body: 'b', options: ['1', '2'], correctIndex: 1 }] });
-    await repo.saveExam({ packageId: 'p', title: 't', durationMinutes: 5, opensAt: 'a', closesAt: 'b', classNames: ['7A'], shuffleQuestions: true, shuffleOptions: true, showResult: false });
-    const forbidden = /user_id|student_id|workspace_id|created_by|score|expires_at|started_at|submitted_at/;
-    for (const [, args] of rpc.mock.calls) expect(JSON.stringify(args)).not.toMatch(forbidden);
-  });
-  it('memetakan hasil server; hasil siswa null bila disembunyikan', async () => {
-    rpc.mockResolvedValue({ server_now: 'n', exams: [{ id: 'e', title: 't', subject: 's', status: 'published', duration_minutes: 30, opens_at: 'a', closes_at: 'b',
-      attempt: { id: 'a1', status: 'submitted', result: null } }] });
+  it('memetakan respons server; hasil siswa null bila disembunyikan', async () => {
+    reply({ server_now: 'n', exams: [{ id: 'e', title: 't', subject: 's', status: 'published', duration_minutes: 30, opens_at: 'a', closes_at: 'b', attempt: { id: 'a1', status: 'submitted', result: null } }] });
     const r = await repo.listMyExams();
     expect(r.exams[0].attempt).toEqual({ id: 'a1', status: 'submitted', result: null });
-    rpc.mockResolvedValue({ attempt: { id: 'a', exam_id: 'e', title: 't', status: 'active', expires_at: 'x', server_now: 'y', remaining_seconds: 90, result: null }, questions: [], answers: { q: 'o' } });
+    reply({ attempt: { id: 'a', exam_id: 'e', title: 't', status: 'active', expires_at: 'x', server_now: 'y', remaining_seconds: 90, result: null }, questions: [], answers: { q: 'o' } });
     const v = await repo.getAttempt('a');
     expect(v.attempt.remainingSeconds).toBe(90);
     expect(v.answers).toEqual({ q: 'o' });
+    reply({ exam: { id: 'e', title: 'T', status: 'closed', opens_at: 'a', closes_at: 'b', duration_minutes: 30, server_now: 'n' }, summary: { assigned: 2, started: 1, submitted: 1, avg_score: 50, min_score: 50, max_score: 50 },
+      rows: [{ student_id: 's1', name: 'Budi', class_name: '7A', attempt_id: 'a', status: 'submitted', answered_count: 2, total_questions: 2, score: 50, max_score: 2, correct_count: 1, leave_count: 1, max_warning_level: 1, last_event_at: null }] });
+    const m = await repo.getExamResults('e');
+    expect(m.summary).toMatchObject({ assigned: 2, avgScore: 50 });
+    expect(m.rows[0]).toMatchObject({ studentId: 's1', name: 'Budi', score: 50, leaveCount: 1 });
+  });
+  it('galat server → UlanganApiError berisi kode; jaringan putus → network; tanpa token → not_logged_in; dipetakan ke bahasa pengguna', async () => {
+    reply({ error: 'exam_locked' }, 409);
+    const e1 = await repo.publishExam('x').catch((e) => e);
+    expect(e1).toBeInstanceOf(repo.UlanganApiError);
+    expect(e1).toMatchObject({ code: 'exam_locked', status: 409 });
+    expect(controller.describeError(e1)).toMatch(/tidak bisa diubah/);
+    fetchImpl.mockRejectedValueOnce(new TypeError('failed'));
+    expect(controller.describeError(await repo.listExams().catch((e) => e))).toMatch(/Koneksi/);
+    repo.__setUlanganDeps({ getToken: async () => null, fetchImpl: fetchImpl as never });
+    expect(await repo.listExams().catch((e) => e)).toMatchObject({ code: 'not_logged_in', status: 401 });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    for (const [code, re] of [['attempt_expired', /habis/], ['not_a_teacher', /berwenang/], ['not_a_student', /berwenang/], ['exam_not_open', /belum dibuka/], ['class_not_found', /Kelas/], ['exam_not_available', /tidak tersedia/], ['mystery', /kesalahan/i]] as const)
+      expect(controller.describeError(new repo.UlanganApiError(code, 400)), code).toMatch(re);
   });
 });
 
@@ -66,26 +87,15 @@ describe('integritas & autosave sisi klien', () => {
     expect(service.shouldReportLeave(3000)).toBe(false);
     expect(service.shouldReportLeave(3001)).toBe(true);
     expect(await controller.reportLeave('a', 'TAB_SWITCH', Date.now(), 2000)).toBeNull();
-    expect(rpc).not.toHaveBeenCalled();
-    rpc.mockResolvedValue({ recorded: true, warning_level: 2 });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    reply({ recorded: true, warning_level: 2 });
     expect(await controller.reportLeave('a', 'TAB_SWITCH', Date.now(), 5000)).toEqual({ recorded: true, warningLevel: 2, reason: undefined });
-    expect(rpc.mock.calls[0][1].p_duration_ms).toBe(5000);
+    expect(sent()).toMatchObject({ action: 'attempt.event', eventType: 'TAB_SWITCH', durationMs: 5000 });
   });
-  it('peringatan bertingkat berbeda per level', () => {
-    const t = [1, 2, 3].map(service.integrityWarningText);
-    expect(new Set(t).size).toBe(3);
-    expect(t[0]).toMatch(/1/);
-  });
-  it('client seq selalu naik walau jam mundur/sama', () => {
-    const a = service.nextClientSeq(1000);
-    const b = service.nextClientSeq(1000);
-    const c = service.nextClientSeq(500);
+  it('peringatan bertingkat berbeda per level; client seq selalu naik', () => {
+    expect(new Set([1, 2, 3].map(service.integrityWarningText)).size).toBe(3);
+    const a = service.nextClientSeq(1000); const b = service.nextClientSeq(1000); const c = service.nextClientSeq(500);
     expect(b).toBeGreaterThan(a);
     expect(c).toBeGreaterThan(b);
-  });
-  it('pesan galat server dipetakan ke bahasa pengguna', () => {
-    expect(service.describeUlanganError(new Error('Supabase 400 P0001: attempt_expired'))).toMatch(/habis/);
-    expect(service.describeUlanganError(new Error('Supabase 403 42501: exam_not_available'))).toMatch(/tidak tersedia/);
-    expect(service.describeUlanganError(new Error('aneh'))).toMatch(/kesalahan/i);
   });
 });

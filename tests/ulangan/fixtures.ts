@@ -1,9 +1,10 @@
-// Fixture bersama tes Ulangan Harian (Postgres lokal): helper test.call/test.kv + proyeksi identitas meniru fixture RLS.
+// Fixture bersama tes Ulangan Harian (Postgres lokal): helper test.call/test.exec/test.kv. Tidak ada data identitas:
+// aktor (workspace, uid, siswa, kelas) dikirim sebagai argumen RPC, persis seperti yang dilakukan route server.
 export const SETUP = `
 create schema if not exists test;
 create table test.kv (k text primary key, v text);
-grant usage on schema test to authenticated, anon;
-grant all on test.kv to authenticated, anon;
+grant usage on schema test to authenticated, anon, service_role;
+grant all on test.kv to authenticated, anon, service_role;
 create or replace function test.call(qry text, save_as text default null) returns text language plpgsql as $$
 declare r text;
 begin
@@ -13,7 +14,7 @@ begin
 exception when others then
   return 'err:' || sqlstate || ':' || replace(sqlerrm, E'\\n', ' ');
 end $$;
-grant execute on function test.call(text, text) to authenticated, anon;
+grant execute on function test.call(text, text) to authenticated, anon, service_role;
 -- Pernyataan tanpa hasil (DDL / multi-statement). Dipakai langkah raw berawalan '!'.
 create or replace function test.exec(qry text) returns text language plpgsql as $$
 begin
@@ -22,14 +23,5 @@ begin
 exception when others then
   return 'err:' || sqlstate || ':' || replace(sqlerrm, E'\\n', ' ');
 end $$;
-grant execute on function test.exec(text) to authenticated, anon;
--- Proyeksi identitas modul (di produksi ditulis server lewat service_role dari kebenaran Firestore). Meniru fixture RLS.
-insert into public.ulh_members (user_id, kind, workspace_id, role) values
-  ('ownerA', 'teacher', 'wsA', 'OWNER'), ('adminA', 'teacher', 'wsA', 'ADMIN'), ('teachA', 'teacher', 'wsA', 'TEACHER'),
-  ('hmA', 'teacher', 'wsA', 'TEACHER'), ('ownerB', 'teacher', 'wsB', 'OWNER'), ('teachB', 'teacher', 'wsB', 'TEACHER');
-insert into public.ulh_members (user_id, kind, workspace_id, student_id, class_name, name) values
-  ('stuA1', 'student', 'wsA', 'sA1', '7A', 'Siswa A1'), ('stuA2', 'student', 'wsA', 'sA2', '7B', 'Siswa A2'),
-  ('stuA3', 'student', 'wsA', 'sA3', '7A', 'Siswa A3'), ('stuB1', 'student', 'wsB', 'sB1', '7A', 'Siswa B1');
-insert into public.ulh_roster (workspace_id, student_id, class_name, name) values
-  ('wsA', 'sA1', '7A', 'Siswa A1'), ('wsA', 'sA2', '7B', 'Siswa A2'), ('wsA', 'sA3', '7A', 'Siswa A3'), ('wsB', 'sB1', '7A', 'Siswa B1');
+grant execute on function test.exec(text) to authenticated, anon, service_role;
 `;

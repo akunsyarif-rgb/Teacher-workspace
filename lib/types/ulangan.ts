@@ -1,23 +1,18 @@
-export type PackageStatus = 'draft' | 'final';
 export type ExamStatus = 'draft' | 'published' | 'closed';
 export type AttemptStatus = 'active' | 'submitted' | 'expired';
 
-export type PackageQuestionInput = { body: string; points?: number; options: string[]; correctIndex: number };
-export type PackageInput = { id?: string; title: string; subject: string; status: PackageStatus; questions: PackageQuestionInput[] };
-
-export type PackageSummary = { id: string; title: string; subject: string; status: PackageStatus; questionCount: number; updatedAt: string };
-export type PackageDetail = {
-  id: string; title: string; subject: string; status: PackageStatus;
+export type QuestionInput = { body: string; points?: number; options: string[]; correctIndex: number };
+export type ExamInput = {
+  id?: string; title: string; subject: string; durationMinutes: number; opensAt: string; closesAt: string;
+  classNames: string[]; shuffle: boolean; showResult: boolean; questions: QuestionInput[];
+};
+export type ExamDetail = Omit<ExamInput, 'questions' | 'durationMinutes' | 'opensAt' | 'closesAt'> & {
+  id: string; status: ExamStatus; durationMinutes: number; opensAt: string; closesAt: string;
   questions: { id: string; body: string; points: number; options: { id: string; label: string }[]; correctIndex: number }[];
 };
-
-export type ExamInput = {
-  id?: string; packageId: string; title: string; durationMinutes: number; opensAt: string; closesAt: string;
-  classNames: string[]; shuffleQuestions: boolean; shuffleOptions: boolean; showResult: boolean;
-};
 export type ExamSummary = {
-  id: string; title: string; packageTitle: string; status: ExamStatus; durationMinutes: number; opensAt: string; closesAt: string;
-  classNames: string[]; showResult: boolean; attemptCount: number;
+  id: string; title: string; subject: string; status: ExamStatus; durationMinutes: number; opensAt: string; closesAt: string;
+  classNames: string[]; showResult: boolean; questionCount: number; attemptCount: number;
 };
 
 export type AttemptResult = { score: number; maxScore: number; correctCount: number };

@@ -61,7 +61,6 @@ jobs:
       - name: Tes Ulangan Harian + paritas RLS + migrasi
         run: >-
           npx vitest run
-          tests/ulangan-harian.test.ts tests/ulangan-migration.test.ts tests/ulangan-postgrest.test.ts
-          tests/ulangan-identity.test.ts tests/ulangan-identity-sim.test.ts tests/ulangan-client.test.ts
-          tests/workspace-server-supabase.test.ts
+          tests/ulangan-db.test.ts tests/ulangan-migration.test.ts tests/ulangan-postgrest.test.ts
+          tests/ulangan-server.test.ts tests/ulangan-client.test.ts tests/workspace-server-supabase.test.ts
           tests/rls-parity.test.ts tests/rls-migration.test.ts
