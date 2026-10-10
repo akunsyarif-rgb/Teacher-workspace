@@ -315,4 +315,22 @@ add('adm:target-kosong', 'ownerA', "select public.remove_workspace_member('')", 
 add('adm:anon-ditolak', 'anon', "select public.remove_workspace_member('hmA')", DENY);
 addRaw('adm:tidak-menghapus-data-yang-dibuat-guru', 'ownerA',
   ["select public.remove_workspace_member('teachA')", { raw: "select count(*) from public.journals where teacher_uid='teachA'" }], ['ok:1', '1']);
+// ---------- 13. Alur identitas sekolah dari KLIEN (tanpa pembayaran): buat workspace → klaim OWNER → kode undangan ----------
+addRaw('id:guru-baru-buat-workspace-sekolah-lalu-klaim-OWNER', 'newbie',
+  ["insert into public.workspaces(id, owner_uid, name, plan, class_limit, seat_limit, invite_code, invite_code_expires_at) values ('wsN','newbie','SMA Baru','school_annual',3,1,'NEW234',(extract(epoch from now() + interval '7 days') * 1000)::bigint)",
+   "update public.teacher_profiles set workspace_id='wsN', role='OWNER' where user_id='newbie'",
+   { raw: "select coalesce(workspace_id,'-')||'/'||coalesce(role,'-') from public.teacher_profiles where user_id='newbie'" }],
+  ['ok:1', 'ok:1', 'wsN/OWNER']);
+addRaw('id:profil-baru-boleh-dibuat-tanpa-workspace', 'brandNew',
+  ["insert into public.teacher_profiles(user_id, name, metadata) values ('brandNew','Bu Baru','{\"subject\":\"IPA\"}')", { raw: "select name||'/'||(metadata->>'subject') from public.teacher_profiles where user_id='brandNew'" }],
+  ['ok:1', 'Bu Baru/IPA']);
+add('id:owner-ganti-kode-undangan', 'ownerA', "update public.workspaces set invite_code='ZZZ999', invite_code_expires_at=(extract(epoch from now() + interval '7 days') * 1000)::bigint where id='wsA'", 'ok:1');
+add('id:guru-biasa-tak-bisa-ganti-kode-undangan', 'teachA', "update public.workspaces set invite_code='HACK12' where id='wsA'", OK0);
+add('id:owner-tak-bisa-mengubah-batas-kuota-sendiri', 'ownerA', "update public.workspaces set seat_limit=9999, class_limit=null where id='wsA'", DENY);
+add('id:guru-simpan-catatan-cepat-dan-mapel', 'teachA', "update public.teacher_profiles set metadata = metadata || '{\"quickNote\":\"n\",\"subject\":\"IPA\"}'::jsonb where user_id='teachA'", 'ok:1');
+add('id:anggota-membaca-workspace-sendiri', 'teachA', "select * from public.workspaces where id='wsA'", 'ok:1');
+add('id:orang-luar-tak-melihat-workspace', 'teachB', "select * from public.workspaces where id='wsA'", OK0);
+add('id:siswa-tak-melihat-workspace', 'stuA1', "select * from public.workspaces where id='wsA'", OK0);
+addRaw('id:gabung-kode-lalu-baca-data-workspace', 'newbie',
+  ["select * from public.join_workspace_by_code('INVITA')", "select * from public.students where workspace_id='wsA'"], ['ok:1', 'ok:2']);
 export default cases;
