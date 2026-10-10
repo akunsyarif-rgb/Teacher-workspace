@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createDatabase, psql } from './rls/harness';
+import { createDatabase, psql, type OwnerMode } from './rls/harness';
 
 // Uji Ulangan Harian di Postgres LOKAL (BUKAN Supabase nyata): baseline + migrasi + fixture, peran authenticated/anon
 // ditiru lewat stub auth (claim JWT `sub`). Tiap skenario = satu transaksi yang di-rollback.
@@ -29,15 +29,21 @@ exception when others then
   return 'err:' || sqlstate || ':' || replace(sqlerrm, E'\\n', ' ');
 end $$;
 grant execute on function test.call(text, text) to authenticated, anon;
--- tambahan fixture: siswa kedua di 7A (wsA) dan siswa tanpa profil
-insert into public.students (id, workspace_id, class_name, name) values ('sA3', 'wsA', '7A', 'Siswa A3');
-insert into public.student_profiles (user_id, workspace_id, student_id, class_name, name) values ('stuA3', 'wsA', 'sA3', '7A', 'Siswa A3');
+-- Proyeksi identitas modul (di produksi ditulis server lewat service_role dari kebenaran Firestore). Meniru fixture RLS.
+insert into public.ulh_members (user_id, kind, workspace_id, role) values
+  ('ownerA', 'teacher', 'wsA', 'OWNER'), ('adminA', 'teacher', 'wsA', 'ADMIN'), ('teachA', 'teacher', 'wsA', 'TEACHER'),
+  ('hmA', 'teacher', 'wsA', 'TEACHER'), ('ownerB', 'teacher', 'wsB', 'OWNER'), ('teachB', 'teacher', 'wsB', 'TEACHER');
+insert into public.ulh_members (user_id, kind, workspace_id, student_id, class_name, name) values
+  ('stuA1', 'student', 'wsA', 'sA1', '7A', 'Siswa A1'), ('stuA2', 'student', 'wsA', 'sA2', '7B', 'Siswa A2'),
+  ('stuA3', 'student', 'wsA', 'sA3', '7A', 'Siswa A3'), ('stuB1', 'student', 'wsB', 'sB1', '7A', 'Siswa B1');
+insert into public.ulh_roster (workspace_id, student_id, class_name, name) values
+  ('wsA', 'sA1', '7A', 'Siswa A1'), ('wsA', 'sA2', '7B', 'Siswa A2'), ('wsA', 'sA3', '7A', 'Siswa A3'), ('wsB', 'sB1', '7A', 'Siswa B1');
 `;
 
 let url = '';
 let drop = () => {};
 
-function run(steps: Step[]): string[] {
+function run(steps: Step[], target: string = url): string[] {
   const out: string[] = ['begin;'];
   steps.forEach((s, i) => {
     const save = s.save ? `'${s.save}'` : 'null';
@@ -51,7 +57,7 @@ function run(steps: Step[]): string[] {
   });
   out.push('rollback;');
   const res: string[] = [];
-  for (const line of psql(url, [], out.join('\n')).split('\n')) {
+  for (const line of psql(target, [], out.join('\n')).split('\n')) {
     const m = line.match(/^(\d+)\|(.*)$/);
     if (m) res[Number(m[1])] = m[2];
   }
@@ -102,9 +108,16 @@ const evt = (who: string, type: string, ms: number | null, id: string, att = 'at
   as(who, `select public.ulh_report_integrity_event(${K(att)}, '${id}'::uuid, '${type}', now(), ${ms ?? 'null'}, '{}')`);
 const uid = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
 
-suite('Ulangan Harian: RLS, RPC, penilaian, integritas (Postgres lokal)', () => {
+// Tiga cara memuat skema: superuser (cepat), dan pemilik NOSUPERUSER ala Supabase (`postgres`: BYPASSRLS=true, terverifikasi
+// read-only di Workflow) serta kasus terburuk tanpa BYPASSRLS. Semua tetap Postgres LOKAL — bukan validasi Supabase nyata.
+const MODES: { name: string; owner: OwnerMode }[] = [
+  { name: 'superuser', owner: undefined },
+  { name: 'pemilik NOSUPERUSER BYPASSRLS (setara postgres Supabase)', owner: 'bypass' },
+  { name: 'pemilik NOSUPERUSER NOBYPASSRLS (kasus terburuk)', owner: 'nobypass' },
+];
+for (const mode of MODES) suite(`Ulangan Harian [${mode.name}]`, () => {
   beforeAll(() => {
-    const db = createDatabase(adminUrl as string, true);
+    const db = createDatabase(adminUrl as string, true, mode.owner);
     url = db.url;
     drop = db.drop;
     psql(url, [], SETUP);
@@ -459,4 +472,153 @@ suite('Ulangan Harian: RLS, RPC, penilaian, integritas (Postgres lokal)', () => 
     ]);
     for (const x of r) expect(x).toMatch(DENY);
   });
+
+  it('identitas: klien tidak bisa membaca/menulis proyeksi (tak ada identitas palsu)', () => {
+    const forge = "insert into public.ulh_members(user_id, kind, workspace_id, role) values ('stuA1', 'teacher', 'wsA', 'OWNER')";
+    const r = run([
+      as('stuA1', 'select count(*) from public.ulh_members'),
+      as('teachA', 'select count(*) from public.ulh_members'),
+      as('ownerA', 'select count(*) from public.ulh_roster'),
+      as('stuA1', forge),
+      as('stuA1', "update public.ulh_members set kind = 'teacher', role = 'OWNER', student_id = null where user_id = 'stuA1'"),
+      as('teachA', "update public.ulh_members set role = 'OWNER' where user_id = 'teachA'"),
+      as('teachA', "insert into public.ulh_roster(workspace_id, student_id, class_name) values ('wsA', 'x', '7A')"),
+      as('ownerA', 'delete from public.ulh_roster'),
+      as('anon', 'select count(*) from public.ulh_members'),
+      as('anon', forge),
+      // setelah upaya pemalsuan, stuA1 tetap bukan guru
+      as('stuA1', 'select public.ulh_list_exams()'),
+    ]);
+    for (const x of r) expect(x).toMatch(DENY);
+  });
+
+  it('identitas: TTL fail-closed; keanggotaan dicabut berlaku seketika; siswa yang sudah mulai tetap bisa menyelesaikan', () => {
+    const r = run([...base(), start(),
+      raw("update public.ulh_members set synced_at = now() - interval '31 minutes' where user_id = 'teachA' returning user_id"),
+      as('teachA', 'select public.ulh_list_exams()'),
+      as('teachA', `select public.ulh_exam_monitor(${K('exam')})`),
+      as('teachA', 'select count(*) from public.ulh_exams'), // jalur RLS ikut tertutup
+      as('teachA', `select public.ulh_save_package(${q(JSON.stringify(pkg()))}::jsonb)`),
+      raw("update public.ulh_members set synced_at = now() where user_id = 'teachA' returning user_id"),
+      as('teachA', 'select jsonb_array_length(public.ulh_list_exams())'), // segar lagi → pulih
+      raw("delete from public.ulh_members where user_id = 'hmA' or user_id = 'adminA' returning user_id"),
+      as('adminA', 'select public.ulh_list_exams()'),
+      as('adminA', 'select count(*) from public.ulh_audit_log'),
+      // siswa: keanggotaan basi → tak bisa daftar/mulai, tapi attempt berjalan tetap bisa dikerjakan & dikumpulkan
+      raw("update public.ulh_members set synced_at = now() - interval '7 hours' where user_id = 'stuA1' returning user_id"),
+      as('stuA1', 'select public.ulh_list_my_exams()'),
+      as('stuA1', `select public.ulh_start_attempt(${K('exam')})`),
+      answer('stuA1', 'Q1', 'b'),
+      submit(),
+      raw("delete from public.ulh_members where user_id = 'stuA3' returning user_id"),
+      as('stuA3', `select public.ulh_start_attempt(${K('exam')})`),
+    ]);
+    const o = base().length + 1;
+    expect(r[o + 1]).toMatch(DENY);
+    expect(r[o + 2]).toMatch(DENY);
+    expect(r[o + 3]).toBe('ok:0');
+    expect(r[o + 4]).toMatch(DENY);
+    expect(r[o + 6]).toBe('ok:1');
+    expect(r[o + 8]).toMatch(DENY);
+    expect(r[o + 9]).toBe('ok:0');
+    expect(r[o + 11]).toMatch(DENY);
+    expect(r[o + 12]).toMatch(DENY);
+    expect(r[o + 13]).toBe('ok:true');
+    expect(json(r[o + 14]).status).toBe('submitted');
+    expect(r[o + 16]).toMatch(DENY);
+  });
+
+  it('roster: kelas harus ada di workspace guru; ujian workspace lain tak terlihat siswa workspace ini', () => {
+    const wsB = (extra: Record<string, unknown> = {}): Step =>
+      as('ownerB', `select public.ulh_save_exam((${q(examJson(extra))}::jsonb) || jsonb_build_object('package_id', (select v from test.kv where k='pkgB')))`, 'examB');
+    const r = run([
+      savePkg('ownerB', pkg(), 'pkgB'),
+      wsB({ class_names: ['7B'] }), // 7B hanya ada di wsA
+      wsB({ class_names: ['7A'] }),
+      as('ownerB', `select public.ulh_publish_exam(${K('examB')})`),
+      as('stuA1', "select jsonb_array_length((public.ulh_list_my_exams())->'exams')"),
+      as('stuA1', `select public.ulh_start_attempt(${K('examB')})`),
+      as('stuB1', "select jsonb_array_length((public.ulh_list_my_exams())->'exams')"),
+    ]);
+    expect(r[1]).toMatch(STATE('class_not_found'));
+    expect(r[3]).toBe('ok:');
+    expect(r[4]).toBe('ok:0');
+    expect(r[5]).toMatch(DENY);
+    expect(r[6]).toBe('ok:1');
+  });
+
+  it('audit grants/definer/search_path/kunci jawaban (katalog)', () => {
+    const rows = (sql: string) => psql(url, ['-F', '|', '-c', sql]).split('\n').filter(Boolean).map((l) => l.split('|'));
+    const PUB = rows(`select p.proname, p.prosecdef, coalesce(p.proconfig::text,''),
+        has_function_privilege('authenticated', p.oid, 'EXECUTE'), has_function_privilege('anon', p.oid, 'EXECUTE'),
+        exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a where a.grantee = 0),
+        p.prosrc like '%ulh_question_keys%', (p.prosrc like '%ulh_teacher_ctx%' or p.prosrc like '%ulh_student_ctx%' or p.prosrc like '%current_uid%')
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname like 'ulh\\_%' order by 1`);
+    expect(PUB).toHaveLength(17);
+    for (const [name, definer, cfg, authExec, anonExec, publicExec, , hasIdentity] of PUB) {
+      expect(definer, name).toBe('t');
+      expect(cfg, name).toContain('search_path');
+      expect(authExec, name).toBe('t');
+      expect(anonExec, name).toBe('f');
+      expect(publicExec, name).toBe('f');
+      expect(hasIdentity, `${name} harus memeriksa identitas`).toBe('t');
+    }
+    // hanya fungsi guru-pengelola & penilaian yang menyentuh kunci jawaban
+    const keyFns = PUB.filter((r) => r[6] === 't').map((r) => r[0]);
+    expect(keyFns.sort()).toEqual(['ulh_get_package', 'ulh_save_package']);
+    const PRIV = rows(`select p.proname, p.prosecdef, coalesce(p.proconfig::text,''), has_function_privilege('authenticated', p.oid, 'EXECUTE'),
+        has_function_privilege('anon', p.oid, 'EXECUTE'), exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a where a.grantee = 0),
+        p.prosrc like '%ulh_question_keys%'
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'private' and p.proname like 'ulh\\_%' order by 1`);
+    const policyHelpers = ['ulh_is_admin_of', 'ulh_manages_attempt', 'ulh_manages_exam', 'ulh_manages_package'];
+    for (const [name, definer, cfg, authExec, anonExec, publicExec] of PRIV) {
+      expect(definer, name).toBe('t');
+      expect(cfg, name).toContain('search_path');
+      expect(anonExec, name).toBe('f');
+      expect(publicExec, name).toBe('f');
+      expect(authExec, name).toBe(policyHelpers.includes(name) ? 't' : 'f');
+    }
+    expect(PRIV.filter((r) => r[6] === 't').map((r) => r[0])).toEqual(['ulh_finalize']);
+
+    const TBL = rows(`select c.relname, c.relrowsecurity, c.relforcerowsecurity,
+        has_table_privilege('anon', c.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'),
+        has_table_privilege('authenticated', c.oid, 'INSERT') or has_table_privilege('authenticated', c.oid, 'UPDATE') or has_table_privilege('authenticated', c.oid, 'DELETE')
+          or has_table_privilege('authenticated', c.oid, 'TRUNCATE') or has_table_privilege('authenticated', c.oid, 'REFERENCES') or has_table_privilege('authenticated', c.oid, 'TRIGGER'),
+        has_table_privilege('authenticated', c.oid, 'SELECT'),
+        (select count(*) from pg_policies p where p.schemaname = 'public' and p.tablename = c.relname and (p.cmd <> 'SELECT' or p.roles <> '{authenticated}'))
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' and c.relname like 'ulh\\_%' order by 1`);
+    expect(TBL).toHaveLength(13);
+    for (const [name, rls, force, anyAnon, authWrite, authSelect, badPolicies] of TBL) {
+      expect(rls, name).toBe('t');
+      expect(force, name).toBe('f'); // lihat tes "FORCE RLS"
+      expect(anyAnon, name).toBe('f');
+      expect(authWrite, `${name}: klien tidak boleh punya hak tulis`).toBe('f');
+      expect(badPolicies, name).toBe('0');
+      expect(authSelect, name).toBe(['ulh_members', 'ulh_roster'].includes(name) ? 'f' : 't');
+    }
+    expect(psql(url, ['-c', "select count(*) from pg_policies where tablename in ('ulh_members','ulh_roster')"]).trim()).toBe('0');
+  });
+});
+
+// Mengapa FORCE ROW LEVEL SECURITY dihapus: tanpa BYPASSRLS pada pemilik, RPC SECURITY DEFINER (yang menulis tabel tanpa policy tulis)
+// akan ikut diblokir. Di Workflow `postgres` BYPASSRLS=true (terverifikasi read-only), jadi aman dengan atau tanpa FORCE — tetapi tanpa FORCE
+// juga benar pada pemilik tanpa BYPASSRLS. Klien tidak pernah terpengaruh karena bukan pemilik.
+suite('Ulangan Harian: FORCE RLS vs kepemilikan', () => {
+  const attempt = (): Step[] => [...base(), start()];
+  for (const [owner, expectOk] of [['nobypass', false], ['bypass', true]] as const) {
+    it(`FORCE RLS + pemilik ${owner}: start_attempt ${expectOk ? 'berhasil' : 'GAGAL (bukti FORCE berbahaya tanpa BYPASSRLS)'}`, () => {
+      const db = createDatabase(adminUrl as string, true, owner);
+      try {
+        psql(db.url, [], SETUP);
+        psql(db.url, ['-c', 'alter table public.ulh_attempts force row level security'], undefined, { PGOPTIONS: `-c role=sb_owner_${owner}` });
+        const r = run(attempt(), db.url);
+        const startResult = r[base().length];
+        if (expectOk) expect(startResult).toMatch(/^ok:/);
+        else expect(startResult).toMatch(/^err:42501:.*row-level security/);
+        // tanpa FORCE (kondisi migrasi) pemilik tanpa BYPASSRLS berfungsi
+        psql(db.url, ['-c', 'alter table public.ulh_attempts no force row level security'], undefined, { PGOPTIONS: `-c role=sb_owner_${owner}` });
+        expect(run(attempt(), db.url)[base().length]).toMatch(/^ok:/);
+      } finally { db.drop(); }
+    }, 120_000);
+  }
 });

@@ -53,6 +53,7 @@ const ERRORS: [RegExp, string][] = [
   [/package_not_usable|package_not_found/, 'Paket soal tidak ditemukan atau belum final.'],
   [/class_not_found/, 'Kelas tidak ditemukan di workspace ini.'],
   [/schedule_in_past/, 'Jadwal tutup sudah lewat.'],
+  [/identity_sync/, 'Sinkronisasi identitas belum aktif atau gagal. Hubungi admin.'],
   [/not_a_teacher|not_a_student|42501|denied/, 'Tidak berwenang untuk tindakan ini.'],
   [/offline|network|timeout/, 'Koneksi bermasalah. Coba lagi.'],
 ];

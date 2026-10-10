@@ -18,11 +18,12 @@ drop function if exists public.ulh_delete_package(uuid);
 drop function if exists public.ulh_save_package(jsonb);
 drop table if exists public.ulh_audit_log, public.ulh_integrity_events, public.ulh_answers, public.ulh_attempt_questions,
   public.ulh_attempts, public.ulh_exam_classes, public.ulh_exams, public.ulh_question_keys, public.ulh_options,
-  public.ulh_questions, public.ulh_packages cascade;
+  public.ulh_questions, public.ulh_packages, public.ulh_members, public.ulh_roster cascade;
 drop function if exists private.ulh_attempt_summary(uuid);
 drop function if exists private.ulh_finalize(uuid, text);
 drop function if exists private.ulh_audit(text, text, text, text, text, jsonb);
 drop function if exists private.ulh_manages_attempt(uuid);
+drop function if exists private.ulh_is_admin_of(text);
 drop function if exists private.ulh_manages_exam(uuid);
 drop function if exists private.ulh_manages_package(uuid);
 drop function if exists private.ulh_student_ctx();

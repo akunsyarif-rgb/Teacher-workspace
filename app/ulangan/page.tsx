@@ -36,7 +36,11 @@ export default function UlanganPage() {
   useEffect(() => {
     if (!isUlanganEnabled()) return;
     let off = false;
-    fetchAll().then((r) => { if (!off) apply(r); }).catch((err) => { if (!off) setError(ulangan.describeError(err)); });
+    // Segarkan proyeksi identitas + daftar siswa dari server dulu; bila gagal, galat jelas muncul dan data tidak dimuat.
+    ulangan.refreshIdentity(true)
+      .then(() => fetchAll())
+      .then((r) => { if (!off) apply(r); })
+      .catch((err) => { if (!off) setError(ulangan.describeError(err)); });
     return () => { off = true; };
   }, [fetchAll, apply]);
 

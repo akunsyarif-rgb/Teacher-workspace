@@ -26,21 +26,56 @@ Hanya **pola**, ditulis ulang (skema identitas berbeda: SmadaExam `auth.uid()` u
 `useSecurityMonitor` (episode keluar halaman). Perbedaan sengaja: ambang 1 dtk → 3 dtk, tidak ada proktor/perangkat tunggal/realtime.
 Repo `SmadaExam` (huruf besar) hanya berisi README kosong; yang nyata adalah `smadaexam-app`.
 
-## Dependensi yang belum terpenuhi (blocker aktivasi)
-1. PR #59 (RLS hardening/baseline) dan #60 (adapter) belum merge; migrasi ulangan bergantung pada fungsi `private.*` dan `set_updated_at`/`protect_immutable_columns` dari baseline.
-2. RPC memakai `teacher_profiles`, `student_profiles`, `students` **di Supabase**. Selama koleksi itu masih di Firestore (flag migrasi mati), guru/siswa tidak dikenali di Supabase dan semua RPC menolak (42501). Jadi modul baru berguna setelah unit identitas dimigrasi/disinkronkan (lihat `docs/CUTOVER-SUPABASE.md`).
-3. Auth siswa anonim ke Supabase belum terbukti (`scripts/supabase/verify-auth.mjs` di staging).
+## Identitas guru & siswa (blocker 1 — diselesaikan di kode, belum terbukti di Supabase nyata)
+Masalah: RPC perlu tahu siapa pemanggil, tetapi `teacher_profiles/student_profiles/students` di Workflow masih **0 baris** (migrasi
+Firestore→Supabase ditahan; kebenaran identitas ada di Firestore). Mengisi tabel identitas asli lebih awal akan menimbulkan sumber
+kebenaran ganda dan hak basi; membuat baris "demi lulus tes" dilarang.
 
-## Yang diuji
-- `tests/ulangan-harian.test.ts` (17 tes, Postgres lokal + stub auth): lintas workspace/guru/kelas, tulis langsung ditolak, kebocoran kunci, skor/waktu, submit ganda, autosave, integritas, audit.
-- `tests/ulangan-client.test.ts` (9 tes, adapter palsu): payload tanpa identitas/skor/waktu, ambang 3 dtk, validasi.
-- `tests/rls-parity.test.ts`, `rls-migration.test.ts`: tetap lulus dengan migrasi baru.
-- Jalankan: `RLS_TEST_ADMIN_URL=postgresql://postgres:pw@127.0.0.1:5432/postgres npx vitest run tests/ulangan-harian.test.ts tests/ulangan-client.test.ts`
-- **Belum** diuji di Supabase nyata (Postgres lokal ≠ PostgREST/GoTrue/JWT Supabase), belum diuji beban, belum diuji browser/e2e.
+Solusi (memakai `sub` JWT = uid Firebase, `user_id text`, bentuk mirip `student_profiles`):
+- Tabel proyeksi khusus modul **`ulh_members`** (user_id → kind/workspace/peran/siswa/kelas) dan **`ulh_roster`** (daftar siswa per workspace).
+  RLS aktif **tanpa policy dan tanpa grant** untuk `anon`/`authenticated` → hanya `service_role` yang bisa menulis/membaca.
+- Ditulis HANYA oleh `POST /api/ulangan/sync-identity` (server): memverifikasi ID token Firebase (`checkRevoked`), uid hanya dari token,
+  lalu membaca **kebenaran di Firestore** (`teacher_profiles`, `student_profiles` + pencocokan dokumen `students`). Tidak valid/tidak ada → baris dicabut.
+- **TTL fail-closed** di RPC: proyeksi guru 30 menit, siswa 6 jam. Jika sinkronisasi berhenti, akses berhenti. Siswa yang **sudah mulai**
+  tetap bisa menjawab/mengumpulkan (kepemilikan = `ulh_attempts.user_id` = uid JWT), jadi TTL tidak memutus ujian di tengah jalan.
+- Klien memicu sinkronisasi saat halaman guru dibuka dan otomatis sekali saat RPC menjawab `not_a_teacher`/`not_a_student`/`class_not_found`.
+- Setelah cutover penuh: ganti isi `private.ulh_teacher_ctx/ulh_student_ctx/ulh_manages_*` ke tabel identitas asli lalu hapus proyeksi.
+- Env server (Preview dulu): `ENABLE_ULANGAN_IDENTITY_SYNC=yes`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY` (service role, **server-only**),
+  `FIREBASE_ADMIN_SERVICE_ACCOUNT`; klien: `NEXT_PUBLIC_ULANGAN_ENABLED=yes`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
+  dan jalur claim role (`ENABLE_SUPABASE_CLAIM=yes`) yang sudah ada. Target `abdkrhmxfpcmgzsxzfyz` (SmadaExam) ditolak oleh `serviceRequest`.
+- Risiko sisa: guru yang dikeluarkan di Firestore masih berhak maksimal 30 menit (atau sampai sinkronisasi berikutnya dari akunnya sendiri);
+  roster baru ikut saat guru membuka halaman (maks. 1× per 15 dtk per instance).
+
+## Audit 17 RPC (hasil + perbaikan)
+Diperiksa lewat katalog (tes `audit grants/definer/search_path/kunci jawaban`) dan baca kode:
+- EXECUTE: semua `public.ulh_*` → hanya `authenticated` (bukan `anon`, bukan PUBLIC). Helper `private.ulh_*` tertutup kecuali 4 helper yang dipakai policy RLS.
+- Semua `SECURITY DEFINER` dengan `search_path = ''`; objek selalu dikualifikasi skema.
+- Setiap RPC memeriksa identitas dari JWT (`private.current_uid()`); RPC siswa atas attempt memeriksa `ulh_attempts.user_id = uid`; RPC guru memeriksa pengelola paket/ujian (pembuat atau OWNER/ADMIN) dan workspace.
+- Kunci jawaban (`ulh_question_keys`) hanya disentuh `ulh_save_package`, `ulh_get_package` (guru pengelola) dan `private.ulh_finalize` (penilaian).
+- Diperbaiki pada audit ini: (1) `ulh_publish_exam` mengunci baris paket `for share` dan `ulh_delete_package` `for update` agar tidak balapan dengan `ulh_save_package` (paket tidak bisa berubah setelah ujian terbit); (2) RPC attempt tidak lagi bergantung pada keanggotaan segar; (3) rujukan ke tabel identitas asli diganti proyeksi.
+
+## FORCE ROW LEVEL SECURITY
+Terverifikasi **read-only** di Workflow (2026-10-10): role `postgres` = NOSUPERUSER **BYPASSRLS=true**, memiliki semua tabel & fungsi `public/private`;
+`anon`/`authenticated` NOBYPASSRLS; `relforcerowsecurity=false` pada tabel yang ada; tidak ada default ACL di skema `public`.
+Kesimpulan: tanpa FORCE aman (pemilik melewati RLS, klien tidak pernah pemilik). Dengan FORCE pada pemilik tanpa BYPASSRLS, RPC definer akan gagal
+(dibuktikan tes lokal `FORCE RLS vs kepemilikan`). Maka FORCE sengaja tidak dipakai.
+
+## Yang diuji (lokal — BUKAN Supabase nyata)
+- `tests/ulangan-harian.test.ts`: dijalankan 3× — superuser, pemilik NOSUPERUSER BYPASSRLS (setara `postgres` Supabase), pemilik NOSUPERUSER NOBYPASSRLS; plus audit katalog, TTL/pencabutan identitas, klien tak bisa memalsukan `ulh_members`, bukti FORCE RLS. (65 tes)
+- `tests/ulangan-identity.test.ts`: sinkronisasi (Firestore/Supabase palsu), route handler (501/401/uid dari token saja/502), klien, `withIdentity`. (11 tes)
+- `tests/ulangan-client.test.ts` (9), `rls-parity`, `rls-migration`, `data-backend`, `supabase-adapter` tetap lulus (total 695 pada gabungan ini).
+- Jalankan: `RLS_TEST_ADMIN_URL=postgresql://postgres:pw@127.0.0.1:5432/postgres npx vitest run tests/ulangan-*.test.ts`
+- **Belum** diuji di Supabase nyata: PostgREST + validasi JWT Firebase, advisor keamanan, `ulh_*` tidak ada di Workflow (0 tabel), alur browser/e2e, beban.
+
+## Blocker tersisa
+1. PR #59/#60 belum merge (migrasi ulangan memakai `private.protect_immutable_columns`, `public.set_updated_at` dari baseline; #59 menurut judulnya sudah diterapkan ke Workflow).
+2. Migrasi ulangan belum diterapkan ke staging/Workflow (butuh persetujuan).
+3. Sinkronisasi identitas belum pernah dijalankan terhadap Firestore + Supabase nyata.
+4. Token siswa anonim ke Supabase: tercatat terbukti di Preview (`docs/STATUS-MIGRASI.md`), belum saya verifikasi ulang.
 
 ## Penerapan (hanya setelah persetujuan eksplisit)
-1. Merge #59/#60 (atau branch ini beserta keduanya) → 2. terapkan `supabase/migrations/20261010000000_ulangan_harian.sql` ke **staging/branch Supabase dulu** →
-3. `get_advisors` (security) + ulangi tes RLS terhadap staging → 4. isi `teacher_profiles/student_profiles/students` staging → 5. set `NEXT_PUBLIC_ULANGAN_ENABLED=yes` hanya di Preview.
+1. Persetujuan eksplisit → terapkan `supabase/migrations/20261010000000_ulangan_harian.sql` ke **staging/branch Supabase dulu** (bukan Workflow langsung) →
+2. `get_advisors` (security) + tes RLS terhadap staging → 3. env Preview di atas → 4. buka `/ulangan` sebagai guru uji (memicu sinkronisasi) lalu `/student/ulangan` sebagai siswa uji → 5. alur lengkap guru–siswa.
 Rollback: `supabase/rollback/20261010000000_ulangan_harian_down.sql` (menghapus semua data ulangan).
 
 ## Di luar MVP / catatan

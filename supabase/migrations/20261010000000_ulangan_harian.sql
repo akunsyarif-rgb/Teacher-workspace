@@ -2,9 +2,17 @@
 -- setelah persetujuan eksplisit pemilik. Diuji lokal (Postgres biasa + stub auth), BUKAN di Supabase nyata.
 --
 -- Modul Ulangan Harian (UH) Teacher Workspace. Seluruh data ujian hidup di Supabase (bukan Firestore).
--- Identitas: private.current_uid() = claim `sub` (uid Firebase) — guru lewat teacher_profiles, siswa (anonim)
--- lewat student_profiles. Pola mesin ujian diadaptasi dari SmadaExam (start/save/submit/report_security_event),
+-- Identitas: private.current_uid() = claim `sub` (uid Firebase), dipetakan ke peran lewat ulh_members (lihat di bawah). Pola mesin ujian diadaptasi dari SmadaExam (start/save/submit/report_security_event),
 -- ditulis ulang karena skema identitas berbeda (text uid, kelas = class_name, bukan auth.uid() uuid).
+--
+-- IDENTITAS (blocker yang dipecahkan di sini): teacher_profiles/student_profiles/students di Supabase masih KOSONG selama
+-- migrasi Firestore→Supabase ditahan, sehingga RPC tidak bisa mengenali siapa pun. Modul ini TIDAK membuat identitas palsu dan
+-- TIDAK menyentuh tabel identitas produksi. Sebagai gantinya ada proyeksi khusus modul:
+--   ulh_members (guru/siswa → workspace, peran, kelas) dan ulh_roster (daftar siswa per workspace).
+-- Hanya service_role (server Next.js) yang bisa menulisnya, setelah memverifikasi ID token Firebase dan membaca kebenaran di
+-- Firestore (app/api/ulangan/sync-identity). Klien (authenticated/anon) tidak punya grant maupun policy apa pun pada keduanya.
+-- Proyeksi punya TTL (guru 30 menit, siswa 6 jam) agar pencabutan hak di Firestore terbawa (fail-closed bila sinkronisasi berhenti).
+-- Setelah cutover, cukup ganti isi private.ulh_teacher_ctx()/ulh_student_ctx()/ulh_manages_*() ke tabel identitas asli.
 --
 -- Prinsip:
 --  * RLS deny-by-default. Siswa TIDAK punya policy/grant pada tabel ulh_* sama sekali; semua lewat RPC SECURITY DEFINER.
@@ -165,6 +173,31 @@ create table public.ulh_audit_log (
 );
 create index ulh_audit_ws_idx on public.ulh_audit_log (workspace_id, created_at desc);
 
+-- Proyeksi identitas (ditulis HANYA oleh service_role dari server; lihat catatan di atas).
+create table public.ulh_members (
+  user_id text primary key,
+  kind text not null check (kind in ('teacher', 'student')),
+  workspace_id text not null check (char_length(workspace_id) between 1 and 200),
+  role text check (role in ('OWNER', 'ADMIN', 'TEACHER')),
+  student_id text,
+  class_name text,
+  name text,
+  synced_at timestamptz not null default now(),
+  check ((kind = 'teacher' and role is not null and student_id is null)
+      or (kind = 'student' and role is null and student_id is not null and class_name is not null))
+);
+create index ulh_members_ws_idx on public.ulh_members (workspace_id, kind);
+
+create table public.ulh_roster (
+  workspace_id text not null,
+  student_id text not null,
+  class_name text not null check (char_length(class_name) between 1 and 100),
+  name text,
+  synced_at timestamptz not null default now(),
+  primary key (workspace_id, student_id)
+);
+create index ulh_roster_class_idx on public.ulh_roster (workspace_id, class_name);
+
 -- workspace_id & created_at tidak boleh berubah (trigger yang sama dengan tabel lain); updated_at dari server.
 do $$
 declare t text;
@@ -179,9 +212,9 @@ end $$;
 create or replace function private.ulh_teacher_ctx() returns table (uid text, ws text, role text)
 language plpgsql stable security definer set search_path to '' as $f$
 begin
-  return query select tp.user_id, tp.workspace_id, tp.role
-    from public.teacher_profiles tp
-    where tp.user_id = private.current_uid() and tp.workspace_id is not null;
+  return query select m.user_id, m.workspace_id, m.role
+    from public.ulh_members m
+    where m.user_id = private.current_uid() and m.kind = 'teacher' and m.synced_at > clock_timestamp() - interval '30 minutes';
   if not found then raise exception 'not_a_teacher' using errcode = '42501'; end if;
 end;
 $f$;
@@ -189,9 +222,9 @@ $f$;
 create or replace function private.ulh_student_ctx() returns table (uid text, ws text, student_id text, class_name text)
 language plpgsql stable security definer set search_path to '' as $f$
 begin
-  return query select sp.user_id, sp.workspace_id, sp.student_id, sp.class_name
-    from public.student_profiles sp
-    where sp.user_id = private.current_uid();
+  return query select m.user_id, m.workspace_id, m.student_id, m.class_name
+    from public.ulh_members m
+    where m.user_id = private.current_uid() and m.kind = 'student' and m.synced_at > clock_timestamp() - interval '6 hours';
   if not found then raise exception 'not_a_student' using errcode = '42501'; end if;
 end;
 $f$;
@@ -199,15 +232,23 @@ $f$;
 create or replace function private.ulh_manages_package(p_id uuid) returns boolean
 language sql stable security definer set search_path to '' as $f$
   select exists (select 1 from public.ulh_packages pk
-    join public.teacher_profiles tp on tp.workspace_id = pk.workspace_id and tp.user_id = private.current_uid()
+    join public.ulh_members tp on tp.workspace_id = pk.workspace_id and tp.user_id = private.current_uid()
+      and tp.kind = 'teacher' and tp.synced_at > clock_timestamp() - interval '30 minutes'
     where pk.id = p_id and (pk.created_by = tp.user_id or tp.role in ('OWNER', 'ADMIN')));
 $f$;
 
 create or replace function private.ulh_manages_exam(p_id uuid) returns boolean
 language sql stable security definer set search_path to '' as $f$
   select exists (select 1 from public.ulh_exams e
-    join public.teacher_profiles tp on tp.workspace_id = e.workspace_id and tp.user_id = private.current_uid()
+    join public.ulh_members tp on tp.workspace_id = e.workspace_id and tp.user_id = private.current_uid()
+      and tp.kind = 'teacher' and tp.synced_at > clock_timestamp() - interval '30 minutes'
     where e.id = p_id and (e.created_by = tp.user_id or tp.role in ('OWNER', 'ADMIN')));
+$f$;
+
+create or replace function private.ulh_is_admin_of(p_ws text) returns boolean
+language sql stable security definer set search_path to '' as $f$
+  select exists (select 1 from public.ulh_members m where m.user_id = private.current_uid() and m.kind = 'teacher'
+    and m.workspace_id = p_ws and m.role in ('OWNER', 'ADMIN') and m.synced_at > clock_timestamp() - interval '30 minutes');
 $f$;
 
 create or replace function private.ulh_manages_attempt(p_id uuid) returns boolean
@@ -318,7 +359,8 @@ language plpgsql security definer set search_path to '' as $f$
 declare t record;
 begin
   select * into t from private.ulh_teacher_ctx();
-  if not exists (select 1 from public.ulh_packages where id = p_id and workspace_id = t.ws) or not private.ulh_manages_package(p_id) then
+  perform 1 from public.ulh_packages where id = p_id and workspace_id = t.ws for update;
+  if not found or not private.ulh_manages_package(p_id) then
     raise exception 'package_not_found' using errcode = '42501';
   end if;
   if exists (select 1 from public.ulh_exams where package_id = p_id) then raise exception 'package_in_use' using errcode = 'P0001'; end if;
@@ -377,7 +419,7 @@ begin
   if v_open is null or v_close is null or v_close <= v_open then raise exception 'invalid_schedule' using errcode = '22023'; end if;
   if coalesce(array_length(v_classes, 1), 0) not between 1 and 20 then raise exception 'invalid_classes' using errcode = '22023'; end if;
   foreach v_c in array v_classes loop
-    if not exists (select 1 from public.students s where s.workspace_id = t.ws and s.class_name = v_c) then
+    if not exists (select 1 from public.ulh_roster s where s.workspace_id = t.ws and s.class_name = v_c) then
       raise exception 'class_not_found' using errcode = 'P0001';
     end if;
   end loop;
@@ -417,6 +459,7 @@ begin
   if v_e.status = 'published' then return; end if;
   if v_e.status <> 'draft' then raise exception 'exam_locked' using errcode = 'P0001'; end if;
   if v_e.closes_at <= now() then raise exception 'schedule_in_past' using errcode = 'P0001'; end if;
+  perform 1 from public.ulh_packages where id = v_e.package_id for share; -- serialisasi dengan ulh_save_package (for update)
   update public.ulh_exams set status = 'published', published_at = now() where id = p_id;
   perform private.ulh_audit(t.ws, t.uid, 'exam.publish', 'exam', p_id::text);
 end;
@@ -482,7 +525,7 @@ begin
     perform private.ulh_finalize(r.id, 'expired');
   end loop;
   select coalesce(jsonb_agg(row_to_json(x)::jsonb order by x.class_name, x.name), '[]'::jsonb) into v_rows from (
-    select s.id as student_id, s.name, s.class_name, a.id as attempt_id,
+    select s.student_id, s.name, s.class_name, a.id as attempt_id,
            coalesce(a.status, 'not_started') as status, a.started_at, a.expires_at, a.submitted_at,
            (select count(*) from public.ulh_answers an where an.attempt_id = a.id) as answered_count,
            (select count(*) from public.ulh_attempt_questions aq where aq.attempt_id = a.id) as total_questions,
@@ -490,9 +533,9 @@ begin
            (select count(*) from public.ulh_integrity_events ev where ev.attempt_id = a.id and ev.warning_level > 0) as leave_count,
            (select coalesce(max(ev.warning_level), 0) from public.ulh_integrity_events ev where ev.attempt_id = a.id) as max_warning_level,
            (select max(ev.occurred_at) from public.ulh_integrity_events ev where ev.attempt_id = a.id) as last_event_at
-    from public.students s
+    from public.ulh_roster s
     join public.ulh_exam_classes c on c.exam_id = p_exam_id and c.class_name = s.class_name
-    left join public.ulh_attempts a on a.exam_id = p_exam_id and a.student_id = s.id
+    left join public.ulh_attempts a on a.exam_id = p_exam_id and a.student_id = s.student_id
     where s.workspace_id = t.ws) x;
   select jsonb_build_object('assigned', count(*), 'started', count(*) filter (where (e ->> 'status') <> 'not_started'),
       'submitted', count(*) filter (where (e ->> 'status') in ('submitted', 'expired')),
@@ -584,10 +627,10 @@ $f$;
 -- Soal siswa: tanpa kunci. Soal hanya dikirim selama attempt aktif.
 create or replace function public.ulh_get_attempt(p_attempt_id uuid) returns jsonb
 language plpgsql security definer set search_path to '' as $f$
-declare s record; v_a public.ulh_attempts;
+declare v_a public.ulh_attempts;
 begin
-  select * into s from private.ulh_student_ctx();
-  select * into v_a from public.ulh_attempts where id = p_attempt_id and user_id = s.uid and workspace_id = s.ws for update;
+  -- Kepemilikan = baris attempt milik uid pemanggil (JWT). Tidak butuh keanggotaan segar: siswa yang sudah mulai bisa menyelesaikan.
+  select * into v_a from public.ulh_attempts where id = p_attempt_id and user_id = private.current_uid() for update;
   if not found then raise exception 'attempt_not_found' using errcode = '42501'; end if;
   if v_a.status = 'active' and clock_timestamp() >= v_a.expires_at then perform private.ulh_finalize(p_attempt_id, 'expired'); end if;
   return jsonb_build_object('attempt', private.ulh_attempt_summary(p_attempt_id),
@@ -604,10 +647,9 @@ $f$;
 -- Autosave idempoten dan monoton: client_seq lama tidak menimpa yang lebih baru. p_option_id null = hapus jawaban.
 create or replace function public.ulh_save_answer(p_attempt_id uuid, p_question_id uuid, p_option_id uuid, p_client_seq bigint default 0)
 returns boolean language plpgsql security definer set search_path to '' as $f$
-declare s record; v_a public.ulh_attempts; v_order uuid[]; v_rows integer;
+declare v_a public.ulh_attempts; v_order uuid[]; v_rows integer;
 begin
-  select * into s from private.ulh_student_ctx();
-  select * into v_a from public.ulh_attempts where id = p_attempt_id and user_id = s.uid and workspace_id = s.ws for share;
+  select * into v_a from public.ulh_attempts where id = p_attempt_id and user_id = private.current_uid() for share;
   if not found then raise exception 'attempt_not_found' using errcode = '42501'; end if;
   if v_a.status <> 'active' then raise exception 'attempt_not_active' using errcode = 'P0001'; end if;
   if clock_timestamp() >= v_a.expires_at then raise exception 'attempt_expired' using errcode = 'P0001'; end if;
@@ -620,7 +662,7 @@ begin
   end if;
   if not (p_option_id = any (v_order)) then raise exception 'option_not_for_question' using errcode = 'P0001'; end if;
   insert into public.ulh_answers (attempt_id, question_id, workspace_id, option_id, client_seq)
-  values (p_attempt_id, p_question_id, s.ws, p_option_id, coalesce(p_client_seq, 0))
+  values (p_attempt_id, p_question_id, v_a.workspace_id, p_option_id, coalesce(p_client_seq, 0))
   on conflict (attempt_id, question_id) do update
     set option_id = excluded.option_id, client_seq = excluded.client_seq, updated_at = now()
     where public.ulh_answers.client_seq <= excluded.client_seq;
@@ -633,10 +675,9 @@ $f$;
 -- sebagai 'expired' dengan jawaban yang sudah tersimpan sebelum batas.
 create or replace function public.ulh_submit_attempt(p_attempt_id uuid) returns jsonb
 language plpgsql security definer set search_path to '' as $f$
-declare s record; v_a public.ulh_attempts;
+declare v_a public.ulh_attempts;
 begin
-  select * into s from private.ulh_student_ctx();
-  select * into v_a from public.ulh_attempts where id = p_attempt_id and user_id = s.uid and workspace_id = s.ws for update;
+  select * into v_a from public.ulh_attempts where id = p_attempt_id and user_id = private.current_uid() for update;
   if not found then raise exception 'attempt_not_found' using errcode = '42501'; end if;
   if v_a.status = 'active' then
     perform private.ulh_finalize(p_attempt_id, case when clock_timestamp() >= v_a.expires_at then 'expired' else 'submitted' end);
@@ -650,10 +691,9 @@ create or replace function public.ulh_report_integrity_event(
   p_occurred_at timestamptz default null, p_duration_ms integer default null, p_metadata jsonb default '{}'::jsonb
 ) returns jsonb language plpgsql security definer set search_path to '' as $f$
 declare
-  s record; v_a public.ulh_attempts; v_leave boolean; v_prev integer; v_level integer := 0; v_sev text := 'INFO'; v_rows integer; v_meta jsonb;
+  v_a public.ulh_attempts; v_leave boolean; v_prev integer; v_level integer := 0; v_sev text := 'INFO'; v_rows integer; v_meta jsonb;
 begin
-  select * into s from private.ulh_student_ctx();
-  select * into v_a from public.ulh_attempts where id = p_attempt_id and user_id = s.uid and workspace_id = s.ws;
+  select * into v_a from public.ulh_attempts where id = p_attempt_id and user_id = private.current_uid();
   if not found then raise exception 'attempt_not_found' using errcode = '42501'; end if;
   if p_event_type not in ('TAB_SWITCH', 'WINDOW_BLUR', 'VISIBILITY_LOST', 'FULLSCREEN_EXIT', 'NETWORK_LOST', 'NETWORK_RECONNECTED') then
     raise exception 'invalid_event_type' using errcode = 'P0001';
@@ -692,10 +732,11 @@ do $$
 declare t text;
 begin
   foreach t in array array['ulh_packages', 'ulh_questions', 'ulh_options', 'ulh_question_keys', 'ulh_exams', 'ulh_exam_classes',
-                           'ulh_attempts', 'ulh_attempt_questions', 'ulh_answers', 'ulh_integrity_events', 'ulh_audit_log'] loop
+                           'ulh_attempts', 'ulh_attempt_questions', 'ulh_answers', 'ulh_integrity_events', 'ulh_audit_log',
+                           'ulh_members', 'ulh_roster'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('revoke all on public.%I from public, anon, authenticated', t);
-    execute format('grant select on public.%I to authenticated', t);
+    if t not in ('ulh_members', 'ulh_roster') then execute format('grant select on public.%I to authenticated', t); end if;
   end loop;
 end $$;
 revoke all on all sequences in schema public from anon;
@@ -714,16 +755,17 @@ create policy ulh_attempts_select on public.ulh_attempts for select to authentic
 create policy ulh_attempt_questions_select on public.ulh_attempt_questions for select to authenticated using ((select private.ulh_manages_attempt(attempt_id)));
 create policy ulh_answers_select on public.ulh_answers for select to authenticated using ((select private.ulh_manages_attempt(attempt_id)));
 create policy ulh_integrity_events_select on public.ulh_integrity_events for select to authenticated using ((select private.ulh_manages_attempt(attempt_id)));
-create policy ulh_audit_log_select on public.ulh_audit_log for select to authenticated using ((select private.is_teacher_admin_or_owner(workspace_id)));
+create policy ulh_audit_log_select on public.ulh_audit_log for select to authenticated using ((select private.ulh_is_admin_of(workspace_id)));
 
 -- Fungsi: tutup untuk semua, buka hanya yang dipakai klien. Fungsi private dipanggil dari dalam RPC definer
 -- (kecuali ulh_manages_* yang dipakai policy RLS sebagai pemanggil).
 revoke all on function
   private.ulh_teacher_ctx(), private.ulh_student_ctx(), private.ulh_manages_package(uuid), private.ulh_manages_exam(uuid),
   private.ulh_manages_attempt(uuid), private.ulh_audit(text, text, text, text, text, jsonb), private.ulh_finalize(uuid, text),
-  private.ulh_attempt_summary(uuid)
+  private.ulh_attempt_summary(uuid), private.ulh_is_admin_of(text)
   from public, anon, authenticated;
-grant execute on function private.ulh_manages_package(uuid), private.ulh_manages_exam(uuid), private.ulh_manages_attempt(uuid) to authenticated;
+grant execute on function private.ulh_manages_package(uuid), private.ulh_manages_exam(uuid), private.ulh_manages_attempt(uuid), private.ulh_is_admin_of(text) to authenticated;
+-- ulh_members/ulh_roster: RLS aktif TANPA policy dan TANPA grant → hanya service_role (bypass RLS) yang dapat membaca/menulis.
 
 revoke all on function
   public.ulh_save_package(jsonb), public.ulh_delete_package(uuid), public.ulh_list_packages(), public.ulh_get_package(uuid),
