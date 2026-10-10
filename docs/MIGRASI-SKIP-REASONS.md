@@ -42,8 +42,9 @@ dan Beranda yang tetap termuat dari cache. Padanan untuk Supabase: `lib/adapters
   gagal permanen → *dead letter* (`listFailed()`), tidak hilang diam-diam. `getStatus()/subscribe()` untuk indikator UI.
 - Beranda: sumber sekunder (alasan skip) kini `catch` → `[]` + `console.warn`, sehingga satu sumber gagal tidak mematikan ringkasan.
 - Batas yang diketahui: satu tab (sama seperti `persistentSingleTabManager`); IndexedDB tidak tersedia → memori (outbox tak bertahan);
-  Safari: sama seperti Firestore (lihat `browserSupport.ts`); implementasi IndexedDB mentah belum diuji di browser sungguhan
-  (logika diuji dengan store memori) — uji e2e Playwright `setOffline` ditambahkan saat ada staging Supabase.
+  Safari: sama seperti Firestore (lihat `browserSupport.ts`); implementasi IndexedDB diuji di **Chromium nyata** (`npm run test:e2e:idb`: store, outbox bertahan setelah muat ulang halaman, flush idempoten,
+  cache baca melayani saat offline; server Supabase di tes itu palsu). **Belum diuji**: Safari/WebKit & Firefox, mode privat, dan alur UI offline end-to-end terhadap Supabase nyata
+  (butuh staging).
 Tes: `tests/offline-layer.test.ts` (13): cache, offline, POST hilang di tengah jalan, urutan add→update→delete, dead letter, jaringan putus saat flush.
 
 ## Backfill + rekonsiliasi (`scripts/migration/backfill-collection.ts`)

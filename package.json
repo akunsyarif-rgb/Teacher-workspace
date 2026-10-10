@@ -11,6 +11,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:rules": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only firestore,storage \"vitest run\"",
+    "test:e2e:idb": "node tests/e2e/indexeddb-offline.mjs",
     "migrate:collection": "jiti scripts/migration/backfill-collection.ts",
     "emulators": "npx firebase-tools emulators:start --project demo-teacher-workspace --only auth,firestore,storage",
     "test:e2e": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only auth,firestore,storage \"node tests/e2e/smoke.mjs\"",
