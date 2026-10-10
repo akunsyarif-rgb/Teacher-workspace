@@ -24,7 +24,9 @@ function run(steps: Step[], target: string = url): string[] {
   steps.forEach((s, i) => {
     const save = s.save ? `'${s.save}'` : 'null';
     if ('raw' in s) {
-      out.push('reset role;', `select '${i}|' || test.call(${outer(s.raw)}, ${save});`);
+      out.push('reset role;', s.raw.startsWith('!')
+        ? `select '${i}|' || test.exec(${outer(s.raw.slice(1))});`
+        : `select '${i}|' || test.call(${outer(s.raw)}, ${save});`);
     } else {
       const claims = s.as === 'anon' ? '{"role":"anon"}' : JSON.stringify({ sub: s.as, role: 'authenticated' });
       out.push('reset role;', `set local role ${s.as === 'anon' ? 'anon' : 'authenticated'};`,
@@ -470,18 +472,18 @@ for (const mode of MODES) suite(`Ulangan Harian [${mode.name}]`, () => {
 
   it('identitas: TTL fail-closed; keanggotaan dicabut berlaku seketika; siswa yang sudah mulai tetap bisa menyelesaikan', () => {
     const r = run([...base(), start(),
-      raw("update public.ulh_members set synced_at = now() - interval '31 minutes' where user_id = 'teachA' returning user_id"),
+      raw("!alter table public.ulh_members disable trigger ulh_members_touch; update public.ulh_members set synced_at = now() - interval '31 minutes' where user_id = 'teachA'"),
       as('teachA', 'select public.ulh_list_exams()'),
       as('teachA', `select public.ulh_exam_monitor(${K('exam')})`),
       as('teachA', 'select count(*) from public.ulh_exams'), // jalur RLS ikut tertutup
       as('teachA', `select public.ulh_save_package(${q(JSON.stringify(pkg()))}::jsonb)`),
-      raw("update public.ulh_members set synced_at = now() where user_id = 'teachA' returning user_id"),
+      raw("!alter table public.ulh_members disable trigger ulh_members_touch; update public.ulh_members set synced_at = now() where user_id = 'teachA'"),
       as('teachA', 'select jsonb_array_length(public.ulh_list_exams())'), // segar lagi → pulih
       raw("delete from public.ulh_members where user_id = 'hmA' or user_id = 'adminA' returning user_id"),
       as('adminA', 'select public.ulh_list_exams()'),
       as('adminA', 'select count(*) from public.ulh_audit_log'),
       // siswa: keanggotaan basi → tak bisa daftar/mulai, tapi attempt berjalan tetap bisa dikerjakan & dikumpulkan
-      raw("update public.ulh_members set synced_at = now() - interval '7 hours' where user_id = 'stuA1' returning user_id"),
+      raw("!alter table public.ulh_members disable trigger ulh_members_touch; update public.ulh_members set synced_at = now() - interval '31 minutes' where user_id = 'stuA1'"),
       as('stuA1', 'select public.ulh_list_my_exams()'),
       as('stuA1', `select public.ulh_start_attempt(${K('exam')})`),
       answer('stuA1', 'Q1', 'b'),
@@ -502,6 +504,87 @@ for (const mode of MODES) suite(`Ulangan Harian [${mode.name}]`, () => {
     expect(r[o + 13]).toBe('ok:true');
     expect(json(r[o + 14]).status).toBe('submitted');
     expect(r[o + 16]).toMatch(DENY);
+  });
+
+  it('identitas: synced_at SELALU dari jam database (jam aplikasi yang maju tidak memperpanjang TTL)', () => {
+    const r = run([
+      raw("insert into public.ulh_members(user_id, kind, workspace_id, role, synced_at) values ('futureT', 'teacher', 'wsA', 'TEACHER', '2099-01-01') returning (synced_at < now() + interval '1 minute')::text"),
+      raw("update public.ulh_members set synced_at = '2099-01-01' where user_id = 'futureT' returning (synced_at < now() + interval '1 minute')::text"),
+      raw("update public.ulh_members set role = 'ADMIN' where user_id = 'futureT' returning (synced_at > now() - interval '1 minute')::text"),
+      as('futureT', 'select jsonb_array_length(public.ulh_list_exams())'),
+    ]);
+    expect(r[0]).toBe('ok:true');
+    expect(r[1]).toBe('ok:true');
+    expect(r[2]).toBe('ok:true');
+    expect(r[3]).toBe('ok:0');
+  });
+
+  it('identitas: guru pindah workspace kehilangan hak atas data workspace lama; OWNER lama tetap mengelola', () => {
+    const r = run([...base(), start(),
+      raw("update public.ulh_members set workspace_id = 'wsB' where user_id = 'teachA' returning user_id"),
+      as('teachA', 'select jsonb_array_length(public.ulh_list_exams())'),
+      as('teachA', 'select jsonb_array_length(public.ulh_list_packages())'),
+      as('teachA', `select public.ulh_get_package(${K('pkg')})`),
+      as('teachA', `select public.ulh_exam_monitor(${K('exam')})`),
+      as('teachA', 'select count(*) from public.ulh_exams'),
+      as('ownerA', `select (public.ulh_exam_monitor(${K('exam')}))#>>'{exam,title}'`),
+    ]);
+    const o = base().length + 1;
+    expect(r[o + 1]).toBe('ok:0');
+    expect(r[o + 2]).toBe('ok:0');
+    expect(r[o + 3]).toMatch(DENY);
+    expect(r[o + 4]).toMatch(DENY);
+    expect(r[o + 5]).toBe('ok:0');
+    expect(r[o + 6]).toBe('ok:UH 1');
+  });
+
+  it('identitas: siswa pindah kelas — tidak bisa mulai ujian kelas lama, attempt berjalan lanjut, rekap guru tetap memuat hasilnya', () => {
+    const r = run([...base(), start(), answer('stuA1', 'Q1', 'b'),
+      raw("update public.ulh_members set class_name = '7B' where user_id = 'stuA1' returning user_id"),
+      raw("update public.ulh_roster set class_name = '7B' where student_id = 'sA1' returning student_id"),
+      as('stuA1', "select jsonb_array_length((public.ulh_list_my_exams())->'exams')"),
+      as('stuA1', `select public.ulh_start_attempt(${K('exam')})`),
+      answer('stuA1', 'Q2', 'a', 2),
+      submit(),
+      as('teachA', `select public.ulh_exam_monitor(${K('exam')})`),
+    ]);
+    const o = base().length + 2;
+    expect(r[o + 2]).toBe('ok:0');
+    expect(r[o + 3]).toMatch(DENY);
+    expect(r[o + 4]).toBe('ok:true');
+    expect(json(r[o + 5]).status).toBe('submitted');
+    const mon = json(r[o + 6]);
+    const row = mon.rows.find((x: { student_id: string }) => x.student_id === 'sA1');
+    expect(row).toMatchObject({ status: 'submitted', class_name: '7A', answered_count: 2 }); // kelas saat mengerjakan
+    expect(mon.rows.filter((x: { student_id: string }) => x.student_id === 'sA1')).toHaveLength(1); // tanpa baris ganda
+    expect(mon.summary.submitted).toBe(1);
+  });
+
+  it('pembatas durable ulh_rate_hit: hitung per kunci, jendela, argumen tak valid, pembersihan terbatas, klien tak bisa memanggil', () => {
+    const r = run([
+      raw("select public.ulh_rate_hit('s', 'k1', 60, 2)::text"),
+      raw("select public.ulh_rate_hit('s', 'k1', 60, 2)::text"),
+      raw("select public.ulh_rate_hit('s', 'k1', 60, 2)::text"), // ke-3 melewati batas 2
+      raw("select public.ulh_rate_hit('s', 'k2', 60, 2)::text"), // kunci lain tidak terpengaruh
+      raw("select public.ulh_rate_hit('t', 'k1', 60, 2)::text"), // scope lain tidak terpengaruh
+      raw("select public.ulh_rate_hit('s', 'k3', 0, 2)::text"),
+      raw("select public.ulh_rate_hit('s', 'k3', 60, 0)::text"),
+      raw("select public.ulh_rate_hit('', 'k3', 60, 2)::text"),
+      raw("select public.ulh_rate_hit('s', null, 60, 2)::text"),
+      raw("insert into public.ulh_rate_buckets(scope, key, bucket, n) select 'old', 'k' || g, now() - interval '2 hours', 1 from generate_series(1, 700) g returning 1"),
+      raw("select public.ulh_rate_hit('s', 'k-baru', 60, 5)::text"), // bucket baru → bersihkan maks 500 baris lama
+      raw("select count(*) from public.ulh_rate_buckets where scope = 'old'"),
+      as('teachA', "select public.ulh_rate_hit('s', 'x', 60, 5)"),
+      as('stuA1', "select public.ulh_rate_hit('s', 'x', 60, 5)"),
+      as('anon', "select public.ulh_rate_hit('s', 'x', 60, 5)"),
+      as('teachA', 'select count(*) from public.ulh_rate_buckets'),
+      as('teachA', "insert into public.ulh_rate_buckets(scope, key, bucket) values ('s','z', now())"),
+    ]);
+    expect(r.slice(0, 5)).toEqual(['ok:true', 'ok:true', 'ok:false', 'ok:true', 'ok:true']);
+    for (const i of [5, 6, 7, 8]) expect(r[i], `argumen ${i}`).toMatch(/^err:22023/);
+    expect(r[10]).toBe('ok:true');
+    expect(r[11]).toBe('ok:200'); // 700 - 500 dibersihkan
+    for (const i of [12, 13, 14, 15, 16]) expect(r[i]).toMatch(DENY);
   });
 
   it('roster: kelas harus ada di workspace guru; ujian workspace lain tak terlihat siswa workspace ini', () => {
@@ -530,8 +613,9 @@ for (const mode of MODES) suite(`Ulangan Harian [${mode.name}]`, () => {
         exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a where a.grantee = 0),
         p.prosrc like '%ulh_question_keys%', (p.prosrc like '%ulh_teacher_ctx%' or p.prosrc like '%ulh_student_ctx%' or p.prosrc like '%current_uid%')
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname like 'ulh\\_%' order by 1`);
-    expect(PUB).toHaveLength(17);
-    for (const [name, definer, cfg, authExec, anonExec, publicExec, , hasIdentity] of PUB) {
+    expect(PUB).toHaveLength(18);
+    // 17 RPC klien + ulh_rate_hit (hanya service_role; tidak memeriksa identitas JWT karena bukan RPC klien)
+    for (const [name, definer, cfg, authExec, anonExec, publicExec, , hasIdentity] of PUB.filter((r) => r[0] !== 'ulh_rate_hit')) {
       expect(definer, name).toBe('t');
       expect(cfg, name).toContain('search_path');
       expect(authExec, name).toBe('t');
@@ -539,6 +623,9 @@ for (const mode of MODES) suite(`Ulangan Harian [${mode.name}]`, () => {
       expect(publicExec, name).toBe('f');
       expect(hasIdentity, `${name} harus memeriksa identitas`).toBe('t');
     }
+    const rate = PUB.find((r) => r[0] === 'ulh_rate_hit')!;
+    expect(rate.slice(1, 6)).toEqual(['t', expect.stringContaining('search_path'), 'f', 'f', 'f']); // definer; authenticated/anon/PUBLIC tanpa EXECUTE
+    expect(psql(url, ['-c', "select has_function_privilege('service_role', 'public.ulh_rate_hit(text,text,integer,integer)', 'EXECUTE')"]).trim()).toBe('t');
     // hanya fungsi guru-pengelola & penilaian yang menyentuh kunci jawaban
     const keyFns = PUB.filter((r) => r[6] === 't').map((r) => r[0]);
     expect(keyFns.sort()).toEqual(['ulh_get_package', 'ulh_save_package']);
@@ -563,16 +650,20 @@ for (const mode of MODES) suite(`Ulangan Harian [${mode.name}]`, () => {
         has_table_privilege('authenticated', c.oid, 'SELECT'),
         (select count(*) from pg_policies p where p.schemaname = 'public' and p.tablename = c.relname and (p.cmd <> 'SELECT' or p.roles <> '{authenticated}'))
       from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' and c.relname like 'ulh\\_%' order by 1`);
-    expect(TBL).toHaveLength(13);
+    expect(TBL).toHaveLength(14);
     for (const [name, rls, force, anyAnon, authWrite, authSelect, badPolicies] of TBL) {
       expect(rls, name).toBe('t');
       expect(force, name).toBe('f'); // lihat tes "FORCE RLS"
       expect(anyAnon, name).toBe('f');
       expect(authWrite, `${name}: klien tidak boleh punya hak tulis`).toBe('f');
       expect(badPolicies, name).toBe('0');
-      expect(authSelect, name).toBe(['ulh_members', 'ulh_roster'].includes(name) ? 'f' : 't');
+      expect(authSelect, name).toBe(['ulh_members', 'ulh_roster', 'ulh_rate_buckets'].includes(name) ? 'f' : 't');
     }
-    expect(psql(url, ['-c', "select count(*) from pg_policies where tablename in ('ulh_members','ulh_roster')"]).trim()).toBe('0');
+    expect(psql(url, ['-c', "select count(*) from pg_policies where tablename in ('ulh_members','ulh_roster','ulh_rate_buckets')"]).trim()).toBe('0');
+    // service_role (BYPASSRLS tetapi tanpa hak tabel bawaan di Workflow): grant eksplisit HANYA untuk dua tabel proyeksi
+    const svc = psql(url, ['-c', "select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' and c.relname like 'ulh\\_%' and has_table_privilege('service_role', c.oid, 'SELECT,INSERT,UPDATE,DELETE') order by 1"]).trim();
+    expect(svc).toBe('ulh_members\nulh_roster');
+    expect(psql(url, ['-c', "select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' and c.relname like 'ulh\\_%' and c.relname not in ('ulh_members','ulh_roster') and (has_table_privilege('service_role', c.oid, 'SELECT') or has_table_privilege('service_role', c.oid, 'INSERT'))"]).trim()).toBe('0');
   });
 });
 

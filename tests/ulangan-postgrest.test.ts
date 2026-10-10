@@ -177,6 +177,32 @@ suite('Ulangan Harian lewat PostgREST asli (adapter + repository aplikasi)', () 
     expect(controller.describeError(err)).toMatch(/berwenang/);
   });
 
+  it('service_role (jalur sync-identity & pembatas): hanya hak minimum, tanpa akses ke tabel ujian; klien tak bisa memanggil pembatas', async () => {
+    const svc = sign({ role: 'service_role' });
+    // proyeksi identitas: upsert + baca + hapus lewat REST seperti yang dilakukan server
+    const up = await http('/ulh_members?on_conflict=user_id', { method: 'POST', token: svc, headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify([{ user_id: 'svcT', kind: 'teacher', workspace_id: 'wsA', role: 'TEACHER', student_id: null, class_name: null, name: 'X', synced_at: '2099-01-01T00:00:00Z' }]) });
+    expect(up.status).toBe(201);
+    const row = (await (await http('/ulh_members?user_id=eq.svcT&select=synced_at', { token: svc })).json()) as { synced_at: string }[];
+    expect(Date.parse(row[0].synced_at)).toBeLessThan(Date.now() + 60_000); // jam dari database, bukan dari klien
+    expect((await http('/ulh_members?user_id=eq.svcT', { method: 'DELETE', token: svc })).status).toBe(204);
+    const roster = await http('/ulh_roster?on_conflict=workspace_id,student_id', { method: 'POST', token: svc, headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify([{ workspace_id: 'wsZ', student_id: 's1', class_name: '7A', name: 'N' }]) });
+    expect(roster.status).toBe(201);
+    // tanpa akses ke tabel ujian walau BYPASSRLS (least privilege)
+    for (const t of ['ulh_exams', 'ulh_attempts', 'ulh_question_keys', 'ulh_answers', 'ulh_rate_buckets', 'ulh_audit_log']) {
+      expect((await http(`/${t}?select=*`, { token: svc })).status, t).toBe(403);
+    }
+    // pembatas durable: hanya service_role
+    const hit = async (token: string | undefined, key: string) => http('/rpc/ulh_rate_hit', { method: 'POST', token, body: JSON.stringify({ p_scope: 'e2e', p_key: key, p_window_seconds: 60, p_max: 2 }) });
+    expect(await (await hit(svc, 'a')).json()).toBe(true);
+    expect(await (await hit(svc, 'a')).json()).toBe(true);
+    expect(await (await hit(svc, 'a')).json()).toBe(false);
+    expect(await (await hit(svc, 'b')).json()).toBe(true);
+    for (const token of [as('teachA'), as('stuA1'), undefined]) expect([401, 403]).toContain((await hit(token, 'a')).status);
+    expect((await hit(as('teachA'), 'a')).status).not.toBe(200);
+  });
+
   it('lintas workspace lewat HTTP: guru/siswa wsB tidak melihat ujian wsA', async () => {
     const repo = await import('../lib/repositories/ulanganRepository');
     currentUser = 'teachA';

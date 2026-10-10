@@ -149,7 +149,7 @@ function Exam({ attemptId }: { attemptId: string }) {
           </div>
         </div>
       ))}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100">
+      <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-white border-t border-gray-100">
         {confirmSubmit ? (
           <div className="max-w-2xl mx-auto flex gap-2">
             <button type="button" onClick={() => setConfirmSubmit(false)} className="flex-1 py-3 rounded-2xl text-xs font-bold bg-gray-100">Batal</button>

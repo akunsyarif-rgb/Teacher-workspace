@@ -2,7 +2,7 @@
 // Server-only. Ditulis dengan service_role HANYA oleh kode ini; klien tidak punya hak tulis (lihat migrasi 20261010000000).
 //  - uid berasal dari ID token Firebase yang SUDAH diverifikasi pemanggil; tidak pernah dari body request.
 //  - peran/workspace/kelas dibaca dari dokumen Firestore (dijaga firestore.rules), bukan dari klien.
-//  - siswa: profil dicocokkan dengan dokumen students (workspace + kelas harus sama) sebelum diproyeksikan.
+//  - siswa: tautan uid→siswa dari profil, workspace harus sama dengan dokumen students; KELAS diambil dari dokumen students.
 //  - tidak ada profil/ketidakcocokan → baris dicabut (fail-closed). TTL di sisi RPC menutup kasus sinkronisasi berhenti.
 export type Doc = Record<string, unknown>;
 
@@ -39,7 +39,7 @@ export async function syncUlanganIdentity(
   if (teacher && tWsDoc && (tRole !== 'OWNER' || str(tWsDoc.ownerUid) === uid)) {
     await sink.upsert('ulh_members', [{
       user_id: uid, kind: 'teacher', workspace_id: tWs, role: tRole, student_id: null, class_name: null,
-      name: str(teacher.name) || null, synced_at: ts,
+      name: str(teacher.name) || null, // synced_at: diisi trigger dari jam database
     }], 'user_id');
     if (!opts.roster) return { kind: 'teacher' };
     const students = (await src.listStudents(tWs)).filter((s) => s.id && s.className);
@@ -56,13 +56,15 @@ export async function syncUlanganIdentity(
   const prof = await src.getDoc('student_profiles', uid);
   const sId = str(prof?.studentId);
   const sWs = str(prof?.workspaceId);
-  const sClass = str(prof?.className);
-  if (prof && sId && sWs && sClass) {
+  if (prof && sId && sWs) {
+    // Kelas diambil dari dokumen students (dikelola guru), BUKAN dari salinan di profil: profil bisa basi setelah pindah/ganti nama kelas.
+    // Tautan uid → siswa tetap dari profil (hasil klaim kode akses); workspace harus sama.
     const student = await src.getDoc('students', sId);
-    if (student && str(student.workspaceId) === sWs && str(student.className) === sClass) {
+    const cls = str(student?.className);
+    if (student && cls && str(student.workspaceId) === sWs) {
       await sink.upsert('ulh_members', [{
-        user_id: uid, kind: 'student', workspace_id: sWs, role: null, student_id: sId, class_name: sClass,
-        name: str(student.name) || str(prof.name) || null, synced_at: ts,
+        user_id: uid, kind: 'student', workspace_id: sWs, role: null, student_id: sId, class_name: cls,
+        name: str(student.name) || str(prof.name) || null,
       }], 'user_id');
       return { kind: 'student' };
     }

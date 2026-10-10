@@ -11,7 +11,7 @@
 --   ulh_members (guru/siswa → workspace, peran, kelas) dan ulh_roster (daftar siswa per workspace).
 -- Hanya service_role (server Next.js) yang bisa menulisnya, setelah memverifikasi ID token Firebase dan membaca kebenaran di
 -- Firestore (app/api/ulangan/sync-identity). Klien (authenticated/anon) tidak punya grant maupun policy apa pun pada keduanya.
--- Proyeksi punya TTL (guru 30 menit, siswa 6 jam) agar pencabutan hak di Firestore terbawa (fail-closed bila sinkronisasi berhenti).
+-- Proyeksi punya TTL (guru dan siswa 30 menit; klien menyinkronkan ulang otomatis) agar pencabutan hak di Firestore terbawa (fail-closed bila sinkronisasi berhenti).
 -- Setelah cutover, cukup ganti isi private.ulh_teacher_ctx()/ulh_student_ctx()/ulh_manages_*() ke tabel identitas asli.
 --
 -- Prinsip:
@@ -188,6 +188,17 @@ create table public.ulh_members (
 );
 create index ulh_members_ws_idx on public.ulh_members (workspace_id, kind);
 
+-- synced_at SELALU dari jam database (bukan dari jam aplikasi): jam aplikasi yang maju tidak boleh memperpanjang TTL akses.
+create or replace function private.ulh_members_touch() returns trigger
+language plpgsql security definer set search_path to '' as $f$
+begin
+  new.synced_at := clock_timestamp();
+  return new;
+end;
+$f$;
+create trigger ulh_members_touch before insert or update on public.ulh_members
+  for each row execute function private.ulh_members_touch();
+
 create table public.ulh_roster (
   workspace_id text not null,
   student_id text not null,
@@ -197,6 +208,16 @@ create table public.ulh_roster (
   primary key (workspace_id, student_id)
 );
 create index ulh_roster_class_idx on public.ulh_roster (workspace_id, class_name);
+
+-- Pembatas laju LINTAS-INSTANCE untuk endpoint sinkronisasi identitas (jendela tetap per menit). Hanya diakses fungsi ulh_rate_hit.
+create table public.ulh_rate_buckets (
+  scope text not null,
+  key text not null check (char_length(key) <= 200),
+  bucket timestamptz not null,
+  n integer not null default 0,
+  primary key (scope, key, bucket)
+);
+create index ulh_rate_buckets_bucket_idx on public.ulh_rate_buckets (bucket);
 
 -- workspace_id & created_at tidak boleh berubah (trigger yang sama dengan tabel lain); updated_at dari server.
 do $$
@@ -224,7 +245,7 @@ language plpgsql stable security definer set search_path to '' as $f$
 begin
   return query select m.user_id, m.workspace_id, m.student_id, m.class_name
     from public.ulh_members m
-    where m.user_id = private.current_uid() and m.kind = 'student' and m.synced_at > clock_timestamp() - interval '6 hours';
+    where m.user_id = private.current_uid() and m.kind = 'student' and m.synced_at > clock_timestamp() - interval '30 minutes';
   if not found then raise exception 'not_a_student' using errcode = '42501'; end if;
 end;
 $f$;
@@ -524,8 +545,9 @@ begin
            for update skip locked loop
     perform private.ulh_finalize(r.id, 'expired');
   end loop;
+  -- Peserta = siswa di kelas yang ditugaskan (roster) ATAU siapa pun yang sudah punya attempt (kelasnya mungkin berubah sesudahnya).
   select coalesce(jsonb_agg(row_to_json(x)::jsonb order by x.class_name, x.name), '[]'::jsonb) into v_rows from (
-    select s.student_id, s.name, s.class_name, a.id as attempt_id,
+    select p.student_id, coalesce(ro.name, p.student_id) as name, coalesce(a.class_name, ro.class_name) as class_name, a.id as attempt_id,
            coalesce(a.status, 'not_started') as status, a.started_at, a.expires_at, a.submitted_at,
            (select count(*) from public.ulh_answers an where an.attempt_id = a.id) as answered_count,
            (select count(*) from public.ulh_attempt_questions aq where aq.attempt_id = a.id) as total_questions,
@@ -533,10 +555,15 @@ begin
            (select count(*) from public.ulh_integrity_events ev where ev.attempt_id = a.id and ev.warning_level > 0) as leave_count,
            (select coalesce(max(ev.warning_level), 0) from public.ulh_integrity_events ev where ev.attempt_id = a.id) as max_warning_level,
            (select max(ev.occurred_at) from public.ulh_integrity_events ev where ev.attempt_id = a.id) as last_event_at
-    from public.ulh_roster s
-    join public.ulh_exam_classes c on c.exam_id = p_exam_id and c.class_name = s.class_name
-    left join public.ulh_attempts a on a.exam_id = p_exam_id and a.student_id = s.student_id
-    where s.workspace_id = t.ws) x;
+    from (
+      select s.student_id from public.ulh_roster s
+        join public.ulh_exam_classes c on c.exam_id = p_exam_id and c.class_name = s.class_name
+        where s.workspace_id = t.ws
+      union
+      select at.student_id from public.ulh_attempts at where at.exam_id = p_exam_id
+    ) p
+    left join public.ulh_roster ro on ro.workspace_id = t.ws and ro.student_id = p.student_id
+    left join public.ulh_attempts a on a.exam_id = p_exam_id and a.student_id = p.student_id) x;
   select jsonb_build_object('assigned', count(*), 'started', count(*) filter (where (e ->> 'status') <> 'not_started'),
       'submitted', count(*) filter (where (e ->> 'status') in ('submitted', 'expired')),
       'avg_score', round(avg((e ->> 'score')::numeric) filter (where (e ->> 'score') is not null), 2),
@@ -727,16 +754,37 @@ begin
 end;
 $f$;
 
+-- Satu "pukulan" ke pembatas. Mengembalikan true bila masih dalam batas. Hanya service_role (server Next.js) yang boleh memanggil.
+-- Pembersihan baris lama dibatasi (500 baris, memakai indeks bucket) agar banjir kunci baru tidak memicu pemindaian penuh.
+create or replace function public.ulh_rate_hit(p_scope text, p_key text, p_window_seconds integer, p_max integer) returns boolean
+language plpgsql security definer set search_path to '' as $f$
+declare v_bucket timestamptz; v_n integer;
+begin
+  if coalesce(p_scope, '') = '' or coalesce(p_key, '') = '' or p_window_seconds is null or p_window_seconds not between 1 and 3600
+     or p_max is null or p_max < 1 then
+    raise exception 'invalid_rate_args' using errcode = '22023';
+  end if;
+  v_bucket := to_timestamp(floor(extract(epoch from clock_timestamp()) / p_window_seconds) * p_window_seconds);
+  insert into public.ulh_rate_buckets as b (scope, key, bucket, n) values (left(p_scope, 100), left(p_key, 200), v_bucket, 1)
+    on conflict (scope, key, bucket) do update set n = b.n + 1 returning b.n into v_n;
+  if v_n = 1 then
+    delete from public.ulh_rate_buckets where ctid in (
+      select ctid from public.ulh_rate_buckets where bucket < clock_timestamp() - interval '1 hour' limit 500);
+  end if;
+  return v_n <= p_max;
+end;
+$f$;
+
 -- ---------- RLS + grant: deny-by-default ----------
 do $$
 declare t text;
 begin
   foreach t in array array['ulh_packages', 'ulh_questions', 'ulh_options', 'ulh_question_keys', 'ulh_exams', 'ulh_exam_classes',
                            'ulh_attempts', 'ulh_attempt_questions', 'ulh_answers', 'ulh_integrity_events', 'ulh_audit_log',
-                           'ulh_members', 'ulh_roster'] loop
+                           'ulh_members', 'ulh_roster', 'ulh_rate_buckets'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('revoke all on public.%I from public, anon, authenticated', t);
-    if t not in ('ulh_members', 'ulh_roster') then execute format('grant select on public.%I to authenticated', t); end if;
+    if t not in ('ulh_members', 'ulh_roster', 'ulh_rate_buckets') then execute format('grant select on public.%I to authenticated', t); end if;
   end loop;
 end $$;
 -- Hanya sequence milik modul ini (jangan menyentuh sequence tabel lain: tidak ada pernyataan 'all sequences in schema').
@@ -762,10 +810,13 @@ create policy ulh_audit_log_select on public.ulh_audit_log for select to authent
 revoke all on function
   private.ulh_teacher_ctx(), private.ulh_student_ctx(), private.ulh_manages_package(uuid), private.ulh_manages_exam(uuid),
   private.ulh_manages_attempt(uuid), private.ulh_audit(text, text, text, text, text, jsonb), private.ulh_finalize(uuid, text),
-  private.ulh_attempt_summary(uuid), private.ulh_is_admin_of(text)
+  private.ulh_attempt_summary(uuid), private.ulh_is_admin_of(text), private.ulh_members_touch()
   from public, anon, authenticated;
 grant execute on function private.ulh_manages_package(uuid), private.ulh_manages_exam(uuid), private.ulh_manages_attempt(uuid), private.ulh_is_admin_of(text) to authenticated;
--- ulh_members/ulh_roster: RLS aktif TANPA policy dan TANPA grant → hanya service_role (bypass RLS) yang dapat membaca/menulis.
+-- ulh_members/ulh_roster: RLS aktif TANPA policy dan TANPA grant untuk klien. service_role (server) mendapat grant EKSPLISIT minimum:
+-- di Workflow service_role TIDAK punya hak tabel apa pun secara bawaan (terverifikasi), jadi BYPASSRLS saja tidak cukup.
+-- Hanya dua tabel proyeksi; tabel ujian lain dan ulh_rate_buckets tidak diberikan (rate bucket hanya lewat fungsi definer).
+grant select, insert, update, delete on public.ulh_members, public.ulh_roster to service_role;
 
 revoke all on function
   public.ulh_save_package(jsonb), public.ulh_delete_package(uuid), public.ulh_list_packages(), public.ulh_get_package(uuid),
@@ -773,7 +824,7 @@ revoke all on function
   public.ulh_list_exams(), public.ulh_exam_monitor(uuid), public.ulh_attempt_events(uuid),
   public.ulh_list_my_exams(), public.ulh_start_attempt(uuid), public.ulh_get_attempt(uuid),
   public.ulh_save_answer(uuid, uuid, uuid, bigint), public.ulh_submit_attempt(uuid),
-  public.ulh_report_integrity_event(uuid, uuid, text, timestamptz, integer, jsonb)
+  public.ulh_report_integrity_event(uuid, uuid, text, timestamptz, integer, jsonb), public.ulh_rate_hit(text, text, integer, integer)
   from public, anon, authenticated;
 grant execute on function
   public.ulh_save_package(jsonb), public.ulh_delete_package(uuid), public.ulh_list_packages(), public.ulh_get_package(uuid),
@@ -783,3 +834,4 @@ grant execute on function
   public.ulh_save_answer(uuid, uuid, uuid, bigint), public.ulh_submit_attempt(uuid),
   public.ulh_report_integrity_event(uuid, uuid, text, timestamptz, integer, jsonb)
   to authenticated;
+grant execute on function public.ulh_rate_hit(text, text, integer, integer) to service_role;

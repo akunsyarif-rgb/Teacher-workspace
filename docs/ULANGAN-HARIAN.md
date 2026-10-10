@@ -36,7 +36,7 @@ Solusi (memakai `sub` JWT = uid Firebase, `user_id text`, bentuk mirip `student_
   RLS aktif **tanpa policy dan tanpa grant** untuk `anon`/`authenticated` → hanya `service_role` yang bisa menulis/membaca.
 - Ditulis HANYA oleh `POST /api/ulangan/sync-identity` (server): memverifikasi ID token Firebase (`checkRevoked`), uid hanya dari token,
   lalu membaca **kebenaran di Firestore** (`teacher_profiles`, `student_profiles` + pencocokan dokumen `students`). Tidak valid/tidak ada → baris dicabut.
-- **TTL fail-closed** di RPC: proyeksi guru 30 menit, siswa 6 jam. Jika sinkronisasi berhenti, akses berhenti. Siswa yang **sudah mulai**
+- **TTL fail-closed** di RPC: proyeksi guru dan siswa 30 menit (klien menyinkronkan ulang otomatis; `synced_at` selalu dari jam database lewat trigger). Jika sinkronisasi berhenti, akses berhenti. Siswa yang **sudah mulai**
   tetap bisa menjawab/mengumpulkan (kepemilikan = `ulh_attempts.user_id` = uid JWT), jadi TTL tidak memutus ujian di tengah jalan.
 - Klien memicu sinkronisasi saat halaman guru dibuka dan otomatis sekali saat RPC menjawab `not_a_teacher`/`not_a_student`/`class_not_found`.
 - Setelah cutover penuh: ganti isi `private.ulh_teacher_ctx/ulh_student_ctx/ulh_manages_*` ke tabel identitas asli lalu hapus proyeksi.
@@ -93,11 +93,38 @@ Fakta (read-only, 2026-10-10): organisasi `Conan` plan **Free** dengan 2 project
 - Jalankan: `POSTGREST_BIN=... RLS_TEST_ADMIN_URL=postgresql://postgres:pw@127.0.0.1:5432/postgres npx vitest run tests/ulangan-*.test.ts`
 - **Belum** diuji di Supabase nyata: gateway/Third-Party Auth Firebase (JWKS), `get_advisors`, pembatas platform, `ulh_*` belum ada di Workflow, alur browser/e2e, beban. Workflow CI di atas belum pernah dijalankan.
 
+## Validasi lanjutan (2026-10-10, setelah audit pra-staging)
+**CI GitHub Actions (aktual).** Workflow `Ulangan Harian - tes database lokal` tidak bisa di-dispatch (file baru belum ada di branch default) dan tidak ada PR, jadi ditambah trigger `push` untuk branch ini. Run #1 (id 38058724298, commit `b295361`): **sukses**, 7 file / 655 tes lulus, tanpa skip, termasuk suite PostgREST nyata. Perubahan sesudahnya belum punya hasil CI sampai run berikutnya selesai (lihat laporan).
+
+**E2E browser lokal (`npm run test:e2e:ulangan`, 22/22 langkah).** Chromium + build produksi + Firebase Emulator (auth, firestore) + Postgres lokal dengan migrasi nyata + PostgREST resmi. Sebuah "gateway" kecil di port 4600 menggantikan gateway Supabase (meneruskan token Firebase emulator beserta claim `role=authenticated` sebagai JWT HS256, dan secret key → `service_role`). Alur terbukti: guru daftar → kelas+siswa → paket soal → ulangan → terbit; siswa login kode akses → daftar ulangan → mulai → timer → peringatan integritas (>3 dtk tercatat, <3 dtk tidak) → autosave → reload memulihkan jawaban → submit → nilai 50 → tidak bisa mengulang; guru melihat rekap + sinyal integritas + audit. **Bukan** Supabase nyata: gateway, Third-Party Auth Firebase (JWKS), dan kebijakan platform tidak diuji.
+Temuan yang hanya terungkap oleh e2e/pengecekan katalog nyata (semua sudah diperbaiki dan diberi tes):
+1. Tombol "Selesai & Kumpulkan" tertutup bottom-nav siswa (z-index) — siswa tidak bisa mengumpulkan.
+2. `service_role` **tidak punya hak tabel apa pun di Workflow** (terverifikasi read-only: `has_table_privilege('service_role','public.workspaces','SELECT') = false`; ACL tabel hanya `postgres` dan `authenticated`). BYPASSRLS tidak memberi hak tabel, jadi sinkronisasi identitas gagal `permission denied for table ulh_members`. Migrasi kini memberi grant eksplisit minimum hanya pada `ulh_members`/`ulh_roster` (tabel ujian lain dan rate bucket tidak diberikan).
+3. `synced_at` dikirim dari jam aplikasi → jam maju memperpanjang TTL. Kini diisi trigger dari jam database.
+4. Kelas siswa diambil dari salinan profil yang bisa basi → kini dari dokumen `students`. Rekap guru tidak lagi menghilangkan siswa yang kelasnya berubah setelah mengerjakan.
+5. TTL siswa 6 jam terlalu longgar → 30 menit (sinkronisasi ulang otomatis, murah).
+
+**Implikasi untuk #59/#60 (belum diuji, hanya konsekuensi dari fakta di atas):** jalur yang memakai secret key terhadap tabel lama (Panel Pemilik `ownerAdminService`, `supabaseClassRename`, backfill) kemungkinan besar gagal `permission denied` di Workflow karena `service_role` tanpa grant. Itu perlu migrasi grant tersendiri (mis. `grant select, insert, update, delete on <tabel-tabel yang dipakai> to service_role`) sebelum cutover; tidak diubah di sini karena migrasi #59 tidak boleh diubah.
+
+**Perlindungan endpoint lintas-instance.** Tiga lapis, dengan batas jujur:
+- (1) In-memory per instance (5 dtk per uid, 1500/menit/instance, memori dibatasi) — hanya memotong banjir murah; **bukan** batas global.
+- (2) Durable lintas-instance: RPC `ulh_rate_hit` (jendela tetap 1 menit, hanya `service_role`): per uid 12/menit, global 3000/menit (env `ULANGAN_SYNC_UID_PER_MIN`, `ULANGAN_SYNC_GLOBAL_PER_MIN`). Fail-closed (503) bila database tak tersedia. Klien mencoba ulang berjeda pada 429/503 (maks 3×) agar 1300 siswa yang mulai serentak tidak terkunci.
+- (3) Tidak tertutup di kode: banjir di lapisan jaringan tetap memanggil fungsi serverless (biaya/kuota) dan jendela tetap memungkinkan burst ~2× di pergantian menit; akun anonim Firebase bisa dibuat siapa saja → pagar nyata adalah Vercel Firewall (rate limit) atau Firebase App Check (**tindakan manual**).
+
+**Sinkronisasi identitas terhadap fixture realistis** (`tests/ulangan-identity-sim.test.ts`, 8 skenario dengan Firestore & proyeksi mutable + constraint CHECK): guru aktif/nonaktif/aktif lagi, pindah workspace dan dikeluarkan, ganti/pindah kelas siswa, siswa baru/dihapus, peralihan guru↔siswa tanpa sisa kolom, retry idempoten + sinkronisasi paralel, kegagalan sebagian (roster tidak dipurge sebelum semua upsert sukses; pencabutan gagal naik sebagai galat dan akses bertahan hanya sampai TTL), siswa/non-guru tak pernah menulis roster.
+
+**Urutan merge & penerapan yang benar (tidak dieksekusi).**
+- File: #60 tidak memuat SQL; #59 satu-satunya pemilik `supabase/*`; tidak ada file yang tumpang tindih antara #59 dan #60.
+- Kode: #60 memakai RPC dari #59 (`claim_student_profile`, `batch_write`, `workspace_admin`) → **#59 lalu #60**; modul ulangan memakai `supabaseClient`/`supabaseServer` dari #60 → **ulangan sesudah #60**.
+- SQL di Workflow: migrasi #59 sudah terpasang (terverifikasi daftar migrasi); migrasi ulangan terakhir. Tes menunjukkan hasil akhir katalog **identik** baik ulangan diterapkan sebelum maupun sesudah #59 (dan juga hanya di atas baseline), jadi urutan SQL tidak kritis; urutan merge kode yang kritis.
+- Sebelum cutover: migrasi grant `service_role` (lihat di atas).
+
 ## Blocker tersisa
-1. PR #59/#60 belum merge (migrasi ulangan memakai `private.protect_immutable_columns`, `public.set_updated_at` dari baseline; #59 menurut judulnya sudah diterapkan ke Workflow).
-2. Migrasi ulangan belum diterapkan ke staging/Workflow (butuh persetujuan).
-3. Sinkronisasi identitas belum pernah dijalankan terhadap Firestore + Supabase nyata.
-4. Token siswa anonim ke Supabase: tercatat terbukti di Preview (`docs/STATUS-MIGRASI.md`), belum saya verifikasi ulang.
+1. Migrasi ulangan belum diterapkan ke Workflow/staging cloud (butuh persetujuan); belum ada validasi di Supabase nyata (gateway, Third-Party Auth Firebase/JWKS, advisor).
+2. PR #59/#60 belum merge; grant `service_role` untuk jalur lama #60 belum ada (lihat atas).
+3. Pagar jaringan (Vercel Firewall / App Check) belum dipasang.
+4. E2E hanya lokal (tidak di CI); beban (±1300 siswa serentak) belum diuji.
+5. Token siswa anonim ke Supabase: tercatat terbukti di Preview (`docs/STATUS-MIGRASI.md`), belum diverifikasi ulang.
 
 ## Penerapan (hanya setelah persetujuan eksplisit)
 1. Persetujuan eksplisit → terapkan `supabase/migrations/20261010000000_ulangan_harian.sql` ke **staging/branch Supabase dulu** (bukan Workflow langsung) →

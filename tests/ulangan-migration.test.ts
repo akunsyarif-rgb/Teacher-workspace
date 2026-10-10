@@ -111,6 +111,17 @@ suite('migrasi Ulangan Harian: hanya menambah objek ulh_*, rollback bersih', () 
     } finally { db.drop(); }
   });
 
+  it('urutan penerapan terhadap migrasi #59 tidak mengubah hasil akhir (ulangan sebelum atau sesudah #59 → katalog identik)', () => {
+    const after = createRawDatabase(adminUrl as string, [...BASELINE_FILES, ...PRIOR, UP]);
+    const before = createRawDatabase(adminUrl as string, [...BASELINE_FILES, UP, ...PRIOR]);
+    try {
+      expect(catalog(before.url)).toEqual(catalog(after.url));
+      // dan baseline saja (tanpa #59) tetap menerima migrasi ulangan tanpa galat
+      const bare = createRawDatabase(adminUrl as string, [...BASELINE_FILES, UP]);
+      try { expect(catalog(bare.url).some((l) => l.startsWith('rel|public.ulh_members|'))).toBe(true); } finally { bare.drop(); }
+    } finally { after.drop(); before.drop(); }
+  });
+
   it('teks migrasi/rollback: tidak menyentuh storage/auth/cron/ekstensi/skema, rollback hanya DROP ber-nama ulh_', () => {
     const up = readFileSync(repoFile(UP), 'utf8').replace(/--.*$/gm, '');
     const down = readFileSync(repoFile(DOWN), 'utf8').replace(/--.*$/gm, '');
@@ -133,7 +144,7 @@ suite('migrasi Ulangan Harian: hanya menambah objek ulh_*, rollback bersih', () 
     // terverifikasi ada di Workflow (query katalog read-only 2026-10-10)
     const EXISTING = new Set(['private.current_uid', 'private.protect_immutable_columns', 'public.set_updated_at', 'auth.jwt', 'auth.role']);
     for (const n of used) expect(EXISTING.has(n), `${n} tidak terverifikasi ada di Workflow`).toBe(true);
-    const trg = [...up.matchAll(/execute function ([\w.]+)\(/g)].map((m) => m[1]);
+    const trg = [...up.matchAll(/execute function ([\w.]+)\(/g)].map((m) => m[1]).filter((n) => !/\.ulh_/.test(n));
     for (const t of trg) expect(EXISTING.has(t), t).toBe(true);
   });
 });

@@ -14,6 +14,15 @@ exception when others then
   return 'err:' || sqlstate || ':' || replace(sqlerrm, E'\\n', ' ');
 end $$;
 grant execute on function test.call(text, text) to authenticated, anon;
+-- Pernyataan tanpa hasil (DDL / multi-statement). Dipakai langkah raw berawalan '!'.
+create or replace function test.exec(qry text) returns text language plpgsql as $$
+begin
+  execute qry;
+  return 'ok:';
+exception when others then
+  return 'err:' || sqlstate || ':' || replace(sqlerrm, E'\\n', ' ');
+end $$;
+grant execute on function test.exec(text) to authenticated, anon;
 -- Proyeksi identitas modul (di produksi ditulis server lewat service_role dari kebenaran Firestore). Meniru fixture RLS.
 insert into public.ulh_members (user_id, kind, workspace_id, role) values
   ('ownerA', 'teacher', 'wsA', 'OWNER'), ('adminA', 'teacher', 'wsA', 'ADMIN'), ('teachA', 'teacher', 'wsA', 'TEACHER'),

@@ -24,8 +24,8 @@ describe('sinkronisasi identitas guru', () => {
     expect(f.calls).toHaveLength(1);
     expect(f.calls[0]).toMatchObject({ op: 'upsert', table: 'ulh_members', onConflict: 'user_id' });
     expect(f.calls[0].rows?.[0]).toEqual({
-      user_id: 'u1', kind: 'teacher', workspace_id: 'wsA', role: 'ADMIN', student_id: null, class_name: null, name: 'Bu Ani', synced_at: '2026-10-10T10:00:00.000Z',
-    });
+      user_id: 'u1', kind: 'teacher', workspace_id: 'wsA', role: 'ADMIN', student_id: null, class_name: null, name: 'Bu Ani',
+    }); // tanpa synced_at: diisi trigger dari jam database
   });
   it('roster: upsert per chunk lalu hapus yang basi HANYA setelah semua upsert sukses', async () => {
     const students = Array.from({ length: 1000 }, (_, i) => ({ id: `s${i}`, className: '7A', name: `N${i}` }));
@@ -76,11 +76,16 @@ describe('sinkronisasi identitas siswa', () => {
     expect(await syncUlanganIdentity({ uid: 'u2', roster: true, now: NOW }, f.src, f.sink)).toEqual({ kind: 'student' });
     expect(f.calls).toHaveLength(1); // siswa tidak pernah menyinkronkan roster
     expect(f.calls[0].rows?.[0]).toEqual({
-      user_id: 'u2', kind: 'student', workspace_id: 'wsA', role: null, student_id: 's1', class_name: '7A', name: 'Budi S.', synced_at: '2026-10-10T10:00:00.000Z',
+      user_id: 'u2', kind: 'student', workspace_id: 'wsA', role: null, student_id: 's1', class_name: '7A', name: 'Budi S.',
     });
   });
-  it('profil tidak cocok (workspace/kelas beda, siswa tak ada) → dicabut', async () => {
-    for (const student of [{ workspaceId: 'wsB', className: '7A' }, { workspaceId: 'wsA', className: '7B' }, null]) {
+  it('kelas diambil dari dokumen students (profil basi setelah pindah kelas tidak mencabut akses)', async () => {
+    const f = fakes({ 'student_profiles/u2': profile, 'students/s1': { workspaceId: 'wsA', className: ' 7B ', name: 'Budi' } });
+    expect(await syncUlanganIdentity({ uid: 'u2', now: NOW }, f.src, f.sink)).toEqual({ kind: 'student' });
+    expect(f.calls[0].rows?.[0]).toMatchObject({ class_name: '7B', student_id: 's1' }); // profil bilang 7A, dokumen siswa 7B
+  });
+  it('profil tidak cocok (workspace beda, kelas kosong, siswa tak ada/dihapus) → dicabut', async () => {
+    for (const student of [{ workspaceId: 'wsB', className: '7A' }, { workspaceId: 'wsA', className: '' }, { workspaceId: 'wsA' }, null]) {
       const f = fakes({ 'student_profiles/u2': profile, ...(student ? { 'students/s1': student } : {}) });
       expect(await syncUlanganIdentity({ uid: 'u2', now: NOW }, f.src, f.sink)).toEqual({ kind: null });
       expect(f.calls).toEqual([{ op: 'remove', table: 'ulh_members', filter: 'user_id=eq.u2' }]);
@@ -117,8 +122,11 @@ describe('POST /api/ulangan/sync-identity', () => {
   const none = { exists: false, data: () => undefined };
   beforeEach(() => {
     vi.resetModules(); // pembatas laju di route bersifat per-modul → mulai bersih tiap tes
-    verifyIdToken.mockReset(); serviceRequest.mockReset().mockResolvedValue(null); docGet.mockReset(); delete process.env.ENABLE_ULANGAN_IDENTITY_SYNC;
+    verifyIdToken.mockReset(); docGet.mockReset(); delete process.env.ENABLE_ULANGAN_IDENTITY_SYNC;
+    // pembatas durable (rpc/ulh_rate_hit) mengembalikan true; tulisan proyeksi mengembalikan null
+    serviceRequest.mockReset().mockImplementation(async (path: string) => (path === 'rpc/ulh_rate_hit' ? true : null));
   });
+  const writes = () => serviceRequest.mock.calls.filter((c) => c[0] !== 'rpc/ulh_rate_hit');
 
   it('default mati (501) tanpa menyentuh Firebase/Supabase', async () => {
     const { POST } = await import('../app/api/ulangan/sync-identity/route');
@@ -145,8 +153,8 @@ describe('POST /api/ulangan/sync-identity', () => {
     const res = await POST(req({ authorization: 'Bearer ok' }, { uid: 'victim', user_id: 'victim', role: 'OWNER', workspaceId: 'wsZ' }));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true, kind: 'teacher' });
-    expect(serviceRequest).toHaveBeenCalledTimes(1);
-    const [path, init] = serviceRequest.mock.calls[0];
+    expect(writes()).toHaveLength(1);
+    const [path, init] = writes()[0];
     expect(path).toBe('ulh_members?on_conflict=user_id');
     const row = JSON.parse(init.body)[0];
     expect(row).toMatchObject({ user_id: 'real-uid', workspace_id: 'wsA', role: 'TEACHER' });
@@ -158,29 +166,30 @@ describe('POST /api/ulangan/sync-identity', () => {
     docGet.mockResolvedValue(none);
     const { POST } = await import('../app/api/ulangan/sync-identity/route');
     expect((await POST(req({ authorization: 'Bearer ok' }))).status).toBe(200);
-    const writes = serviceRequest.mock.calls.length;
+    const before = serviceRequest.mock.calls.length;
     const reads = docGet.mock.calls.length;
     const revokeChecks = verifyIdToken.mock.calls.filter((c) => c[1] === true).length;
     const res = await POST(req({ authorization: 'Bearer ok' }));
     expect(res.status).toBe(429);
     expect(Number(res.headers.get('Retry-After'))).toBeGreaterThanOrEqual(1);
-    expect(serviceRequest.mock.calls.length).toBe(writes);
+    expect(serviceRequest.mock.calls.length).toBe(before); // in-memory memotong SEBELUM durable/jaringan
     expect(docGet.mock.calls.length).toBe(reads);
     expect(verifyIdToken.mock.calls.filter((c) => c[1] === true).length).toBe(revokeChecks); // cek pencabutan (jaringan) tidak dijalankan
     // uid lain tidak terdampak
     verifyIdToken.mockResolvedValue({ uid: 'lain' });
     expect((await POST(req({ authorization: 'Bearer ok2' }))).status).toBe(200);
   });
-  it('batas global per instance: banjir banyak akun (mis. anonim massal) dipotong 429', async () => {
+  it('batas global per instance (lapis pertama): banjir banyak akun dipotong 429 sebelum menyentuh database', async () => {
     process.env.ENABLE_ULANGAN_IDENTITY_SYNC = 'yes';
     docGet.mockResolvedValue(none);
     let n = 0;
     verifyIdToken.mockImplementation(async () => ({ uid: `anon-${n++}` }));
     const { POST } = await import('../app/api/ulangan/sync-identity/route');
     const statuses: number[] = [];
-    for (let i = 0; i < 260; i++) statuses.push((await POST(req({ authorization: 'Bearer t' }))).status);
-    expect(statuses.filter((s) => s === 200)).toHaveLength(240);
-    expect(statuses.filter((s) => s === 429)).toHaveLength(20);
+    for (let i = 0; i < 1600; i++) statuses.push((await POST(req({ authorization: 'Bearer t' }))).status);
+    expect(statuses.filter((s) => s === 200)).toHaveLength(1500);
+    expect(statuses.filter((s) => s === 429)).toHaveLength(100);
+    expect(serviceRequest.mock.calls.filter((c) => c[0] === 'rpc/ulh_rate_hit')).toHaveLength(1500 * 2); // 2 pukulan durable per permintaan lolos
   });
   it('roster ditunda (bukan error) bila terlalu sering; identitas tetap disinkronkan', async () => {
     process.env.ENABLE_ULANGAN_IDENTITY_SYNC = 'yes';
@@ -198,15 +207,35 @@ describe('POST /api/ulangan/sync-identity', () => {
     const res = await POST(req({ authorization: 'Bearer ok' }));
     expect(res.status).toBe(401);
     expect(docGet).not.toHaveBeenCalled();
-    expect(serviceRequest).not.toHaveBeenCalled();
+    expect(writes()).toHaveLength(0);
     expect((await POST(req({ authorization: 'Bearer ok', 'content-length': '999999' }))).status).toBe(413);
     expect((await POST(req({ authorization: 'Bearer ok' }, { pad: 'x'.repeat(2000) }))).status).toBe(413);
+  });
+  it('pembatas DURABLE lintas-instance: batas terlampaui → 429; database tak tersedia → 503 (fail-closed); keduanya tanpa baca Firestore/tulis', async () => {
+    process.env.ENABLE_ULANGAN_IDENTITY_SYNC = 'yes';
+    verifyIdToken.mockResolvedValue({ uid: 'dur' });
+    docGet.mockResolvedValue(none);
+    serviceRequest.mockImplementation(async (path: string, init?: { body?: string }) => (path === 'rpc/ulh_rate_hit' ? JSON.parse(init?.body ?? '{}').p_scope !== 'sync_all' : null));
+    const { POST } = await import('../app/api/ulangan/sync-identity/route');
+    const limited = await POST(req({ authorization: 'Bearer ok' }));
+    expect(limited.status).toBe(429); // batas global di database terlampaui walau in-memory lolos
+    expect(Number(limited.headers.get('Retry-After'))).toBeGreaterThanOrEqual(1);
+    expect(docGet).not.toHaveBeenCalled();
+    expect(verifyIdToken.mock.calls.filter((c) => c[1] === true)).toHaveLength(0);
+    expect(writes()).toHaveLength(0);
+    vi.resetModules();
+    serviceRequest.mockImplementation(async () => { throw new Error('supabase down'); });
+    verifyIdToken.mockResolvedValue({ uid: 'dur2' });
+    const down = await (await import('../app/api/ulangan/sync-identity/route')).POST(req({ authorization: 'Bearer ok' }));
+    expect(down.status).toBe(503);
+    expect(down.headers.get('Retry-After')).toBe('30');
+    expect(docGet).not.toHaveBeenCalled();
   });
   it('kegagalan Supabase → 502 generik tanpa bocor detail', async () => {
     process.env.ENABLE_ULANGAN_IDENTITY_SYNC = 'yes';
     verifyIdToken.mockResolvedValue({ uid: 'u' });
     docGet.mockResolvedValue(none);
-    serviceRequest.mockRejectedValue(new Error('SECRET connection string'));
+    serviceRequest.mockImplementation(async (path: string) => { if (path === 'rpc/ulh_rate_hit') return true; throw new Error('SECRET connection string'); });
     const { POST } = await import('../app/api/ulangan/sync-identity/route');
     const res = await POST(req({ authorization: 'Bearer ok' }));
     expect(res.status).toBe(502);
@@ -310,5 +339,48 @@ describe('pencabutan saat guru dikeluarkan', () => {
     expect(await revokeUlanganMember('g2', { enabled: 'yes', request: vi.fn().mockRejectedValue(new Error('down')), log })).toBe(false);
     expect(log).toHaveBeenCalled();
     expect(await revokeUlanganMember('', { enabled: 'yes', request })).toBe(false);
+  });
+});
+
+describe('pembatas durable (klien RPC)', () => {
+  it('memakai batas dari env dengan default aman; kunci per-uid dan global; pesan galat tak bocor', async () => {
+    const { checkDurable, durableLimits } = await import('../lib/server/ulanganDurableLimit');
+    expect(durableLimits({})).toEqual({ perUidPerMin: 12, globalPerMin: 3000 });
+    expect(durableLimits({ ULANGAN_SYNC_UID_PER_MIN: '5', ULANGAN_SYNC_GLOBAL_PER_MIN: '100' })).toEqual({ perUidPerMin: 5, globalPerMin: 100 });
+    expect(durableLimits({ ULANGAN_SYNC_UID_PER_MIN: '0', ULANGAN_SYNC_GLOBAL_PER_MIN: 'abc' })).toEqual({ perUidPerMin: 12, globalPerMin: 3000 });
+    const req = vi.fn().mockResolvedValue(true);
+    expect(await checkDurable('u1', req, { perUidPerMin: 7, globalPerMin: 9 })).toEqual({ ok: true });
+    const bodies = req.mock.calls.map((c) => JSON.parse(c[1].body));
+    expect(bodies).toEqual([
+      { p_scope: 'sync_uid', p_key: 'u1', p_window_seconds: 60, p_max: 7 },
+      { p_scope: 'sync_all', p_key: 'all', p_window_seconds: 60, p_max: 9 },
+    ]);
+    expect(await checkDurable('u1', vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false))).toEqual({ ok: false, reason: 'limited' });
+    expect(await checkDurable('u1', vi.fn().mockResolvedValue('bukan-boolean'))).toEqual({ ok: false, reason: 'limited' });
+    expect(await checkDurable('u1', vi.fn().mockRejectedValue(new Error('x')))).toEqual({ ok: false, reason: 'unavailable' });
+  });
+});
+
+describe('klien sinkronisasi: retry berjeda saat 429/503', () => {
+  it('429 lalu sukses; jeda mengikuti Retry-After (maks 10 dtk) + jitter; menyerah setelah 3 percobaan', async () => {
+    const { syncUlanganIdentity: client, IdentitySyncError } = await import('../lib/adapters/ulanganIdentityClient');
+    const ok = () => new Response(JSON.stringify({ ok: true, kind: 'student' }), { status: 200 });
+    const busy = (ra: string) => new Response('', { status: 429, headers: { 'Retry-After': ra } });
+    const sleeps: number[] = [];
+    const deps = { getToken: async () => 't', sleep: async (ms: number) => { sleeps.push(ms); }, random: () => 0.5 };
+    const f1 = vi.fn().mockResolvedValueOnce(busy('3')).mockResolvedValueOnce(ok());
+    expect(await client(false, { ...deps, fetchImpl: f1 as never })).toEqual({ kind: 'student' });
+    expect(f1).toHaveBeenCalledTimes(2);
+    expect(sleeps).toEqual([4000]); // (3 + 0.5*2) detik
+    sleeps.length = 0;
+    const f2 = vi.fn().mockImplementation(async () => busy('999'));
+    await expect(client(false, { ...deps, fetchImpl: f2 as never })).rejects.toBeInstanceOf(IdentitySyncError);
+    expect(f2).toHaveBeenCalledTimes(3);
+    expect(sleeps).toEqual([11000, 11000]); // dibatasi 10 dtk + jitter
+    const f3 = vi.fn().mockResolvedValue(new Response('', { status: 401 }));
+    await expect(client(false, { ...deps, fetchImpl: f3 as never })).rejects.toMatchObject({ status: 401 });
+    expect(f3).toHaveBeenCalledTimes(1); // 401 tidak diulang
+    const f4 = vi.fn().mockResolvedValueOnce(new Response('', { status: 503 })).mockResolvedValueOnce(ok());
+    expect(await client(true, { ...deps, fetchImpl: f4 as never })).toEqual({ kind: 'student' });
   });
 });

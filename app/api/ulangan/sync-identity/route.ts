@@ -5,18 +5,20 @@ import { serviceRequest } from '@/lib/server/supabaseServer';
 import { syncUlanganIdentity, type IdentitySources } from '@/lib/server/ulanganIdentitySync';
 import { createIdentitySink } from '@/lib/server/ulanganIdentitySink';
 import { createLimiter } from '@/lib/server/ulanganRateLimit';
+import { checkDurable } from '@/lib/server/ulanganDurableLimit';
 
 export const runtime = 'nodejs';
 
 // Memproyeksikan identitas pemanggil (guru/siswa) dari Firestore ke Supabase untuk modul Ulangan Harian.
 // - DEFAULT MATI: aktif hanya bila env server ENABLE_ULANGAN_IDENTITY_SYNC=yes (set dulu di Preview).
 // - uid HANYA dari ID token terverifikasi (checkRevoked); body hanya boleh membawa {roster:boolean} (maks 1 KB).
-// - Urutan: tanda tangan token (murah) → pembatas laju per-uid & global → cek pencabutan token (panggilan jaringan) → baca Firestore → tulis.
-//   Dengan begitu banjir permintaan tidak memicu panggilan jaringan mahal.
+// - Urutan: tanda tangan token (murah) → pembatas in-memory (per instance) → pembatas DURABLE lintas-instance di database →
+//   cek pencabutan token (panggilan jaringan) → baca Firestore → tulis. Banjir permintaan tidak memicu panggilan jaringan mahal.
 // - Menulis ke Supabase dengan SUPABASE_SECRET_KEY lewat sink yang hanya mengizinkan ulh_members/ulh_roster. Kunci tidak pernah ke klien.
-// - Pembatas laju hanya best-effort per instance; pagar lintas-instance (Vercel Firewall / Firebase App Check) dicatat di docs/ULANGAN-HARIAN.md.
-const checkIdentity = createLimiter({ perKeyMs: 5_000, globalMax: 240, windowMs: 60_000 });
-const checkRoster = createLimiter({ perKeyMs: 15_000, globalMax: 60, windowMs: 60_000 });
+// - Pembatas in-memory hanyalah lapis pertama per instance. Batas lintas-instance ditegakkan oleh ulh_rate_hit (jendela tetap, fail-closed);
+//   pagar jaringan (Vercel Firewall / Firebase App Check) tetap perlu dan dicatat di docs/ULANGAN-HARIAN.md.
+const checkIdentity = createLimiter({ perKeyMs: 5_000, globalMax: 1_500, windowMs: 60_000 });
+const checkRoster = createLimiter({ perKeyMs: 15_000, globalMax: 300, windowMs: 60_000 });
 const MAX_BODY_BYTES = 1024;
 
 const sources: IdentitySources = {
@@ -64,6 +66,13 @@ export async function POST(request: NextRequest) {
   if (wantRoster) {
     const r = checkRoster(uid);
     if (!r.ok) wantRoster = false; // sinkronisasi identitas tetap jalan; roster ditunda
+  }
+
+  const durable = await checkDurable(uid, (path, init) => serviceRequest(path, init));
+  if (!durable.ok) {
+    return durable.reason === 'limited'
+      ? tooMany(10)
+      : NextResponse.json({ error: 'Layanan sementara tidak tersedia.' }, { status: 503, headers: { 'Retry-After': '30' } });
   }
 
   try {
