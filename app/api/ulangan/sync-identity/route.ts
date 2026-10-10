@@ -2,16 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/server/firebaseAdmin';
 import { isClaimEnabled } from '@/lib/server/claimFlag';
 import { serviceRequest } from '@/lib/server/supabaseServer';
-import { syncUlanganIdentity, type IdentitySink, type IdentitySources } from '@/lib/server/ulanganIdentitySync';
+import { syncUlanganIdentity, type IdentitySources } from '@/lib/server/ulanganIdentitySync';
+import { createIdentitySink } from '@/lib/server/ulanganIdentitySink';
+import { createLimiter } from '@/lib/server/ulanganRateLimit';
 
 export const runtime = 'nodejs';
 
 // Memproyeksikan identitas pemanggil (guru/siswa) dari Firestore ke Supabase untuk modul Ulangan Harian.
 // - DEFAULT MATI: aktif hanya bila env server ENABLE_ULANGAN_IDENTITY_SYNC=yes (set dulu di Preview).
-// - uid HANYA dari ID token terverifikasi (checkRevoked); body hanya boleh membawa {roster:boolean}.
-// - Menulis ke Supabase dengan SUPABASE_SECRET_KEY (server) — tidak pernah ke klien. Tidak menyentuh data produksi lain.
-const lastRoster = new Map<string, number>(); // pembatas laju best-effort per instance
-const ROSTER_MIN_INTERVAL_MS = 15_000;
+// - uid HANYA dari ID token terverifikasi (checkRevoked); body hanya boleh membawa {roster:boolean} (maks 1 KB).
+// - Urutan: tanda tangan token (murah) → pembatas laju per-uid & global → cek pencabutan token (panggilan jaringan) → baca Firestore → tulis.
+//   Dengan begitu banjir permintaan tidak memicu panggilan jaringan mahal.
+// - Menulis ke Supabase dengan SUPABASE_SECRET_KEY lewat sink yang hanya mengizinkan ulh_members/ulh_roster. Kunci tidak pernah ke klien.
+// - Pembatas laju hanya best-effort per instance; pagar lintas-instance (Vercel Firewall / Firebase App Check) dicatat di docs/ULANGAN-HARIAN.md.
+const checkIdentity = createLimiter({ perKeyMs: 5_000, globalMax: 240, windowMs: 60_000 });
+const checkRoster = createLimiter({ perKeyMs: 15_000, globalMax: 60, windowMs: 60_000 });
+const MAX_BODY_BYTES = 1024;
 
 const sources: IdentitySources = {
   async getDoc(collection, id) {
@@ -23,19 +29,10 @@ const sources: IdentitySources = {
     return snap.docs.map((d) => ({ id: d.id, className: String(d.get('className') ?? '').trim(), name: String(d.get('name') ?? '') }));
   },
 };
+const sink = createIdentitySink((path, init) => serviceRequest(path, init));
 
-const sink: IdentitySink = {
-  async upsert(table, rows, onConflict) {
-    await serviceRequest(`${table}?on_conflict=${onConflict}`, {
-      method: 'POST',
-      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify(rows),
-    });
-  },
-  async remove(table, filter) {
-    await serviceRequest(`${table}?${filter}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
-  },
-};
+const tooMany = (retryAfterSec: number) =>
+  NextResponse.json({ error: 'Terlalu sering. Coba lagi sebentar.' }, { status: 429, headers: { 'Retry-After': String(retryAfterSec) } });
 
 export async function POST(request: NextRequest) {
   if (!isClaimEnabled(process.env.ENABLE_ULANGAN_IDENTITY_SYNC)) {
@@ -43,22 +40,40 @@ export async function POST(request: NextRequest) {
   }
   const idToken = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
   if (!idToken) return NextResponse.json({ error: 'Token otentikasi diperlukan.' }, { status: 401 });
+  if (Number(request.headers.get('content-length') ?? 0) > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: 'Permintaan terlalu besar.' }, { status: 413 });
+  }
 
+  const auth = getAdminAuth();
   let uid: string;
   try {
-    uid = (await getAdminAuth().verifyIdToken(idToken, true)).uid;
+    uid = (await auth.verifyIdToken(idToken, false)).uid; // tanda tangan saja: tanpa panggilan jaringan
   } catch {
     return NextResponse.json({ error: 'Sesi tidak valid. Masuk kembali lalu coba lagi.' }, { status: 401 });
   }
 
   let wantRoster = false;
-  try { wantRoster = (await request.json())?.roster === true; } catch { /* tanpa body */ }
-  const now = Date.now();
-  if (wantRoster && now - (lastRoster.get(uid) ?? 0) < ROSTER_MIN_INTERVAL_MS) wantRoster = false;
+  try {
+    const text = await request.text();
+    if (text.length > MAX_BODY_BYTES) return NextResponse.json({ error: 'Permintaan terlalu besar.' }, { status: 413 });
+    wantRoster = text ? JSON.parse(text)?.roster === true : false;
+  } catch { /* body bukan JSON: perlakukan sebagai tanpa roster */ }
+
+  const base = checkIdentity(uid);
+  if (!base.ok) return tooMany(base.retryAfterSec);
+  if (wantRoster) {
+    const r = checkRoster(uid);
+    if (!r.ok) wantRoster = false; // sinkronisasi identitas tetap jalan; roster ditunda
+  }
+
+  try {
+    await auth.verifyIdToken(idToken, true); // akun dinonaktifkan / sesi dicabut tidak mendapat proyeksi baru
+  } catch {
+    return NextResponse.json({ error: 'Sesi tidak valid. Masuk kembali lalu coba lagi.' }, { status: 401 });
+  }
 
   try {
     const result = await syncUlanganIdentity({ uid, roster: wantRoster }, sources, sink);
-    if (wantRoster) lastRoster.set(uid, now);
     return NextResponse.json({ ok: true, kind: result.kind });
   } catch (error) {
     console.error('ulangan sync-identity gagal:', error instanceof Error ? error.message : error);

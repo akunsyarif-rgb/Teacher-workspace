@@ -128,6 +128,23 @@ describe('Menu Admin sekolah (pemilik)', () => {
     handler = asOwner;
     await expect(svc.removeWorkspaceMemberServer('owner1', '', 'tok')).rejects.toMatchObject({ status: 400 });
   });
+
+  it('Ulangan Harian: mengeluarkan guru juga mencabut proyeksi ulh_members (hanya bila fitur aktif; best-effort)', async () => {
+    const svc = await load();
+    handler = asOwner;
+    await svc.removeWorkspaceMemberServer('owner1', 'g2', 'tok');
+    expect(calls.some((c) => path(c).startsWith('ulh_members'))).toBe(false); // fitur mati → tidak ada panggilan tambahan
+    vi.stubEnv('ENABLE_ULANGAN_IDENTITY_SYNC', 'yes');
+    calls = [];
+    await svc.removeWorkspaceMemberServer('owner1', 'g2', 'tok');
+    const del = calls.find((c) => path(c).startsWith('ulh_members'))!;
+    expect(del.method).toBe('DELETE');
+    expect(path(del)).toBe('ulh_members?user_id=eq.g2');
+    expect(del.auth).toBe('Bearer sb_secret_test');
+    // pencabutan gagal tidak menggagalkan pengeluaran guru
+    handler = (c) => (path(c).startsWith('ulh_members') ? { status: 500, body: { message: 'down' } } : asOwner(c));
+    await expect(svc.removeWorkspaceMemberServer('owner1', 'g2', 'tok')).resolves.not.toThrow();
+  });
 });
 
 describe('Panel Pemilik Aplikasi (service_role, lintas workspace)', () => {

@@ -60,12 +60,38 @@ Terverifikasi **read-only** di Workflow (2026-10-10): role `postgres` = NOSUPERU
 Kesimpulan: tanpa FORCE aman (pemilik melewati RLS, klien tidak pernah pemilik). Dengan FORCE pada pemilik tanpa BYPASSRLS, RPC definer akan gagal
 (dibuktikan tes lokal `FORCE RLS vs kepemilikan`). Maka FORCE sengaja tidak dipakai.
 
+## Audit pra-staging (2026-10-10)
+**Migrasi & rollback** — hasil audit kode DAN bukti tes lokal (`tests/ulangan-migration.test.ts`, Postgres lokal berisi baseline + migrasi PR #59):
+- Diff katalog sebelum/sesudah: migrasi hanya MENAMBAH objek ber-nama `ulh_*`; tidak ada tabel/fungsi/policy/trigger/ACL/ekstensi lain yang berubah atau hilang. Tidak menyentuh `storage`, `auth`, cron, ekstensi, skema, role.
+- **Temuan & perbaikan:** migrasi memuat `revoke all on all sequences in schema public from anon` yang mencabut hak sequence tabel LAIN (terbukti pada sequence uji). Dihapus; yang tersisa hanya revoke sequence milik modul. (Di Workflow saat ini tidak ada sequence di `public`, jadi dampak nyata nol — tetapi pernyataan global berbahaya untuk migrasi mendatang.)
+- Rollback: katalog kembali PERSIS seperti sebelum migrasi; aman dijalankan dua kali; migrasi bisa diterapkan ulang. Isi rollback hanya `drop ... if exists` objek `ulh_*` (diuji teks); ia menghapus SEMUA data ulangan.
+- Penerapan kedua gagal tanpa mengubah apa pun (tidak diam-diam menimpa). Dependensi di luar modul hanya `private.current_uid`, `private.protect_immutable_columns`, `public.set_updated_at`, `auth.jwt`, `auth.role` — **terverifikasi ada di Workflow** (query katalog read-only), dimiliki `postgres`.
+
+**Endpoint `POST /api/ulangan/sync-identity`** — temuan dari membaca kode, perbaikan, dan tes (`tests/ulangan-identity.test.ts`):
+| Temuan | Perbaikan |
+|---|---|
+| Pembatas laju hanya untuk roster, in-memory tanpa batas ukuran; akun anonim Firebase bisa dibuat siapa saja → banjir bisa memicu baca Firestore + tulis Supabase tanpa batas | `lib/server/ulanganRateLimit.ts`: per-uid 5 dtk (roster 15 dtk), global 240/menit/instance (429 + `Retry-After`), memori dibatasi 5000 kunci |
+| `verifyIdToken(checkRevoked=true)` (panggilan jaringan) dijalankan sebelum pembatas | Urutan baru: tanda tangan (lokal) → pembatas → cek pencabutan → Firestore → tulis |
+| Sink service_role menerima nama tabel/filter bebas | `lib/server/ulanganIdentitySink.ts`: hanya `ulh_members`/`ulh_roster`, kolom konflik tetap, filter hapus berbentuk tertutup (tidak ada hapus massal), maks 500 baris/permintaan |
+| Pencabutan hanya lewat TTL atau saat pengguna memanggil sync | Mengeluarkan guru (`removeWorkspaceMemberServer`) kini langsung mencabut baris `ulh_members` (no-op bila fitur mati; best-effort, TTL tetap jaring pengaman) |
+| Profil guru Firestore dipercaya apa adanya | Pertahanan berlapis: dokumen `workspaces/{id}` harus ada, dan OWNER harus sama dengan `ownerUid` workspace |
+| Body tak dibatasi | Maks 1 KB (413) |
+Sumber role/workspace/kelas tetap Firestore (dilindungi `firestore.rules`), uid hanya dari token, siswa dicocokkan dengan dokumen `students`. Secret key hanya dipakai di `lib/server/*` yang hanya diimpor route handler (tidak ada impor dari komponen klien).
+Batas yang TIDAK bisa ditutup di kode ini: pembatas laju per instance serverless bukan pagar lintas-instance; untuk itu pakai Vercel Firewall / Firebase App Check (tindakan manual).
+
+## Pengujian terisolasi: apakah Supabase Free yang ada bisa dipakai?
+Fakta (read-only, 2026-10-10): organisasi `Conan` plan **Free** dengan 2 project aktif (`Workflow`, `SmadaExam`) = batas 2 project Free. Branching = fitur **Pro (berbayar)**; `Workflow` hanya punya branch default `main`.
+- Project ketiga tidak bisa dibuat di Free tanpa menjeda salah satu project (SmadaExam dilarang disentuh) — **tidak dilakukan**. Branch/preview env = berbayar — **tidak dilakukan**.
+- Jadi lingkungan **cloud** terisolasi gratis **tidak tersedia** tanpa keputusan Anda. Pengganti gratis yang SUDAH ada: Postgres 16 lokal/CI + PostgREST resmi (`tests/ulangan-postgrest.test.ts`) dan workflow `.github/workflows/ulangan-db-tests.yml` (jalankan manual dari tab Actions; tanpa secret, tanpa Supabase).
+- Opsi cloud: (a) setujui penerapan langsung ke Workflow — migrasi bersifat aditif murni (terbukti diff katalog) dan punya rollback teruji, tabel identitas masih kosong, jadi risiko data nol; tetap perlu persetujuan eksplisit; (b) kosongkan satu slot project milik Anda sendiri untuk staging; (c) upgrade Pro (berbayar).
+
 ## Yang diuji (lokal — BUKAN Supabase nyata)
-- `tests/ulangan-harian.test.ts`: dijalankan 3× — superuser, pemilik NOSUPERUSER BYPASSRLS (setara `postgres` Supabase), pemilik NOSUPERUSER NOBYPASSRLS; plus audit katalog, TTL/pencabutan identitas, klien tak bisa memalsukan `ulh_members`, bukti FORCE RLS. (65 tes)
-- `tests/ulangan-identity.test.ts`: sinkronisasi (Firestore/Supabase palsu), route handler (501/401/uid dari token saja/502), klien, `withIdentity`. (11 tes)
-- `tests/ulangan-client.test.ts` (9), `rls-parity`, `rls-migration`, `data-backend`, `supabase-adapter` tetap lulus (total 695 pada gabungan ini).
-- Jalankan: `RLS_TEST_ADMIN_URL=postgresql://postgres:pw@127.0.0.1:5432/postgres npx vitest run tests/ulangan-*.test.ts`
-- **Belum** diuji di Supabase nyata: PostgREST + validasi JWT Firebase, advisor keamanan, `ulh_*` tidak ada di Workflow (0 tabel), alur browser/e2e, beban.
+- `ulangan-harian` (65): RLS/RPC pada 3 mode pemilik, audit katalog, TTL/pencabutan, FORCE RLS.
+- `ulangan-migration` (5): diff katalog, rollback, penerapan ganda, teks, dependensi.
+- `ulangan-postgrest` (6): **PostgREST nyata v12.2.3 + adapter & repository asli** lewat HTTP — alur guru→siswa→skor, tulis langsung ditolak 403, JWT salah/kedaluwarsa/palsu ditolak, hanya 17 RPC publik terekspos, galat nyata cocok dengan `withIdentity`, lintas workspace. Butuh `POSTGREST_BIN` (biner resmi; sha256 `9f71269e…27c`).
+- `ulangan-identity` (21), `ulangan-client` (9), `workspace-server-supabase`, `rls-parity`, `rls-migration`, `data-backend`, `supabase-adapter`: total 731 lulus pada gabungan ini.
+- Jalankan: `POSTGREST_BIN=... RLS_TEST_ADMIN_URL=postgresql://postgres:pw@127.0.0.1:5432/postgres npx vitest run tests/ulangan-*.test.ts`
+- **Belum** diuji di Supabase nyata: gateway/Third-Party Auth Firebase (JWKS), `get_advisors`, pembatas platform, `ulh_*` belum ada di Workflow, alur browser/e2e, beban. Workflow CI di atas belum pernah dijalankan.
 
 ## Blocker tersisa
 1. PR #59/#60 belum merge (migrasi ulangan memakai `private.protect_immutable_columns`, `public.set_updated_at` dari baseline; #59 menurut judulnya sudah diterapkan ke Workflow).

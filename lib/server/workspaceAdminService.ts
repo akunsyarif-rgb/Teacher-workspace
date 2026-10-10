@@ -1,4 +1,5 @@
 import { FieldValue } from 'firebase-admin/firestore';
+import { revokeUlanganMember } from './ulanganRevoke';
 import { getAdminAuth, getAdminDb } from './firebaseAdmin';
 import { isSeatLimitReached } from '../config/plans';
 import { SupabaseServerError, identityOnSupabase, userRequest } from './supabaseServer';
@@ -263,7 +264,11 @@ export async function listWorkspaceMembersServer(uid: string, idToken?: string) 
 // Firebase-nya, dan data yang sudah ia buat tetap di workspace). Setelah itu
 // ia bisa bergabung lagi lewat kode undangan.
 export async function removeWorkspaceMemberServer(uid: string, targetUid: string, idToken?: string) {
-  if (identityOnSupabase()) return removeMemberSupabase(uid, targetUid, idToken);
+  if (identityOnSupabase()) {
+    const result = await removeMemberSupabase(uid, targetUid, idToken);
+    await revokeUlanganMember(targetUid); // Ulangan Harian: cabut hak guru seketika (no-op bila fitur mati; best-effort)
+    return result;
+  }
   const { adminDb, workspaceId } = await requireOwner(uid);
   if (!targetUid || typeof targetUid !== 'string') {
     throw new WorkspaceAdminError('Guru yang dikeluarkan tidak valid.', 400);
@@ -285,4 +290,5 @@ export async function removeWorkspaceMemberServer(uid: string, targetUid: string
     role: FieldValue.delete(),
     homeroomClassName: FieldValue.delete(),
   });
+  await revokeUlanganMember(targetUid); // Ulangan Harian: cabut hak guru seketika (no-op bila fitur mati; best-effort)
 }

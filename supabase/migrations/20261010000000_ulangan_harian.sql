@@ -739,7 +739,7 @@ begin
     if t not in ('ulh_members', 'ulh_roster') then execute format('grant select on public.%I to authenticated', t); end if;
   end loop;
 end $$;
-revoke all on all sequences in schema public from anon;
+-- Hanya sequence milik modul ini (jangan menyentuh sequence tabel lain: tidak ada pernyataan 'all sequences in schema').
 revoke all on sequence public.ulh_audit_log_id_seq from public, anon, authenticated;
 
 -- Hanya SELECT untuk guru. Tanpa policy insert/update/delete = klien tidak dapat menulis langsung. Siswa tanpa policy sama sekali.

@@ -34,7 +34,9 @@ export async function syncUlanganIdentity(
   const teacher = await src.getDoc('teacher_profiles', uid);
   const tWs = str(teacher?.workspaceId);
   const tRole = str(teacher?.role);
-  if (teacher && tWs && ROLES.has(tRole) && teacher.isActive !== false) {
+  // Pertahanan berlapis di atas firestore.rules: workspace harus ada, dan OWNER harus benar-benar pemilik (ownerUid) workspace itu.
+  const tWsDoc = teacher && tWs && ROLES.has(tRole) && teacher.isActive !== false ? await src.getDoc('workspaces', tWs) : null;
+  if (teacher && tWsDoc && (tRole !== 'OWNER' || str(tWsDoc.ownerUid) === uid)) {
     await sink.upsert('ulh_members', [{
       user_id: uid, kind: 'teacher', workspace_id: tWs, role: tRole, student_id: null, class_name: null,
       name: str(teacher.name) || null, synced_at: ts,
