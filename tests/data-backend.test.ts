@@ -4,7 +4,8 @@ import { IDENTITY_UNIT, OFFLINE_PARITY_READY, STUDENT_FACING, isSupabaseCollecti
 const C = 'session_skip_reasons';
 const ID = 'workspaces,teacher_profiles';
 // (koleksi, raw, override, studentAuth, teacherAuth)
-const on = (c: string, raw: string, student?: string, teacher = 'yes') => isSupabaseCollection(c, raw, undefined, student, teacher);
+// Uji gerbang per-koleksi memakai override staging (Preview); aturan satu-jendela produksi diuji terpisah di bawah.
+const on = (c: string, raw: string, student?: string, teacher = 'yes') => isSupabaseCollection(c, raw, 'yes', student, teacher);
 
 describe('dataBackend flag', () => {
   it('default mati untuk semua koleksi, apa pun env verifikasi', () => {
@@ -16,12 +17,39 @@ describe('dataBackend flag', () => {
   it('flag tanpa kesiapan offline TIDAK cukup (koleksi di luar daftar siap)', () => {
     expect(OFFLINE_PARITY_READY).not.toContain('payments');
     expect(OFFLINE_PARITY_READY).not.toContain('workspace_invites');
-    expect(on('payments', `payments,${ID}`, 'yes')).toBe(false);
-    expect(on('workspace_invites', `workspace_invites,${ID}`, 'yes')).toBe(false);
+    const all = `${OFFLINE_PARITY_READY.join(',')},payments,workspace_invites`;
+    expect(isSupabaseCollection('payments', all, undefined, 'yes', 'yes')).toBe(false);
+    expect(isSupabaseCollection('workspace_invites', all, undefined, 'yes', 'yes')).toBe(false);
   });
   it('override staging membuka koleksi non-READY yang dicantumkan, tetapi tidak koleksi lain', () => {
     expect(isSupabaseCollection('payments', `payments,${ID}`, 'yes', 'yes', 'yes')).toBe(true);
     expect(isSupabaseCollection('journals', `payments,${ID}`, 'yes', 'yes', 'yes')).toBe(false);
+  });
+  it('tanpa override staging, setiap koleksi yang dicantumkan tanpa flag lain tidak menyala (lihat satu-jendela)', () => {
+    for (const c of OFFLINE_PARITY_READY) expect(isSupabaseCollection(c, c, undefined, 'yes', 'yes'), c).toBe(false);
+  });
+});
+
+describe('SATU JENDELA CUTOVER di produksi (tanpa override staging)', () => {
+  const ALL = OFFLINE_PARITY_READY.join(',');
+  const prod = (c: string, raw: string, student: string | undefined, teacher: string | undefined) => isSupabaseCollection(c, raw, undefined, student, teacher);
+  it('semua koleksi siap dicantumkan + auth guru & siswa terverifikasi → SEMUA menyala', () => {
+    for (const c of OFFLINE_PARITY_READY) expect(prod(c, ALL, 'yes', 'yes'), c).toBe(true);
+  });
+  it('satu saja koleksi yang kurang → SEMUA tetap Firestore (tidak ada keadaan setengah-migrasi)', () => {
+    for (const missing of OFFLINE_PARITY_READY) {
+      const partial = OFFLINE_PARITY_READY.filter((c) => c !== missing).join(',');
+      for (const c of OFFLINE_PARITY_READY) expect(prod(c, partial, 'yes', 'yes'), `${c} tanpa ${missing}`).toBe(false);
+    }
+  });
+  it('auth siswa atau auth guru belum terverifikasi → SEMUA tetap Firestore', () => {
+    for (const c of OFFLINE_PARITY_READY) {
+      expect(prod(c, ALL, undefined, 'yes'), `${c} tanpa auth siswa`).toBe(false);
+      expect(prod(c, ALL, 'yes', undefined), `${c} tanpa auth guru`).toBe(false);
+    }
+  });
+  it('nilai default (tanpa flag) = tidak ada yang menyala', () => {
+    for (const c of OFFLINE_PARITY_READY) expect(prod(c, undefined as never, 'yes', 'yes')).toBe(false);
   });
 });
 

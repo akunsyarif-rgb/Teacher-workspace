@@ -20,6 +20,7 @@ function setEnv(opts: { on?: boolean; url?: string } = {}) {
   const on = opts.on ?? true;
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_COLLECTIONS', on ? 'workspaces,teacher_profiles' : '');
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_TEACHER_AUTH_VERIFIED', on ? 'yes' : '');
+  vi.stubEnv('NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE', 'yes');
   vi.stubEnv('SUPABASE_URL', opts.url ?? URL_OK);
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'sb_publishable_test');
   vi.stubEnv('SUPABASE_SECRET_KEY', 'sb_secret_test');

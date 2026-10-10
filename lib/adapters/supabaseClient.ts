@@ -1,6 +1,7 @@
 import { auth } from '@/src/config/firebase';
 import { createSupabaseAdapter, SupabaseAdapterError } from './supabaseAdapter';
 import { indexedDbStore, withOfflineSupport, type OfflineAdapter } from './offlineLayer';
+import { createSupabaseTokenProvider } from './firebaseRoleClaim';
 
 // Instance adapter untuk browser: token = ID token Firebase pengguna saat ini (guru atau siswa anonim),
 // dibungkus lapisan offline (cache baca + outbox tulis) yang DIPISAH PER PENGGUNA (nama IndexedDB memuat uid),
@@ -22,7 +23,8 @@ export function getSupabaseAdapter(): OfflineAdapter {
   const base = createSupabaseAdapter({
     url,
     publishableKey,
-    getToken: async (forceRefresh) => (auth.currentUser ? auth.currentUser.getIdToken(forceRefresh === true) : null),
+    // Token Firebase + claim role "authenticated" (dipasang server sekali per akun; lihat firebaseRoleClaim.ts).
+    getToken: createSupabaseTokenProvider({ getUser: () => auth.currentUser }),
   });
   const adapter = withOfflineSupport(base, {
     store: indexedDbStore(`tw-supabase-${uid}`),

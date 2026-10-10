@@ -39,7 +39,7 @@ async function load(mod: string, flagIn: string, studentAuth = 'yes', identity =
   const flag = flagIn && identity && !flagIn.includes('workspaces') ? `${flagIn},workspaces,teacher_profiles` : flagIn;
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_TEACHER_AUTH_VERIFIED', identity ? 'yes' : '');
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_COLLECTIONS', flag);
-  vi.stubEnv('NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE', '');
+  vi.stubEnv('NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE', 'yes'); // Preview/uji: aturan satu-jendela produksi diuji di data-backend.test
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_STUDENT_AUTH_VERIFIED', studentAuth);
   return (await import(`../lib/repositories/${mod}.ts`)) as Record<string, (...a: unknown[]) => Promise<unknown>>;
 }
@@ -156,6 +156,7 @@ describe.each(IDENTITY_CASES)('identitas: $mod ($collection)', ({ collection, mo
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_COLLECTIONS', 'workspaces,teacher_profiles');
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_TEACHER_AUTH_VERIFIED', 'yes');
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_STUDENT_AUTH_VERIFIED', '');
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE', 'yes');
     const r = (await import(`../lib/repositories/${mod}.ts`)) as Record<string, (...a: unknown[]) => Promise<unknown>>;
     await Promise.all(run(r));
     // serverTimestamp() hanya pembuat sentinel (bukan I/O); dibuang oleh adapter Supabase.
@@ -168,6 +169,7 @@ describe.each(IDENTITY_CASES)('identitas: $mod ($collection)', ({ collection, mo
       vi.resetModules();
       vi.stubEnv('NEXT_PUBLIC_SUPABASE_COLLECTIONS', flag);
       vi.stubEnv('NEXT_PUBLIC_SUPABASE_TEACHER_AUTH_VERIFIED', teacher);
+      vi.stubEnv('NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE', 'yes');
       const r = (await import(`../lib/repositories/${mod}.ts`)) as Record<string, (...a: unknown[]) => Promise<unknown>>;
       await Promise.all(run(r));
       for (const m of Object.values(sb)) expect(m).not.toHaveBeenCalled();
@@ -181,6 +183,7 @@ describe('koleksi data tanpa unit identitas di Supabase → tetap Firestore (RLS
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_COLLECTIONS', collection);
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_TEACHER_AUTH_VERIFIED', 'yes');
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_STUDENT_AUTH_VERIFIED', 'yes');
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE', 'yes');
     const r = (await import(`../lib/repositories/${mod}.ts`)) as Record<string, (...a: unknown[]) => Promise<unknown>>;
     await Promise.all(run(r));
     for (const m of Object.values(sb)) expect(m).not.toHaveBeenCalled();

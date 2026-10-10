@@ -85,7 +85,7 @@ export async function joinWorkspaceByCodeServer(uid: string, inviteCode: string,
   const memberCount = memberCountSnap.data().count;
   if (isSeatLimitReached(workspace, memberCount)) {
     throw new Error(
-      `Kuota guru workspace ini sudah penuh (maks ${workspace.seatLimit} guru). Admin sekolah perlu membeli kursi tambahan lewat halaman upgrade.`
+      `Kuota guru workspace ini sudah penuh (maks ${workspace.seatLimit} guru). Hubungi pemilik aplikasi untuk menambah kuota guru.`
     );
   }
 

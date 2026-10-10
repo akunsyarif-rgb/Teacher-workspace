@@ -13,7 +13,7 @@ async function load(env: Record<string, string | undefined>) {
   const flag = env.NEXT_PUBLIC_SUPABASE_COLLECTIONS ? `${env.NEXT_PUBLIC_SUPABASE_COLLECTIONS},workspaces,teacher_profiles` : '';
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_COLLECTIONS', flag);
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_TEACHER_AUTH_VERIFIED', flag ? 'yes' : '');
-  vi.stubEnv('NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE', env.NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE ?? '');
+  vi.stubEnv('NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE', 'yes');
   return import('../lib/repositories/sessionSkipReasonRepository');
 }
 

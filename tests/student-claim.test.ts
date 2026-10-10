@@ -10,7 +10,7 @@ async function svc(flag: string, studentAuth = 'yes') {
   vi.resetModules();
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_COLLECTIONS', flag ? `${flag},workspaces,teacher_profiles` : flag);
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_TEACHER_AUTH_VERIFIED', 'yes');
-  vi.stubEnv('NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE', '');
+  vi.stubEnv('NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE', 'yes');
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_STUDENT_AUTH_VERIFIED', studentAuth);
   return import('../lib/services/studentAuthService');
 }

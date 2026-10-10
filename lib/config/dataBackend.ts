@@ -59,7 +59,12 @@ export function isSupabaseCollection(
   if (!raw) return false;
   const listed = new Set(raw.split(',').map((s) => s.trim()).filter(Boolean));
   const base = (c: string) => listed.has(c) && (OFFLINE_PARITY_READY.includes(c) || stagingOverride === 'yes');
-  const identityOn = IDENTITY_UNIT.every(base) && teacherAuthVerified === 'yes';
+  // SATU JENDELA CUTOVER (produksi): firestore.rules juga membaca teacher_profiles/workspaces di Firestore. Bila identitas pindah
+  // sementara sebagian data masih di Firestore, profil Firestore menjadi basi (guru baru/dikeluarkan/ganti peran tidak tercermin)
+  // dan akses ke koleksi Firestore itu rusak. Jadi tanpa STAGING_OVERRIDE (Preview/uji), Supabase hanya menyala bila SEMUA koleksi siap
+  // dicantumkan dan auth siswa terverifikasi — tidak ada keadaan setengah-migrasi di produksi.
+  const allIn = OFFLINE_PARITY_READY.every((c) => listed.has(c)) && studentAuthVerified === 'yes';
+  const identityOn = IDENTITY_UNIT.every(base) && teacherAuthVerified === 'yes' && (stagingOverride === 'yes' || allIn);
   if (IDENTITY_UNIT.includes(collectionName)) return identityOn;
   const ok = (c: string) => base(c) && (!STUDENT_FACING.includes(c) || studentAuthVerified === 'yes');
   const unit = UNITS.find((u) => u.includes(collectionName));
