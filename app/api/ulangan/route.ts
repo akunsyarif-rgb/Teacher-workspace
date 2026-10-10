@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/server/firebaseAdmin';
-import { serviceRequest, SupabaseServerError } from '@/lib/server/supabaseServer';
+import { ulanganRpc, UlanganDbError } from '@/lib/server/ulanganSupabase';
 import { isUlanganEnabled } from '@/lib/config/ulangan';
 import { AuthError, type IdentitySources } from '@/lib/server/ulanganAuth';
 import { BadRequest, isAction, needsStudentIdentity, needsTeacher, runAction } from '@/lib/server/ulanganActions';
@@ -32,16 +32,23 @@ const src: IdentitySources = {
   },
 };
 
-const rpc = (name: string, args: Record<string, unknown>) => serviceRequest(`rpc/${name}`, { method: 'POST', body: JSON.stringify(args) });
+const rpc = (name: string, args: Record<string, unknown>) => ulanganRpc(name, args);
 
 // Kode galat basis data (raise exception ... errcode) → status HTTP; pesan = kode yang dipetakan klien ke bahasa pengguna.
-function dbError(e: SupabaseServerError) {
+function dbError(e: UlanganDbError) {
+  if (e.kind === 'config') {
+    console.error('ulangan: konfigurasi Supabase server belum lengkap/tidak valid');
+    return NextResponse.json({ error: 'server_config' }, { status: 503 });
+  }
   const code = e.code ?? '';
   const message = e.message.slice(0, 80).replace(/[^a-z0-9_ ]/gi, '');
-  if (code === '42501') return NextResponse.json({ error: message || 'forbidden' }, { status: 403 });
-  if (code === 'P0001') return NextResponse.json({ error: message }, { status: 409 });
-  if (code === '22023' || code === '22P02') return NextResponse.json({ error: message || 'invalid_request' }, { status: 400 });
-  console.error('ulangan rpc gagal:', e.status, code, e.message);
+  if (e.kind === 'db') {
+    if (code === '42501') return NextResponse.json({ error: message || 'forbidden' }, { status: 403 });
+    if (code === 'P0001') return NextResponse.json({ error: message }, { status: 409 });
+    if (code.startsWith('22')) return NextResponse.json({ error: 'invalid_request' }, { status: 400 }); // data tak valid (tanggal/angka/uuid/argumen)
+    if (code.startsWith('23')) return NextResponse.json({ error: 'conflict' }, { status: 409 }); // pelanggaran constraint
+  }
+  console.error('ulangan rpc gagal:', e.kind, e.status, code); // tanpa pesan (hindari bocor URL/host/input)
   return NextResponse.json({ error: 'server_error' }, { status: 502 });
 }
 
@@ -76,8 +83,8 @@ export async function POST(request: NextRequest) {
   } catch (e) {
     if (e instanceof AuthError) return NextResponse.json({ error: e.code }, { status: e.status });
     if (e instanceof BadRequest) return NextResponse.json({ error: e.message }, { status: 400 });
-    if (e instanceof SupabaseServerError) return dbError(e);
-    console.error('ulangan gagal:', e instanceof Error ? e.message : e);
+    if (e instanceof UlanganDbError) return dbError(e);
+    console.error('ulangan gagal:', e instanceof Error ? e.name : typeof e); // tanpa pesan: bisa memuat URL/kredensial
     return NextResponse.json({ error: 'server_error' }, { status: 500 });
   }
 }

@@ -132,10 +132,10 @@ describe('aksi server', () => {
 
 // ---------- Route handler ----------
 const verifyIdToken = vi.fn();
-const serviceRequest = vi.fn();
+const ulanganRpc = vi.fn();
 const docGet = vi.fn();
-class FakeSupabaseError extends Error {
-  constructor(message: string, public status: number, public code?: string) { super(message); this.name = 'SupabaseServerError'; }
+class FakeDbError extends Error {
+  constructor(message: string, public status: number, public code?: string, public kind: 'config' | 'network' | 'db' = 'db') { super(message); this.name = 'UlanganDbError'; }
 }
 vi.mock('@/lib/server/firebaseAdmin', () => ({
   getAdminAuth: () => ({ verifyIdToken }),
@@ -146,7 +146,7 @@ vi.mock('@/lib/server/firebaseAdmin', () => ({
     }),
   }),
 }));
-vi.mock('@/lib/server/supabaseServer', () => ({ serviceRequest: (...a: unknown[]) => serviceRequest(...a), SupabaseServerError: FakeSupabaseError }));
+vi.mock('@/lib/server/ulanganSupabase', () => ({ ulanganRpc: (...a: unknown[]) => ulanganRpc(...a), UlanganDbError: FakeDbError }));
 
 describe('POST /api/ulangan', () => {
   const req = (body: unknown, headers: Record<string, string> = { authorization: 'Bearer tok' }) =>
@@ -158,7 +158,7 @@ describe('POST /api/ulangan', () => {
     vi.resetModules();
     process.env.NEXT_PUBLIC_ULANGAN_ENABLED = 'yes';
     verifyIdToken.mockReset().mockResolvedValue({ uid: 'guru' });
-    serviceRequest.mockReset().mockResolvedValue([]);
+    ulanganRpc.mockReset().mockResolvedValue([]);
     docGet.mockReset().mockImplementation(async (c: string, id: string) => {
       if (c === 'teacher_profiles' && id === 'guru') return exists({ workspaceId: 'wsA', role: 'TEACHER' });
       if (c === 'workspaces' && id === 'wsA') return exists({ ownerUid: 'owner' });
@@ -181,7 +181,7 @@ describe('POST /api/ulangan', () => {
     expect((await post(req({ action: 'exam.save', pad: 'x'.repeat(300_000) }))).status).toBe(413);
     verifyIdToken.mockRejectedValue(new Error('expired'));
     expect((await post(req({ action: 'exam.list' }))).status).toBe(401);
-    expect(serviceRequest).not.toHaveBeenCalled();
+    expect(ulanganRpc).not.toHaveBeenCalled();
   });
 
   it('cek pencabutan token hanya untuk aksi penentu hak (guru, daftar/mulai siswa); autosave/submit tanpa baca Firestore', async () => {
@@ -195,34 +195,50 @@ describe('POST /api/ulangan', () => {
     expect(res.status).toBe(200);
     expect(verifyIdToken).toHaveBeenLastCalledWith('tok', false);
     expect(docGet).not.toHaveBeenCalled();
-    const [path, init] = serviceRequest.mock.calls.at(-1)!;
-    expect(path).toBe('rpc/ulh_save_answer');
-    expect(JSON.parse(init.body)).toMatchObject({ p_uid: 'siswa', p_client_seq: 3 });
+    const [path, init] = ulanganRpc.mock.calls.at(-1)!;
+    expect(path).toBe('ulh_save_answer');
+    expect(init).toMatchObject({ p_uid: 'siswa', p_client_seq: 3 });
   });
 
   it('identitas dari Firestore: guru → workspace dari profil; siswa memanggil aksi guru → 403 not_a_teacher', async () => {
     const ok = await post(req({ action: 'exam.list', ws: 'wsZ', p_ws: 'wsZ' }));
     expect(ok.status).toBe(200);
-    expect(JSON.parse(serviceRequest.mock.calls[0][1].body)).toEqual({ p_ws: 'wsA', p_uid: 'guru', p_admin: false });
-    serviceRequest.mockClear();
+    expect(ulanganRpc.mock.calls[0][1]).toEqual({ p_ws: 'wsA', p_uid: 'guru', p_admin: false });
+    ulanganRpc.mockClear();
     verifyIdToken.mockResolvedValue({ uid: 'siswa' });
     const denied = await post(req({ action: 'exam.list' }));
     expect(denied.status).toBe(403);
     expect(await denied.json()).toEqual({ error: 'not_a_teacher' });
     verifyIdToken.mockResolvedValue({ uid: 'asing' });
     expect((await post(req({ action: 'student.list' }))).status).toBe(403);
-    expect(serviceRequest).not.toHaveBeenCalled();
+    expect(ulanganRpc).not.toHaveBeenCalled();
+  });
+
+  it('log server tidak memuat secret, URL/host, atau isi input klien (hanya jenis/status/kode)', async () => {
+    const logs = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const body = { action: 'exam.publish', id: '11111111-1111-4111-8111-111111111111' };
+    ulanganRpc.mockRejectedValueOnce(new FakeDbError('connect ECONNREFUSED https://abcdefghijklmnopqrst.supabase.co key=sb_secret_XYZ body=INPUT_KLIEN', 500, 'XX000'));
+    await post(req(body));
+    ulanganRpc.mockRejectedValueOnce(new FakeDbError('server_config', 503, undefined, 'config'));
+    await post(req(body));
+    ulanganRpc.mockRejectedValueOnce(new Error('boom sb_secret_XYZ https://abcdefghijklmnopqrst.supabase.co'));
+    const r = await post(req(body));
+    expect(r.status).toBe(500);
+    expect(JSON.stringify(await r.json())).not.toMatch(/sb_secret|supabase\.co|boom/);
+    expect(logs).toHaveBeenCalled();
+    expect(JSON.stringify(logs.mock.calls)).not.toMatch(/sb_secret|supabase\.co|INPUT_KLIEN|ECONNREFUSED|boom/); // semua panggilan log, termasuk galat tak terduga
+    logs.mockRestore();
   });
 
   it('galat basis data dipetakan: 42501→403, P0001→409 (kode), 22023→400, lainnya→502 tanpa bocor detail', async () => {
     const body = { action: 'exam.publish', id: '11111111-1111-4111-8111-111111111111' };
-    serviceRequest.mockRejectedValueOnce(new FakeSupabaseError('exam_not_found', 403, '42501'));
+    ulanganRpc.mockRejectedValueOnce(new FakeDbError('exam_not_found', 403, '42501'));
     let r = await post(req(body)); expect([r.status, await r.json()]).toEqual([403, { error: 'exam_not_found' }]);
-    serviceRequest.mockRejectedValueOnce(new FakeSupabaseError('exam_locked', 409, 'P0001'));
+    ulanganRpc.mockRejectedValueOnce(new FakeDbError('exam_locked', 409, 'P0001'));
     r = await post(req(body)); expect([r.status, await r.json()]).toEqual([409, { error: 'exam_locked' }]);
-    serviceRequest.mockRejectedValueOnce(new FakeSupabaseError('invalid_duration', 400, '22023'));
+    ulanganRpc.mockRejectedValueOnce(new FakeDbError('invalid_duration', 400, '22023'));
     r = await post(req(body)); expect(r.status).toBe(400);
-    serviceRequest.mockRejectedValueOnce(new FakeSupabaseError('connection to 10.0.0.5 SECRET refused', 500, 'XX000'));
+    ulanganRpc.mockRejectedValueOnce(new FakeDbError('connection to 10.0.0.5 SECRET refused', 500, 'XX000'));
     r = await post(req(body));
     expect(r.status).toBe(502);
     expect(JSON.stringify(await r.json())).not.toMatch(/SECRET|10\.0/);

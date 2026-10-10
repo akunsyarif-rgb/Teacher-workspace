@@ -191,20 +191,3 @@ describe('pembayaran: di luar scope, dinonaktifkan hanya saat identitas di Supab
     expect((await ct2.POST(req('http://x/api/payments/create-transaction'))).status).toBe(401); // alur lama: butuh token
   });
 });
-
-describe('supabaseServer: target URL', () => {
-  it('http lokal hanya diizinkan bila Firestore Emulator aktif; SmadaExam & host asing selalu ditolak', async () => {
-    const load = async () => { vi.resetModules(); return import('../lib/server/supabaseServer'); };
-    vi.stubEnv('SUPABASE_SECRET_KEY', 'sb_secret_test');
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, text: async () => '[]' })));
-    vi.stubEnv('SUPABASE_URL', 'http://127.0.0.1:4600');
-    vi.stubEnv('FIRESTORE_EMULATOR_HOST', '');
-    await expect((await load()).serviceRequest('x')).rejects.toMatchObject({ status: 503 }); // tanpa emulator: ditolak
-    vi.stubEnv('FIRESTORE_EMULATOR_HOST', '127.0.0.1:8080');
-    await expect((await load()).serviceRequest('x')).resolves.toEqual([]);
-    for (const bad of ['http://evil.example.com:4600', 'http://127.0.0.1.evil.com:4600', 'https://127.0.0.1:4600', 'https://abdkrhmxfpcmgzsxzfyz.supabase.co']) {
-      vi.stubEnv('SUPABASE_URL', bad);
-      await expect((await load()).serviceRequest('x'), bad).rejects.toMatchObject({ status: 503 });
-    }
-  });
-});

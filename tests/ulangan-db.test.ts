@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createDatabase, psql, type OwnerMode } from './rls/harness';
+import { createDatabase, psql, type OwnerMode } from './ulangan/harness';
 import { SETUP } from './ulangan/fixtures';
 
 // Uji RPC/RLS Ulangan Harian di Postgres LOKAL (BUKAN Supabase nyata). RPC dipanggil sebagai service_role (satu-satunya yang boleh),
@@ -95,7 +95,7 @@ const MODES: { name: string; owner: OwnerMode }[] = [
 
 for (const mode of MODES) suite(`Ulangan Harian [${mode.name}]`, () => {
   beforeAll(() => {
-    const db = createDatabase(adminUrl as string, true, mode.owner);
+    const db = createDatabase(adminUrl as string, mode.owner);
     url = db.url;
     drop = db.drop;
     psql(url, [], SETUP);
@@ -435,7 +435,7 @@ for (const mode of MODES) suite(`Ulangan Harian [${mode.name}]`, () => {
 suite('Ulangan Harian: FORCE RLS vs kepemilikan', () => {
   for (const [owner, expectOk] of [['nobypass', false], ['bypass', true]] as const) {
     it(`FORCE RLS + pemilik ${owner}: start_attempt ${expectOk ? 'berhasil' : 'GAGAL (bukti FORCE berbahaya tanpa BYPASSRLS)'}`, () => {
-      const db = createDatabase(adminUrl as string, true, owner);
+      const db = createDatabase(adminUrl as string, owner);
       try {
         psql(db.url, [], SETUP);
         const steps = [...base(), start()];

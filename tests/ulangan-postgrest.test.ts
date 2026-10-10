@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createHmac } from 'node:crypto';
-import { createDatabase, psql } from './rls/harness';
+import { createDatabase, psql } from './ulangan/harness';
 import { SETUP } from './ulangan/fixtures';
 import { runAction, type Deps } from '../lib/server/ulanganActions';
 import type { Doc, IdentitySources } from '../lib/server/ulanganAuth';
@@ -60,7 +60,7 @@ suite('Ulangan Harian lewat PostgREST asli (runAction + RPC via HTTP service_rol
   const act = (a: Parameters<typeof runAction>[0], uid: string, body: Record<string, unknown> = {}) => runAction(a, uid, body, deps) as Promise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
   beforeAll(async () => {
-    const db = createDatabase(adminUrl as string, true, 'bypass'); // objek dimiliki role NOSUPERUSER BYPASSRLS (setara postgres Supabase)
+    const db = createDatabase(adminUrl as string, 'bypass'); // objek dimiliki role NOSUPERUSER BYPASSRLS (setara postgres Supabase)
     drop = db.drop;
     psql(db.url, [], SETUP);
     psql(adminUrl as string, ['-c', `do $$ begin if not exists (select from pg_roles where rolname='authenticator') then create role authenticator noinherit login password 'authpw'; end if; end $$`]);

@@ -19,8 +19,6 @@ export const identityOnSupabase = () => isSupabaseCollection('teacher_profiles')
 
 function baseUrl() {
   const url = (process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
-  // Khusus uji e2e lokal: bila Firestore Emulator aktif (env ini tidak pernah ada di Vercel/produksi), boleh menunjuk gateway lokal.
-  if (process.env.FIRESTORE_EMULATOR_HOST && /^http:\/\/127\.0\.0\.1:\d{2,5}$/.test(url)) return url;
   const ref = url.match(/^https:\/\/([a-z0-9]{20})\.supabase\.co$/)?.[1];
   if (!ref) throw new SupabaseServerError('Konfigurasi Supabase server belum lengkap (SUPABASE_URL).', 503);
   if (ref === SMADA_REF) throw new SupabaseServerError('Target Supabase tidak diizinkan.', 503);

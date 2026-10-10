@@ -58,9 +58,8 @@ jobs:
           tar -xJf "$RUNNER_TEMP/pgrst.tar.xz" -C "$RUNNER_TEMP/pgrst"
           echo "POSTGREST_BIN=$RUNNER_TEMP/pgrst/postgrest" >> "$GITHUB_ENV"
       - run: npm ci
-      - name: Tes Ulangan Harian + paritas RLS + migrasi
-        run: >-
-          npx vitest run
-          tests/ulangan-db.test.ts tests/ulangan-migration.test.ts tests/ulangan-postgrest.test.ts
-          tests/ulangan-server.test.ts tests/ulangan-client.test.ts tests/workspace-server-supabase.test.ts
-          tests/rls-parity.test.ts tests/rls-migration.test.ts
+      - name: Tes Ulangan Harian (+ paritas RLS #59 bila ada di branch)
+        run: |
+          FILES="tests/ulangan-db.test.ts tests/ulangan-migration.test.ts tests/ulangan-verify-sql.test.ts tests/ulangan-postgrest.test.ts tests/ulangan-supabase.test.ts tests/ulangan-server.test.ts tests/ulangan-client.test.ts"
+          [ -f tests/rls-parity.test.ts ] && FILES="$FILES tests/rls-parity.test.ts tests/rls-migration.test.ts"
+          npx vitest run $FILES

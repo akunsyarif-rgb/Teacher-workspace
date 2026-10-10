@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { BASELINE_FILES, createRawDatabase, psql, repoFile } from './rls/harness';
+import { existsSync, readFileSync } from 'node:fs';
+import { createRawDatabase, MIGRATION, psql, repoFile, ROLLBACK } from './ulangan/harness';
 
 // Audit migrasi Ulangan Harian terhadap database yang sudah berisi baseline + migrasi PR #59 (Postgres LOKAL, bukan Supabase):
 //   1. migrasi hanya MENAMBAH objek ber-nama ulh_* (tidak ada objek lain yang berubah/hilang, termasuk hak akses sequence/tabel lama)
@@ -14,8 +14,13 @@ const PRIOR = [
   'supabase/migrations/20261009000200_batch_write.sql',
   'supabase/migrations/20261009000300_workspace_admin.sql',
 ];
-const UP = 'supabase/migrations/20261010000000_ulangan_harian.sql';
-const DOWN = 'supabase/rollback/20261010000000_ulangan_harian_down.sql';
+const BASELINE = ['supabase/baseline/001_schema.sql', 'supabase/baseline/002_functions_triggers.sql', 'supabase/baseline/003_rls_policies_grants.sql'];
+const UP = MIGRATION;
+const DOWN = ROLLBACK;
+// Bila skema PR #59 (baseline + migrasi hardening) ada di branch ini, semua uji dijalankan di atasnya (menyerupai Workflow);
+// bila belum/tidak ada, modul ini tetap teruji mandiri hanya di atas stub auth. Modul ini tidak bergantung pada #59.
+const HAS_PRIOR = [...BASELINE, ...PRIOR].every((f) => existsSync(repoFile(f)));
+const BASE = HAS_PRIOR ? [...BASELINE, ...PRIOR] : [];
 
 // Sidik jari katalog: relasi (+pemilik, RLS, ACL), kolom, constraint, indeks, policy, fungsi (definisi+ACL+pemilik+config),
 // trigger, skema (ACL), ekstensi, default ACL. Setiap baris diawali kunci objek agar bisa disaring per nama.
@@ -62,7 +67,7 @@ revoke all on public.zz_other from anon;`;
 
 suite('migrasi Ulangan Harian: hanya menambah objek ulh_*, rollback bersih', () => {
   const setup = () => {
-    const db = createRawDatabase(adminUrl as string, [...BASELINE_FILES, ...PRIOR]);
+    const db = createRawDatabase(adminUrl as string, BASE);
     psql(db.url, [], OTHER);
     return db;
   };
@@ -111,13 +116,13 @@ suite('migrasi Ulangan Harian: hanya menambah objek ulh_*, rollback bersih', () 
     } finally { db.drop(); }
   });
 
-  it('urutan penerapan terhadap migrasi #59 tidak mengubah hasil akhir (ulangan sebelum atau sesudah #59 → katalog identik)', () => {
-    const after = createRawDatabase(adminUrl as string, [...BASELINE_FILES, ...PRIOR, UP]);
-    const before = createRawDatabase(adminUrl as string, [...BASELINE_FILES, UP, ...PRIOR]);
+  it.skipIf(!HAS_PRIOR)('urutan penerapan terhadap migrasi #59 tidak mengubah hasil akhir (ulangan sebelum atau sesudah #59 → katalog identik)', () => {
+    const after = createRawDatabase(adminUrl as string, [...BASELINE, ...PRIOR, UP]);
+    const before = createRawDatabase(adminUrl as string, [...BASELINE, UP, ...PRIOR]);
     try {
       expect(catalog(before.url)).toEqual(catalog(after.url));
       // dan baseline saja (tanpa #59) tetap menerima migrasi ulangan tanpa galat
-      const bare = createRawDatabase(adminUrl as string, [...BASELINE_FILES, UP]);
+      const bare = createRawDatabase(adminUrl as string, [...BASELINE, UP]);
       try { expect(catalog(bare.url).some((l) => l.startsWith('rel|public.ulh_exams|'))).toBe(true); } finally { bare.drop(); }
     } finally { after.drop(); before.drop(); }
   });
