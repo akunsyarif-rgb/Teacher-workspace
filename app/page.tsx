@@ -1,5 +1,6 @@
 "use client";
 
+import { isUlanganEnabled } from "@/lib/config/ulangan";
 import { measure } from "@/lib/utils/perf";
 import React, { useState, useEffect, useRef } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -378,6 +379,16 @@ export default function DashboardPage() {
             </Link>
           </div>
         </div>
+
+        {isUlanganEnabled() && (
+          <Link
+            href="/ulangan"
+            className="flex items-center justify-between gap-2 px-4 py-2.5 bg-white rounded-2xl border border-gray-100 shadow-sm text-[11px] md:text-xs font-bold text-gray-500 hover:border-blue-200 hover:text-blue-600 transition-colors"
+          >
+            <span>Ulangan Harian</span>
+            <ArrowRight className="w-3 h-3 text-blue-600" />
+          </Link>
+        )}
 
         {/* Summary: statistik jadi info sekunder, bukan CTA utama —
             detail lengkap ada di /analytics. */}
