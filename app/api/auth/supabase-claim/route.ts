@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth } from '@/lib/server/firebaseAdmin';
+import { describeClaimFlag, isClaimEnabled } from '@/lib/server/claimFlag';
 
 export const runtime = 'nodejs';
 
 // Memasang claim `role: "authenticated"` pada akun Firebase pemanggil agar token-nya diterima Supabase (Third-Party Auth).
-// - DEFAULT MATI: baru aktif bila env server ENABLE_SUPABASE_CLAIM=yes (set dulu di Preview untuk validasi).
+// - DEFAULT MATI: baru aktif bila env server ENABLE_SUPABASE_CLAIM=yes (dibaca saat request; set dulu di Preview untuk validasi).
 // - uid HANYA dari ID token yang diverifikasi; claim yang dipasang tetap/tidak bisa dipilih klien; claim lain dipertahankan.
 // - `authenticated` bukan hak istimewa: akses data tetap ditentukan RLS (workspace/peran). Berlaku guru DAN siswa anonim.
 export async function POST(request: NextRequest) {
-  if (process.env.ENABLE_SUPABASE_CLAIM !== 'yes') {
-    return NextResponse.json({ error: 'Fitur belum diaktifkan.' }, { status: 501 });
+  if (!isClaimEnabled(process.env.ENABLE_SUPABASE_CLAIM)) {
+    // Diagnostik non-rahasia (tanpa nilai env); di Production hanya pesan minimal. Lihat lib/server/claimFlag.ts.
+    return NextResponse.json(describeClaimFlag(), { status: 501 });
   }
   const idToken = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
   if (!idToken) return NextResponse.json({ error: 'Token otentikasi diperlukan.' }, { status: 401 });

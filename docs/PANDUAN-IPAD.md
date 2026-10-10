@@ -54,7 +54,7 @@ Semua uji di bawah **hanya membaca** dan tidak menampilkan token. Satu-satunya "
    |---|---|---|
    | Konfigurasi publik | URL/key terbaca, project benar | isi M1.4 lalu Redeploy |
    | Sesi Firebase | guru / siswa anonim terdeteksi | masuk dulu |
-   | Claim role | endpoint memasang claim | `ENABLE_SUPABASE_CLAIM=yes` belum aktif di Preview, atau `FIREBASE_ADMIN_SERVICE_ACCOUNT` kosong |
+   | Claim role | endpoint memasang claim (jika ❌ 501: baca pesan — memuat penyebab, cabang, dan commit deployment; "TIDAK ADA di deployment ini" = env belum terbaca → pastikan Environment Preview, nama persis `ENABLE_SUPABASE_CLAIM`, lalu **Redeploy** deployment BARU; "nilainya bukan yes" = isi persis `yes`) | `ENABLE_SUPABASE_CLAIM=yes` belum aktif di Preview, atau `FIREBASE_ADMIN_SERVICE_ACCOUNT` kosong |
    | Tanpa login: tidak ada akses data | pengunjung anonim ditolak | **hentikan**, laporkan |
    | Supabase menerima token | **bukti layanan nyata**: Third-Party Auth + role bekerja | Project ID di M1.2 salah/ belum disimpan |
    | Identitas terpetakan | uid Supabase = uid Firebase | ℹ️ = migrasi belum dipasang (normal sebelum persetujuan) |

@@ -61,8 +61,9 @@ export async function runSupabaseDiagnostics(deps: DiagDeps): Promise<DiagResult
       add('claim', 'Claim role = "authenticated"', 'pass', 'dipasang server lalu token diperbarui');
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      // Pesan server (501) sudah memuat penyebab dan identitas deployment; tambahkan petunjuk tindakan singkat.
       add('claim', 'Claim role = "authenticated"', 'fail', /501|belum diaktifkan/i.test(msg)
-        ? 'Server belum mengaktifkan pemasang claim: isi env ENABLE_SUPABASE_CLAIM=yes di Vercel (Preview dulu) lalu Redeploy.'
+        ? `Server belum mengaktifkan pemasang claim. ${msg} → Isi ENABLE_SUPABASE_CLAIM=yes (Preview), lalu Redeploy.`
         : msg);
     }
   }

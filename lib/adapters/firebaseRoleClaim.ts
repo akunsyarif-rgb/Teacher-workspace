@@ -22,7 +22,10 @@ export function createSupabaseTokenProvider(deps: {
     const res = await doFetch(endpoint, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
     if (!res.ok) {
       let msg = '';
-      try { msg = String(((await res.json()) as { error?: string }).error ?? ''); } catch { /* bukan JSON */ }
+      try {
+        const j = (await res.json()) as { error?: string; hint?: string; deployment?: { commit?: string | null; environment?: string; branch?: string | null } };
+        msg = [j.error, j.hint, j.deployment ? `[deployment: ${j.deployment.environment ?? '?'} ${j.deployment.branch ?? ''} ${j.deployment.commit ?? ''}]` : ''].filter(Boolean).join(' ');
+      } catch { /* bukan JSON */ }
       throw new SupabaseAdapterError('auth', `Claim role Supabase gagal dipasang (HTTP ${res.status}). ${msg}`.trim(), res.status);
     }
     const refreshed = await user.getIdToken(true); // claim baru hanya muncul di token yang diperbarui

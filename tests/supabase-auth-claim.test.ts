@@ -153,11 +153,13 @@ describe('runSupabaseDiagnostics', () => {
   });
 });
 
-describe('endpoint /api/auth/supabase-claim', () => {
-  const admin = vi.hoisted(() => ({
-    verify: vi.fn(), getUser: vi.fn(), setClaims: vi.fn(),
+// Satu mock Firebase Admin untuk semua uji endpoint di file ini.
+const admin = vi.hoisted(() => ({
+  verify: vi.fn(), getUser: vi.fn(), setClaims: vi.fn(),
   }));
-  vi.mock('../lib/server/firebaseAdmin', () => ({ getAdminAuth: () => ({ verifyIdToken: admin.verify, getUser: admin.getUser, setCustomUserClaims: admin.setClaims }) }));
+vi.mock('../lib/server/firebaseAdmin', () => ({ getAdminAuth: () => ({ verifyIdToken: admin.verify, getUser: admin.getUser, setCustomUserClaims: admin.setClaims }) }));
+
+describe('endpoint /api/auth/supabase-claim', () => {
   afterEach(() => { vi.unstubAllEnvs(); vi.resetModules(); for (const m of Object.values(admin)) m.mockReset(); });
   const req = (token?: string) => new Request('http://x/api/auth/supabase-claim', { method: 'POST', headers: token ? { authorization: `Bearer ${token}` } : {} }) as unknown as import('next/server').NextRequest;
 
@@ -214,5 +216,89 @@ describe('endpoint /api/auth/supabase-claim', () => {
     const { POST } = await import('../app/api/auth/supabase-claim/route');
     expect(await (await POST(req('tok'))).json()).toMatchObject({ alreadySet: true });
     expect(admin.setClaims).not.toHaveBeenCalled();
+  });
+});
+
+import { describeClaimFlag, isClaimEnabled } from '../lib/server/claimFlag';
+
+describe('saklar ENABLE_SUPABASE_CLAIM', () => {
+  it.each(['yes', 'YES', ' yes ', '"yes"', "'yes'", 'Yes\n', 'true', '1', 'ya'])('nilai %j → aktif', (v) => {
+    expect(isClaimEnabled(v)).toBe(true);
+  });
+  it.each([undefined, '', '   ', 'no', 'y', 'yess', 'false', '0', 'tidak', 'yes please', '""'])('nilai %j → MATI (default aman)', (v) => {
+    expect(isClaimEnabled(v)).toBe(false);
+  });
+});
+
+describe('diagnostik 501 (non-rahasia)', () => {
+  const base = { VERCEL_ENV: 'preview', VERCEL_GIT_COMMIT_SHA: 'cc027856fb778ee4db8f728a96fc2e794eb70292', VERCEL_GIT_COMMIT_REF: 'feat/supabase-adapter-skip-reasons' };
+  it('variabel tidak ada → petunjuk Redeploy/cakupan/nama, identitas deployment (commit pendek)', () => {
+    const d = describeClaimFlag({ ...base }) as { hint: string; deployment: { commit: string; environment: string; branch: string } };
+    expect(d.hint).toContain('TIDAK ADA');
+    expect(d.hint).toContain('Redeploy');
+    expect(d.deployment).toEqual({ environment: 'preview', commit: 'cc02785', branch: 'feat/supabase-adapter-skip-reasons' });
+  });
+  it('variabel ada tetapi bukan yes → melaporkan PANJANG saja, tidak pernah nilainya', () => {
+    const d = describeClaimFlag({ ...base, ENABLE_SUPABASE_CLAIM: 'nope-RAHASIA' });
+    expect(JSON.stringify(d)).not.toContain('nope-RAHASIA');
+    expect(JSON.stringify(d)).toContain('panjang 12');
+  });
+  it('variabel kosong; nama mirip (salah ketik) terdeteksi namanya saja', () => {
+    expect((describeClaimFlag({ ...base, ENABLE_SUPABASE_CLAIM: '' }) as { hint: string }).hint).toContain('KOSONG');
+    const d = describeClaimFlag({ ...base, ENABLE_SUPABASE_CLAIMS: 'yes', 'enable_supabase_claim': 'yes' }) as { hint: string };
+    expect(d.hint).toContain('ENABLE_SUPABASE_CLAIMS');
+    expect(d.hint).toContain('enable_supabase_claim');
+    expect(JSON.stringify(d)).not.toMatch(/"yes"/);
+  });
+  it('Production: hanya pesan minimal (tanpa commit/cabang/petunjuk)', () => {
+    expect(describeClaimFlag({ ...base, VERCEL_ENV: 'production' })).toEqual({ error: 'Fitur belum diaktifkan.' });
+  });
+});
+
+describe('endpoint: env aktif vs tidak aktif (Vercel Preview)', () => {
+  afterEach(() => { vi.unstubAllEnvs(); vi.resetModules(); for (const m of Object.values(admin)) m.mockReset(); });
+  const post = (token = 'tok') => new Request('http://x/api/auth/supabase-claim', { method: 'POST', headers: { authorization: `Bearer ${token}` } }) as unknown as import('next/server').NextRequest;
+
+  it('env TIDAK ADA di deployment → 501 dengan diagnostik; Firebase Admin tidak disentuh', async () => {
+    vi.stubEnv('VERCEL_ENV', 'preview');
+    vi.stubEnv('VERCEL_GIT_COMMIT_SHA', 'cc027856fb778ee4db8f728a96fc2e794eb70292');
+    const { POST } = await import('../app/api/auth/supabase-claim/route');
+    const res = await POST(post());
+    expect(res.status).toBe(501);
+    const body = await res.json();
+    expect(body.hint).toContain('TIDAK ADA');
+    expect(body.deployment.commit).toBe('cc02785');
+    expect(admin.verify).not.toHaveBeenCalled();
+  });
+  it.each(['yes', ' YES ', '"yes"'])('env %j → aktif: token diverifikasi, claim dipasang untuk uid dari token', async (v) => {
+    vi.stubEnv('ENABLE_SUPABASE_CLAIM', v);
+    admin.verify.mockResolvedValue({ uid: 'u1' });
+    admin.getUser.mockResolvedValue({ customClaims: { a: 1 } });
+    const { POST } = await import('../app/api/auth/supabase-claim/route');
+    expect((await POST(post())).status).toBe(200);
+    expect(admin.setClaims).toHaveBeenCalledWith('u1', { a: 1, role: 'authenticated' });
+  });
+  it('env salah nilai → 501 (tidak aktif) dan tidak menulis claim', async () => {
+    vi.stubEnv('ENABLE_SUPABASE_CLAIM', 'no');
+    const { POST } = await import('../app/api/auth/supabase-claim/route');
+    expect((await POST(post())).status).toBe(501);
+    expect(admin.setClaims).not.toHaveBeenCalled();
+  });
+  it('aktif TETAP menolak tanpa token (401) dan token tak valid (401): guard keamanan tidak dilonggarkan', async () => {
+    vi.stubEnv('ENABLE_SUPABASE_CLAIM', 'yes');
+    const { POST } = await import('../app/api/auth/supabase-claim/route');
+    const noTok = new Request('http://x/api/auth/supabase-claim', { method: 'POST' }) as unknown as import('next/server').NextRequest;
+    expect((await POST(noTok)).status).toBe(401);
+    admin.verify.mockRejectedValue(new Error('x'));
+    expect((await POST(post('salah'))).status).toBe(401);
+    expect(admin.setClaims).not.toHaveBeenCalled();
+  });
+});
+
+describe('klien menampilkan penyebab 501 dari server', () => {
+  it('pesan error provider memuat hint + identitas deployment', async () => {
+    const user = { getIdToken: async () => jwt(claims()) };
+    const f = vi.fn(async () => ({ ok: false, status: 501, json: async () => ({ error: 'Fitur belum diaktifkan.', hint: 'Variabel ENABLE_SUPABASE_CLAIM TIDAK ADA di deployment ini.', deployment: { environment: 'preview', branch: 'b', commit: 'cc02785' } }) }));
+    await expect(createSupabaseTokenProvider({ getUser: () => user, fetchImpl: f as never })()).rejects.toMatchObject({ message: expect.stringMatching(/TIDAK ADA.*preview b cc02785/) });
   });
 });
