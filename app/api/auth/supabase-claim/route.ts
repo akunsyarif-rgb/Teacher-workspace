@@ -14,16 +14,30 @@ export async function POST(request: NextRequest) {
   const idToken = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
   if (!idToken) return NextResponse.json({ error: 'Token otentikasi diperlukan.' }, { status: 401 });
 
+  const auth = getAdminAuth();
+  let uid: string;
+  let alreadySet = false;
   try {
-    const auth = getAdminAuth();
-    const decoded = await auth.verifyIdToken(idToken);
-    if (decoded.role === 'authenticated') return NextResponse.json({ ok: true, alreadySet: true });
+    // checkRevoked=true: akun yang dinonaktifkan/dicabut sesinya tidak boleh mendapat claim baru.
+    const decoded = await auth.verifyIdToken(idToken, true);
+    uid = decoded.uid;
+    alreadySet = decoded.role === 'authenticated';
+  } catch (error) {
+    console.error('supabase-claim verifikasi token gagal:', error instanceof Error ? error.message : error);
+    return NextResponse.json({ error: 'Sesi tidak valid. Masuk kembali lalu coba lagi.' }, { status: 401 });
+  }
+  if (alreadySet) return NextResponse.json({ ok: true, alreadySet: true });
 
-    const user = await auth.getUser(decoded.uid);
-    await auth.setCustomUserClaims(decoded.uid, { ...(user.customClaims ?? {}), role: 'authenticated' });
+  try {
+    const user = await auth.getUser(uid);
+    await auth.setCustomUserClaims(uid, { ...(user.customClaims ?? {}), role: 'authenticated' });
     return NextResponse.json({ ok: true, alreadySet: false });
   } catch (error) {
-    console.error('supabase-claim error:', error instanceof Error ? error.message : error);
-    return NextResponse.json({ error: 'Sesi tidak valid atau gagal memasang claim.' }, { status: 401 });
+    // Kegagalan di sini BUKAN soal token: biasanya service account tidak punya izin mengubah pengguna Firebase Auth.
+    console.error('supabase-claim gagal memasang claim:', error instanceof Error ? error.message : error);
+    return NextResponse.json(
+      { error: 'Server gagal memasang claim. Periksa izin service account (peran Firebase Authentication Admin) dan log Vercel.' },
+      { status: 500 }
+    );
   }
 }

@@ -54,7 +54,7 @@ Batas rollback: tulisan yang dilakukan di perangkat offline dan belum terkirim (
 - **Keamanan:** Supabase → Advisors (Security) tanpa temuan baru; `payments` tak tersentuh; `anon` tanpa hak tabel (`staging.sh verify migrated` mencakup ini).
 
 ## 5. Yang memerlukan persetujuan eksplisit pemilik (⛔)
-1. Menerapkan migrasi #59 ke **Workflow** (kosong: 0 baris per 10 Okt 2026; rollback teruji). Bisa saya lakukan lewat alat Supabase begitu Anda setuju.
+1. Menerapkan migrasi #59 ke **Workflow** (tabel kosong: 0 baris per 10 Okt 2026; hanya fungsi/policy/grant yang berubah — tabel, kolom, trigger, Storage tidak disentuh; skema publik live identik dengan baseline berdasarkan sidik jari katalog; rollback teruji). Bisa saya lakukan lewat alat Supabase begitu Anda setuju.
 2. Menulis data uji ke Workflow selama G4 (baris uji dihapus setelahnya).
 3. Mengisi env Production dan Redeploy (jendela cutover).
 4. Menjalankan backfill `apply` dengan `izin_produksi=ya`.

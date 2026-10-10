@@ -184,6 +184,30 @@ describe('endpoint /api/auth/supabase-claim', () => {
     expect(admin.setClaims).toHaveBeenCalledWith('u1', { kelas: '7A', role: 'authenticated' });
     expect(await res.json()).toMatchObject({ ok: true, alreadySet: false });
   });
+  it('verifikasi dengan checkRevoked=true dan hanya uid dari token yang dipakai (bukan body/header lain)', async () => {
+    vi.stubEnv('ENABLE_SUPABASE_CLAIM', 'yes');
+    admin.verify.mockResolvedValue({ uid: 'uidToken' });
+    admin.getUser.mockResolvedValue({ customClaims: {} });
+    const { POST } = await import('../app/api/auth/supabase-claim/route');
+    const r = new Request('http://x/api/auth/supabase-claim?uid=orangLain', { method: 'POST', headers: { authorization: 'Bearer tok', 'x-uid': 'orangLain' }, body: JSON.stringify({ uid: 'orangLain', claims: { role: 'admin' } }) }) as unknown as import('next/server').NextRequest;
+    await POST(r);
+    expect(admin.verify).toHaveBeenCalledWith('tok', true);
+    expect(admin.getUser).toHaveBeenCalledWith('uidToken');
+    expect(admin.setClaims).toHaveBeenCalledTimes(1);
+    expect(admin.setClaims).toHaveBeenCalledWith('uidToken', { role: 'authenticated' });
+  });
+  it('gagal memasang claim (izin service account) → 500 dengan petunjuk, tanpa membocorkan detail/secret', async () => {
+    vi.stubEnv('ENABLE_SUPABASE_CLAIM', 'yes');
+    admin.verify.mockResolvedValue({ uid: 'u1' });
+    admin.getUser.mockResolvedValue({ customClaims: {} });
+    admin.setClaims.mockRejectedValue(new Error('PERMISSION_DENIED private_key=SECRET123'));
+    const { POST } = await import('../app/api/auth/supabase-claim/route');
+    const res = await POST(req('tok'));
+    expect(res.status).toBe(500);
+    const text = JSON.stringify(await res.json());
+    expect(text).toContain('Firebase Authentication Admin');
+    expect(text).not.toMatch(/SECRET123|private_key|PERMISSION_DENIED/);
+  });
   it('aktif: sudah punya role → tidak menulis apa pun', async () => {
     vi.stubEnv('ENABLE_SUPABASE_CLAIM', 'yes');
     admin.verify.mockResolvedValue({ uid: 'u1', role: 'authenticated' });

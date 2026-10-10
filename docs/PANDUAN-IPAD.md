@@ -27,13 +27,17 @@ Kode endpoint sudah ada (`/api/auth/supabase-claim`) dan **mati secara default**
 
 ### M1.4 Isi variabel lingkungan di Vercel (**Preview saja dulu**)
 1. vercel.com → proyek Teacher Workspace → **Settings** → **Environment Variables**.
-2. Tambah (centang **hanya Preview**, hilangkan centang Production & Development):
-   | Nama | Nilai |
-   |---|---|
-   | `NEXT_PUBLIC_SUPABASE_URL` | Project URL (M1.3) |
-   | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable key (M1.3) |
-   | `ENABLE_SUPABASE_CLAIM` | `yes` |
-3. Pastikan sudah ada untuk Preview: `FIREBASE_ADMIN_SERVICE_ACCOUNT` (dipakai route admin yang sudah berjalan), `SUPABASE_URL`, `SUPABASE_SECRET_KEY`. Jika kolom Environments-nya tidak mencakup Preview, edit dan centang Preview.
+2. Tambah (centang **hanya Preview**, "All Preview Branches"; hilangkan centang Production & Development):
+   | Nama | Nilai | Sumber |
+   |---|---|---|
+   | `NEXT_PUBLIC_SUPABASE_URL` | Project URL | M1.3 |
+   | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable key (`sb_publishable_…`) | M1.3 |
+   | `ENABLE_SUPABASE_CLAIM` | `yes` | ketik sendiri |
+3. **Wajib sudah ada untuk Preview** (periksa; jika kolom Environments tidak mencakup Preview, edit dan centang Preview — jangan ubah nilainya):
+   - `FIREBASE_ADMIN_SERVICE_ACCOUNT` — JSON lengkap service account Firebase **proyek yang sama** dengan `NEXT_PUBLIC_FIREBASE_PROJECT_ID` (jika beda proyek, semua token ditolak 401). Endpoint memakainya untuk memverifikasi token DAN mengubah claim, jadi service account perlu izin mengubah pengguna Firebase Auth. Service account bawaan `firebase-adminsdk-…@<proyek>.iam.gserviceaccount.com` sudah punya. Jika Anda memakai service account khusus (mis. yang hanya untuk deploy rules) dan langkah M2 "Claim role" gagal dengan pesan izin: Google Cloud Console → **IAM & Admin** → **IAM** → cari service account itu → ikon pensil → **Add another role** → **Firebase Authentication Admin** → Save.
+   - Variabel klien Firebase yang sudah dipakai aplikasi: `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID` (dst.) — sudah ada bila Preview bisa dipakai login.
+   - **TIDAK diperlukan** untuk M1/M2: `SUPABASE_URL` dan `SUPABASE_SECRET_KEY` (itu hanya untuk unggah lampiran tugas yang sudah berjalan) — jangan disalin ke tempat lain.
+   Catatan: nilai `NEXT_PUBLIC_*` ditanam saat build, dan perubahan env hanya berlaku untuk deployment BARU → wajib Redeploy (M1.5).
 4. **Jangan** mengisi `NEXT_PUBLIC_SUPABASE_COLLECTIONS` dan variabel `*_AUTH_VERIFIED` sekarang — flag tetap mati.
 
 ### M1.5 Deploy Preview
@@ -56,7 +60,7 @@ Semua uji di bawah **hanya membaca** dan tidak menampilkan token. Satu-satunya "
    | Identitas terpetakan | uid Supabase = uid Firebase | ℹ️ = migrasi belum dipasang (normal sebelum persetujuan) |
    | RLS … | jumlah baris yang terlihat akun ini | ❌ = izin ditolak |
 4. **Bukti bahwa ini benar-benar Supabase (bukan mock):** Supabase → **Logs** (atau **Logs & Analytics**) → **API Gateway/Edge Logs** → filter `teacher_profiles`: permintaan baru dengan status 200 muncul pada menit uji Anda.
-5. **RLS & RPC terhadap Supabase nyata:** baris "Identitas" ✅ dan uji tulis memerlukan migrasi #59 terpasang di Workflow. **Workflow saat ini kosong (0 baris) dan belum dipakai produksi.** Cukup beri saya persetujuan (lihat bawah) agar migrasi + uji tulis dengan data uji dijalankan lewat alat Supabase saya dan hasilnya dilaporkan. Tidak perlu project staging berbayar.
+5. **RLS & RPC terhadap Supabase nyata:** baris "Identitas" ✅ dan uji tulis memerlukan migrasi #59 terpasang di Workflow. **Tabel Workflow kosong (0 baris); yang dipakai produksi hanya Storage bucket `submission-attachments` (6 objek), dan migrasi tidak menyentuh Storage.** Cukup beri saya persetujuan (lihat bawah) agar migrasi + uji tulis dengan data uji dijalankan lewat alat Supabase saya dan hasilnya dilaporkan. Tidak perlu project staging berbayar.
 6. **Uji tulis hanya dengan persetujuan:** tidak ada uji tulis ke produksi tanpa rencana: (a) migrasi `0000–0300` ke Workflow (kosong), (b) di Preview dengan flag Preview-only dan **akun uji baru**, buat workspace "UJI", tambah kelas/siswa, login siswa; (c) setelah selesai baris uji dihapus.
 
 ---
