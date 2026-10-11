@@ -257,6 +257,20 @@ async function run() {
     await student.getByRole('button', { name: 'A2', exact: true }).click();
     await student.waitForTimeout(2500);
     check(q('select count(*) from public.ulh_answers') === '2', 'Autosave: 2 jawaban tersimpan di server sebelum submit');
+    // Status simpan harus PERMANEN (tidak hilang setelah sekali muncul): tunggu >5 dtk (satu siklus interval) lalu cek masih tampil.
+    await student.waitForTimeout(6000);
+    const statusText = (await student.getByRole('status').filter({ hasText: 'tersimpan' }).first().textContent()) || '';
+    check(/Semua jawaban tersimpan di server \(2\/2 soal terjawab\)/.test(statusText), `Status simpan tetap tampil: "${statusText.slice(0, 70)}"`);
+    check((await student.getByText('✓ Tersimpan').count()) === 2, 'Penanda "✓ Tersimpan" tampil di tiap soal terjawab');
+    // Jaringan putus: jawaban TIDAK boleh tampak tersimpan; pesan gagal tetap tampil; pulih otomatis saat jaringan kembali.
+    await student.route('**/api/ulangan', (r) => r.abort());
+    await student.getByRole('button', { name: 'A1', exact: true }).click();
+    await student.getByRole('button', { name: 'B1', exact: true }).click(); // kembali ke jawaban benar (skor akhir tak berubah)
+    await student.getByRole('status').filter({ hasText: 'BELUM tersimpan' }).first().waitFor({ timeout: 15000 });
+    check((await student.getByText('Belum tersimpan — dicoba lagi').count()) >= 1, 'Jaringan putus: status "BELUM tersimpan" + penanda per soal (tidak menyesatkan)');
+    await student.unroute('**/api/ulangan');
+    await student.getByRole('status').filter({ hasText: 'Semua jawaban tersimpan' }).first().waitFor({ timeout: 20000 });
+    check(q('select count(*) from public.ulh_answers') === '2', 'Jaringan kembali: tersimpan otomatis, status berubah menjadi tersimpan');
     await student.reload({ waitUntil: 'domcontentloaded' });
     await student.getByText('Soal satu?').waitFor({ timeout: 20000 });
     const restored = (await student.getByRole('button', { name: 'B1', exact: true }).getAttribute('aria-pressed')) === 'true'
