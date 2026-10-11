@@ -44,7 +44,8 @@ const ERRORS: [RegExp, string][] = [
   [/not_a_teacher|not_a_student|forbidden|42501|denied/, 'Tidak berwenang untuk tindakan ini.'],
   [/server_config_firebase/, 'Env server FIREBASE_ADMIN_SERVICE_ACCOUNT belum diisi/tidak valid di lingkungan ini.'],
   [/server_config_url_missing/, 'Env server SUPABASE_URL belum diisi di lingkungan ini.'],
-  [/server_config_url_invalid/, 'Env server SUPABASE_URL tidak valid (harus https://<ref>.supabase.co project Workflow).'],
+  [/server_config_url_smadaexam/, 'SUPABASE_URL menunjuk project SmadaExam — ditolak. Pakai project Workflow.'],
+  [/server_config_url_invalid(_\w+)?/, 'Env server SUPABASE_URL tidak valid (harus https://<ref>.supabase.co project Workflow).'],
   [/server_config_key_missing/, 'Env server SUPABASE_SECRET_KEY belum diisi di lingkungan ini.'],
   [/server_config/, 'Server belum dikonfigurasi (Supabase / Firebase Admin). Hubungi admin.'],
   [/server_error/, 'Server gagal memproses permintaan. Coba lagi.'],
@@ -55,7 +56,9 @@ const ERRORS: [RegExp, string][] = [
 ];
 export function describeUlanganError(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
-  return ERRORS.find(([re]) => re.test(msg))?.[1] ?? 'Terjadi kesalahan. Coba lagi.';
+  const hint = msg.match(/server_config_url_invalid_(\w+)/)?.[1];
+  const base = ERRORS.find(([re]) => re.test(msg))?.[1] ?? 'Terjadi kesalahan. Coba lagi.';
+  return hint ? `${base} [ciri: ${hint}]` : base;
 }
 
 // Peringatan bertingkat untuk siswa. Hanya informasi; tidak ada sanksi otomatis.

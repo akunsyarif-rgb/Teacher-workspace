@@ -12,6 +12,18 @@ export class UlanganDbError extends Error {
   }
 }
 
+// Ciri bentuk URL (bukan nilainya) untuk diagnosa env di Vercel: panjang, skema, kutip/spasi, akhiran host.
+function urlShape(raw: string, origin: string): string {
+  const f: string[] = [];
+  if (!/^https:\/\//i.test(raw)) f.push(/^http:\/\//i.test(raw) ? 'http' : 'noscheme');
+  if (/["'`]/.test(raw)) f.push('quote');
+  if (/\s/.test(raw)) f.push('space');
+  if (!/\.supabase\.co(\/|$)/i.test(raw)) f.push('nothost');
+  const ref = origin.match(/^https:\/\/([^.]+)\.supabase\.co$/)?.[1];
+  if (ref !== undefined) f.push(`ref${ref.length}${/[A-Z]/.test(ref) ? 'upper' : ''}`);
+  return (f.join('_') || 'other').replace(/[^a-z0-9_]/g, '');
+}
+
 export function ulanganSupabaseConfig(env: Record<string, string | undefined> = process.env) {
   const raw = (env.SUPABASE_URL ?? env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim();
   const key = (env.SUPABASE_SECRET_KEY ?? env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim();
@@ -21,8 +33,8 @@ export function ulanganSupabaseConfig(env: Record<string, string | undefined> = 
   const ref = origin.match(/^https:\/\/([a-z0-9]{20})\.supabase\.co$/)?.[1];
   // Kode konstan (tanpa nilai env) agar penyebab konfigurasi terbaca tanpa membuka log.
   if (!raw) throw new UlanganDbError('server_config_url_missing', 503, undefined, 'config');
-  if (!ref && !local) throw new UlanganDbError('server_config_url_invalid', 503, undefined, 'config');
-  if (ref === SMADA_REF) throw new UlanganDbError('server_config_url_invalid', 503, undefined, 'config');
+  if (ref === SMADA_REF) throw new UlanganDbError('server_config_url_smadaexam', 503, undefined, 'config');
+  if (!ref && !local) throw new UlanganDbError(`server_config_url_invalid_${urlShape(raw, origin)}`, 503, undefined, 'config');
   if (!key) throw new UlanganDbError('server_config_key_missing', 503, undefined, 'config');
   return { url: origin, key };
 }
