@@ -42,6 +42,10 @@ const ERRORS: [RegExp, string][] = [
   [/class_not_found/, 'Kelas tidak ditemukan di workspace ini.'],
   [/schedule_in_past/, 'Jadwal tutup sudah lewat.'],
   [/not_a_teacher|not_a_student|forbidden|42501|denied/, 'Tidak berwenang untuk tindakan ini.'],
+  [/server_config/, 'Server belum dikonfigurasi (Supabase / Firebase Admin). Hubungi admin.'],
+  [/server_error/, 'Server gagal memproses permintaan. Coba lagi.'],
+  [/Sesi tidak valid/, 'Silakan masuk kembali.'],
+  [/belum diaktifkan/, 'Fitur Ulangan belum diaktifkan di lingkungan ini.'],
   [/invalid_|http_501/, 'Data tidak valid atau fitur belum aktif.'],
   [/offline|network|timeout/, 'Koneksi bermasalah. Coba lagi.'],
 ];

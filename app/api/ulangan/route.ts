@@ -70,10 +70,17 @@ export async function POST(request: NextRequest) {
   const action = body.action;
   if (!isAction(action)) return NextResponse.json({ error: 'unknown_action' }, { status: 400 });
 
+  let auth: ReturnType<typeof getAdminAuth>;
+  try {
+    auth = getAdminAuth();
+  } catch {
+    console.error('ulangan: konfigurasi Firebase Admin server belum lengkap/tidak valid');
+    return NextResponse.json({ error: 'server_config' }, { status: 503 });
+  }
   let uid: string;
   try {
     // Aksi yang menentukan hak (guru, daftar/mulai siswa) memeriksa pencabutan sesi; autosave/submit cukup tanda tangan + masa berlaku.
-    uid = (await getAdminAuth().verifyIdToken(idToken, needsTeacher(action) || needsStudentIdentity(action))).uid;
+    uid = (await auth.verifyIdToken(idToken, needsTeacher(action) || needsStudentIdentity(action))).uid;
   } catch {
     return NextResponse.json({ error: 'Sesi tidak valid. Masuk kembali lalu coba lagi.' }, { status: 401 });
   }
