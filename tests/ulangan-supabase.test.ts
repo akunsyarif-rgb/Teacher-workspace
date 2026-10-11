@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { UlanganDbError, ulanganRpc, ulanganSupabaseConfig } from '../lib/server/ulanganSupabase';
+import { UlanganDbError, ulanganAuthHeaders, ulanganRpc, ulanganSupabaseConfig } from '../lib/server/ulanganSupabase';
 
 // Jalur server → Supabase untuk Ulangan Harian (fetch palsu): hanya RPC ulh_*, URL divalidasi, SmadaExam ditolak, secret tak bocor.
 const URL_OK = 'https://abcdefghijklmnopqrst.supabase.co';
@@ -27,6 +27,44 @@ describe('konfigurasi', () => {
 
 const err = async (p: Promise<unknown>) => (await p.then(() => null, (e) => e)) as UlanganDbError;
 
+const jwt = (claims: Record<string, unknown>) =>
+  `${Buffer.from('{"alg":"HS256","typ":"JWT"}').toString('base64url')}.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.c2lnbmF0dXJl`;
+
+describe('autentikasi ke gateway Supabase (regresi HTTP 401)', () => {
+  it('sb_secret_… : hanya apikey (tanpa Authorization Bearer); JWT legacy service_role: apikey + Bearer', () => {
+    expect(ulanganAuthHeaders(KEY)).toEqual({ 'Content-Type': 'application/json', apikey: KEY });
+    const legacy = jwt({ role: 'service_role', ref: 'abcdefghijklmnopqrst' });
+    expect(ulanganAuthHeaders(legacy)).toEqual({ 'Content-Type': 'application/json', apikey: legacy, Authorization: `Bearer ${legacy}` });
+  });
+  it('key salah jenis ditolak sebelum jaringan: publishable, anon JWT, JWT project lain', async () => {
+    const f = ok([]);
+    const cases: [string, string][] = [
+      ['sb_publishable_AbCdEf123', 'server_config_key_publishable'],
+      [jwt({ role: 'anon', ref: 'abcdefghijklmnopqrst' }), 'server_config_key_not_service'],
+      [jwt({ role: 'service_role', ref: 'zzzzzzzzzzzzzzzzzzzz' }), 'server_config_key_wrong_project'],
+    ];
+    for (const [key, code] of cases) {
+      await expect(ulanganRpc('ulh_list_exams', {}, { env: env({ SUPABASE_SECRET_KEY: key }), fetchImpl: f as never }), code).rejects.toMatchObject({ kind: 'config', message: code });
+    }
+    expect(f).not.toHaveBeenCalled();
+    expect(ulanganSupabaseConfig(env({ SUPABASE_SECRET_KEY: jwt({ role: 'service_role', ref: 'abcdefghijklmnopqrst' }) })).key).toContain('eyJ'); // legacy yang benar lolos
+  });
+  it('penolakan hulu 401 diberi label konstan (tanpa teks asli, tanpa secret)', async () => {
+    const cases: [object, string][] = [
+      [{ message: 'Invalid API key', hint: 'Double check your Supabase `anon` or `service_role` API key.' }, 'invalid_api_key'],
+      [{ code: 'PGRST301', message: 'JWSError (CompactDecodeError Invalid number of parts)' }, 'invalid_jwt'],
+      [{ code: 'PGRST303', message: 'JWT expired' }, 'jwt_expired'],
+      [{ code: '42501', message: 'permission denied for function ulh_list_exams' }, 'permission_denied'],
+      [{ code: 'PGRST202', message: 'Could not find the function public.ulh_x' }, 'function_missing'],
+      [{ message: 'sesuatu lain' }, ''],
+    ];
+    for (const [body, hint] of cases) {
+      const e = await err(ulanganRpc('ulh_x', {}, { env: env(), fetchImpl: ok(body, 401) as never }));
+      expect(e).toMatchObject({ kind: 'db', status: 401, hint });
+    }
+  });
+});
+
 describe('ulanganRpc', () => {
   it('POST ke /rest/v1/rpc/<ulh_*> dengan key hanya di header; mengembalikan JSON', async () => {
     const f = ok({ a: 1 });
@@ -34,7 +72,8 @@ describe('ulanganRpc', () => {
     const [url, init] = f.mock.calls[0];
     expect(url).toBe(`${URL_OK}/rest/v1/rpc/ulh_list_exams`);
     expect(init.method).toBe('POST');
-    expect(init.headers).toMatchObject({ apikey: KEY, Authorization: `Bearer ${KEY}` });
+    expect(init.headers).toMatchObject({ apikey: KEY });
+    expect(init.headers).not.toHaveProperty('Authorization'); // key baru bukan JWT: hanya header apikey (regresi 401 di Preview)
     expect(init.body).toBe('{"p_ws":"w"}');
     expect(init.body).not.toContain(KEY);
     expect(await ulanganRpc('ulh_publish_exam', {}, { env: env(), fetchImpl: ok(undefined, 204) as never })).toBeNull(); // void

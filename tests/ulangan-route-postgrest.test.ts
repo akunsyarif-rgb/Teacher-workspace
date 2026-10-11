@@ -65,7 +65,7 @@ suite('POST /api/ulangan → ulanganRpc → PostgREST asli (identitas Firestore 
   let gw: http.Server | undefined;
   let drop = () => {};
   let dbUrl = '';
-  const gwHits = { n: 0, badKey: 0 };
+  const gwHits = { n: 0, badKey: 0, bearerKey: 0 };
   const post = async (body: unknown, token: string | null = 'ok:tA') => {
     const { POST } = await import('../app/api/ulangan/route');
     const res = await POST(new Request('http://x/api/ulangan', { method: 'POST', headers: token ? { authorization: `Bearer ${token}` } : {}, body: typeof body === 'string' ? body : JSON.stringify(body) }) as never);
@@ -94,7 +94,9 @@ suite('POST /api/ulangan → ulanganRpc → PostgREST asli (identitas Firestore 
     }
     gw = http.createServer((req, res) => {
       gwHits.n++;
-      if (req.headers.apikey !== SECRET_KEY) { gwHits.badKey++; res.writeHead(401).end('{"message":"Invalid API key"}'); return; }
+      if (req.headers.apikey !== SECRET_KEY) { gwHits.badKey++; res.writeHead(401).end('{"message":"Invalid API key","hint":"Double check your Supabase `anon` or `service_role` API key."}'); return; }
+      // Perilaku terdokumentasi gateway untuk key baru: sb_secret_… bukan JWT; bila ikut dikirim sebagai Authorization Bearer, hulu menolak (401).
+      if ((req.headers.authorization ?? '').startsWith('Bearer sb_')) { gwHits.bearerKey++; res.writeHead(401).end('{"code":"PGRST301","message":"JWSError (CompactDecodeError Invalid number of parts: Expected 3 parts; got 1)"}'); return; }
       const chunks: Buffer[] = [];
       req.on('data', (c) => chunks.push(c));
       req.on('end', () => {
@@ -205,8 +207,10 @@ suite('POST /api/ulangan → ulanganRpc → PostgREST asli (identitas Firestore 
     process.env.SUPABASE_SECRET_KEY = 'sb_secret_salah';
     const badKey = await post({ action: 'exam.list' });
     expect(badKey.status).toBe(502); expect(gwHits.badKey).toBeGreaterThan(0);
+    expect(badKey.json.error).toBe('server_error_db_401_invalid_api_key'); // label konstan, bukan teks hulu
     expect(JSON.stringify(badKey.json)).not.toMatch(/sb_secret|127\.0\.0\.1|Invalid API key/);
     process.env.SUPABASE_SECRET_KEY = goodKey;
+    expect(gwHits.bearerKey).toBe(0); // sepanjang suite, key sb_secret_ tidak pernah dikirim sebagai Authorization Bearer
 
     delete process.env.SUPABASE_SECRET_KEY;
     const cfg = await post({ action: 'exam.list' });
