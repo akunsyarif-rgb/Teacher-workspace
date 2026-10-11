@@ -75,3 +75,10 @@ Catatan: bila Preview dan Production berbagi `SUPABASE_URL` yang sama, data ulan
 3. Pembatasan laju & pagar jaringan belum ada (Vercel Firewall / App Check — tindakan manual); tiap autosave memanggil fungsi serverless.
 4. Uji beban (±1300 siswa serentak) belum ada; E2E belum di CI.
 5. Jalur lama #60 yang memakai secret key pada tabel lama (panel owner, rename kelas, backfill) kemungkinan gagal `permission denied` karena `service_role` tanpa grant di Workflow (belum diuji; di luar modul ini).
+
+## Catatan deploy Vercel (Hobby)
+
+- Deployment Preview berstatus Error tanpa durasi build = ditolak sebelum build. Penyebab yang pernah terjadi:
+  author commit tidak dikenal (mis. `user.name`/`user.email` git diset `t`/`t@t`). Commit HEAD branch harus memakai
+  identitas author yang sama dengan commit sebelumnya (`Claude <noreply@anthropic.com>`) atau akun yang tertaut ke tim Vercel.
+- Redeploy hanya deployment Preview milik branch fitur; jangan Redeploy deployment Production untuk menguji Ulangan.
