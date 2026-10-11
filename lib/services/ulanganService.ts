@@ -49,14 +49,14 @@ const ERRORS: [RegExp, string][] = [
   [/server_config_key_missing/, 'Env server SUPABASE_SECRET_KEY belum diisi di lingkungan ini.'],
   [/server_config/, 'Server belum dikonfigurasi (Supabase / Firebase Admin). Hubungi admin.'],
   [/server_error/, 'Server gagal memproses permintaan. Coba lagi.'],
-  [/Sesi tidak valid/, 'Silakan masuk kembali.'],
+  [/Sesi tidak valid/, 'Sesi tidak valid di server. Masuk ulang di URL ini; bila tetap, FIREBASE_ADMIN_SERVICE_ACCOUNT mungkin dari project Firebase yang berbeda.'],
   [/belum diaktifkan/, 'Fitur Ulangan belum diaktifkan di lingkungan ini.'],
   [/invalid_|http_501/, 'Data tidak valid atau fitur belum aktif.'],
   [/offline|network|timeout/, 'Koneksi bermasalah. Coba lagi.'],
 ];
 export function describeUlanganError(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
-  const hint = msg.match(/server_config_url_invalid_(\w+)/)?.[1] ?? msg.match(/server_error_(\w+)/)?.[1];
+  const hint = msg.match(/server_config_url_invalid_(\w+)/)?.[1] ?? msg.match(/server_error_(\w+)/)?.[1] ?? msg.match(/Sesi tidak valid.*\[([\w/-]+)\]/)?.[1];
   const base = ERRORS.find(([re]) => re.test(msg))?.[1] ?? 'Terjadi kesalahan. Coba lagi.';
   return hint ? `${base} [ciri: ${hint}]` : base;
 }

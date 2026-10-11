@@ -83,8 +83,9 @@ export async function POST(request: NextRequest) {
   try {
     // Aksi yang menentukan hak (guru, daftar/mulai siswa) memeriksa pencabutan sesi; autosave/submit cukup tanda tangan + masa berlaku.
     uid = (await auth.verifyIdToken(idToken, needsTeacher(action) || needsStudentIdentity(action))).uid;
-  } catch {
-    return NextResponse.json({ error: 'Sesi tidak valid. Masuk kembali lalu coba lagi.' }, { status: 401 });
+  } catch (e) {
+    const c = String((e as { code?: unknown } | null)?.code ?? '').replace(/[^a-z0-9_/-]/gi, '').slice(0, 50); // kode Firebase (mis. auth/argument-error), bukan token
+    return NextResponse.json({ error: `Sesi tidak valid. Masuk kembali lalu coba lagi.${c ? ` [${c}]` : ''}` }, { status: 401 });
   }
 
   try {
