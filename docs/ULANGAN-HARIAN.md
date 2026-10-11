@@ -82,3 +82,10 @@ Catatan: bila Preview dan Production berbagi `SUPABASE_URL` yang sama, data ulan
   author commit tidak dikenal (mis. `user.name`/`user.email` git diset `t`/`t@t`). Commit HEAD branch harus memakai
   identitas author yang sama dengan commit sebelumnya (`Claude <noreply@anthropic.com>`) atau akun yang tertaut ke tim Vercel.
 - Redeploy hanya deployment Preview milik branch fitur; jangan Redeploy deployment Production untuk menguji Ulangan.
+
+## Bukti pada Supabase cloud (Workflow, 2026-10-11)
+
+- Preview Vercel + Workflow: guru membuat/menerbitkan, siswa mengerjakan/mengumpulkan, nilai server, rekap guru (roster Firestore), 2 sinyal integritas (3,165 dan 3,670 dtk) tercatat dengan level 1 lalu 2.
+- `supabase/verify/ulangan_post_migration.sql`: 15/15 PASS di Workflow; hash 18 fungsi identik dengan file migrasi.
+- `supabase/verify/ulangan_cloud_probe.sql`: 36 pemeriksaan di DB nyata (semua perubahan dibatalkan): lintas guru/workspace/kelas ditolak, payload siswa tanpa kunci, uid lain ditolak, seq lama tidak menimpa, kumpul ganda idempoten (1 baris), waktu habis → expired, ulangan ditutup ditolak, ambang 3000 ms tak dihitung/3100 ms dihitung, anon/authenticated tak bisa RPC/tabel.
+- Belum diuji di cloud: jalur HTTP dengan token Firebase milik guru/siswa lain (akun uji kedua), jaringan putus di browser.
