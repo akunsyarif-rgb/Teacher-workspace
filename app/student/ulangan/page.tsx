@@ -37,7 +37,7 @@ function List() {
 
   if (!exams) return <SkeletonCard />;
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 text-gray-900">
       <InlineAlert message={error} onDismiss={() => setError("")} />
       {exams.length === 0 && <p className="text-xs text-gray-500 text-center py-10">Belum ada ulangan untuk kelasmu.</p>}
       {exams.map((e) => {

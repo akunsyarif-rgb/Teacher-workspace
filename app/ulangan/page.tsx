@@ -47,7 +47,7 @@ export default function UlanganPage() {
   const done = () => { setMode({ k: "list" }); void load(); };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 md:p-10 pb-24">
+    <div className="min-h-screen text-gray-900 bg-gray-50 p-4 sm:p-6 md:p-10 pb-24">
       <div className="max-w-2xl mx-auto space-y-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center"><ClipboardCheck className="w-5 h-5" /></div>

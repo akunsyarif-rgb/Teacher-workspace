@@ -6,7 +6,7 @@ import InlineAlert from "@/src/components/ui/InlineAlert";
 import * as ulangan from "@/lib/controllers/ulanganController";
 import type { ExamDetail, QuestionInput } from "@/lib/types/ulangan";
 
-const field = "w-full px-3 py-2.5 rounded-xl border border-gray-200 text-xs";
+const field = "w-full px-3 py-2.5 rounded-xl border border-gray-200 text-xs bg-white text-gray-900";
 const blankQ = (): QuestionInput => ({ body: "", options: ["", "", "", ""], correctIndex: 0 });
 const toLocal = (iso: string) => {
   const d = new Date(iso);
