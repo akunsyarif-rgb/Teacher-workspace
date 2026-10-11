@@ -49,7 +49,9 @@ function dbError(e: UlanganDbError) {
     if (code.startsWith('23')) return NextResponse.json({ error: 'conflict' }, { status: 409 }); // pelanggaran constraint
   }
   console.error('ulangan rpc gagal:', e.kind, e.status, code); // tanpa pesan (hindari bocor URL/host/input)
-  return NextResponse.json({ error: 'server_error' }, { status: 502 });
+  // Petunjuk diagnosa tanpa data sensitif: jenis, status HTTP hulu, kode PostgREST/Postgres (alfanumerik saja).
+  const tag = [e.kind, e.status, code].filter((x) => x !== '' && x !== undefined).join('_').replace(/[^a-z0-9_]/gi, '').slice(0, 40);
+  return NextResponse.json({ error: `server_error_${tag}` }, { status: 502 });
 }
 
 export async function POST(request: NextRequest) {
@@ -92,6 +94,8 @@ export async function POST(request: NextRequest) {
     if (e instanceof BadRequest) return NextResponse.json({ error: e.message }, { status: 400 });
     if (e instanceof UlanganDbError) return dbError(e);
     console.error('ulangan gagal:', e instanceof Error ? e.name : typeof e); // tanpa pesan: bisa memuat URL/kredensial
-    return NextResponse.json({ error: 'server_error' }, { status: 500 });
+    const errCode = (e as { code?: unknown } | null)?.code;
+    const tag = [e instanceof Error ? e.name : typeof e, typeof errCode === 'string' ? errCode : ''].filter(Boolean).join('_').replace(/[^a-z0-9_]/gi, '').slice(0, 40);
+    return NextResponse.json({ error: `server_error_${tag}` }, { status: 500 });
   }
 }

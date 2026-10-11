@@ -56,7 +56,7 @@ const ERRORS: [RegExp, string][] = [
 ];
 export function describeUlanganError(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
-  const hint = msg.match(/server_config_url_invalid_(\w+)/)?.[1];
+  const hint = msg.match(/server_config_url_invalid_(\w+)/)?.[1] ?? msg.match(/server_error_(\w+)/)?.[1];
   const base = ERRORS.find(([re]) => re.test(msg))?.[1] ?? 'Terjadi kesalahan. Coba lagi.';
   return hint ? `${base} [ciri: ${hint}]` : base;
 }
