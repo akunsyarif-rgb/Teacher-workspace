@@ -19,8 +19,11 @@ export function ulanganSupabaseConfig(env: Record<string, string | undefined> = 
   try { origin = new URL(raw).origin; } catch { /* kosong/tak valid */ }
   const local = !!env.FIRESTORE_EMULATOR_HOST && /^http:\/\/127\.0\.0\.1:\d{2,5}$/.test(origin);
   const ref = origin.match(/^https:\/\/([a-z0-9]{20})\.supabase\.co$/)?.[1];
-  if ((!ref && !local) || !key) throw new UlanganDbError('server_config', 503, undefined, 'config');
-  if (ref === SMADA_REF) throw new UlanganDbError('server_config', 503, undefined, 'config');
+  // Kode konstan (tanpa nilai env) agar penyebab konfigurasi terbaca tanpa membuka log.
+  if (!raw) throw new UlanganDbError('server_config_url_missing', 503, undefined, 'config');
+  if (!ref && !local) throw new UlanganDbError('server_config_url_invalid', 503, undefined, 'config');
+  if (ref === SMADA_REF) throw new UlanganDbError('server_config_url_invalid', 503, undefined, 'config');
+  if (!key) throw new UlanganDbError('server_config_key_missing', 503, undefined, 'config');
   return { url: origin, key };
 }
 

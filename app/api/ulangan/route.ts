@@ -38,7 +38,7 @@ const rpc = (name: string, args: Record<string, unknown>) => ulanganRpc(name, ar
 function dbError(e: UlanganDbError) {
   if (e.kind === 'config') {
     console.error('ulangan: konfigurasi Supabase server belum lengkap/tidak valid');
-    return NextResponse.json({ error: 'server_config' }, { status: 503 });
+    return NextResponse.json({ error: e.message }, { status: 503 });
   }
   const code = e.code ?? '';
   const message = e.message.slice(0, 80).replace(/[^a-z0-9_ ]/gi, '');
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     auth = getAdminAuth();
   } catch {
     console.error('ulangan: konfigurasi Firebase Admin server belum lengkap/tidak valid');
-    return NextResponse.json({ error: 'server_config' }, { status: 503 });
+    return NextResponse.json({ error: 'server_config_firebase' }, { status: 503 });
   }
   let uid: string;
   try {
