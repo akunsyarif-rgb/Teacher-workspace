@@ -15,6 +15,9 @@ function Exam({ attemptId }: { attemptId: string }) {
   const [view, setView] = useState<AttemptView | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [unsaved, setUnsaved] = useState(0);
+  const [pendingIds, setPendingIds] = useState<string[]>([]); // soal yang jawabannya belum dikonfirmasi server
+  const [saveFailed, setSaveFailed] = useState(false); // percobaan simpan terakhir gagal (jaringan); dicoba lagi otomatis
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [left, setLeft] = useState(0);
   const [error, setError] = useState("");
   const [warning, setWarning] = useState("");
@@ -42,6 +45,7 @@ function Exam({ attemptId }: { attemptId: string }) {
     return () => { off = true; };
   }, [attemptId, apply]);
 
+  const syncPending = useCallback(() => { setUnsaved(pending.current.size); setPendingIds([...pending.current.keys()]); }, []);
   const flush = useCallback(async () => {
     if (flushing.current) return;
     flushing.current = true;
@@ -50,14 +54,16 @@ function Exam({ attemptId }: { attemptId: string }) {
         try {
           await ulangan.answerQuestion(attemptId, qid, oid);
           if (pending.current.get(qid) === oid) pending.current.delete(qid);
+          setLastSavedAt(Date.now()); setSaveFailed(false);
         } catch (e) {
           const msg = e instanceof Error ? e.message : "";
           if (/attempt_expired|attempt_not_active/.test(msg)) { pending.current.clear(); await load(); break; }
+          setSaveFailed(true);
           break; // jaringan/sementara: dicoba lagi oleh interval
         }
       }
-    } finally { flushing.current = false; setUnsaved(pending.current.size); }
-  }, [attemptId, load]);
+    } finally { flushing.current = false; syncPending(); }
+  }, [attemptId, load, syncPending]);
 
   useEffect(() => { if (!active) return; const t = setInterval(() => void flush(), 5000); return () => clearInterval(t); }, [active, flush]);
 
@@ -105,11 +111,12 @@ function Exam({ attemptId }: { attemptId: string }) {
   function choose(qid: string, oid: string) {
     setAnswers((a) => ({ ...a, [qid]: oid }));
     pending.current.set(qid, oid);
-    setUnsaved(pending.current.size);
+    syncPending();
     void flush();
   }
 
   if (!view) return <InlineAlert message={error || "Memuat..."} />;
+  const answeredCount = view.questions.filter((q) => answers[q.id]).length;
   if (!active) {
     const r = view.attempt.result;
     return (
@@ -135,7 +142,16 @@ function Exam({ attemptId }: { attemptId: string }) {
           <button type="button" onClick={() => setWarning("")} className="underline">Mengerti</button>
         </div>
       )}
-      {unsaved > 0 && <p className="text-[10px] font-bold text-amber-600">{unsaved} jawaban belum tersimpan — menyimpan ulang otomatis...</p>}
+      {/* Status simpan PERMANEN (tidak hilang): menyimpan / gagal / semua tersimpan + jam terakhir. */}
+      <div role="status" aria-live="polite" className={`px-3 py-2 rounded-xl text-[11px] font-bold border ${
+        unsaved > 0 ? (saveFailed ? "bg-red-50 border-red-200 text-red-700" : "bg-amber-50 border-amber-200 text-amber-700")
+        : answeredCount > 0 ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-gray-50 border-gray-200 text-gray-500"}`}>
+        {unsaved > 0
+          ? (saveFailed ? `${unsaved} jawaban BELUM tersimpan — koneksi bermasalah. Dicoba lagi otomatis; tetap di halaman ini.` : "Menyimpan jawaban...")
+          : answeredCount > 0
+            ? `✓ Semua jawaban tersimpan di server (${answeredCount}/${view.questions.length} soal terjawab)${lastSavedAt ? ` · ${new Date(lastSavedAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : ""}`
+            : "Belum ada jawaban. Jawabanmu tersimpan otomatis begitu dipilih."}
+      </div>
       {view.questions.map((q) => (
         <div key={q.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-3">
           <p className="text-xs font-bold text-gray-900 whitespace-pre-wrap"><span className="text-blue-600">{q.position}.</span> {q.body}</p>
@@ -147,6 +163,11 @@ function Exam({ attemptId }: { attemptId: string }) {
               </button>
             ))}
           </div>
+          {answers[q.id] && (
+            <p className={`text-[10px] font-bold ${!pendingIds.includes(q.id) ? "text-emerald-600" : saveFailed ? "text-red-600" : "text-amber-600"}`}>
+              {!pendingIds.includes(q.id) ? "✓ Tersimpan" : saveFailed ? "Belum tersimpan — dicoba lagi" : "Menyimpan..."}
+            </p>
+          )}
         </div>
       ))}
       <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-white border-t border-gray-100">
