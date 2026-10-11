@@ -19,7 +19,12 @@ let deps: CallDeps = {};
 export const __setUlanganDeps = (d: CallDeps) => { deps = d; };
 
 async function call(action: string, payload: Record<string, unknown> = {}): Promise<any> {
-  const getToken = deps.getToken ?? (async () => (await import('@/src/config/firebase')).auth.currentUser?.getIdToken() ?? null);
+  // Saat halaman baru dimuat, currentUser masih null sampai Firebase selesai memulihkan sesi: tunggu dulu agar tidak salah dianggap belum login.
+  const getToken = deps.getToken ?? (async () => {
+    const { auth } = await import('@/src/config/firebase');
+    await auth.authStateReady();
+    return (await auth.currentUser?.getIdToken()) ?? null;
+  });
   const token = await getToken();
   if (!token) throw new UlanganApiError('not_logged_in', 401);
   let res: Response;
