@@ -6,10 +6,37 @@ const SMADA_REF = 'abdkrhmxfpcmgzsxzfyz';
 const TIMEOUT_MS = 15_000;
 
 export class UlanganDbError extends Error {
-  constructor(message: string, public status: number, public code?: string, public kind: 'config' | 'network' | 'db' = 'db') {
+  constructor(message: string, public status: number, public code?: string, public kind: 'config' | 'network' | 'db' = 'db', public hint?: string) {
     super(message);
     this.name = 'UlanganDbError';
   }
+}
+
+const JWT_RE = /^eyJ[\w-]+\.[\w-]+\.[\w-]+$/;
+function jwtClaims(key: string): { role?: string; ref?: string } {
+  try { return JSON.parse(Buffer.from(key.split('.')[1], 'base64url').toString('utf8')); } catch { return {}; }
+}
+
+/**
+ * Header ke gateway Supabase. Key baru (`sb_secret_…`) BUKAN JWT: dikirim hanya lewat `apikey`; gateway yang menukarnya
+ * menjadi JWT service_role. Mengirimnya juga sebagai `Authorization: Bearer` berisiko ditolak sebagai "bukan JWT" (HTTP 401).
+ * Key legacy (JWT service_role) tetap dikirim di kedua header seperti klien Supabase.
+ */
+export function ulanganAuthHeaders(key: string): Record<string, string> {
+  const h: Record<string, string> = { 'Content-Type': 'application/json', apikey: key };
+  if (JWT_RE.test(key)) h.Authorization = `Bearer ${key}`;
+  return h;
+}
+
+// Penyebab penolakan hulu → label konstan (tanpa meneruskan teks asli yang bisa memuat URL/kunci).
+function upstreamHint(b: { message?: string; hint?: string; code?: string }): string {
+  const t = `${b.message ?? ''} ${b.hint ?? ''}`;
+  if (/invalid api key/i.test(t)) return 'invalid_api_key';
+  if (/jwt expired/i.test(t)) return 'jwt_expired';
+  if (/invalid jwt|jws|jwt|not a jwt|bearer/i.test(t)) return 'invalid_jwt';
+  if (/permission denied/i.test(t)) return 'permission_denied';
+  if (/could not find the function|PGRST202/i.test(`${t} ${b.code ?? ''}`)) return 'function_missing';
+  return '';
 }
 
 // Ciri bentuk URL (bukan nilainya) untuk diagnosa env di Vercel: panjang, skema, kutip/spasi, akhiran host.
@@ -36,6 +63,13 @@ export function ulanganSupabaseConfig(env: Record<string, string | undefined> = 
   if (ref === SMADA_REF) throw new UlanganDbError('server_config_url_smadaexam', 503, undefined, 'config');
   if (!ref && !local) throw new UlanganDbError(`server_config_url_invalid_${urlShape(raw, origin)}`, 503, undefined, 'config');
   if (!key) throw new UlanganDbError('server_config_key_missing', 503, undefined, 'config');
+  // Salah jenis key = penyebab 401 yang umum: publishable/anon tidak boleh dipakai di server untuk RPC ini.
+  if (/^sb_publishable_/.test(key)) throw new UlanganDbError('server_config_key_publishable', 503, undefined, 'config');
+  if (JWT_RE.test(key)) {
+    const c = jwtClaims(key);
+    if (c.role && c.role !== 'service_role') throw new UlanganDbError('server_config_key_not_service', 503, undefined, 'config');
+    if (c.ref && ref && c.ref !== ref) throw new UlanganDbError('server_config_key_wrong_project', 503, undefined, 'config');
+  }
   return { url: origin, key };
 }
 
@@ -52,7 +86,7 @@ export async function ulanganRpc(
   try {
     res = await (deps.fetchImpl ?? fetch)(`${url}/rest/v1/rpc/${name}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: key, Authorization: `Bearer ${key}` },
+      headers: ulanganAuthHeaders(key),
       body: JSON.stringify(args),
       signal: ctl.signal,
     });
@@ -65,8 +99,8 @@ export async function ulanganRpc(
   let body: unknown = null;
   if (text) { try { body = JSON.parse(text); } catch { body = text; } }
   if (!res.ok) {
-    const b = (body && typeof body === 'object' ? body : {}) as { message?: string; code?: string };
-    throw new UlanganDbError(String(b.message ?? `HTTP ${res.status}`).slice(0, 200), res.status, b.code);
+    const b = (body && typeof body === 'object' ? body : {}) as { message?: string; code?: string; hint?: string };
+    throw new UlanganDbError(String(b.message ?? `HTTP ${res.status}`).slice(0, 200), res.status, b.code, 'db', upstreamHint(b as { message?: string; hint?: string; code?: string }));
   }
   return body;
 }

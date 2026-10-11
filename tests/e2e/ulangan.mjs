@@ -78,8 +78,9 @@ function startGateway() {
     if (!url.pathname.startsWith('/rest/v1/')) { res.writeHead(404); return res.end(); }
     const chunks = [];
     for await (const c of req) chunks.push(c);
-    const bearer = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-    if (bearer !== SECRET_KEY) { res.writeHead(401, { 'content-type': 'application/json' }); return res.end('{"message":"Invalid API key"}'); }
+    // Meniru gateway Supabase untuk key baru: kunci hanya sah lewat header apikey; sb_secret_ di Authorization Bearer ditolak (bukan JWT).
+    if (req.headers.apikey !== SECRET_KEY) { res.writeHead(401, { 'content-type': 'application/json' }); return res.end('{"message":"Invalid API key"}'); }
+    if ((req.headers.authorization || '').startsWith('Bearer sb_')) { res.writeHead(401, { 'content-type': 'application/json' }); return res.end('{"code":"PGRST301","message":"JWSError (CompactDecodeError)"}'); }
     const headers = { 'content-type': req.headers['content-type'] || 'application/json', authorization: `Bearer ${signJwt({ role: 'service_role' })}` };
     for (const h of ['prefer', 'range', 'range-unit']) if (req.headers[h]) headers[h] = req.headers[h];
     const upstream = await fetch(`http://127.0.0.1:${PGRST_PORT}${url.pathname.replace('/rest/v1', '')}${url.search}`, {

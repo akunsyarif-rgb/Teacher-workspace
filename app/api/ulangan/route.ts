@@ -48,9 +48,9 @@ function dbError(e: UlanganDbError) {
     if (code.startsWith('22')) return NextResponse.json({ error: 'invalid_request' }, { status: 400 }); // data tak valid (tanggal/angka/uuid/argumen)
     if (code.startsWith('23')) return NextResponse.json({ error: 'conflict' }, { status: 409 }); // pelanggaran constraint
   }
-  console.error('ulangan rpc gagal:', e.kind, e.status, code); // tanpa pesan (hindari bocor URL/host/input)
+  console.error('ulangan rpc gagal:', e.kind, e.status, code, e.hint ?? ''); // tanpa pesan (hindari bocor URL/host/input); hint = label konstan
   // Petunjuk diagnosa tanpa data sensitif: jenis, status HTTP hulu, kode PostgREST/Postgres (alfanumerik saja).
-  const tag = [e.kind, e.status, code].filter((x) => x !== '' && x !== undefined).join('_').replace(/[^a-z0-9_]/gi, '').slice(0, 40);
+  const tag = [e.kind, e.status, code, e.hint].filter((x) => x !== '' && x !== undefined).join('_').replace(/[^a-z0-9_]/gi, '').slice(0, 40);
   return NextResponse.json({ error: `server_error_${tag}` }, { status: 502 });
 }
 
