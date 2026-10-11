@@ -5,14 +5,16 @@ import Link from "next/link";
 import { signOut } from "firebase/auth";
 import { auth } from "@/src/config/firebase";
 import { useRouter } from "next/navigation";
-import { Calendar, ClipboardList, Table, UserCheck, LogOut, ChevronRight, Megaphone } from "lucide-react";
+import { ClipboardCheck, Calendar, ClipboardList, Table, UserCheck, LogOut, ChevronRight, Megaphone } from "lucide-react";
 import StudentShell from "@/src/components/student/StudentShell";
 import { SkeletonCard } from "@/src/components/ui/Skeleton";
 import * as studentPortalController from "@/lib/controllers/studentPortalController";
+import { isUlanganEnabled } from "@/lib/config/ulangan";
 import type { StudentProfile } from "@/src/context/StudentAuthContext";
 
 const MENU_ITEMS = [
   { href: "/student/jadwal", label: "Jadwal", description: "Jadwal pelajaran kelasmu", icon: Calendar },
+  ...(isUlanganEnabled() ? [{ href: "/student/ulangan", label: "Ulangan", description: "Ulangan harian kelasmu", icon: ClipboardCheck }] : []),
   { href: "/student/tugas", label: "Tugas", description: "Daftar tugas & pengumpulan", icon: ClipboardList },
   { href: "/student/nilai", label: "Nilai", description: "Nilai dan rata-ratamu", icon: Table },
   { href: "/student/presensi", label: "Kehadiran", description: "Riwayat presensimu", icon: UserCheck },
