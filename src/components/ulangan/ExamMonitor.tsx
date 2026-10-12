@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import InlineAlert from "@/src/components/ui/InlineAlert";
+import { SkeletonCard } from "@/src/components/ui/Skeleton";
 import * as ulangan from "@/lib/controllers/ulanganController";
 import type { IntegrityEventRow, MonitorView } from "@/lib/types/ulangan";
 
@@ -27,7 +28,7 @@ export default function ExamMonitor({ examId, onClose }: { examId: string; onClo
     try { setEvents({ name, rows: await ulangan.fetchAttemptEvents(attemptId) }); } catch (e) { setError(ulangan.describeError(e)); }
   }
 
-  if (!view) return <InlineAlert message={error || "Memuat..."} />;
+  if (!view) return error ? <InlineAlert message={error} /> : <SkeletonCard />;
   const s = view.summary;
   return (
     <div className="space-y-3">

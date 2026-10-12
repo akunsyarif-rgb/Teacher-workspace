@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useState } from "react";
 import { ClipboardCheck } from "lucide-react";
 import { useWorkspace } from "@/src/context/WorkspaceContext";
 import InlineAlert from "@/src/components/ui/InlineAlert";
+import WorkspaceGuard from "@/src/components/ui/WorkspaceGuard";
+import { SkeletonCard } from "@/src/components/ui/Skeleton";
 import ExamEditor from "@/src/components/ulangan/ExamEditor";
 import ExamMonitor from "@/src/components/ulangan/ExamMonitor";
 import * as ulangan from "@/lib/controllers/ulanganController";
@@ -15,12 +17,14 @@ type Mode = { k: "list" } | { k: "edit"; detail?: ExamDetail } | { k: "monitor";
 const STATUS: Record<string, string> = { draft: "Draft", published: "Terbit", closed: "Ditutup" };
 const fmt = (iso: string) => new Date(iso).toLocaleString("id-ID", { timeZone: "Asia/Makassar", dateStyle: "medium", timeStyle: "short" });
 
-export default function UlanganPage() {
+function UlanganContent() {
   const { workspaceId } = useWorkspace();
   const [mode, setMode] = useState<Mode>({ k: "list" });
   const [exams, setExams] = useState<ExamSummary[]>([]);
   const [classNames, setClassNames] = useState<string[]>([]);
   const [error, setError] = useState("");
+  // Tiga keadaan eksplisit: "Belum ada ulangan" hanya boleh tampil setelah data BENAR-BENAR dimuat dan memang kosong.
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
 
   // Daftar kelas dari Firestore (sumber kelas TW yang sudah ada); ulangan dari server.
   const fetchAll = useCallback(
@@ -30,13 +34,16 @@ export default function UlanganPage() {
   const apply = useCallback(([e, c]: [ExamSummary[], { className: string }[]]) => {
     setExams(e); setClassNames(c.map((x) => x.className));
   }, []);
-  const load = useCallback(() => fetchAll().then(apply).catch((err) => setError(ulangan.describeError(err))), [fetchAll, apply]);
+  const load = useCallback(() => fetchAll().then((r) => { apply(r); setStatus("ready"); }).catch((err) => { setError(ulangan.describeError(err)); setStatus((s) => (s === "ready" ? s : "error")); }), [fetchAll, apply]);
   useEffect(() => {
     if (!isUlanganEnabled()) return;
     let off = false;
-    fetchAll().then((r) => { if (!off) apply(r); }).catch((err) => { if (!off) setError(ulangan.describeError(err)); });
+    fetchAll()
+      .then((r) => { if (!off) { apply(r); setStatus("ready"); } })
+      .catch((err) => { if (!off) { setError(ulangan.describeError(err)); setStatus("error"); } });
     return () => { off = true; };
   }, [fetchAll, apply]);
+  const retry = () => { setError(""); setStatus("loading"); void load(); };
 
   async function act(fn: () => Promise<unknown>) {
     setError("");
@@ -58,7 +65,11 @@ export default function UlanganPage() {
         {mode.k === "monitor" && <ExamMonitor examId={mode.id} onClose={done} />}
         {mode.k === "list" && (
           <>
-            <button type="button" onClick={() => setMode({ k: "edit" })} className="w-full py-3 rounded-2xl text-xs font-bold bg-blue-600 text-white">+ Ulangan Baru</button>
+            {status === "loading" && <SkeletonCard />}
+            {status === "error" && (
+              <button type="button" onClick={retry} className="w-full py-3 rounded-2xl text-xs font-bold bg-gray-100">Coba lagi</button>
+            )}
+            {status === "ready" && <button type="button" onClick={() => setMode({ k: "edit" })} className="w-full py-3 rounded-2xl text-xs font-bold bg-blue-600 text-white">+ Ulangan Baru</button>}
             {exams.map((e) => (
               <div key={e.id} className="bg-white p-4 rounded-2xl border border-gray-100 space-y-2">
                 <p className="text-xs font-extrabold">{e.title} <span className="text-[10px] font-bold text-blue-600">{STATUS[e.status]}</span></p>
@@ -72,10 +83,15 @@ export default function UlanganPage() {
                 </div>
               </div>
             ))}
-            {exams.length === 0 && <p className="text-xs text-gray-500 text-center py-6">Belum ada ulangan.</p>}
+            {status === "ready" && exams.length === 0 && <p className="text-xs text-gray-500 text-center py-6">Belum ada ulangan.</p>}
           </>
         )}
       </div>
     </div>
   );
+}
+
+export default function UlanganPage() {
+  // Sama seperti modul guru lain: tanpa workspace/sesi, jangan menampilkan alat yang pasti gagal.
+  return <WorkspaceGuard><UlanganContent /></WorkspaceGuard>;
 }

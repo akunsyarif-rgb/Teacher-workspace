@@ -18,14 +18,18 @@ function List() {
   const [serverNow, setServerNow] = useState<number>(0);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
 
+  // Galat memuat BUKAN daftar kosong: exams tetap null dan siswa diberi tombol "Coba lagi" (bukan "Belum ada ulangan").
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let off = false;
     ulangan.fetchMyExams()
-      .then((r) => { if (!off) { setExams(r.exams); setServerNow(Date.parse(r.serverNow)); } })
-      .catch((e) => { if (!off) { setError(ulangan.describeError(e)); setExams([]); } });
+      .then((r) => { if (!off) { setExams(r.exams); setServerNow(Date.parse(r.serverNow)); setLoadFailed(false); } })
+      .catch((e) => { if (!off) { setError(ulangan.describeError(e)); setLoadFailed(true); } });
     return () => { off = true; };
-  }, []);
+  }, [attempt]);
+  const retry = () => { setError(""); setLoadFailed(false); setAttempt((n) => n + 1); };
 
   async function open(exam: StudentExam) {
     setBusy(exam.id); setError("");
@@ -35,7 +39,15 @@ function List() {
     } catch (e) { setError(ulangan.describeError(e)); setBusy(""); }
   }
 
-  if (!exams) return <SkeletonCard />;
+  if (!exams) {
+    if (!loadFailed) return <SkeletonCard />;
+    return (
+      <div className="space-y-3 text-gray-900">
+        <InlineAlert message={error} onDismiss={() => setError("")} />
+        <button type="button" onClick={retry} className="w-full py-3 rounded-2xl text-xs font-bold bg-gray-100">Coba lagi</button>
+      </div>
+    );
+  }
   return (
     <div className="space-y-3 text-gray-900">
       <InlineAlert message={error} onDismiss={() => setError("")} />

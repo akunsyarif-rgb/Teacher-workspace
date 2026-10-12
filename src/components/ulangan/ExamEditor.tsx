@@ -30,22 +30,38 @@ export default function ExamEditor({ initial, classNames, onSaved, onCancel }: {
   const [showResult, setShowResult] = useState(initial?.showResult ?? false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // Id draft yang sudah tersimpan. Bila Terbitkan gagal setelah simpan berhasil, percobaan berikutnya memperbarui draft yang SAMA
+  // (bukan membuat ulangan baru) — tanpa ini guru berakhir dengan draft ganda.
+  const [examId, setExamId] = useState(initial?.id);
 
   const patch = (i: number, f: Partial<QuestionInput>) => setQs((a) => a.map((q, j) => (j === i ? { ...q, ...f } : q)));
 
   async function save(publish: boolean) {
+    if (busy) return;
     setBusy(true); setError("");
+    let id: string;
     try {
-      const id = await ulangan.submitExam({
-        id: initial?.id, title, subject, durationMinutes: duration, opensAt: toIso(opens), closesAt: toIso(closes),
+      id = await ulangan.submitExam({
+        id: examId, title, subject, durationMinutes: duration, opensAt: toIso(opens), closesAt: toIso(closes),
         classNames: classes, shuffle, showResult, questions: qs,
-      });
-      if (publish) await ulangan.publishExam(id);
-      onSaved();
+      }, { publish });
+      setExamId(id);
     } catch (e) {
       const m = e instanceof Error ? e.message : "";
       setError(/^[A-Z]/.test(m) ? m : ulangan.describeError(e)); // pesan validasi UX berawalan huruf besar; kode server dipetakan
-    } finally { setBusy(false); }
+      setBusy(false);
+      return;
+    }
+    if (publish) {
+      try { await ulangan.publishExam(id); }
+      catch (e) {
+        setError(`Tersimpan sebagai draft, belum terbit: ${ulangan.describeError(e)} Perbaiki lalu tekan Terbitkan lagi.`);
+        setBusy(false);
+        return;
+      }
+    }
+    setBusy(false);
+    onSaved();
   }
 
   return (

@@ -5,7 +5,7 @@ import type { ExamInput } from '../types/ulangan';
 // Controller = satu-satunya pintu UI. Tanpa cache sesi: data ujian harus selalu segar dari server.
 export const fetchExams = () => repo.listExams();
 export const fetchExam = (id: string) => repo.getExam(id);
-export const submitExam = (e: ExamInput) => service.saveExam(e);
+export const submitExam = (e: ExamInput, opts?: { publish?: boolean }) => service.saveExam(e, opts);
 export const publishExam = (id: string) => repo.publishExam(id);
 export const closeExam = (id: string) => repo.closeExam(id);
 export const removeExam = (id: string) => repo.deleteExam(id);
