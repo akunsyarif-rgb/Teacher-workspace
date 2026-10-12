@@ -1,0 +1,10 @@
+import type { Firestore } from 'firebase-admin/firestore';
+export type BackupManifest = { version: number; projectId: string; createdAt: string; readTime: string | null; consistent: boolean; recursive: boolean; collections: Record<string, number>; totalDocs: number; bodySha256: string };
+export function encodeValue(v: unknown): unknown;
+export function decodeValue(v: unknown, db: Firestore): unknown;
+export function exportFirestore(db: Firestore, opts: { projectId: string; maxDocs?: number; recursive?: boolean; collections?: string[]; consistent?: boolean; now?: Date }): Promise<{ ndjson: Buffer; manifest: BackupManifest }>;
+export function sealBackup(ndjson: Buffer, passphrase: string): Buffer;
+export function openBackup(file: Buffer, passphrase: string): Buffer;
+export function parseBackup(ndjson: Buffer): { manifest: BackupManifest; docs: { p: string; d: unknown }[] };
+export function restoreInto(db: Firestore, parsed: ReturnType<typeof parseBackup>, opts: { apply: boolean }): Promise<{ collections: Record<string, number>; totalDocs: number; written: number; applied: boolean }>;
+export function fingerprint(db: Firestore, opts?: { recursive?: boolean }): Promise<{ sha256: string; totalDocs: number }>;

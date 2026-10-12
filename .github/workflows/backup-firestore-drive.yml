@@ -1,0 +1,40 @@
+name: Backup Firestore ke Google Drive
+
+# Alternatif backup TANPA billing Google Cloud: baca Firestore lewat Admin SDK, enkripsi, unggah ke folder Drive pribadi
+# (scope drive.file). Rancangan, setup, dan restore: docs/BACKUP-DRIVE.md.
+# JADWAL MATI sampai repo variable BACKUP_DRIVE_ENABLED = yes (supaya tidak gagal tiap malam sebelum secret terpasang).
+# Manual (Run workflow) selalu bisa dijalankan untuk uji.
+on:
+  schedule:
+    - cron: "17 14 * * *" # 22:17 WITA
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup-firestore-drive
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    if: github.event_name == 'workflow_dispatch' || vars.BACKUP_DRIVE_ENABLED == 'yes'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install dependencies (hanya runtime)
+        run: npm ci --omit=dev --ignore-scripts
+      - name: Backup Firestore → Drive
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+          DRIVE_CLIENT_ID: ${{ secrets.DRIVE_CLIENT_ID }}
+          DRIVE_CLIENT_SECRET: ${{ secrets.DRIVE_CLIENT_SECRET }}
+          DRIVE_REFRESH_TOKEN: ${{ secrets.DRIVE_REFRESH_TOKEN }}
+          BACKUP_MAX_DOCS: ${{ vars.BACKUP_MAX_DOCS }}
+        run: node scripts/backup/backup-to-drive.mjs
