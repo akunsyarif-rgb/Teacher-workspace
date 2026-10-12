@@ -151,8 +151,14 @@ export default function BackupPanel() {
         <p className="text-[11px] text-gray-500">Peramban dapat meminta izin mengunduh banyak berkas; pilih “Izinkan”.</p>
       </div>
 
-      <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-3">
-        <p className="flex items-center gap-2 text-sm font-extrabold text-gray-900"><LockOpen className="w-4 h-4" /> Buka Backup Terenkripsi</p>
+      <details className="bg-white rounded-3xl shadow-sm border border-gray-100 group">
+        <summary className="p-5 cursor-pointer list-none flex items-center justify-between gap-3 text-sm font-extrabold text-gray-900">
+          <span className="flex items-center gap-2"><LockOpen className="w-4 h-4" /> Bantuan: membuka backup terenkripsi (opsional)</span>
+          <span aria-hidden="true" className="text-gray-400 group-open:rotate-180 transition-transform">⌄</span>
+        </summary>
+        <div className="px-5 pb-5 space-y-3">
+          <p className="text-xs text-gray-600">Buka bagian ini hanya jika Anda perlu membaca isi file backup terenkripsi. Ini bukan langkah rutin setelah membuat backup dan tidak memulihkan data ke aplikasi.</p>
+          <p className="flex items-center gap-2 text-sm font-extrabold text-gray-900"><LockOpen className="w-4 h-4" /> Buka Backup Terenkripsi</p>
         <p className="text-xs text-gray-600">Gunakan bagian ini untuk membuka kembali file backup <b>.zip.enc</b> yang diunduh dari atas. Pilih file tersebut, lalu masukkan kata sandi yang sama seperti saat membuat backup. Hasilnya file ZIP biasa yang diunduh ke perangkat ini; proses dekripsi dilakukan di perangkat dan file tidak dikirim ke server.</p>
         <input type="file" accept=".zip.enc,.enc" aria-label="Pilih file backup terenkripsi (.zip.enc)" onChange={(e) => setOpen((o) => ({ ...o, file: e.target.files?.[0] ?? null, msg: '', error: '' }))} className="block w-full text-xs text-gray-700" />
         <input type="password" autoComplete="off" placeholder="Kata sandi saat backup dibuat" value={open.pass} onChange={(e) => setOpen((o) => ({ ...o, pass: e.target.value }))} aria-label="Kata sandi untuk membuka arsip"
@@ -161,7 +167,9 @@ export default function BackupPanel() {
         <Button variant="secondary" onClick={openArchive} disabled={!open.file || !open.pass || open.busy} loading={open.busy}>Dekripsi &amp; Unduh ZIP</Button>
         {open.msg && <p role="status" aria-live="polite" className="text-[11px] font-bold text-emerald-700">{open.msg}</p>}
         <p className="text-[11px] text-gray-500">Ini hanya membuka file backup, bukan memulihkan data ke Teacher Workspace. Arsip dapat berisi data pribadi siswa; simpan hasil ZIP dengan aman.</p>
-      </div>
+
+        </div>
+      </details>
 
       <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-2 text-xs text-gray-600">
         <p className="text-sm font-extrabold text-gray-900">Batas dan pemulihan</p>
