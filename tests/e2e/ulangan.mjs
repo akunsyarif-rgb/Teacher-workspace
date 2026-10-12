@@ -318,6 +318,70 @@ async function run() {
     check(/1× keluar halaman/.test(rowText), 'Hasil guru menampilkan sinyal integritas (indikasi, bukan sanksi)', rowText);
     check(q("select status from public.ulh_attempts") === 'submitted', 'Tidak ada sanksi otomatis: status tetap submitted normal');
     check(pageErrors.length === 0, 'Tidak ada pageerror JavaScript di browser', pageErrors.slice(0, 3).join(' | '));
+
+    // ---------- 6. Editor guru, guard, dan state loading/galat ----------
+    console.log('\n→ Editor guru idempoten, WorkspaceGuard, state loading/galat');
+    const isAction = (req, name) => (req.postData() || '').includes(`"${name}"`);
+    // 6a. Tanpa sesi guru: /ulangan memakai WorkspaceGuard (tidak menampilkan "+ Ulangan Baru").
+    const anonPage = await (await browser.newContext()).newPage();
+    await anonPage.goto(`${BASE_URL}/ulangan`, { waitUntil: 'domcontentloaded' });
+    await anonPage.getByText('Belum Ada Workspace').waitFor({ timeout: 20000 });
+    check((await anonPage.getByRole('button', { name: /\+ Ulangan Baru/ }).count()) === 0, '/ulangan tanpa workspace: ditahan WorkspaceGuard, tombol buat tidak tampil');
+    await anonPage.context().close();
+
+    // 6b. Loading: "Belum ada ulangan" tidak boleh tampil sebelum data dimuat. Galat muat: tombol "Coba lagi", bukan daftar kosong.
+    await teacher.route('**/api/ulangan', async (r) => { if (isAction(r.request(), 'exam.list')) await sleep(2500); await r.continue(); });
+    await teacher.goto(`${BASE_URL}/ulangan`, { waitUntil: 'domcontentloaded' });
+    await teacher.waitForTimeout(800);
+    check((await teacher.getByText('Belum ada ulangan.').count()) === 0, 'Guru: saat memuat, "Belum ada ulangan" TIDAK tampil');
+    await teacher.getByRole('button', { name: /\+ Ulangan Baru/ }).waitFor({ timeout: 20000 });
+    await teacher.unroute('**/api/ulangan');
+    await teacher.route('**/api/ulangan', (r) => (isAction(r.request(), 'exam.list') ? r.abort() : r.continue()));
+    await teacher.goto(`${BASE_URL}/ulangan`, { waitUntil: 'domcontentloaded' });
+    await teacher.getByRole('button', { name: 'Coba lagi' }).waitFor({ timeout: 20000 });
+    check((await teacher.getByText('Belum ada ulangan.').count()) === 0 && (await teacher.getByRole('alert').count()) >= 1, 'Guru: galat muat → pesan galat + "Coba lagi", bukan "Belum ada ulangan"');
+    await teacher.unroute('**/api/ulangan');
+    await teacher.getByRole('button', { name: 'Coba lagi' }).click();
+    await teacher.getByRole('button', { name: /\+ Ulangan Baru/ }).waitFor({ timeout: 20000 });
+    check((await teacher.getByText('UH 1 IPA').count()) >= 1, 'Guru: "Coba lagi" setelah jaringan pulih memuat daftar ulangan');
+
+    // 6c. Siswa: galat muat daftar → "Coba lagi", bukan "Belum ada ulangan untuk kelasmu".
+    await student2.route('**/api/ulangan', (r) => (isAction(r.request(), 'student.list') ? r.abort() : r.continue()));
+    await student2.goto(`${BASE_URL}/student/ulangan`, { waitUntil: 'domcontentloaded' });
+    await student2.getByRole('button', { name: 'Coba lagi' }).waitFor({ timeout: 20000 });
+    check((await student2.getByText(/Belum ada ulangan untuk kelasmu/).count()) === 0, 'Siswa: galat muat → "Coba lagi", bukan "Belum ada ulangan untuk kelasmu"');
+    await student2.unroute('**/api/ulangan');
+    await student2.getByRole('button', { name: 'Coba lagi' }).click();
+    await student2.getByText('UH 1 IPA').waitFor({ timeout: 20000 });
+    check(true, 'Siswa: "Coba lagi" setelah jaringan pulih memuat daftar');
+
+    // 6d. Terbitkan gagal setelah simpan berhasil → draft yang sama diperbarui pada percobaan berikutnya (tidak ada draft ganda).
+    const fillExam = async (title, closesAt) => {
+      await teacher.goto(`${BASE_URL}/ulangan`, { waitUntil: 'domcontentloaded' });
+      await teacher.getByRole('button', { name: /\+ Ulangan Baru/ }).click({ timeout: 30000 });
+      await teacher.fill('input[placeholder*="Judul ulangan"]', title);
+      await teacher.locator('textarea[placeholder="Teks soal"]').nth(0).fill(`${title}?`);
+      for (const l of ['A', 'B', 'C', 'D']) await teacher.locator(`input[placeholder="Pilihan ${l}"]`).nth(0).fill(`${l}x`);
+      const t = new Date();
+      await teacher.locator('input[type="datetime-local"]').nth(0).fill(localDateTime(new Date(t.getTime() - 3 * 3600_000)));
+      await teacher.locator('input[type="datetime-local"]').nth(1).fill(localDateTime(closesAt(t)));
+      await teacher.getByText(CLASS_NAME, { exact: true }).last().click();
+    };
+    const countExams = (title) => q(`select count(*) || ':' || coalesce(string_agg(status, ','), '') from public.ulh_exams where title = '${title}'`);
+    await fillExam('UH Terbit Gagal', (t) => new Date(t.getTime() + 3600_000));
+    await teacher.route('**/api/ulangan', (r) => (isAction(r.request(), 'exam.publish') ? r.abort() : r.continue()));
+    await teacher.getByRole('button', { name: 'Terbitkan' }).click();
+    await teacher.getByText(/Tersimpan sebagai draft, belum terbit/).waitFor({ timeout: 20000 });
+    check(countExams('UH Terbit Gagal') === '1:draft', 'Terbitkan gagal: tersimpan sebagai SATU draft dan siswa tidak melihatnya', countExams('UH Terbit Gagal'));
+    await teacher.unroute('**/api/ulangan');
+    await teacher.getByRole('button', { name: 'Terbitkan' }).click();
+    await teacher.getByRole('button', { name: /\+ Ulangan Baru/ }).waitFor({ timeout: 20000 });
+    check(countExams('UH Terbit Gagal') === '1:published', 'Terbitkan ulang: draft yang SAMA terbit, tidak ada ulangan ganda', countExams('UH Terbit Gagal'));
+    // Jadwal tutup sudah lewat: ditolak di klien sebelum menyimpan apa pun.
+    await fillExam('UH Tutup Lampau', (t) => new Date(t.getTime() - 3600_000));
+    await teacher.getByRole('button', { name: 'Terbitkan' }).click();
+    await teacher.getByText(/Waktu tutup sudah lewat/).waitFor({ timeout: 10000 });
+    check(countExams('UH Tutup Lampau') === '0:', 'Tutup di masa lalu: Terbitkan ditolak tanpa menyimpan draft yatim', countExams('UH Tutup Lampau'));
   } catch (e) {
     fail('Alur e2e', e instanceof Error ? e.message.split('\n')[0] : String(e));
     for (const [label, page] of [['guru', teacher], ['siswa', student], ['siswa2', student2]]) {

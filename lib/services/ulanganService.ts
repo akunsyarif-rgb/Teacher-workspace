@@ -3,13 +3,15 @@ import type { ExamInput } from '../types/ulangan';
 import { INTEGRITY_LEAVE_THRESHOLD_MS } from '../config/ulangan';
 
 // Validasi di sini hanya untuk UX (pesan cepat). Server memvalidasi ulang SEMUANYA dan tidak mempercayai klien.
-export function validateExamInput(e: ExamInput): string | null {
+export function validateExamInput(e: ExamInput, opts: { publish?: boolean; now?: number } = {}): string | null {
   if (!e.title.trim()) return 'Judul ulangan wajib diisi.';
   if (!Number.isInteger(e.durationMinutes) || e.durationMinutes < 1 || e.durationMinutes > 300) return 'Durasi 1–300 menit.';
   const o = Date.parse(e.opensAt);
   const c = Date.parse(e.closesAt);
   if (Number.isNaN(o) || Number.isNaN(c)) return 'Jadwal buka/tutup wajib diisi.';
   if (c <= o) return 'Waktu tutup harus setelah waktu buka.';
+  // Server menolak terbit bila tutup sudah lewat (schedule_in_past); cek di sini supaya gagal sebelum ada yang tersimpan.
+  if (opts.publish && c <= (opts.now ?? Date.now())) return 'Waktu tutup sudah lewat. Ubah jadwal sebelum menerbitkan.';
   if (e.classNames.length === 0) return 'Pilih minimal satu kelas.';
   if (e.questions.length === 0) return 'Tambahkan minimal 1 soal.';
   if (e.questions.length > 100) return 'Maksimal 100 soal per ulangan.';
@@ -24,8 +26,8 @@ export function validateExamInput(e: ExamInput): string | null {
   return null;
 }
 
-export async function saveExam(e: ExamInput) {
-  const err = validateExamInput(e);
+export async function saveExam(e: ExamInput, opts: { publish?: boolean } = {}) {
+  const err = validateExamInput(e, opts);
   if (err) throw new Error(err);
   return repo.saveExam({ ...e, title: e.title.trim(), subject: e.subject.trim() });
 }

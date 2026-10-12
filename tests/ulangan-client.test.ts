@@ -32,6 +32,17 @@ describe('flag & validasi UX', () => {
     expect(service.validateExamInput(exam({ questions: [{ body: 'Q', options: ['a', ''], correctIndex: 0 }] }))).toMatch(/kosong/);
     expect(service.validateExamInput(exam())).toBeNull();
   });
+  it('Terbitkan menolak jadwal tutup yang sudah lewat SEBELUM ada yang tersimpan; simpan draft tetap boleh', async () => {
+    const lewat = exam({ opensAt: '2026-01-01T00:00:00Z', closesAt: '2026-01-02T00:00:00Z' });
+    const now = Date.parse('2026-06-01T00:00:00Z');
+    expect(service.validateExamInput(lewat, { publish: true, now })).toMatch(/sudah lewat/);
+    expect(service.validateExamInput(lewat, { publish: false, now })).toBeNull();
+    expect(service.validateExamInput(lewat, { now })).toBeNull();
+    expect(service.validateExamInput(exam(), { publish: true, now: Date.parse('2026-01-01T12:00:00Z') })).toBeNull();
+    // Lewat service.saveExam: ditolak tanpa satu pun request ke server (tidak ada draft yatim).
+    await expect(service.saveExam(lewat, { publish: true })).rejects.toThrow(/sudah lewat/);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
 });
 
 describe('repository: semua lewat /api/ulangan, tanpa identitas/skor/waktu dari klien', () => {
