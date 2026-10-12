@@ -1,6 +1,6 @@
 # Ulangan Harian (Supabase) — arsitektur, keputusan, status
 
-Status: **kode selesai + tes lokal lulus. BELUM diterapkan ke Supabase Workflow. BELUM aktif di produksi.** Branch: `feat/ulangan-harian-supabase`.
+Status (2026-10-12): **sudah di `main` (PR #61). Migrasi sudah diterapkan ke Supabase Workflow (15/15 PASS). Diuji end-to-end di Preview. Production MATI lewat flag build** (`NEXT_PUBLIC_ULANGAN_ENABLED` tidak diset di Production).
 
 ## Arsitektur (mengikuti pola TW yang sudah ada)
 ```
@@ -64,13 +64,13 @@ Catatan: bila Preview dan Production berbagi `SUPABASE_URL` yang sama, data ulan
 
 ## Validasi di lingkungan terisolasi (gratis) dan sesudah penerapan
 1. **Lokal/CI (sudah tersedia, tanpa Supabase):** `scripts/ulangan/validate-isolated.sh [--e2e]` (menolak host non-lokal) — menjalankan seluruh tes ulangan, `--e2e` menambah e2e browser. CI: `.github/workflows/ulangan-db-tests.yml`.
-2. **Setelah ada persetujuan terapkan ke project target (belum dilakukan):**
+2. **Penerapan ke project target (sudah dilakukan di Workflow, 2026-10-10/11):**
    a. Terapkan `supabase/migrations/20261010000000_ulangan_harian.sql` (aditif; rollback: `supabase/rollback/…_down.sql` menghapus semua data ulangan).
    b. Jalankan `supabase/verify/ulangan_post_migration.sql` (READ-ONLY; psql atau SQL editor) → 15 baris, **semua PASS** (14 RPC definer + search_path kosong + EXECUTE hanya service_role; 8 tabel RLS aktif tanpa hak/policy; kunci jawaban hanya di 3 fungsi). Skrip diuji lokal termasuk 13 kontrol negatif (tiap penyimpangan → FAIL).
    c. `get_advisors` (security). d. Env Preview di atas + Redeploy. e. Uji manual: guru membuat & menerbitkan → siswa (kode akses) mengerjakan, ganti perangkat, submit → guru melihat hasil.
 
 ## Hambatan sisa
-1. Migrasi belum ada di Workflow/staging cloud; belum ada validasi PostgREST/gateway Supabase nyata (kunci API, advisor). Butuh persetujuan; Supabase Free tanpa slot proyek/branch ketiga (org "Conan": 2 proyek = batas Free; branching = Pro).
+1. (Terselesaikan) Migrasi sudah di Workflow; gateway nyata diuji lewat Preview (log Supabase: semua RPC 200/204 setelah perbaikan header `sb_secret`). Advisor security: tabel `ulh_*` "RLS tanpa policy" = disengaja (hanya RPC service_role). Belum: uji token akun kedua (lintas guru/siswa) lewat HTTP nyata.
 2. (Terselesaikan) Ketergantungan pada `supabaseServer.ts` #60 sudah dihapus — modul mandiri.
 3. Pembatasan laju & pagar jaringan belum ada (Vercel Firewall / App Check — tindakan manual); tiap autosave memanggil fungsi serverless.
 4. Uji beban (±1300 siswa serentak) belum ada; E2E belum di CI.

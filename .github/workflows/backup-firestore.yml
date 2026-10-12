@@ -23,8 +23,30 @@ jobs:
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
+      # Secret kosong sebelumnya menghasilkan "gs:///..." dan gcloud crash
+      # dengan pesan yang tidak menyebut penyebabnya (gagal tiap malam tanpa
+      # backup). Periksa dulu supaya penyebabnya langsung terbaca di log.
+      - name: Periksa konfigurasi backup
+        env:
+          BACKUP_BUCKET: ${{ secrets.FIRESTORE_BACKUP_BUCKET }}
+          PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: |
+          missing=""
+          [ -n "$BACKUP_BUCKET" ] || missing="$missing FIRESTORE_BACKUP_BUCKET"
+          [ -n "$PROJECT_ID" ] || missing="$missing FIREBASE_PROJECT_ID"
+          if [ -n "$missing" ]; then
+            echo "::error title=Backup Firestore belum dikonfigurasi::Secret repo kosong:$missing. Isi di Settings -> Secrets and variables -> Actions (lihat docs/BACKUP.md). Nama bucket TANPA awalan gs:// dan tanpa slash."
+            exit 1
+          fi
+          case "$BACKUP_BUCKET" in
+            gs://*|*/*) echo "::error title=FIRESTORE_BACKUP_BUCKET tidak valid::Isi hanya nama bucket, tanpa gs:// dan tanpa slash."; exit 1 ;;
+          esac
+
       - name: Export Firestore to Cloud Storage
+        env:
+          BACKUP_BUCKET: ${{ secrets.FIRESTORE_BACKUP_BUCKET }}
+          PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
         run: |
           TIMESTAMP=$(date -u +%Y-%m-%dT%H-%M-%SZ)
-          gcloud firestore export "gs://${{ secrets.FIRESTORE_BACKUP_BUCKET }}/firestore-backups/$TIMESTAMP" \
-            --project="${{ secrets.FIREBASE_PROJECT_ID }}"
+          gcloud firestore export "gs://${BACKUP_BUCKET}/firestore-backups/$TIMESTAMP" \
+            --project="${PROJECT_ID}"
