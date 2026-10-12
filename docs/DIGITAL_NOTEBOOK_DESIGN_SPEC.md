@@ -43,6 +43,15 @@ Token di atas masih kandidat desain; jangan menyebutnya sudah lolos WCAG tanpa p
 4. Catatan cepat terasa seperti kertas bergaris, dengan status sinkronisasi yang tetap jelas.
 5. Akses ke Pusat Kegiatan Kelas, Jadwal, dan Manajemen Kelas tetap mudah ditemukan.
 
+## Penyempurnaan dashboard — tahap 1
+
+- Header memiliki penanda identitas buku kerja dan hierarki judul yang lebih jelas.
+- Kartu prioritas menggunakan hijau sebagai aksen utama, tanpa mengubah urutan atau aturan status workflow.
+- Catatan Cepat memakai garis buku, teks minimal 14 px, label sinkronisasi yang terbaca, dan fokus interaksi hijau.
+- Warna biru lama pada elemen utama dashboard dikurangi agar aksen hijau konsisten; warna status semantik (peringatan, error, selesai) tetap dibedakan menurut fungsinya.
+- Teks metadata yang sebelumnya terlalu kecil diperbesar jika aman untuk layout.
+- Perubahan visual tidak mengubah fungsi auto-save, debounce, penanganan offline/error, ataupun target penyimpanan catatan.
+
 ## Batasan dan kriteria penerimaan
 
 - Tidak mengubah aturan workflow, penyimpanan, otorisasi, atau logika nilai dalam pekerjaan visual.
