@@ -1,8 +1,18 @@
 @import "tailwindcss";
 
 :root {
+  color-scheme: light;
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Buku Catatan Digital — fondasi visual workspace. */
+  --workspace-paper: #F7F5EF;
+  --workspace-surface: #FFFFFF;
+  --workspace-ink: #242923;
+  --workspace-muted: #5D665E;
+  --workspace-accent: #2F6B4F;
+  --workspace-highlight: #DDF2A5;
+  --workspace-rule: #D9DED5;
 }
 
 @theme inline {
@@ -10,13 +20,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 html,
@@ -32,6 +35,20 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Kertas bergaris untuk bidang catatan yang memang ditujukan untuk menulis.
+   Garis sangat halus dan tidak dipakai pada tabel atau input data padat. */
+.notebook-paper {
+  background-color: #FFFEF9;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 27px,
+    var(--workspace-rule) 28px,
+    transparent 29px
+  );
+  line-height: 28px;
 }
 
 /* Dipakai pada baris yang sengaja discroll horizontal (mis. tab Class

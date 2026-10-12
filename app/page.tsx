@@ -331,13 +331,14 @@ export default function DashboardPage() {
   const needsConfirmationStatuses = todayClassStatuses.filter((s) => s.sessionState === 'needs_confirmation');
 
   return (
-    <div className="min-h-screen bg-gray-50 p-3 sm:p-4 md:p-6 lg:p-8 space-y-4 md:space-y-6">
+    <div className="min-h-screen bg-[#F7F5EF] p-3 sm:p-4 md:p-6 lg:p-8 space-y-4 md:space-y-6">
       <div className="max-w-6xl mx-auto space-y-4 md:space-y-6">
         {/* Header */}
-        <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div className="bg-[#FFFEF9] p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-[#D9DED5] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="space-y-1">
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-[#2F6B4F]">Buku kerja guru · Beranda</p>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-2 text-[10px] font-bold text-blue-600 uppercase tracking-wider bg-blue-50/60 px-2.5 py-1 rounded-xl w-fit">
+              <div className="flex items-center gap-2 text-[10px] font-bold text-[#2F6B4F] uppercase tracking-wider bg-[#EDF3E8]/60 px-2.5 py-1 rounded-xl w-fit">
                 <Calendar className="w-3 h-3" />
                 <span>{getCompleteDateLabel()}</span>
               </div>
@@ -348,17 +349,17 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
-            <h1 className="text-xl md:text-2xl font-extrabold text-gray-900 flex items-center gap-2">
+            <h1 className="text-xl md:text-2xl font-extrabold text-[#242923] flex items-center gap-2">
               {getGreeting()}, {teacherName}
             </h1>
             <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
               <span>
                 Mapel Utama:{" "}
-                <strong className="text-blue-600">{subject || "Belum diatur"}</strong>
+                <strong className="text-[#2F6B4F]">{subject || "Belum diatur"}</strong>
               </span>
               <Link
                 href="/account"
-                className="text-gray-400 hover:text-blue-600 transition-colors active:scale-90 p-2.5 -m-1.5"
+                className="text-gray-400 hover:text-[#2F6B4F] transition-colors active:scale-90 p-2.5 -m-1.5"
                 title="Akun"
                 aria-label="Akun"
               >
@@ -370,7 +371,7 @@ export default function DashboardPage() {
             <SyncIndicator />
             <Link
               href="/analytics"
-              className="flex items-center gap-1.5 px-3 py-3 bg-gray-50 hover:bg-blue-50 text-gray-600 hover:text-blue-600 rounded-xl text-xs font-bold transition-all active:scale-95 border border-gray-200 hover:border-blue-200 shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-3 bg-gray-50 hover:bg-[#EDF3E8] text-gray-600 hover:text-[#2F6B4F] rounded-xl text-xs font-bold transition-all active:scale-95 border border-gray-200 hover:border-[#B6C8B8] shadow-sm"
               title="Lihat Statistik"
               aria-label="Lihat Statistik"
             >
@@ -383,10 +384,10 @@ export default function DashboardPage() {
         {isUlanganEnabled() && (
           <Link
             href="/ulangan"
-            className="flex items-center justify-between gap-2 px-4 py-2.5 bg-white rounded-2xl border border-gray-100 shadow-sm text-[11px] md:text-xs font-bold text-gray-500 hover:border-blue-200 hover:text-blue-600 transition-colors"
+            className="flex items-center justify-between gap-2 px-4 py-2.5 bg-[#FFFEF9] rounded-2xl border border-[#D9DED5] shadow-sm text-[11px] md:text-xs font-bold text-[#5D665E] hover:border-[#B6C8B8] hover:text-[#2F6B4F] transition-colors"
           >
             <span>Ulangan Harian</span>
-            <ArrowRight className="w-3 h-3 text-blue-600" />
+            <ArrowRight className="w-3 h-3 text-[#2F6B4F]" />
           </Link>
         )}
 
@@ -394,12 +395,12 @@ export default function DashboardPage() {
             detail lengkap ada di /analytics. */}
         <Link
           href="/analytics"
-          className="flex items-center justify-between gap-2 px-4 py-2.5 bg-white rounded-2xl border border-gray-100 shadow-sm text-[11px] md:text-xs font-bold text-gray-500 hover:border-blue-200 hover:text-blue-600 transition-colors"
+          className="flex items-center justify-between gap-2 px-4 py-2.5 bg-[#FFFEF9] rounded-2xl border border-[#D9DED5] shadow-sm text-[11px] md:text-xs font-bold text-[#5D665E] hover:border-[#B6C8B8] hover:text-[#2F6B4F] transition-colors"
         >
           <span>
             {uniqueClasses.length} Kelas &middot; {totalJournals} Jurnal Terisi
           </span>
-          <span className="flex items-center gap-1 text-blue-600 shrink-0">
+          <span className="flex items-center gap-1 text-[#2F6B4F] shrink-0">
             Lihat Statistik
             <ArrowRight className="w-3 h-3" />
           </span>
@@ -407,7 +408,7 @@ export default function DashboardPage() {
 
         {/* Workflow Engine: satu langkah paling relevan sekarang, dipilihkan otomatis */}
         {workflowStep && (
-          <div className="bg-blue-600 p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-lg text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="bg-[#2F6B4F] p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-[#24563F]">
             <div className="min-w-0">
               <p className="text-[11px] font-extrabold uppercase tracking-wider text-blue-50">
                 {workflowStep.isOngoing ? 'Sedang Berlangsung Sekarang' : 'Sesi Berikutnya'}
@@ -427,7 +428,7 @@ export default function DashboardPage() {
               href={`/attendance?class=${encodeURIComponent(workflowStep.status.className)}&tab=${
                 !workflowStep.status.hasAttendance ? 'presensi' : 'jurnal'
               }&scheduleId=${encodeURIComponent(workflowStep.status.scheduleId)}`}
-              className="shrink-0 flex items-center justify-center gap-1.5 px-5 py-3 bg-white text-blue-700 rounded-xl text-sm font-extrabold shadow-sm hover:bg-blue-50 transition-colors"
+              className="shrink-0 flex items-center justify-center gap-1.5 px-5 py-3 bg-white text-[#24563F] rounded-xl text-sm font-extrabold shadow-sm hover:bg-[#EDF3E8] transition-colors"
             >
               {workflowStep.isOngoing ? 'Lanjutkan Mengajar' : 'Mulai Sekarang'}
               <ArrowRight className="w-4 h-4" />
@@ -437,10 +438,10 @@ export default function DashboardPage() {
 
         {/* Perlu Diselesaikan Hari Ini — gabungan Progress + Action Center,
             satu kartu, satu empty state (sebelumnya duplikat di dua kartu). */}
-        <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 space-y-3 md:space-y-4">
+        <div className="bg-[#FFFEF9] p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-[#D9DED5] space-y-3 md:space-y-4">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 md:w-5 md:h-5 text-blue-600" />
+              <Clock className="w-4 h-4 md:w-5 md:h-5 text-[#2F6B4F]" />
               <h3 className="text-[10px] md:text-xs font-extrabold text-gray-700 uppercase tracking-wider">
                 Perlu Diselesaikan Hari Ini ({currentDayName})
               </h3>
@@ -476,7 +477,7 @@ export default function DashboardPage() {
                 </p>
                 <Link
                   href="/schedule"
-                  className="inline-block text-[11px] md:text-xs text-blue-600 underline underline-offset-2 font-bold"
+                  className="inline-block text-[11px] md:text-xs text-[#2F6B4F] underline underline-offset-2 font-bold"
                 >
                   Tambahkan lewat menu Jadwal Mengajar
                 </Link>
@@ -574,7 +575,7 @@ export default function DashboardPage() {
                     ) : (
                       <Link
                         href={`/attendance?class=${encodeURIComponent(status.className)}&tab=${nextTab}&scheduleId=${encodeURIComponent(status.scheduleId)}`}
-                        className="shrink-0 px-3 py-1.5 md:px-4 md:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] md:text-xs font-bold transition-colors shadow-sm"
+                        className="shrink-0 px-3 py-1.5 md:px-4 md:py-2 bg-[#2F6B4F] hover:bg-[#24563F] text-white rounded-xl text-[11px] md:text-xs font-bold transition-colors shadow-sm"
                       >
                         {status.hasAttendance || status.hasJournal ? 'Lanjut' : 'Mulai'}
                       </Link>
@@ -593,7 +594,7 @@ export default function DashboardPage() {
             sini TIDAK menandai sesi selesai — itu murni lewat presensi/jurnal
             (lihat "Prinsip utama" di spec). */}
         {needsConfirmationStatuses.length > 0 && (
-          <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-amber-200 space-y-3 md:space-y-4">
+          <div className="bg-[#FFFEF9] p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-amber-200 space-y-3 md:space-y-4">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 md:w-5 md:h-5 text-amber-500" />
               <h3 className="text-[10px] md:text-xs font-extrabold text-gray-700 uppercase tracking-wider">
@@ -647,7 +648,7 @@ export default function DashboardPage() {
 
         {/* Catatan Cepat + Menu Utama */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-          <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 space-y-2 md:space-y-3">
+          <div className="bg-[#FFFEF9] p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-[#D9DED5] space-y-2 md:space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 md:w-9 md:h-9 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
@@ -666,7 +667,7 @@ export default function DashboardPage() {
               placeholder="Tulis catatan kilat atau pengingat di sini..."
               value={quickNote}
               onChange={(e) => handleQuickNoteChange(e.target.value)}
-              className={`w-full p-2 md:p-3 bg-gray-50 border rounded-xl text-xs font-bold text-gray-900 placeholder:text-gray-400 outline-none resize-none transition-colors ${
+              className={`w-full p-2 md:p-3 notebook-paper border rounded-xl text-xs font-bold text-[#242923] placeholder:text-[#5D665E] outline-none resize-none transition-colors ${
                 syncStatus === "offline"
                   ? "border-red-300 focus:ring-red-500"
                   : "border-gray-200 focus:ring-2 focus:ring-amber-500"
@@ -689,14 +690,14 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 gap-3 md:gap-4">
             <Link
               href="/attendance"
-              className="bg-white p-4 md:p-5 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 hover:border-blue-300 transition-all flex items-center gap-4 group relative"
+              className="bg-[#FFFEF9] p-4 md:p-5 rounded-2xl md:rounded-3xl shadow-sm border border-[#D9DED5] hover:border-[#2F6B4F] transition-all flex items-center gap-4 group relative"
             >
               {hasPending && (
                 <span className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 bg-red-500 text-white text-[9px] font-extrabold rounded-full shadow-md animate-pulse">
                   {pendingClasses.length}
                 </span>
               )}
-              <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-200 group-hover:scale-105 transition-transform shrink-0">
+              <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-[#2F6B4F] text-white flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform shrink-0">
                 <BookOpen className="w-5 h-5 md:w-6 md:h-6" />
               </div>
               <div className="min-w-0">
@@ -707,9 +708,9 @@ export default function DashboardPage() {
 
             <Link
               href="/schedule"
-              className="bg-white p-4 md:p-5 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 hover:border-blue-300 transition-all flex items-center gap-4 group"
+              className="bg-[#FFFEF9] p-4 md:p-5 rounded-2xl md:rounded-3xl shadow-sm border border-[#D9DED5] hover:border-[#2F6B4F] transition-all flex items-center gap-4 group"
             >
-              <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-200 group-hover:scale-105 transition-transform shrink-0">
+              <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-[#2F6B4F] text-white flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform shrink-0">
                 <Calendar className="w-5 h-5 md:w-6 md:h-6" />
               </div>
               <div className="min-w-0">
