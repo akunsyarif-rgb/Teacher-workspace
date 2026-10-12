@@ -303,6 +303,29 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
         { textAnswer: answer, attachments, externalLink: resolvedExternalLink, answerPasted },
         assignment.dueDate
       ));
+      // Kartu langsung menampilkan hasil yang barusan tersimpan, bukan
+      // menunggu loadAssignments: tanpa ini banner "berhasil" muncul
+      // berdampingan dengan status "Belum dikumpulkan" + tombol "Kerjakan
+      // Tugas" sampai muat ulang selesai — atau seterusnya kalau muat ulang
+      // gagal di jaringan buruk, sehingga siswa mengira pengumpulannya
+      // hilang lalu mengirim ulang.
+      const submittedAt = new Date().toISOString();
+      setAssignments((rows) =>
+        rows.map((row) =>
+          row.id === assignment.id
+            ? {
+                ...row,
+                status: SUBMISSION_STATUS.MENUNGGU_PENILAIAN,
+                submittedAt,
+                textAnswer: answer.trim(),
+                attachments,
+                fileUrl: attachments[0]?.fileUrl,
+                fileName: attachments[0]?.fileName,
+                externalLink: resolvedExternalLink,
+              }
+            : row
+        )
+      );
       setOpenId(null);
       setAnswer("");
       setFiles([]);
