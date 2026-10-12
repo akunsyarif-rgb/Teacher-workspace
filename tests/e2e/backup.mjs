@@ -87,7 +87,18 @@ async function run() {
     pass('Dua guru mendaftar dan masing-masing punya satu siswa');
 
     console.log('\n→ Menu dan formulir');
-    await t1.goto(`${BASE_URL}/account`, { waitUntil: 'domcontentloaded' });
+    // Jalur penemuan nyata: Beranda → ikon "Akun" → menu Backup terlihat (juga di layar iPhone 390 px).
+    await t1.setViewportSize({ width: 390, height: 844 });
+    await t1.goto(`${BASE_URL}/`, { waitUntil: 'domcontentloaded' });
+    await t1.getByRole('link', { name: 'Akun', exact: true }).click({ timeout: 30000 });
+    await t1.waitForURL(`${BASE_URL}/account`, { timeout: 15000 });
+    const menu = t1.getByRole('link', { name: /Backup & Ekspor Data/ });
+    await menu.waitFor({ state: 'visible', timeout: 20000 });
+    await menu.scrollIntoViewIfNeeded();
+    const mb = await menu.boundingBox();
+    check(!!mb && mb.x >= 0 && mb.x + mb.width <= 390 && (await menu.isVisible()), 'Beranda → ikon Akun → menu "Backup & Ekspor Data" terlihat penuh di layar 390 px, tanpa kondisi/flag');
+    check((await t1.getByRole('link', { name: /Backup & Ekspor Data/ }).count()) === 1, 'Tepat satu tautan menu Backup (tidak duplikat)');
+    await t1.setViewportSize({ width: 1280, height: 720 });
     await t1.getByRole('link', { name: /Backup & Ekspor Data/ }).click({ timeout: 30000 });
     await t1.waitForURL(`${BASE_URL}/account/backup`, { timeout: 15000 });
     await t1.getByRole('heading', { name: /Backup & Ekspor Data/ }).waitFor({ timeout: 20000 });
@@ -128,6 +139,15 @@ async function run() {
     check((await help.count()) === 1 && (await help.evaluate((el) => !el.open)), 'Pembuka arsip berada di panel bantuan opsional yang tertutup secara bawaan');
     await help.locator('summary').click();
     check(await help.evaluate((el) => el.open), 'Panel bantuan dapat dibuka');
+    for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 720 }]) {
+      await t1.setViewportSize(vp);
+      const fileInput = t1.getByLabel('Pilih file backup terenkripsi (.zip.enc)');
+      await fileInput.scrollIntoViewIfNeeded();
+      const fb = await fileInput.boundingBox();
+      const overflow = await t1.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+      check(await fileInput.isVisible() && !!fb && fb.x >= 0 && fb.x + fb.width <= vp.width + 1 && !overflow, `Pemilih file terlihat dan muat di layar ${vp.width} px (tanpa gulir horizontal)`);
+    }
+    check((await help.getByText(/Pilih file tersebut, lalu masukkan kata sandi yang sama/).isVisible()) && (await help.getByText(/tidak dikirim ke server/).isVisible()), 'Instruksi pembuka arsip jelas terlihat (file, kata sandi yang sama, dekripsi di perangkat)');
     const sent = [];
     t1.on('request', (r) => sent.push(`${r.url()}\n${JSON.stringify(r.headers())}\n${r.postData() ?? ''}`));
     await t1.getByLabel('Pilih file backup terenkripsi (.zip.enc)').setInputFiles(enc.file);
