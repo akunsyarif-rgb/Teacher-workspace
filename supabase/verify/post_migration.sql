@@ -23,6 +23,7 @@ with checks(name, ok, in_mode) as (
   ('anon TIDAK boleh execute auth_probe', to_regprocedure('public.auth_probe()') is null or not has_function_privilege('anon','public.auth_probe()','EXECUTE'), 'any'),
   ('authenticated boleh execute join_workspace_by_code', to_regprocedure('public.join_workspace_by_code(text)') is null or has_function_privilege('authenticated','public.join_workspace_by_code(text)','EXECUTE'), 'any'),
   ('can_claim_role tanpa cabang TEACHER', not exists (select 1 from pg_proc where oid='private.can_claim_role(text,text)'::regprocedure and prosrc like '%''TEACHER''%'), 'migrated'),
+  ('can_claim_role: role kosong hanya tanpa workspace', exists (select 1 from pg_proc where oid='private.can_claim_role(text,text)'::regprocedure and prosrc like '%p_role is null then p_workspace_id is null%'), 'migrated'),
   ('semua tabel public ber-RLS', not exists (select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r' and not c.relrowsecurity), 'any'),
   ('anon tanpa hak tabel public', not exists (select 1 from information_schema.role_table_grants where table_schema='public' and grantee='anon'), 'any'),
   ('payments: authenticated hanya SELECT', not has_table_privilege('authenticated','public.payments','INSERT') and not has_table_privilege('authenticated','public.payments','UPDATE') and not has_table_privilege('authenticated','public.payments','DELETE'), 'any'),

@@ -158,6 +158,9 @@ add('tp:insert:owner-workspace-sendiri', 'ownerX', tpIns('ownerX', 'OWNER', 'wsX
 add('tp:insert:owner-workspace-orang', 'fresh', tpIns('fresh', 'OWNER', 'wsA'), DENY);
 add('tp:insert:admin-tidak-bisa-klaim', 'fresh', tpIns('fresh', 'ADMIN', 'wsA'), DENY);
 add('tp:insert:wali-saat-daftar', 'ownerX', tpIns('ownerX', 'OWNER', 'wsX', "'7A'"), DENY);
+add('tp:[GAP] insert-role-kosong-ke-workspace-orang', 'outsider', tpIns('outsider', null, 'wsA'), DENY);
+add('tp:[GAP] update-role-kosong-ke-workspace-orang', 'newbie', "update public.teacher_profiles set workspace_id='wsA' where user_id='newbie'", DENY);
+add('tp:[GAP] insert-role-kosong-ke-workspace-orang-bukan-guru', 'stuA1', tpIns('stuA1', null, 'wsA'), DENY);
 add('tp:[GAP] klaim-TEACHER-tanpa-kode-lewat-insert', 'outsider', tpIns('outsider', 'TEACHER', 'wsA'), DENY);
 add('tp:[GAP] klaim-TEACHER-tanpa-kode-lewat-update', 'newbie', "update public.teacher_profiles set workspace_id='wsA', role='TEACHER' where user_id='newbie'", DENY);
 add('tp:[GAP] klaim-TEACHER-lewati-batas-kursi', 'outsider', tpIns('outsider', 'TEACHER', 'wsS'), DENY);
