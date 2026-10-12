@@ -123,15 +123,24 @@ async function run() {
     const total = v1.manifest.firestore.totalDocs;
     check(real.status === 0 && new RegExp(`${total}/${total} dokumen`).test(real.stdout), `Restore ke proyek emulator TERPISAH: ${total}/${total} dokumen`, real.stdout.trim().split('\n').pop());
 
-    // Buka arsip terenkripsi di aplikasi (tanpa skrip developer): sandi salah ditolak, sandi benar menghasilkan ZIP yang identik.
-    await t1.getByLabel('Berkas arsip terenkripsi').setInputFiles(enc.file);
+    // Pembuka arsip terenkripsi ada di panel bantuan OPSIONAL (tertutup secara bawaan); dekripsi di perangkat, sandi tidak dikirim ke server.
+    const help = t1.locator('details', { hasText: 'membuka backup terenkripsi' });
+    check((await help.count()) === 1 && (await help.evaluate((el) => !el.open)), 'Pembuka arsip berada di panel bantuan opsional yang tertutup secara bawaan');
+    await help.locator('summary').click();
+    check(await help.evaluate((el) => el.open), 'Panel bantuan dapat dibuka');
+    const sent = [];
+    t1.on('request', (r) => sent.push(`${r.url()}\n${JSON.stringify(r.headers())}\n${r.postData() ?? ''}`));
+    await t1.getByLabel('Pilih file backup terenkripsi (.zip.enc)').setInputFiles(enc.file);
     await t1.getByLabel('Kata sandi untuk membuka arsip').fill('sandi-salah-xyz');
-    await t1.getByRole('button', { name: 'Buka Arsip' }).click();
+    await t1.getByRole('button', { name: 'Dekripsi & Unduh ZIP' }).click();
     await t1.getByText(/kata sandi salah/i).waitFor({ timeout: 20000 });
     pass('Buka arsip di aplikasi: kata sandi salah ditolak dengan pesan jelas');
     await t1.getByLabel('Kata sandi untuk membuka arsip').fill(ARCHIVE_PASS);
-    const opened = await download(t1, () => t1.getByRole('button', { name: 'Buka Arsip' }).click());
+    const opened = await download(t1, () => t1.getByRole('button', { name: 'Dekripsi & Unduh ZIP' }).click());
     check(opened.name === enc.name.replace(/\.enc$/, '') && Buffer.compare(opened.bytes, zip) === 0, 'Buka arsip di aplikasi: kata sandi benar → ZIP asli identik byte-per-byte', opened.name);
+    check(opened.bytes.subarray(0, 4).toString('hex') === '504b0304' && verifyExportZip(opened.bytes).manifest.format !== undefined, 'Hasil dekripsi adalah ZIP valid (tanda PK + lolos verifikasi penuh)');
+    check(!sent.some((x) => x.includes(ARCHIVE_PASS) || x.includes('sandi-salah-xyz') || x.includes(encodeURIComponent(ARCHIVE_PASS))), 'Kata sandi dan isi pembukaan arsip tidak dikirim ke server (tidak ada permintaan jaringan yang memuatnya)', `${sent.length} permintaan`);
+    t1.removeAllListeners('request');
 
     console.log('\n→ Tanpa enkripsi, isolasi antar workspace');
     await t1.getByRole('checkbox').first().uncheck();
