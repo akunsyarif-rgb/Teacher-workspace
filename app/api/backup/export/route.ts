@@ -4,7 +4,8 @@ import { getAdminAuth, getAdminDb } from '@/lib/server/firebaseAdmin';
 import { ulanganRpc } from '@/lib/server/ulanganSupabase';
 import { BackupAuthError, resolveBackupActor } from '@/lib/server/backup/actor';
 import { claimExportSlot, DEFAULT_COOLDOWN_SECONDS } from '@/lib/server/backup/cooldown';
-import { countExportDocs, DEFAULT_MAX_DOCS, exportZip } from '@/lib/server/backup/exportWorkspace';
+import { countExportDocs, exportZip } from '@/lib/server/backup/exportWorkspace';
+import { resolveMaxDocs } from '@/lib/server/backup/limits';
 import { firestoreIdentity, makeUlanganCollector } from '@/lib/server/backup/ulanganExport';
 
 export const runtime = 'nodejs';
@@ -39,7 +40,8 @@ export async function POST(request: NextRequest) {
     if (!slot.ok) return fail(429, 'cooldown', `Backup baru saja dibuat. Coba lagi dalam ${Math.ceil(slot.retryAfterSeconds / 60)} menit.`, { 'Retry-After': String(slot.retryAfterSeconds) });
     release = slot.release;
 
-    const maxDocs = Number(process.env.BACKUP_MAX_DOCS) || DEFAULT_MAX_DOCS;
+    const { value: maxDocs, source } = resolveMaxDocs();
+    if (source === 'clamped' || source === 'invalid') console.warn(`backup: BACKUP_MAX_DOCS diabaikan (${source}); memakai batas aman`);
     const total = await countExportDocs(db, actor);
     if (total > maxDocs) { await release(); return fail(413, 'too_large', `Data terlalu besar untuk satu unduhan (±${total} dokumen, batas ${maxDocs}). Hubungi admin.`); }
 

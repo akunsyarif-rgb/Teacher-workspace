@@ -3,6 +3,7 @@ import type { Firestore, QueryDocumentSnapshot } from 'firebase-admin/firestore'
 import { ulanganAuthHeaders } from '@/lib/server/ulanganSupabase';
 import { refsFrom, type Entry } from './exportWorkspace';
 import type { Actor } from './inventory';
+import { resolveMaxDocs } from './limits';
 
 // Lampiran pengumpulan tugas (Supabase Storage, bucket privat) diunduh dalam BAGIAN-bagian kecil agar tiap permintaan terbatas
 // waktu/memorinya. Isolasi workspace: HANYA path berawalan submissions/<workspaceId>/ (sama seperti route sign lampiran).
@@ -14,7 +15,18 @@ const MAX_PATH_LEN = 400;
 export type PlanFile = { path: string; name: string | null; assignmentId: string | null; studentId: string | null; className: string | null };
 export type StorageDeps = { url: string; key: string; fetchImpl?: typeof fetch };
 
-export async function planAttachments(db: Firestore, actor: Actor): Promise<PlanFile[]> {
+export class AttachmentLimitError extends Error {
+  constructor(public total: number, public max: number) {
+    super('too_many_submissions');
+    this.name = 'AttachmentLimitError';
+  }
+}
+
+/** Menolak SEBELUM pemindaian penuh bila jumlah submissions workspace melebihi batas (count() murah; stream() tidak dipanggil). */
+export async function planAttachments(db: Firestore, actor: Actor, opts: { maxDocs?: number } = {}): Promise<PlanFile[]> {
+  const maxDocs = opts.maxDocs ?? resolveMaxDocs().value;
+  const total = (await db.collection('submissions').where('workspaceId', '==', actor.ws).count().get()).data().count;
+  if (total > maxDocs) throw new AttachmentLimitError(total, maxDocs);
   const seen = new Map<string, PlanFile>();
   const q = db.collection('submissions').where('workspaceId', '==', actor.ws);
   for await (const snap of q.stream() as unknown as AsyncIterable<QueryDocumentSnapshot>) {

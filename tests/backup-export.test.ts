@@ -15,6 +15,9 @@ import { encodeValue } from '../lib/backup/valueCodec.mjs';
 import { exportZip } from '../lib/server/backup/exportWorkspace';
 import { planAttachments, probePart, validatePaths, PathError } from '../lib/server/backup/attachments';
 import { makeUlanganCollector } from '../lib/server/backup/ulanganExport';
+import { planCooldownSeconds, resolveMaxDocs, SAFE_MAX_DOCS } from '../lib/server/backup/limits';
+import { AttachmentLimitError } from '../lib/server/backup/attachments';
+import { DEFAULT_MAX_DOCS } from '../lib/server/backup/exportWorkspace';
 import { resolveBackupActor } from '../lib/server/backup/actor';
 import { EXPORTED } from '../lib/server/backup/inventory';
 
@@ -101,7 +104,7 @@ beforeAll(async () => {
   ATT = (await import('../app/api/backup/attachments/route')).POST;
 }, 60000);
 afterAll(async () => { await Promise.all([wipe(SRC), wipe(RESTORE)]); });
-beforeEach(() => { process.env.BACKUP_COOLDOWN_SECONDS = '0'; delete process.env.BACKUP_MAX_DOCS; });
+beforeEach(() => { process.env.BACKUP_COOLDOWN_SECONDS = '0'; process.env.BACKUP_PLAN_COOLDOWN_SECONDS = '0'; delete process.env.BACKUP_MAX_DOCS; delete process.env.BACKUP_MAX_DOCS_ALLOW_ABOVE_SAFE; });
 
 describe('otorisasi server', () => {
   it('tanpa token / token tidak valid / kedaluwarsa / dicabut → 401, tanpa membocorkan detail', async () => {
@@ -464,5 +467,69 @@ describe('pemulihan ke lingkungan terpisah', () => {
     const real = run([zipPath, '--project', 'proyek-nyata', '--apply'], { FIRESTORE_EMULATOR_HOST: '', FIREBASE_SERVICE_ACCOUNT: '{"x":1}' });
     expect(real.status).not.toBe(0); expect(real.stderr).toMatch(/--confirm-project/);
     await Promise.all([wipe('demo-backup-cli'), wipe('demo-backup-cli2')]);
+  });
+});
+
+describe('pengamanan backup manual', () => {
+  it('batas dokumen bawaan 15.000; BACKUP_MAX_DOCS tidak bisa melewati batas aman tanpa keputusan eksplisit', () => {
+    expect(DEFAULT_MAX_DOCS).toBe(15_000);
+    expect(SAFE_MAX_DOCS).toBe(15_000);
+    expect(resolveMaxDocs({})).toEqual({ value: 15_000, source: 'default' });
+    expect(resolveMaxDocs({ BACKUP_MAX_DOCS: '5000' }).value).toBe(5000);
+    expect(resolveMaxDocs({ BACKUP_MAX_DOCS: '60000' })).toEqual({ value: 15_000, source: 'clamped' });
+    for (const bad of ['abc', '-1', '0', '1.5']) expect(resolveMaxDocs({ BACKUP_MAX_DOCS: bad }).value).toBe(15_000);
+    expect(resolveMaxDocs({ BACKUP_MAX_DOCS: '60000', BACKUP_MAX_DOCS_ALLOW_ABOVE_SAFE: 'yes' }).value).toBe(60_000);
+    expect(resolveMaxDocs({ BACKUP_MAX_DOCS: '9999999', BACKUP_MAX_DOCS_ALLOW_ABOVE_SAFE: 'yes' }).value).toBe(100_000);
+  });
+  it('cooldown perencanaan lampiran bawaan 300 dtk', () => {
+    expect(planCooldownSeconds({})).toBe(300);
+    expect(planCooldownSeconds({ BACKUP_PLAN_COOLDOWN_SECONDS: 'x' })).toBe(300);
+    expect(planCooldownSeconds({ BACKUP_PLAN_COOLDOWN_SECONDS: '0' })).toBe(0);
+  });
+  it('route lampiran: plan kedua dalam cooldown → 429', async () => {
+    process.env.BACKUP_PLAN_COOLDOWN_SECONDS = '300';
+    await hoisted.db.doc('backup_exports/wsA__lampiran').delete();
+    expect((await call('ok:owner', { action: 'plan' }, 'attachments')).status).toBe(200);
+    const r = await call('ok:owner', { action: 'plan' }, 'attachments');
+    expect(r.status).toBe(429);
+    expect(r.headers.get('retry-after')).toBeTruthy();
+    await hoisted.db.doc('backup_exports/wsA__lampiran').delete();
+  });
+  it('submissions melebihi batas → ditolak 413 SEBELUM pemindaian penuh (stream tidak pernah dipanggil)', async () => {
+    let streamed = 0;
+    const fake = { collection: () => ({ where: () => ({ count: () => ({ get: async () => ({ data: () => ({ count: 16 }) }) }), stream: () => { streamed++; return (async function* () {})(); } }) }) };
+    await expect(planAttachments(fake as never, await resolveBackupActor(hoisted.db, 'owner'), { maxDocs: 15 })).rejects.toBeInstanceOf(AttachmentLimitError);
+    expect(streamed).toBe(0);
+    // lewat route
+    process.env.BACKUP_MAX_DOCS = '1';
+    await hoisted.db.doc('backup_exports/wsA__lampiran').delete();
+    const r = await call('ok:owner', { action: 'plan' }, 'attachments');
+    expect(r.status).toBe(413);
+    const j = await r.json();
+    expect(j.code).toBe('too_many_submissions');
+    expect(j.error).toMatch(/Terlalu banyak pengumpulan tugas/);
+    delete process.env.BACKUP_MAX_DOCS;
+    await hoisted.db.doc('backup_exports/wsA__lampiran').delete();
+  });
+  it('Ulangan: backup tidak memanggil RPC yang menulis (hasil/peristiwa) untuk ulangan draf/terbit; hanya yang closed', async () => {
+    const IDS = { draft: '11111111-1111-1111-1111-111111111111', pub: '22222222-2222-2222-2222-222222222222', closed: '33333333-3333-3333-3333-333333333333' };
+    const calls: [string, Record<string, unknown>][] = [];
+    const rpc = async (name: string, args: Record<string, unknown>) => {
+      calls.push([name, args]);
+      if (name === 'ulh_list_exams') return [{ id: IDS.draft, status: 'draft' }, { id: IDS.pub, status: 'published' }, { id: IDS.closed, status: 'closed' }];
+      if (name === 'ulh_get_exam') return { id: args.p_id, questions: [] };
+      if (name === 'ulh_exam_results') return { exam: { id: args.p_id }, attempts: [] };
+      return [];
+    };
+    const src = { getDoc: async (c: string) => (c === 'teacher_profiles' ? { workspaceId: 'wsA', role: 'OWNER', isActive: true } : { ownerUid: 'owner' }), classExists: async () => true, listStudents: async () => [] };
+    const zip = readZip(await collect(exportZip(await resolveBackupActor(hoisted.db, 'owner'), { db: hoisted.db, ulangan: makeUlanganCollector({ rpc, src }, true) })));
+    const m = JSON.parse(zip.get('manifest.json')!.toString());
+    expect(m.ulangan).toMatchObject({ status: 'included', exams: 3, resultsSkipped: 2 });
+    const resultCalls = calls.filter(([n]) => n === 'ulh_exam_results');
+    expect(resultCalls).toHaveLength(1);
+    expect(resultCalls[0][1].p_id).toBe(IDS.closed);
+    for (const k of [IDS.draft, IDS.pub]) expect(JSON.parse(zip.get(`ulangan/exam-${k}.json`)!.toString())).toMatchObject({ results: null, resultsStatus: 'skipped_not_closed' });
+    const writers = new Set(['ulh_close_exam', 'ulh_start_attempt', 'ulh_answer', 'ulh_publish_exam']);
+    expect(calls.filter(([n]) => writers.has(n))).toHaveLength(0);
   });
 });

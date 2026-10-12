@@ -5,7 +5,7 @@ import { readZipEntry } from '../backup/zipEntry.mjs';
 export const MIN_PASSPHRASE = 8;
 export type BackupSummary = {
   exportedAt: string; totalDocs: number; collections: { name: string; status: string; count: number }[];
-  ulangan: { status: string; reason?: string; exams?: number }; attachments: { count: number; bySource: Record<string, number> };
+  ulangan: { status: string; reason?: string; exams?: number; resultsSkipped?: number }; attachments: { count: number; bySource: Record<string, number> };
   gaps: { source: string; detail: string }[]; excluded: { name: string; reason: string }[]; unrecognized: string[]; coverage: { firestore: string; overall: string };
 };
 export type BackupResult = { bytes: Uint8Array; filename: string; encrypted: boolean; summary: BackupSummary | null };

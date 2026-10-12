@@ -5,14 +5,14 @@ import { getAdminAuth, getAdminDb } from '@/lib/server/firebaseAdmin';
 import { ulanganSupabaseConfig, UlanganDbError } from '@/lib/server/ulanganSupabase';
 import { BackupAuthError, resolveBackupActor } from '@/lib/server/backup/actor';
 import { claimExportSlot } from '@/lib/server/backup/cooldown';
-import { partEntries, PathError, planAttachments, probePart, validatePaths } from '@/lib/server/backup/attachments';
+import { AttachmentLimitError, partEntries, PathError, planAttachments, probePart, validatePaths } from '@/lib/server/backup/attachments';
+import { planCooldownSeconds } from '@/lib/server/backup/limits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const fail = (status: number, code: string, error: string, headers: Record<string, string> = {}) => NextResponse.json({ error, code }, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
-const PLAN_COOLDOWN_SECONDS = 60;
 
 // Dua aksi: "plan" (daftar lampiran Supabase milik workspace) dan "part" (ZIP berisi sebagian lampiran). Otorisasi sama dengan
 // /api/backup/export; path yang diminta harus berada di bawah submissions/<workspace sendiri>/.
@@ -31,9 +31,15 @@ export async function POST(request: NextRequest) {
   try {
     const actor = await resolveBackupActor(db, uid);
     if (body.action === 'plan') {
-      const slot = await claimExportSlot(db, `${actor.ws}__lampiran`, actor.role, PLAN_COOLDOWN_SECONDS);
-      if (!slot.ok) return fail(429, 'cooldown', 'Daftar lampiran baru saja dibuat. Coba lagi sebentar lagi.', { 'Retry-After': String(slot.retryAfterSeconds) });
-      return NextResponse.json({ files: await planAttachments(db, actor) }, { headers: { 'Cache-Control': 'no-store' } });
+      const slot = await claimExportSlot(db, `${actor.ws}__lampiran`, actor.role, planCooldownSeconds());
+      if (!slot.ok) return fail(429, 'cooldown', `Daftar lampiran baru saja dibuat. Coba lagi dalam ${Math.ceil(slot.retryAfterSeconds / 60)} menit.`, { 'Retry-After': String(slot.retryAfterSeconds) });
+      try {
+        return NextResponse.json({ files: await planAttachments(db, actor) }, { headers: { 'Cache-Control': 'no-store' } });
+      } catch (e) {
+        if (e instanceof AttachmentLimitError) return fail(413, 'too_many_submissions', `Terlalu banyak pengumpulan tugas untuk diunduh lampirannya sekaligus (${e.total} dokumen, batas ${e.max}). Hubungi admin; mengulang tidak akan membantu.`);
+        await slot.release().catch(() => {}); // gagal tak terduga: jangan menghukum guru dengan cooldown
+        throw e;
+      }
     }
     if (body.action !== 'part') return fail(400, 'unknown_action', 'Aksi tidak dikenal.');
 

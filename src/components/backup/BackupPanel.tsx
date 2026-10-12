@@ -128,7 +128,7 @@ export default function BackupPanel() {
               <div className="p-3 rounded-2xl bg-amber-50 border border-amber-100 text-[11px] text-amber-900 space-y-1">
                 <p className="flex items-center gap-1 font-bold"><AlertTriangle className="w-3.5 h-3.5" /> Backup ini BELUM mencakup semuanya</p>
                 <ul className="list-disc pl-4 space-y-0.5">
-                  <li>Ulangan Harian: {s.ulangan.status === 'included' ? `termasuk (${s.ulangan.exams ?? 0} ulangan, sebagai JSON arsip)` : s.ulangan.status === 'not_enabled' ? 'tidak ikut — fitur belum diaktifkan' : 'GAGAL diekspor — coba lagi nanti'}.</li>
+                  <li>Ulangan Harian: {s.ulangan.status === 'included' ? `termasuk (${s.ulangan.exams ?? 0} ulangan, sebagai JSON arsip${s.ulangan.resultsSkipped ? `; hasil ${s.ulangan.resultsSkipped} ulangan yang belum ditutup tidak ikut` : ''})` : s.ulangan.status === 'not_enabled' ? 'tidak ikut — fitur belum diaktifkan' : 'GAGAL diekspor — coba lagi nanti'}.</li>
                   <li>Lampiran tugas siswa: {s.attachments.count} referensi tercatat; isi file diunduh terpisah lewat tombol “Unduh Lampiran” di bawah (hanya yang tersimpan di Supabase).</li>
                   {s.gaps.filter((g) => g.source !== 'supabase_storage' && g.source !== 'restore_ulangan').map((g) => <li key={g.source}>{g.detail}</li>)}
                   {s.excluded.length > 0 && <li>Tidak diikutkan: {s.excluded.map((e) => e.name).join(', ')} (alasan ada di berkas manifest.json).</li>}
@@ -165,7 +165,7 @@ export default function BackupPanel() {
       <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-2 text-xs text-gray-600">
         <p className="text-sm font-extrabold text-gray-900">Batas dan pemulihan</p>
         <ul className="list-disc pl-4 space-y-1">
-          <li>Satu backup per workspace tiap 5 menit. Data sangat besar (di atas ±60.000 dokumen) ditolak; hubungi admin.</li>
+          <li>Satu backup per workspace tiap 5 menit. Data sangat besar (di atas ±15.000 dokumen) ditolak; hubungi admin.</li>
           <li>Hindari mengubah data saat unduhan berjalan; backup dibaca per koleksi, bukan snapshot tunggal.</li>
           <li>Memulihkan data: lihat panduan <b>docs/BACKUP-EKSPOR.md</b> (skrip <code>restore-export.mjs</code> memverifikasi arsip, lalu memulihkan ke lingkungan uji). Uji pemulihan secara berkala; backup yang belum pernah dipulihkan belum terbukti.</li>
         </ul>

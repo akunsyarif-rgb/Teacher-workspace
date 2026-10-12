@@ -2,17 +2,18 @@ import { createHash } from 'node:crypto';
 import type { Firestore, Query, QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { encodeValue } from '@/lib/backup/valueCodec.mjs';
 import { zipStream } from '@/lib/backup/zip.mjs';
+import { SAFE_MAX_DOCS } from './limits';
 import { EXCLUDED, EXPORTED, KNOWN_COLLECTIONS, STANDING_GAPS, type Actor, type CollectionSpec } from './inventory';
 
 // Ekspor data satu workspace sebagai ZIP STREAMING (memori terbatas; tidak ada berkas sementara di disk). Manifest = entri TERAKHIR,
 // sehingga arsip yang terputus di tengah jalan tidak pernah tampak lengkap (direktori pusat ZIP juga baru ditulis di akhir).
 export const FORMAT = 'teacher-workspace-backup';
 export const FORMAT_VERSION = 1;
-export const DEFAULT_MAX_DOCS = 60_000;
+export const DEFAULT_MAX_DOCS = SAFE_MAX_DOCS;
 
 export type Entry = { name: string; data: Buffer | string | AsyncIterable<Buffer | string> | Iterable<Buffer | string> };
 export type UlanganResult =
-  | { status: 'included'; exams: number; attempts: number; files: { name: string; data: string }[] }
+  | { status: 'included'; exams: number; attempts: number; resultsSkipped: number; files: { name: string; data: string }[] }
   | { status: 'not_enabled'; reason: string }
   | { status: 'failed'; reason: string };
 export type ExportDeps = {
@@ -141,14 +142,14 @@ export async function* exportEntries(actor: Actor, deps: ExportDeps): AsyncGener
   for (const a of attachments) bySource[a.source] = (bySource[a.source] ?? 0) + 1;
 
   // Ulangan Harian (Supabase). Kegagalan/nonaktif DICATAT di manifest, tidak menggagalkan seluruh ekspor.
-  let ulangan: { status: string; exams?: number; attempts?: number; reason?: string; files?: string[] };
+  let ulangan: { status: string; exams?: number; attempts?: number; resultsSkipped?: number; note?: string; reason?: string; files?: string[] };
   if (!deps.ulangan) ulangan = { status: 'not_enabled', reason: 'Tidak dikonfigurasi.' };
   else {
     const r = await deps.ulangan(actor).catch((): UlanganResult => ({ status: 'failed', reason: 'ulangan_export_error' }));
     if (r.status === 'included') {
       const names: string[] = [];
       for (const f of r.files) { names.push(f.name); yield tracked(f.name, f.data); }
-      ulangan = { status: 'included', exams: r.exams, attempts: r.attempts, files: names };
+      ulangan = { status: 'included', exams: r.exams, attempts: r.attempts, resultsSkipped: r.resultsSkipped, files: names, ...(r.resultsSkipped > 0 ? { note: `${r.resultsSkipped} ulangan belum ditutup: hanya soal yang diekspor; hasil siswa tidak ikut (tutup ulangan agar hasilnya ikut backup berikutnya).` } : {}) };
     } else ulangan = { status: r.status, reason: r.reason };
   }
 

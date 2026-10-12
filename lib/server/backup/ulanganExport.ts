@@ -33,17 +33,24 @@ export function makeUlanganCollector(deps: { rpc: Rpc; src: IdentitySources }, e
       if (list.length > MAX_EXAMS) return { status: 'failed', reason: `terlalu_banyak_ulangan_${list.length}` };
       const files: { name: string; data: string }[] = [{ name: 'ulangan/exams.json', data: JSON.stringify(list) }];
       let attempts = 0;
+      let resultsSkipped = 0;
       for (const e of list) {
         const id = String(e.id);
-        const detail = await runAction('exam.get', actor.uid, { id }, d);
-        const results = (await runAction('exam.results', actor.uid, { id }, d)) as { rows?: Row[] } | null;
+        const detail = await runAction('exam.get', actor.uid, { id }, d); // baca-saja
+        // Backup TIDAK boleh mengubah data: RPC hasil (ulh_exam_results) menutup percobaan aktif yang kedaluwarsa (menulis).
+        // Maka hasil/peristiwa hanya diambil untuk ulangan berstatus 'closed' (tidak ada percobaan aktif tersisa).
+        const closed = e.status === 'closed';
+        let results: { rows?: Row[] } | null = null;
         const events: Record<string, unknown> = {};
-        const rows = (results?.rows ?? []).filter((r) => r.attempt_id);
-        attempts += rows.length;
-        for (const r of rows.filter((x) => Number(x.leave_count) > 0).slice(0, MAX_EVENT_ATTEMPTS)) events[String(r.attempt_id)] = await runAction('exam.events', actor.uid, { attemptId: String(r.attempt_id) }, d);
-        files.push({ name: `ulangan/exam-${id.replace(/[^a-zA-Z0-9-]/g, '')}.json`, data: JSON.stringify({ detail, results, integrityEvents: events }) });
+        if (closed) {
+          results = (await runAction('exam.results', actor.uid, { id }, d)) as { rows?: Row[] } | null;
+          const rows = (results?.rows ?? []).filter((r) => r.attempt_id);
+          attempts += rows.length;
+          for (const r of rows.filter((x) => Number(x.leave_count) > 0).slice(0, MAX_EVENT_ATTEMPTS)) events[String(r.attempt_id)] = await runAction('exam.events', actor.uid, { attemptId: String(r.attempt_id) }, d);
+        } else resultsSkipped++;
+        files.push({ name: `ulangan/exam-${id.replace(/[^a-zA-Z0-9-]/g, '')}.json`, data: JSON.stringify({ detail, results, resultsStatus: closed ? 'included' : 'skipped_not_closed', integrityEvents: events }) });
       }
-      return { status: 'included', exams: list.length, attempts, files };
+      return { status: 'included', exams: list.length, attempts, resultsSkipped, files };
     } catch (e) {
       const code = (e as { code?: unknown })?.code;
       const tag = [e instanceof Error ? e.name : 'error', typeof code === 'string' ? code : ''].filter(Boolean).join('_').replace(/[^a-z0-9_]/gi, '').slice(0, 40);

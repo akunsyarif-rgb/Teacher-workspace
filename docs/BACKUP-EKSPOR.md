@@ -26,7 +26,7 @@ ulangan/exams.json, ulangan/exam-<id>.json   Ulangan Harian (hanya bila fitur ak
 | Sumber | Status |
 |---|---|
 | **Firestore** — workspaces, teacher_profiles, students, schedules, journals, session_skip_reasons, academic_years, attendances, grades, grade_columns, assignments, announcements, submissions, class_fund_transactions, class_inventory, student_notes, student_achievements | **Diekspor**, hanya data workspace guru yang login, sesuai hak baca (di bawah) |
-| **Ulangan Harian (Supabase)** | Diekspor sebagai JSON **bila fitur aktif** (lewat aksi guru yang sama dengan UI). Bila nonaktif/gagal: dicatat di manifest dan UI — **tidak** dianggap lengkap |
+| **Ulangan Harian (Supabase)** | Diekspor sebagai JSON **bila fitur aktif** (lewat aksi guru yang sama dengan UI), **baca-saja**: hasil & peristiwa hanya untuk ulangan berstatus *closed* (RPC hasil menutup percobaan kedaluwarsa = menulis; ulangan draf/terbit dicatat `skipped_not_closed`). Bila nonaktif/gagal: dicatat di manifest dan UI — **tidak** dianggap lengkap |
 | **Lampiran pengumpulan tugas (Supabase Storage, bucket privat)** | Daftar di arsip data; **isi file** diunduh terpisah (bagian ≤30 file/≈40 MB) lewat "Unduh Lampiran" |
 | Lampiran/materi lama di **Firebase Storage**, tautan Google Drive siswa | Hanya referensi di `attachments/index.ndjson`; **isi tidak diunduh** |
 | Akun login (**Firebase Auth**) | **Tidak** termasuk |
@@ -47,7 +47,7 @@ dicatat di `firestore.unrecognizedCollections` dan menurunkan `coverage.firestor
 - **Enkripsi (diimplementasikan)**: sisi klien, AES-256-GCM, kunci dari kata sandi lewat PBKDF2-SHA256 (600.000 iterasi, salt acak 16 B). Kata sandi **tidak dikirim ke server**. Hilang = tidak bisa dibuka.
 - **Evaluasi alternatif**: enkripsi sisi server dengan kunci server → tidak berguna untuk unduhan pribadi (server memegang kunci; guru tak bisa membuka sendiri) dan menambah CPU serverless; password bawaan ZIP (ZipCrypto) → lemah; ZIP-AES → tidak dibuka natively di iOS Files; kunci publik/Keychain → butuh manajemen kunci perangkat yang rumit. Frasa sandi yang disimpan di pengelola kata sandi adalah mekanisme paling realistis untuk guru.
 - Arsip berisi **data pribadi siswa dan kode akses siswa**. UI memperingatkan dan menyarankan enkripsi; mematikannya menampilkan peringatan merah.
-- Pagar penyalahgunaan: satu ekspor per workspace per 5 menit (`BACKUP_COOLDOWN_SECONDS`), batas ±60.000 dokumen (`BACKUP_MAX_DOCS`). Tiap dokumen yang dibaca memakai kuota baca Firestore yang sama dengan aplikasi.
+- Pagar penyalahgunaan: perencanaan lampiran satu kali per 300 dtk (`BACKUP_PLAN_COOLDOWN_SECONDS`) dan ditolak (413) bila dokumen `submissions` melebihi batas sebelum pemindaian; satu ekspor per workspace per 5 menit (`BACKUP_COOLDOWN_SECONDS`), batas ±15.000 dokumen (`BACKUP_MAX_DOCS`; nilai di atas 15.000 diabaikan kecuali `BACKUP_MAX_DOCS_ALLOW_ABOVE_SAFE=yes`, maks. 100.000). Tiap dokumen yang dibaca memakai kuota baca Firestore yang sama dengan aplikasi.
 - Log server tidak memuat isi data/pesan galat mentah.
 
 ## Batas dan perilaku
