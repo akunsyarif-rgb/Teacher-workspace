@@ -31,7 +31,12 @@ export function parseScore(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Per kelas: sesi unik (tanggal+mapel), jumlah catatan siswa, status, terlambat. % hadir = Hadir ÷ SEMUA catatan siswa (sama dengan summarizeAttendance di aplikasi). */
+/**
+ * KETERBATASAN "Sesi tercatat": baris ekspor presensi (flattenAttendances) tidak membawa ID dokumen sesi maupun scheduleId, jadi sesi diidentifikasi
+ * dari (kelas, tanggal, mapel). Dua sesi bermapel sama pada tanggal yang sama di kelas yang sama terhitung SATU (undercount). Memperbaikinya butuh
+ * menambah field ke baris ekspor, yang mengubah isi JSON — sengaja tidak dilakukan. Angka lain (catatan siswa, status, % hadir) tidak terpengaruh.
+ *
+ * Per kelas: sesi unik (tanggal+mapel), jumlah catatan siswa, status, terlambat. % hadir = Hadir ÷ SEMUA catatan siswa (sama dengan summarizeAttendance di aplikasi). */
 export function summarizeAttendanceByClass(rows: Row[]) {
   const by = new Map<string, { className: string; sessions: Set<string>; total: number; hadir: number; izin: number; sakit: number; alpha: number; dispensasi: number; terlambat: number }>();
   rows.forEach((row) => {

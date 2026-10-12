@@ -20,6 +20,12 @@ describe('ringkasan presensi per kelas', () => {
     expect(r.map((x) => x.className)).toEqual(['7A', '8A']);
     expect(r[1].hadir).toBe(1); expect(r[0].alpha).toBe(1);
   });
+  it('KETERBATASAN terdokumentasi: dua sesi mapel sama di tanggal sama dihitung satu sesi, tetapi catatan siswa & % hadir tetap benar', () => {
+    const rows = [att('7A', '2026-03-01', 'IPA', 'Hadir'), att('7A', '2026-03-01', 'IPA', 'Alpa'), att('7A', '2026-03-01', 'IPA', 'Hadir'), att('7A', '2026-03-01', 'IPA', 'Hadir')];
+    const [r] = summarizeAttendanceByClass(rows);
+    expect(r.sessions).toBe(1); // bisa jadi 2 sesi nyata; sumber baris tidak membawa ID sesi
+    expect(r).toMatchObject({ total: 4, hadir: 3, hadirPercent: '75%' });
+  });
   it('tidak mengubah baris sumber', () => {
     const rows = [att('7A', 'd', 's', 'Hadir', 'Ya')];
     const snap = JSON.stringify(rows);
