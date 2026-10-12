@@ -6,6 +6,7 @@ import { downloadCsv } from './csvExport';
 import { downloadJsonBackup } from './jsonBackupExport';
 import { exportDataTablePdf } from './dataTablePdf';
 import { getWitaDateString } from './witaDate';
+import { ATTENDANCE_SUMMARY_COLUMNS, GRADE_SUMMARY_COLUMNS, summarizeAttendanceByClass, summarizeGradesByStudent } from './exportSummary';
 
 export type ExportFormat = 'pdf' | 'csv' | 'json';
 
@@ -17,6 +18,27 @@ function fileBaseName(scope: ExportScope, preset: PeriodPreset) {
   const scopePart = scope.type === 'class' ? scope.className.replace(/\s+/g, '-') : 'SemuaKelas';
   const datePart = getWitaDateString();
   return `Data-${scopePart}-${preset}-${datePart}`;
+}
+
+type PdfSection = { title: string; columns: { key: string; label: string }[]; rows: Record<string, unknown>[] };
+
+function buildPdfSections(dataTypeKeys: string[], data: Record<string, Record<string, unknown>[]>, rangeLabel: string): PdfSection[] {
+  const sections: PdfSection[] = [];
+  for (const key of dataTypeKeys) {
+    const rows = data[key] || [];
+    if (key === 'attendances') {
+      sections.push({ title: `Ringkasan Presensi — ${rangeLabel}`, columns: ATTENDANCE_SUMMARY_COLUMNS, rows: summarizeAttendanceByClass(rows) });
+      sections.push({ title: 'Rincian Presensi', columns: EXPORT_COLUMNS[key] || [], rows });
+      continue;
+    }
+    if (key === 'grades') {
+      sections.push({ title: 'Ringkasan Nilai per Siswa', columns: GRADE_SUMMARY_COLUMNS, rows: summarizeGradesByStudent(rows) });
+      sections.push({ title: 'Rincian Nilai per Komponen', columns: EXPORT_COLUMNS[key] || [], rows });
+      continue;
+    }
+    sections.push({ title: EXPORT_DATA_TYPE_LABELS[key] || key, columns: EXPORT_COLUMNS[key] || [], rows });
+  }
+  return sections;
 }
 
 export async function triggerExport(params: {
@@ -48,11 +70,7 @@ export async function triggerExport(params: {
     exportDataTablePdf({
       documentTitle: 'Laporan Data — Teacher Workspace',
       subtitle: `${scopeLabel(scope)} • ${PERIOD_PRESET_LABELS[preset]}`,
-      sections: dataTypeKeys.map((key) => ({
-        title: EXPORT_DATA_TYPE_LABELS[key] || key,
-        columns: EXPORT_COLUMNS[key] || [],
-        rows: data[key] || [],
-      })),
+      sections: buildPdfSections(dataTypeKeys, data, PERIOD_PRESET_LABELS[preset]),
       filename: `${baseName}.pdf`,
     });
     return;
