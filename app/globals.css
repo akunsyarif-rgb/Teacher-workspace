@@ -1,6 +1,13 @@
 @import "tailwindcss";
 
 :root {
+  /*
+   * Teacher Workspace is intentionally light-themed.
+   * Keep native form controls and browser-rendered UI aligned with the
+   * explicit light surfaces/text used throughout the application, even
+   * when iOS/iPadOS is configured for Dark Mode.
+   */
+  color-scheme: light;
   --background: #ffffff;
   --foreground: #171717;
 }
@@ -10,13 +17,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 html,
