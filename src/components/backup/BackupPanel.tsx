@@ -62,7 +62,7 @@ export default function BackupPanel() {
     try {
       const r = await backup.decryptBackupFile(new Uint8Array(await open.file.arrayBuffer()), open.pass, open.file.name);
       saveBytes(r.filename, r.bytes);
-      setOpen((o) => ({ ...o, busy: false, msg: `Arsip dibuka dan disimpan sebagai ${r.filename}.`, pass: '' }));
+      setOpen((o) => ({ ...o, busy: false, msg: `Backup berhasil didekripsi dan diunduh sebagai ${r.filename}.`, pass: '' }));
     } catch (e) {
       setOpen((o) => ({ ...o, busy: false, error: backup.describeBackupError(e) }));
     }
@@ -152,14 +152,15 @@ export default function BackupPanel() {
       </div>
 
       <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-3">
-        <p className="flex items-center gap-2 text-sm font-extrabold text-gray-900"><LockOpen className="w-4 h-4" /> Buka Arsip Terenkripsi</p>
-        <p className="text-xs text-gray-600">Untuk membaca isi berkas <b>.zip.enc</b>: pilih berkas dan masukkan kata sandinya. Hasilnya ZIP biasa; dibuat di perangkat ini dan tidak dikirim ke server.</p>
-        <input type="file" accept=".enc" aria-label="Berkas arsip terenkripsi" onChange={(e) => setOpen((o) => ({ ...o, file: e.target.files?.[0] ?? null, msg: '', error: '' }))} className="block w-full text-xs text-gray-700" />
-        <input type="password" autoComplete="off" placeholder="Kata sandi berkas ini" value={open.pass} onChange={(e) => setOpen((o) => ({ ...o, pass: e.target.value }))} aria-label="Kata sandi untuk membuka arsip"
+        <p className="flex items-center gap-2 text-sm font-extrabold text-gray-900"><LockOpen className="w-4 h-4" /> Buka Backup Terenkripsi</p>
+        <p className="text-xs text-gray-600">Gunakan bagian ini untuk membuka kembali file backup <b>.zip.enc</b> yang diunduh dari atas. Pilih file tersebut, lalu masukkan kata sandi yang sama seperti saat membuat backup. Hasilnya file ZIP biasa yang diunduh ke perangkat ini; proses dekripsi dilakukan di perangkat dan file tidak dikirim ke server.</p>
+        <input type="file" accept=".zip.enc,.enc" aria-label="Pilih file backup terenkripsi (.zip.enc)" onChange={(e) => setOpen((o) => ({ ...o, file: e.target.files?.[0] ?? null, msg: '', error: '' }))} className="block w-full text-xs text-gray-700" />
+        <input type="password" autoComplete="off" placeholder="Kata sandi saat backup dibuat" value={open.pass} onChange={(e) => setOpen((o) => ({ ...o, pass: e.target.value }))} aria-label="Kata sandi untuk membuka arsip"
           className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-xs bg-white text-gray-900" />
         <InlineAlert message={open.error} onDismiss={() => setOpen((o) => ({ ...o, error: '' }))} />
-        <Button variant="secondary" onClick={openArchive} disabled={!open.file || !open.pass || open.busy} loading={open.busy}>Buka Arsip</Button>
+        <Button variant="secondary" onClick={openArchive} disabled={!open.file || !open.pass || open.busy} loading={open.busy}>Dekripsi &amp; Unduh ZIP</Button>
         {open.msg && <p role="status" aria-live="polite" className="text-[11px] font-bold text-emerald-700">{open.msg}</p>}
+        <p className="text-[11px] text-gray-500">Ini hanya membuka file backup, bukan memulihkan data ke Teacher Workspace. Arsip dapat berisi data pribadi siswa; simpan hasil ZIP dengan aman.</p>
       </div>
 
       <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-2 text-xs text-gray-600">
