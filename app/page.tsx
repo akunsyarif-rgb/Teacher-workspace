@@ -336,6 +336,7 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="bg-[#FFFEF9] p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-[#D9DED5] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="space-y-1">
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-[#2F6B4F]">Buku kerja guru · Beranda</p>
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-2 text-[10px] font-bold text-[#2F6B4F] uppercase tracking-wider bg-[#EDF3E8]/60 px-2.5 py-1 rounded-xl w-fit">
                 <Calendar className="w-3 h-3" />
