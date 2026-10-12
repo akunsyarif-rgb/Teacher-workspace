@@ -155,7 +155,7 @@ export default function BackupPanel() {
         <p className="flex items-center gap-2 text-sm font-extrabold text-gray-900"><LockOpen className="w-4 h-4" /> Buka Arsip Terenkripsi</p>
         <p className="text-xs text-gray-600">Untuk membaca isi berkas <b>.zip.enc</b>: pilih berkas dan masukkan kata sandinya. Hasilnya ZIP biasa; dibuat di perangkat ini dan tidak dikirim ke server.</p>
         <input type="file" accept=".enc" aria-label="Berkas arsip terenkripsi" onChange={(e) => setOpen((o) => ({ ...o, file: e.target.files?.[0] ?? null, msg: '', error: '' }))} className="block w-full text-xs text-gray-700" />
-        <input type="password" autoComplete="off" placeholder="Kata sandi arsip" value={open.pass} onChange={(e) => setOpen((o) => ({ ...o, pass: e.target.value }))} aria-label="Kata sandi untuk membuka arsip"
+        <input type="password" autoComplete="off" placeholder="Kata sandi berkas ini" value={open.pass} onChange={(e) => setOpen((o) => ({ ...o, pass: e.target.value }))} aria-label="Kata sandi untuk membuka arsip"
           className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-xs bg-white text-gray-900" />
         <InlineAlert message={open.error} onDismiss={() => setOpen((o) => ({ ...o, error: '' }))} />
         <Button variant="secondary" onClick={openArchive} disabled={!open.file || !open.pass || open.busy} loading={open.busy}>Buka Arsip</Button>
