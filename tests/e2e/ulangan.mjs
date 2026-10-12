@@ -317,6 +317,117 @@ async function run() {
     check(/Selesai/.test(rowText) && /100/.test(rowText) && /2\/2/.test(rowText), 'Hasil guru: nama dari Firestore, Selesai, terjawab 2/2, nilai 100', rowText);
     check(/1× keluar halaman/.test(rowText), 'Hasil guru menampilkan sinyal integritas (indikasi, bukan sanksi)', rowText);
     check(q("select status from public.ulh_attempts") === 'submitted', 'Tidak ada sanksi otomatis: status tetap submitted normal');
+
+    // ---------- 5. Integritas pengumpulan: kumpul tidak boleh mendahului jawaban yang belum dikonfirmasi server ----------
+    console.log('\n→ Integritas pengumpulan (jaringan gagal/lambat, klik ganda, waktu habis)');
+    // Ulangan 2 soal; label pilihan unik per ulangan (mis. "Bg") supaya tombol tidak tertukar. Kunci: soal 1 = B, soal 2 = C.
+    const createExam = async (title, tag) => {
+      await teacher.goto(`${BASE_URL}/ulangan`, { waitUntil: 'domcontentloaded' });
+      await teacher.getByRole('button', { name: /\+ Ulangan Baru/ }).click({ timeout: 30000 });
+      await teacher.fill('input[placeholder*="Judul ulangan"]', title);
+      const qs = teacher.locator('textarea[placeholder="Teks soal"]');
+      await qs.nth(0).fill(`${title} soal 1?`);
+      for (const l of ['A', 'B', 'C', 'D']) await teacher.locator(`input[placeholder="Pilihan ${l}"]`).nth(0).fill(`${l}${tag}1`);
+      await teacher.locator('input[aria-label="Kunci soal 1 pilihan 2"]').check();
+      await teacher.getByRole('button', { name: /Tambah soal/ }).click();
+      await qs.nth(1).fill(`${title} soal 2?`);
+      for (const l of ['A', 'B', 'C', 'D']) await teacher.locator(`input[placeholder="Pilihan ${l}"]`).nth(1).fill(`${l}${tag}2`);
+      await teacher.locator('input[aria-label="Kunci soal 2 pilihan 3"]').check();
+      const t0 = new Date();
+      await teacher.locator('input[type="datetime-local"]').nth(0).fill(localDateTime(new Date(t0.getTime() - 3600_000)));
+      await teacher.locator('input[type="datetime-local"]').nth(1).fill(localDateTime(new Date(t0.getTime() + 2 * 3600_000)));
+      await teacher.getByText(CLASS_NAME, { exact: true }).last().click();
+      await teacher.getByLabel(/Tampilkan nilai ke siswa/).check();
+      await teacher.getByRole('button', { name: 'Terbitkan' }).click();
+      // Teks judul juga ada di textarea soal; tunggu kembali ke daftar (tombol + Ulangan Baru) lalu pastikan sudah terbit di DB.
+      await teacher.getByRole('button', { name: /\+ Ulangan Baru/ }).waitFor({ timeout: 20000 });
+      for (let i = 0; i < 40; i++) {
+        const id = q(`select id from public.ulh_exams where title = '${title}' and status = 'published'`);
+        if (id) return id;
+        await sleep(250);
+      }
+      throw new Error(`ulangan ${title} tidak terbit`);
+    };
+    const startExam = async (page, title) => {
+      await page.goto(`${BASE_URL}/student/ulangan`, { waitUntil: 'domcontentloaded' });
+      await page.locator('div.shadow-sm', { hasText: title }).getByRole('button', { name: /Mulai Ulangan/ }).click({ timeout: 30000 });
+      await page.waitForURL(/\/student\/ulangan\/[0-9a-f-]{36}/, { timeout: 20000 });
+      await page.getByText(`${title} soal 1?`).waitFor({ timeout: 20000 });
+    };
+    const attemptOf = (examId) => q(`select status || '|' || coalesce(score::text, '-') || '|' || coalesce(correct_count::text, '-') from public.ulh_attempts where exam_id = '${examId}'`);
+    const isAnswerReq = (req) => (req.postData() || '').includes('"attempt.answer"');
+    const page = student2;
+
+    // 5a. Simpan gagal tepat sebelum kumpul → kumpul DITAHAN; jaringan pulih → tersimpan lewat retry; klik ganda → satu pengumpulan.
+    const examA = await createExam('UH Gagal Simpan', 'g');
+    await startExam(page, 'UH Gagal Simpan');
+    await page.getByRole('button', { name: 'Bg1', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'Semua jawaban tersimpan' }).first().waitFor({ timeout: 15000 });
+    let submitRequests = 0;
+    const countSubmit = (req) => { if ((req.postData() || '').includes('"attempt.submit"')) submitRequests++; };
+    page.on('request', countSubmit);
+    await page.route('**/api/ulangan', (r) => (isAnswerReq(r.request()) ? r.abort() : r.continue()));
+    await page.getByRole('button', { name: 'Cg2', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'BELUM tersimpan' }).first().waitFor({ timeout: 15000 });
+    await page.getByRole('button', { name: /Selesai & Kumpulkan/ }).click();
+    await page.getByRole('button', { name: /^Kumpulkan \(/ }).click();
+    await page.getByText(/Belum dikumpulkan: 1 jawaban belum tersimpan di server \(soal \d\)/).waitFor({ timeout: 20000 });
+    check(submitRequests === 0 && attemptOf(examA).startsWith('active|'), 'Simpan gagal sebelum kumpul: kumpul ditahan (tidak ada request submit; attempt tetap aktif)', `submit=${submitRequests}, db=${attemptOf(examA)}`);
+    check((await page.getByText(/Jawabanmu sudah dikumpulkan/).count()) === 0, 'Simpan gagal: siswa TIDAK diberi tahu "sudah dikumpulkan"');
+    await page.unroute('**/api/ulangan');
+    await page.getByRole('status').filter({ hasText: 'Semua jawaban tersimpan' }).first().waitFor({ timeout: 20000 });
+    check(q(`select count(*) from public.ulh_answers an join public.ulh_attempts a on a.id = an.attempt_id where a.exam_id = '${examA}'`) === '2', 'Jaringan pulih: jawaban tertunda tersimpan otomatis lewat retry');
+    // Dua klik dalam satu tick (sebelum React sempat menonaktifkan tombol) → hanya satu request submit.
+    await page.evaluate(() => {
+      const b = [...document.querySelectorAll('button')].find((x) => /^Kumpulkan \(/.test(x.textContent || ''));
+      b.click(); b.click();
+    });
+    await page.getByText(/Jawabanmu sudah dikumpulkan/).waitFor({ timeout: 20000 });
+    page.off('request', countSubmit);
+    check(submitRequests === 1, 'Klik Kumpulkan berulang: hanya satu request submit', `submit=${submitRequests}`);
+    check(attemptOf(examA) === 'submitted|100.00|2' && q(`select count(*) from public.ulh_attempts where exam_id = '${examA}'`) === '1', 'Setelah pulih: skor benar (100, 2 benar), satu pengerjaan', attemptOf(examA));
+
+    // 5b. Jaringan lambat: ganti jawaban saat request sebelumnya belum selesai, lalu langsung kumpul → jawaban terakhir ikut dinilai.
+    const examB = await createExam('UH Jaringan Lambat', 'l');
+    await startExam(page, 'UH Jaringan Lambat');
+    await page.route('**/api/ulangan', async (r) => {
+      if (isAnswerReq(r.request())) await sleep(2500);
+      await r.continue();
+    });
+    await page.getByRole('button', { name: 'Al1', exact: true }).click(); // salah; request tertunda
+    await page.waitForTimeout(300);
+    await page.getByRole('button', { name: 'Bl1', exact: true }).click(); // diganti ke benar saat request "Al1" masih berjalan
+    await page.getByRole('button', { name: 'Cl2', exact: true }).click();
+    await page.getByRole('button', { name: /Selesai & Kumpulkan/ }).click();
+    await page.getByRole('button', { name: /^Kumpulkan \(/ }).click(); // segera, autosave masih berjalan
+    await page.getByText(/Jawabanmu sudah dikumpulkan/).waitFor({ timeout: 30000 });
+    await page.unroute('**/api/ulangan');
+    check(attemptOf(examB) === 'submitted|100.00|2', 'Kumpul saat autosave berjalan + jawaban diganti di tengah request: jawaban terakhir dinilai (100)', attemptOf(examB));
+    check(/Nilai: 100/.test(await page.locator('body').innerText()), 'Siswa melihat nilai yang sesuai jawaban terakhirnya');
+
+    // 5c. Waktu habis saat jaringan putus: timer tetap 00:00 (tidak kembali ke waktu awal), kumpul otomatis dicoba ulang sampai berhasil.
+    const examC = await createExam('UH Waktu Habis', 't');
+    await startExam(page, 'UH Waktu Habis');
+    await page.getByRole('button', { name: 'Bt1', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'Semua jawaban tersimpan' }).first().waitFor({ timeout: 15000 });
+    q(`update public.ulh_attempts set expires_at = clock_timestamp() + interval '6 seconds' where exam_id = '${examC}'`);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.getByText('UH Waktu Habis soal 1?').waitFor({ timeout: 20000 });
+    const timer = page.getByTestId('ulangan-timer');
+    await page.route('**/api/ulangan', (r) => r.abort()); // jaringan putus menjelang waktu habis
+    const seen = [];
+    const until = Date.now() + 14000;
+    while (Date.now() < until) {
+      seen.push(((await timer.textContent({ timeout: 1000 }).catch(() => '')) || '').trim());
+      await page.waitForTimeout(200);
+    }
+    const afterZero = seen.slice(seen.indexOf('00:00'));
+    check(seen.includes('00:00') && afterZero.every((t) => t === '00:00'), 'Timer mencapai 00:00 dan tetap 00:00 (tidak kembali ke durasi awal)', [...new Set(seen)].join(' → '));
+    check((await page.getByText(/Waktu habis — mengumpulkan jawabanmu/).count()) === 1 && (await page.getByRole('button', { name: 'At1', exact: true }).isDisabled()), 'Waktu habis: status "mengumpulkan" tampil, pilihan jawaban terkunci');
+    await page.unroute('**/api/ulangan');
+    await page.getByText(/Waktu habis — jawaban yang tersimpan sudah dikumpulkan/).waitFor({ timeout: 20000 });
+    check(attemptOf(examC) === 'expired|50.00|1', 'Jaringan pulih setelah waktu habis: kumpul otomatis dicoba ulang; server menilai jawaban yang tersimpan (50)', attemptOf(examC));
+
     check(pageErrors.length === 0, 'Tidak ada pageerror JavaScript di browser', pageErrors.slice(0, 3).join(' | '));
   } catch (e) {
     fail('Alur e2e', e instanceof Error ? e.message.split('\n')[0] : String(e));

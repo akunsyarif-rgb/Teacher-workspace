@@ -24,3 +24,4 @@ export const reportLeave = (attemptId: string, eventType: string, startedAtMs: n
 };
 export const describeError = service.describeUlanganError;
 export const warningText = service.integrityWarningText;
+export { createAnswerQueue, type AnswerQueue, type FlushResult } from '../services/ulanganAnswerQueue';

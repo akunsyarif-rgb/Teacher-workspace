@@ -44,6 +44,7 @@ Guru / Siswa (browser)
 - `ulangan-supabase` (6): jalur server→Supabase: hanya RPC `ulh_*`, URL divalidasi, SmadaExam ditolak, secret tak bocor. `ulangan-verify-sql` (2): verifikasi katalog read-only + 13 kontrol negatif.
 - `ulangan-client` (7). `ulangan-route-postgrest` (4): rantai HTTP penuh lokal — handler `POST /api/ulangan` asli → `ulanganRpc` asli → gateway lokal → PostgREST asli; Firebase Admin palsu. Mencakup token tak valid/kedaluwarsa/dicabut, otorisasi guru/siswa, kelas/workspace dari Firestore, payload palsu, autosave, submit ganda, batas waktu, kunci salah, gateway mati.
 - **E2E browser** `npm run test:e2e:ulangan` (22 langkah): guru membuat & menerbitkan, siswa mengerjakan (peringatan integritas, autosave, reload, pindah perangkat, submit), guru melihat hasil. Gateway lokal menggantikan gateway Supabase (hanya untuk server). Belum di CI.
+- `ulangan-answer-queue` (5) + E2E langkah "Integritas pengumpulan": kumpul ditahan selama ada jawaban yang belum dikonfirmasi server (simpan gagal → tidak ada request submit, attempt tetap aktif), kumpul menunggu autosave yang sedang berjalan, jawaban yang diganti di tengah request tetap terkirim, klik ganda = 1 submit, timer tetap 00:00 saat habis, kumpul otomatis dicoba ulang setelah jaringan pulih.
 - CI: `.github/workflows/ulangan-db-tests.yml` (push ke branch ini / PR / manual): Postgres + PostgREST di runner, tanpa secret.
 - Jalankan lokal: `POSTGREST_BIN=... RLS_TEST_ADMIN_URL=postgresql://postgres:pw@127.0.0.1:5432/postgres npx vitest run tests/ulangan-*.test.ts`
 
