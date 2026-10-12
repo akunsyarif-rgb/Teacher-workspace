@@ -9,11 +9,11 @@ import {
 export const runtime = 'nodejs';
 
 // Menu Admin: hanya OWNER (dicek ulang di workspaceAdminService.requireOwner).
-async function authenticate(request: NextRequest): Promise<string | NextResponse> {
+async function authenticate(request: NextRequest): Promise<{ uid: string; idToken: string } | NextResponse> {
   const idToken = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
   if (!idToken) return NextResponse.json({ error: 'Token otentikasi diperlukan.' }, { status: 401 });
   try {
-    return (await getAdminAuth().verifyIdToken(idToken)).uid;
+    return { uid: (await getAdminAuth().verifyIdToken(idToken)).uid, idToken };
   } catch {
     return NextResponse.json({ error: 'Sesi tidak valid. Silakan masuk kembali.' }, { status: 401 });
   }
@@ -28,21 +28,21 @@ function failure(error: unknown, fallback: string) {
 }
 
 export async function GET(request: NextRequest) {
-  const uid = await authenticate(request);
-  if (uid instanceof NextResponse) return uid;
+  const auth = await authenticate(request);
+  if (auth instanceof NextResponse) return auth;
   try {
-    return NextResponse.json(await listWorkspaceMembersServer(uid));
+    return NextResponse.json(await listWorkspaceMembersServer(auth.uid, auth.idToken));
   } catch (error) {
     return failure(error, 'Gagal memuat daftar guru.');
   }
 }
 
 export async function DELETE(request: NextRequest) {
-  const uid = await authenticate(request);
-  if (uid instanceof NextResponse) return uid;
+  const auth = await authenticate(request);
+  if (auth instanceof NextResponse) return auth;
   try {
     const body = await request.json().catch(() => ({}));
-    await removeWorkspaceMemberServer(uid, body?.uid);
+    await removeWorkspaceMemberServer(auth.uid, body?.uid, auth.idToken);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return failure(error, 'Gagal mengeluarkan guru.');

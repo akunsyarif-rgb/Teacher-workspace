@@ -1,4 +1,4 @@
-import { getDocument, getDocumentFromCache, setDocument, updateDocument } from '../adapters/firestoreAdapter';
+import { adapterFor } from '../adapters/dataAdapter';
 
 const TEACHER_PROFILES_COLLECTION = 'teacher_profiles';
 
@@ -15,15 +15,15 @@ export type TeacherProfile = {
 };
 
 export async function getTeacherProfile(uid: string): Promise<TeacherProfile | null> {
-  return getDocument(TEACHER_PROFILES_COLLECTION, uid) as Promise<TeacherProfile | null>;
+  return adapterFor(TEACHER_PROFILES_COLLECTION).getDocument(TEACHER_PROFILES_COLLECTION, uid) as Promise<TeacherProfile | null>;
 }
 
 export async function getCachedTeacherProfile(uid: string): Promise<TeacherProfile | null> {
-  return getDocumentFromCache(TEACHER_PROFILES_COLLECTION, uid) as Promise<TeacherProfile | null>;
+  return adapterFor(TEACHER_PROFILES_COLLECTION).getDocumentFromCache(TEACHER_PROFILES_COLLECTION, uid) as Promise<TeacherProfile | null>;
 }
 
 export async function saveTeacherProfile(uid: string, data: TeacherProfile) {
-  await setDocument(TEACHER_PROFILES_COLLECTION, uid, data);
+  await adapterFor(TEACHER_PROFILES_COLLECTION).setDocument(TEACHER_PROFILES_COLLECTION, uid, data);
   return data;
 }
 
@@ -37,7 +37,7 @@ export async function setTeacherWorkspace(
 
 // Fungsi khusus untuk update quickNote saja (lebih ringan)
 export async function updateTeacherQuickNote(uid: string, quickNote: string) {
-  await updateDocument(TEACHER_PROFILES_COLLECTION, uid, { quickNote });
+  await adapterFor(TEACHER_PROFILES_COLLECTION).updateDocument(TEACHER_PROFILES_COLLECTION, uid, { quickNote });
   return { quickNote };
 }
 

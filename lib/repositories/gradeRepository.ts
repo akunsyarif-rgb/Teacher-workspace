@@ -1,9 +1,10 @@
-import { getDocuments, batchWrite, BatchOperation } from '../adapters/firestoreAdapter';
+import type { BatchOperation } from '../adapters/firestoreAdapter';
+import { adapterFor } from '../adapters/dataAdapter';
 import { COLLECTIONS } from '../config/constants';
 
 export async function getGradesByClass(workspaceId: string, className: string) {
   if (!workspaceId || !className) return [];
-  return getDocuments(COLLECTIONS.GRADES, [
+  return adapterFor(COLLECTIONS.GRADES).getDocuments(COLLECTIONS.GRADES, [
     ['workspaceId', '==', workspaceId],
     ['className', '==', className],
   ]);
@@ -14,7 +15,7 @@ export async function getGradesByClass(workspaceId: string, className: string) {
 // list baru lolos kalau filternya menjamin hal itu.
 export async function getGradesByStudent(workspaceId: string, studentId: string) {
   if (!workspaceId || !studentId) return [];
-  return getDocuments(COLLECTIONS.GRADES, [
+  return adapterFor(COLLECTIONS.GRADES).getDocuments(COLLECTIONS.GRADES, [
     ['workspaceId', '==', workspaceId],
     ['studentId', '==', studentId],
   ]);
@@ -45,5 +46,5 @@ export async function saveGradesBatch(
       },
     };
   });
-  return batchWrite(operations);
+  return adapterFor(COLLECTIONS.GRADES).batchWrite(operations);
 }

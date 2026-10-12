@@ -1,9 +1,9 @@
-import { getDocuments, addDocument, updateDocument, deleteDocument } from '../adapters/firestoreAdapter';
+import { adapterFor } from '../adapters/dataAdapter';
 import { COLLECTIONS } from '../config/constants';
 
 export async function getJournalsByClass(workspaceId: string, className: string) {
   if (!workspaceId || !className) return [];
-  return getDocuments(COLLECTIONS.JOURNALS, [
+  return adapterFor(COLLECTIONS.JOURNALS).getDocuments(COLLECTIONS.JOURNALS, [
     ['workspaceId', '==', workspaceId],
     ['className', '==', className],
   ]);
@@ -21,7 +21,7 @@ export async function getJournalsByClassInRange(
   endDate: string
 ) {
   if (!workspaceId || !className) return [];
-  return getDocuments(COLLECTIONS.JOURNALS, [
+  return adapterFor(COLLECTIONS.JOURNALS).getDocuments(COLLECTIONS.JOURNALS, [
     ['workspaceId', '==', workspaceId],
     ['className', '==', className],
     ['date', '>=', startDate],
@@ -40,7 +40,7 @@ export async function findTodayJournal(
   date: string
 ) {
   if (!workspaceId || !className) return null;
-  const docs = await getDocuments(COLLECTIONS.JOURNALS, [
+  const docs = await adapterFor(COLLECTIONS.JOURNALS).getDocuments(COLLECTIONS.JOURNALS, [
     ['workspaceId', '==', workspaceId],
     ['className', '==', className],
     ['date', '==', date],
@@ -52,13 +52,13 @@ export async function findTodayJournal(
 }
 
 export async function createJournal(data: Record<string, any>) {
-  return addDocument(COLLECTIONS.JOURNALS, data);
+  return adapterFor(COLLECTIONS.JOURNALS).addDocument(COLLECTIONS.JOURNALS, data);
 }
 
 export async function updateJournal(id: string, data: Record<string, any>) {
-  return updateDocument(COLLECTIONS.JOURNALS, id, data);
+  return adapterFor(COLLECTIONS.JOURNALS).updateDocument(COLLECTIONS.JOURNALS, id, data);
 }
 
 export async function deleteJournal(id: string) {
-  return deleteDocument(COLLECTIONS.JOURNALS, id);
+  return adapterFor(COLLECTIONS.JOURNALS).deleteDocument(COLLECTIONS.JOURNALS, id);
 }

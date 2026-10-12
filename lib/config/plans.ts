@@ -63,7 +63,7 @@ export function isSeatLimitReached(workspace: { seatLimit?: number | null }, cur
 export function assertSeatLimitNotReached(workspace: { seatLimit?: number | null }, currentMemberCount: number) {
   if (isSeatLimitReached(workspace, currentMemberCount)) {
     throw new Error(
-      `Kuota guru workspace ini sudah penuh (maks ${workspace.seatLimit} guru). Admin sekolah perlu membeli kursi tambahan lewat halaman upgrade.`
+      `Kuota guru workspace ini sudah penuh (maks ${workspace.seatLimit} guru). Hubungi pemilik aplikasi untuk menambah kuota guru.`
     );
   }
 }

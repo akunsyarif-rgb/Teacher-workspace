@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { identityOnSupabase } from '@/lib/server/supabaseServer';
 import { getAdminAuth, getAdminDb } from '@/lib/server/firebaseAdmin';
 import { createPaymentTransaction } from '@/lib/server/paymentService';
 import { isPaidPlan } from '@/lib/config/plans';
@@ -8,6 +9,12 @@ export const runtime = 'nodejs';
 // Butuh Node.js runtime (firebase-admin & midtrans-client bergantung pada
 // modul Node seperti crypto) — bukan Edge.
 export async function POST(request: NextRequest) {
+  // Pembayaran/langganan di luar scope migrasi Supabase: saat identitas workspace berjalan di Supabase, rute ini
+  // MENOLAK (bukan menulis ke Firestore yang sudah tidak menjadi sumber kebenaran workspace). Tidak ada akses guru
+  // yang bergantung pada rute ini.
+  if (identityOnSupabase()) {
+    return NextResponse.json({ error: 'Pembayaran belum tersedia pada konfigurasi ini.' }, { status: 501 });
+  }
   try {
     const authHeader = request.headers.get('authorization') || '';
     const idToken = authHeader.replace(/^Bearer\s+/i, '').trim();
