@@ -98,7 +98,7 @@ describe('service', () => {
     });
     const saved: string[] = []; const progress: number[] = [];
     const r = await service.downloadAllAttachments('', (n) => saved.push(n), (p) => progress.push(p.files));
-    expect(r).toEqual({ files: 70, parts: 3 });
+    expect(r).toEqual({ files: 70, parts: 3, skipped: 0 });
     expect(asked).toEqual([30, 30, 20]); // 25 + 25 + 20 = 70: tidak ada file terlewat
     expect(saved).toEqual(['teacher-workspace-lampiran-bagian-01.zip', 'teacher-workspace-lampiran-bagian-02.zip', 'teacher-workspace-lampiran-bagian-03.zip']);
     expect(progress.at(-1)).toBe(70);

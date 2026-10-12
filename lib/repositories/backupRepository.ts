@@ -58,9 +58,10 @@ export async function fetchAttachmentPlan(): Promise<AttachmentPlanFile[]> {
   const res = await post('attachments', { action: 'plan' });
   return ((await res.json()) as { files: AttachmentPlanFile[] }).files;
 }
-export async function downloadAttachmentPart(paths: string[]): Promise<{ bytes: Uint8Array; included: number }> {
+export async function downloadAttachmentPart(paths: string[]): Promise<{ bytes: Uint8Array; included: number; skipped: number }> {
   const res = await post('attachments', { action: 'part', paths });
   const included = Number(res.headers.get('x-backup-part-included'));
   if (!Number.isInteger(included) || included < 1) throw new BackupApiError('bad_part', 0, 'Respons lampiran tidak valid. Coba lagi.');
-  return { bytes: await readAll(res), included };
+  const skipped = Number(res.headers.get('x-backup-part-skipped')) || 0;
+  return { bytes: await readAll(res), included, skipped };
 }

@@ -13,7 +13,7 @@ import { decryptArchive, encryptArchive, isEncryptedArchive } from '../lib/backu
 import { restoreDocs, verifyAttachmentPart, verifyExportZip } from '../lib/backup/archive.mjs';
 import { encodeValue } from '../lib/backup/valueCodec.mjs';
 import { exportZip } from '../lib/server/backup/exportWorkspace';
-import { planAttachments, probePart, validatePaths, PathError } from '../lib/server/backup/attachments';
+import { MAX_PART_BYTES, partEntries, planAttachments, probePart, validatePaths, PathError } from '../lib/server/backup/attachments';
 import { makeUlanganCollector } from '../lib/server/backup/ulanganExport';
 import { planCooldownSeconds, resolveMaxDocs, SAFE_MAX_DOCS } from '../lib/server/backup/limits';
 import { AttachmentLimitError } from '../lib/server/backup/attachments';
@@ -373,6 +373,90 @@ describe('lampiran (Supabase Storage)', () => {
     expect((await probePart({ url: 'http://x', key: 'k', fetchImpl: mk([10 * mb, 10 * mb, 10 * mb, 10 * mb, 10 * mb]) }, paths)).included).toBe(4);
     expect((await probePart({ url: 'http://x', key: 'k', fetchImpl: mk([50 * mb, 1, 1, 1, 1]) }, paths)).included).toBe(1);
     expect((await probePart({ url: 'http://x', key: 'k', fetchImpl: mk([30 * mb, 30 * mb, 1, 1, 1]) }, paths)).included).toBe(1);
+  });
+  describe('ukuran lampiran tidak diketahui → fail-safe (tidak dianggap 0)', () => {
+    const P = (n: number) => Array.from({ length: n }, (_, i) => `submissions/wsA/a/u/f${i}`);
+    const idx = (url: string) => Number(new URL(url).pathname.split('/').pop()!.replace(/\D/g, ''));
+    type H = { status?: number; cl?: string | null; throws?: boolean };
+    const fx = (heads: Record<number, H>, bodies: Record<number, Buffer> = {}) => ((url: string, init?: RequestInit) => {
+      const i = idx(url);
+      if (init?.method === 'HEAD') {
+        const h = heads[i] ?? { status: 200, cl: '10' };
+        if (h.throws) return Promise.reject(new Error('net'));
+        return Promise.resolve(new Response(null, { status: h.status ?? 200, headers: h.cl === null || h.cl === undefined ? {} : { 'content-length': h.cl } }));
+      }
+      const b = bodies[i];
+      return Promise.resolve(b ? new Response(new Uint8Array(b), { status: 200 }) : new Response(null, { status: 404 }));
+    }) as unknown as typeof fetch;
+    const mb = 1024 * 1024;
+    it.each([
+      ['HEAD 500', { status: 500 }], ['HEAD 403', { status: 403 }], ['HEAD melempar galat', { throws: true }],
+      ['content-length hilang', { cl: null }], ['content-length tidak valid', { cl: 'abc' }], ['content-length 0', { cl: '0' }], ['content-length negatif', { cl: '-5' }],
+    ] as [string, H][])('%s → file itu sendirian dalam bagiannya (tidak digabung dengan file lain)', async (_n, h) => {
+      const heads: Record<number, H> = { 1: h };
+      const r = await probePart({ url: 'http://x', key: 'k', fetchImpl: fx(heads) }, P(4));
+      expect(r.included).toBe(1); // f0 (kecil) saja; f1 (tak diketahui) ditunda ke bagian sendiri
+      expect(r.unknown).toEqual([]);
+      const second = await probePart({ url: 'http://x', key: 'k', fetchImpl: fx(heads) }, P(4).slice(1));
+      expect(second.included).toBe(1); // bagian kedua = f1 sendirian (tak diketahui), f2 ditunda lagi
+      expect(second.unknown).toEqual([P(4)[1]]);
+      const first = await probePart({ url: 'http://x', key: 'k', fetchImpl: fx({ 0: h }) }, P(4));
+      expect(first.included).toBe(1); // tak diketahui di awal → tetap minimal 1 dan sendirian
+      expect(first.unknown).toEqual([P(4)[0]]);
+    });
+    it('404 = file tidak ada (0 byte, diketahui), bukan tak diketahui', async () => {
+      const r = await probePart({ url: 'http://x', key: 'k', fetchImpl: fx({ 1: { status: 404 } }) }, P(4));
+      expect(r.included).toBe(4); expect(r.unknown).toEqual([]);
+    });
+    it('satu file > batas: bagian sendiri, tidak diunduh, tercatat too_large; file lain tidak terlewat', async () => {
+      const paths = P(3);
+      const heads: Record<number, H> = { 1: { cl: String(MAX_PART_BYTES + 1) } };
+      const bodies = { 0: Buffer.from('A'), 1: Buffer.alloc(8, 1), 2: Buffer.from('C') };
+      const deps = { url: 'http://x', key: 'k', fetchImpl: fx(heads, bodies) };
+      const p1 = await probePart(deps, paths);
+      expect(p1.included).toBe(1); expect(p1.oversized).toEqual([]);
+      const p2 = await probePart(deps, paths.slice(1));
+      expect(p2.included).toBe(1); expect(p2.oversized).toEqual([paths[1]]);
+      const buf = await collect(zipStream(partEntries(deps, paths.slice(1, 1 + p2.included), new Date(), p2), { now: new Date() }));
+      const { manifest, files } = verifyAttachmentPart(buf);
+      expect(manifest.files).toHaveLength(p2.included); // jumlah di manifest = keputusan planner
+      expect(manifest.files[0]).toMatchObject({ path: paths[1], status: 'too_large', bytes: 0 });
+      expect(files.has(`files/${paths[1]}`)).toBe(false);
+      const p3 = await probePart(deps, paths.slice(2));
+      expect(p3.included).toBe(1);
+    });
+    it('GET melaporkan content-length > batas padahal HEAD tidak: tetap too_large tanpa membaca isi', async () => {
+      const paths = P(1);
+      const fetchImpl = ((_u: string, init?: RequestInit) => Promise.resolve(init?.method === 'HEAD' ? new Response(null, { status: 200, headers: { 'content-length': '5' } }) : new Response(new Uint8Array(4), { status: 200, headers: { 'content-length': String(MAX_PART_BYTES + 9) } }))) as unknown as typeof fetch;
+      const r = verifyAttachmentPart(await collect(zipStream(partEntries({ url: 'http://x', key: 'k', fetchImpl }, paths, new Date(), {}), { now: new Date() })));
+      expect(r.manifest.files[0].status).toBe('too_large');
+    });
+    it('ukuran tak diketahui di HEAD dan GET tanpa content-length: dibaca dengan plafon; di bawah plafon masuk utuh, di atas plafon → too_large (tidak ada ZIP terpotong)', async () => {
+      const paths = P(1);
+      const mk = (b: Buffer) => ({ url: 'http://x', key: 'k', fetchImpl: fx({ 0: { status: 500 } }, { 0: b }) });
+      const ok = verifyAttachmentPart(await collect(zipStream(partEntries(mk(Buffer.from('ISI')), paths, new Date(), { unknown: paths }), { now: new Date() })));
+      expect(ok.manifest.files[0]).toMatchObject({ status: 'included', bytes: 3 });
+      expect(ok.files.get(`files/${paths[0]}`)!.toString()).toBe('ISI');
+      const big = verifyAttachmentPart(await collect(zipStream(partEntries(mk(Buffer.alloc(MAX_PART_BYTES + 1)), paths, new Date(), { unknown: paths }), { now: new Date() })));
+      expect(big.manifest.files[0]).toMatchObject({ status: 'too_large', bytes: 0 });
+      expect(big.files.has(`files/${paths[0]}`)).toBe(false);
+    });
+    it('semua file terpetakan: pembagian berulang tidak melewatkan satu pun (campuran tak diketahui, besar, kecil, hilang)', async () => {
+      const paths = P(9);
+      const heads: Record<number, H> = { 1: { status: 500 }, 3: { cl: String(MAX_PART_BYTES + 5) }, 4: { cl: null }, 6: { status: 404 }, 7: { cl: String(30 * mb) }, 8: { cl: String(30 * mb) } };
+      const seen: string[] = []; let i = 0; let guard = 0;
+      while (i < paths.length && guard++ < 20) {
+        const r = await probePart({ url: 'http://x', key: 'k', fetchImpl: fx(heads) }, paths.slice(i, i + 30));
+        expect(r.included).toBeGreaterThanOrEqual(1);
+        seen.push(...paths.slice(i, i + r.included)); i += r.included;
+      }
+      expect(seen).toEqual(paths);
+    });
+    it('ukuran maksimum 40 MB per bagian & batas 30 file dipertahankan', async () => {
+      const r = await probePart({ url: 'http://x', key: 'k', fetchImpl: fx({ 0: { cl: String(20 * mb) }, 1: { cl: String(20 * mb) }, 2: { cl: '1' } }) }, P(3));
+      expect(r.included).toBe(2);
+      expect(() => validatePaths('wsA', P(31).map((p) => p))).toThrow(PathError);
+    });
   });
   describe('route /api/backup/attachments dengan Storage palsu lokal', () => {
     let server: http.Server; let base = '';

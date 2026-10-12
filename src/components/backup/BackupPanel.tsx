@@ -50,7 +50,7 @@ export default function BackupPanel() {
     try {
       const r = await backup.downloadAttachments(encrypt ? pass : '', saveBytes, (p) =>
         setAtt({ busy: true, msg: p.total === 0 ? 'Tidak ada lampiran.' : `Mengunduh lampiran: ${p.files}/${p.total} file (bagian ${p.part})…`, error: '' }));
-      setAtt({ busy: false, msg: r.files === 0 ? 'Tidak ada lampiran tugas di Supabase untuk diunduh.' : `Selesai: ${r.files} file dalam ${r.parts} berkas ZIP.`, error: '' });
+      setAtt({ busy: false, msg: r.files === 0 ? 'Tidak ada lampiran tugas di Supabase untuk diunduh.' : `Selesai: ${r.files} file dalam ${r.parts} berkas ZIP.${r.skipped ? ` PERHATIAN: ${r.skipped} file terlalu besar (>40 MB) dan TIDAK diunduh; tercatat di part-manifest.json tiap bagian.` : ''} Periksa part-manifest.json untuk file hilang/gagal.`, error: '' });
     } catch (e) {
       setAtt({ busy: false, msg: '', error: `${backup.describeBackupError(e)} Bagian yang sudah terunduh tetap tersimpan; ulangi untuk mengunduh semuanya.` });
     }

@@ -41,18 +41,18 @@ export async function createBackup(passphrase: string): Promise<BackupResult> {
 
 export type AttachmentProgress = { part: number; files: number; total: number };
 /** Mengunduh lampiran bagian demi bagian; `save` dipanggil per bagian (perangkat menyimpan tiap bagian sebagai berkas terpisah). */
-export async function downloadAllAttachments(passphrase: string, save: (name: string, bytes: Uint8Array) => void, onProgress: (p: AttachmentProgress) => void): Promise<{ files: number; parts: number }> {
+export async function downloadAllAttachments(passphrase: string, save: (name: string, bytes: Uint8Array) => void, onProgress: (p: AttachmentProgress) => void): Promise<{ files: number; parts: number; skipped: number }> {
   const plan = await repo.fetchAttachmentPlan();
-  let i = 0; let part = 0;
+  let i = 0; let part = 0; let skipped = 0;
   onProgress({ part: 0, files: 0, total: plan.length });
   while (i < plan.length) {
-    const { bytes, included } = await repo.downloadAttachmentPart(plan.slice(i, i + 30).map((f) => f.path));
-    part++; i += included;
+    const { bytes, included, skipped: sk } = await repo.downloadAttachmentPart(plan.slice(i, i + 30).map((f) => f.path));
+    part++; i += included; skipped += sk;
     const out = passphrase ? await encryptArchive(passphrase, bytes) : bytes;
     save(`teacher-workspace-lampiran-bagian-${String(part).padStart(2, '0')}.zip${passphrase ? '.enc' : ''}`, out);
     onProgress({ part, files: i, total: plan.length });
   }
-  return { files: plan.length, parts: part };
+  return { files: plan.length, parts: part, skipped };
 }
 
 /** Membuka berkas .enc di perangkat ini (tanpa server). Hasilnya ZIP biasa yang bisa dibuka aplikasi arsip apa pun. */

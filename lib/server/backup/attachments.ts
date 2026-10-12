@@ -52,29 +52,65 @@ export function validatePaths(ws: string, paths: unknown): string[] {
 const enc = (p: string) => p.split('/').map(encodeURIComponent).join('/');
 const objUrl = (s: StorageDeps, path: string) => `${s.url}/storage/v1/object/authenticated/${BUCKET}/${enc(path)}`;
 
-/** Tentukan berapa path (awalan daftar) yang muat dalam satu bagian, lewat HEAD ukuran. Minimal 1. */
-export async function probePart(s: StorageDeps, paths: string[]): Promise<{ included: number; sizes: number[] }> {
+export type PartPlan = { included: number; sizes: (number | null)[]; oversized: string[]; unknown: string[] };
+
+const parseLength = (v: string | null): number | null => (v !== null && /^\d+$/.test(v.trim()) && Number(v) > 0 ? Number(v) : null);
+
+/** Ukuran dari HEAD: angka (0 untuk 404 = file tidak ada), atau null bila TIDAK DIKETAHUI (HEAD gagal/non-2xx/content-length hilang atau tidak valid). */
+async function headSize(s: StorageDeps, path: string): Promise<number | null> {
   const f = s.fetchImpl ?? fetch;
-  const sizes = await Promise.all(paths.map(async (p) => {
-    const r = await f(objUrl(s, p), { method: 'HEAD', headers: ulanganAuthHeaders(s.key), cache: 'no-store', signal: AbortSignal.timeout(15_000) });
-    return r.ok ? Number(r.headers.get('content-length') ?? 0) || 0 : 0;
-  }));
-  let total = 0; let included = 0;
-  for (const sz of sizes) { if (included > 0 && total + sz > MAX_PART_BYTES) break; total += sz; included++; }
-  return { included, sizes };
+  try {
+    const r = await f(objUrl(s, path), { method: 'HEAD', headers: ulanganAuthHeaders(s.key), cache: 'no-store', signal: AbortSignal.timeout(15_000) });
+    if (r.status === 404) return 0;
+    if (!r.ok) return null;
+    return parseLength(r.headers.get('content-length'));
+  } catch { return null; }
 }
 
-export type PartFileStat = { path: string; status: 'included' | 'missing' | 'error'; bytes: number; sha256: string | null };
+/**
+ * Tentukan berapa path (awalan daftar) yang muat dalam satu bagian. Minimal 1.
+ * Fail-safe: ukuran tidak diketahui TIDAK dianggap 0 — file itu dihitung penuh (MAX_PART_BYTES) sehingga selalu sendirian dalam bagiannya.
+ * File yang diketahui > MAX_PART_BYTES tidak diunduh (status too_large di part-manifest), bukan dimasukkan diam-diam.
+ */
+export async function probePart(s: StorageDeps, paths: string[]): Promise<PartPlan> {
+  const sizes = await Promise.all(paths.map((p) => headSize(s, p)));
+  const oversized: string[] = []; const unknown: string[] = [];
+  let total = 0; let included = 0;
+  for (let i = 0; i < sizes.length; i++) {
+    const sz = sizes[i];
+    const eff = sz === null || sz > MAX_PART_BYTES ? MAX_PART_BYTES : sz; // tak diketahui/oversized: selalu sendirian dalam bagiannya
+    if (included > 0 && total + eff > MAX_PART_BYTES) break;
+    total += eff; included++;
+    if (sz === null) unknown.push(paths[i]); else if (sz > MAX_PART_BYTES) oversized.push(paths[i]);
+  }
+  return { included, sizes: sizes.slice(0, included), oversized, unknown };
+}
 
-export async function* partEntries(s: StorageDeps, paths: string[], now: Date): AsyncGenerator<Entry> {
+export type PartFileStat = { path: string; status: 'included' | 'missing' | 'error' | 'too_large'; bytes: number; sha256: string | null };
+
+export async function* partEntries(s: StorageDeps, paths: string[], now: Date, plan: { oversized?: string[]; unknown?: string[] } = {}): AsyncGenerator<Entry> {
   const f = s.fetchImpl ?? fetch;
+  const oversized = new Set(plan.oversized); const unknown = new Set(plan.unknown);
   const stats: PartFileStat[] = [];
   for (const path of paths) {
+    if (oversized.has(path)) { stats.push({ path, status: 'too_large', bytes: 0, sha256: null }); continue; } // tidak diunduh; tercatat
     const res = await f(objUrl(s, path), { headers: ulanganAuthHeaders(s.key), cache: 'no-store', signal: AbortSignal.timeout(50_000) });
     if (!res.ok || !res.body) { stats.push({ path, status: res.status === 404 ? 'missing' : 'error', bytes: 0, sha256: null }); continue; }
+    const declared = parseLength(res.headers.get('content-length'));
+    if (declared !== null && declared > MAX_PART_BYTES) { await res.body.cancel().catch(() => {}); stats.push({ path, status: 'too_large', bytes: 0, sha256: null }); continue; }
+    const body = res.body as unknown as AsyncIterable<Uint8Array>;
+    if (unknown.has(path) && declared === null) {
+      // Ukuran tak diketahui di kedua sisi: baca ke memori dengan plafon (sendirian dalam bagian ini) agar tak ada ZIP terpotong.
+      const chunks: Buffer[] = []; let n = 0; let over = false;
+      for await (const c of body) { n += c.length; if (n > MAX_PART_BYTES) { over = true; break; } chunks.push(Buffer.from(c)); }
+      if (over) { await res.body.cancel().catch(() => {}); stats.push({ path, status: 'too_large', bytes: 0, sha256: null }); continue; }
+      const data = Buffer.concat(chunks);
+      stats.push({ path, status: 'included', bytes: data.length, sha256: createHash('sha256').update(data).digest('hex') });
+      yield { name: `files/${path}`, data };
+      continue;
+    }
     const stat: PartFileStat = { path, status: 'included', bytes: 0, sha256: null };
     const hash = createHash('sha256');
-    const body = res.body as unknown as AsyncIterable<Uint8Array>;
     yield { name: `files/${path}`, data: (async function* () { for await (const c of body) { hash.update(c); stat.bytes += c.length; yield Buffer.from(c); } stat.sha256 = hash.digest('hex'); })() };
     stats.push(stat);
   }

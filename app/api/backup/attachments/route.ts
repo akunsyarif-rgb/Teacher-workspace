@@ -49,10 +49,10 @@ export async function POST(request: NextRequest) {
       if (e instanceof UlanganDbError && e.kind === 'config') return fail(503, 'storage_not_configured', 'Penyimpanan lampiran belum dikonfigurasi di server ini.');
       throw e;
     }
-    const { included } = await probePart(storage, paths);
-    const chosen = paths.slice(0, included);
+    const probe = await probePart(storage, paths);
+    const chosen = paths.slice(0, probe.included);
     const now = new Date();
-    const stream = Readable.toWeb(Readable.from(zipStream(partEntries(storage, chosen, now), { now }))) as ReadableStream;
+    const stream = Readable.toWeb(Readable.from(zipStream(partEntries(storage, chosen, now, probe), { now }))) as ReadableStream;
     return new Response(stream, {
       status: 200,
       headers: {
@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
         'Cache-Control': 'no-store, private',
         'X-Content-Type-Options': 'nosniff',
         'X-Backup-Part-Included': String(chosen.length),
+        'X-Backup-Part-Skipped': String(probe.oversized.length),
       },
     });
   } catch (e) {
