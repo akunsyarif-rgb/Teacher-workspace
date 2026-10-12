@@ -43,6 +43,32 @@ Token di atas masih kandidat desain; jangan menyebutnya sudah lolos WCAG tanpa p
 4. Catatan cepat terasa seperti kertas bergaris, dengan status sinkronisasi yang tetap jelas.
 5. Akses ke Pusat Kegiatan Kelas, Jadwal, dan Manajemen Kelas tetap mudah ditemukan.
 
+## Penyempurnaan dashboard — tahap 1
+
+- Header memiliki penanda identitas buku kerja dan hierarki judul yang lebih jelas.
+- Kartu prioritas menggunakan hijau sebagai aksen utama, tanpa mengubah urutan atau aturan status workflow.
+- Catatan Cepat memakai garis buku, teks minimal 14 px, label sinkronisasi yang terbaca, dan fokus interaksi hijau.
+- Warna biru lama pada elemen utama dashboard dikurangi agar aksen hijau konsisten; warna status semantik (peringatan, error, selesai) tetap dibedakan menurut fungsinya.
+- Teks metadata yang sebelumnya terlalu kecil diperbesar jika aman untuk layout.
+- Perubahan visual tidak mengubah fungsi auto-save, debounce, penanganan offline/error, ataupun target penyimpanan catatan.
+
+## Pemeriksaan kontras awal (pasangan token)
+
+Perhitungan luminans WCAG untuk pasangan warna kandidat yang dipakai pada desain:
+
+| Foreground | Background | Rasio | Hasil untuk teks normal |
+|---|---|---:|---|
+| `#2F6B4F` | `#FFFFFF` | 6.29:1 | Lulus 4.5:1 |
+| `#2F6B4F` | `#FFFEF9` | 6.23:1 | Lulus 4.5:1 |
+| `#242923` | `#FFFEF9` | 14.68:1 | Lulus 4.5:1 |
+| `#5D665E` | `#FFFEF9` | 5.90:1 | Lulus 4.5:1 |
+| `#24563F` | `#FFFFFF` | 8.47:1 | Lulus 4.5:1 |
+| `#DDF2A5` | `#24563F` | 6.99:1 | Lulus 4.5:1 |
+| `#5D665E` | `#F7F5EF` | 5.46:1 | Lulus 4.5:1 |
+| `#2F6B4F` | `#EDF3E8` | 5.57:1 | Lulus 4.5:1 |
+
+Ini pemeriksaan token/pasangan tertentu, bukan audit WCAG seluruh halaman. State semantik, placeholder, teks abu-abu Tailwind, border/focus indicator, ikon, dan kombinasi aktual di setiap komponen masih harus diperiksa secara menyeluruh.
+
 ## Batasan dan kriteria penerimaan
 
 - Tidak mengubah aturan workflow, penyimpanan, otorisasi, atau logika nilai dalam pekerjaan visual.

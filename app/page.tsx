@@ -234,7 +234,7 @@ export default function DashboardPage() {
   if (loading || profileLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 gap-3">
-        <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center animate-pulse shadow-lg shadow-blue-200">
+        <div className="w-10 h-10 bg-[#2F6B4F] rounded-2xl flex items-center justify-center animate-pulse shadow-sm">
           <GraduationCap className="w-6 h-6 text-white" />
         </div>
         <p className="text-xs font-bold text-gray-500 tracking-wide">Memuat Beranda...</p>
@@ -255,7 +255,7 @@ export default function DashboardPage() {
           </p>
           <button
             onClick={handleLogout}
-            className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-colors"
+            className="mt-2 px-4 py-2 bg-[#2F6B4F] text-white rounded-xl text-sm font-bold hover:bg-[#24563F] transition-colors"
           >
             Keluar & Login Ulang
           </button>
@@ -336,9 +336,9 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="bg-[#FFFEF9] p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-[#D9DED5] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="space-y-1">
-            <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-[#2F6B4F]">Buku kerja guru · Beranda</p>
+            <p className="inline-flex w-fit px-2 py-1 rounded-md bg-[#DDF2A5]/70 text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#24563F]">Buku kerja guru · Beranda</p>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-2 text-[10px] font-bold text-[#2F6B4F] uppercase tracking-wider bg-[#EDF3E8]/60 px-2.5 py-1 rounded-xl w-fit">
+              <div className="flex items-center gap-2 text-[11px] font-bold text-[#2F6B4F] uppercase tracking-wider bg-[#EDF3E8]/60 px-2.5 py-1 rounded-xl w-fit">
                 <Calendar className="w-3 h-3" />
                 <span>{getCompleteDateLabel()}</span>
               </div>
@@ -349,7 +349,7 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
-            <h1 className="text-xl md:text-2xl font-extrabold text-[#242923] flex items-center gap-2">
+            <h1 className="text-2xl md:text-[30px] leading-tight font-extrabold text-[#242923] flex items-center gap-2">
               {getGreeting()}, {teacherName}
             </h1>
             <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
@@ -410,13 +410,13 @@ export default function DashboardPage() {
         {workflowStep && (
           <div className="bg-[#2F6B4F] p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-[#24563F]">
             <div className="min-w-0">
-              <p className="text-[11px] font-extrabold uppercase tracking-wider text-blue-50">
+              <p className="text-[11px] font-extrabold uppercase tracking-wider text-white/90">
                 {workflowStep.isOngoing ? 'Sedang Berlangsung Sekarang' : 'Sesi Berikutnya'}
               </p>
               <p className="text-lg md:text-xl font-extrabold mt-1 truncate">
                 Kelas {workflowStep.status.className} • {workflowStep.status.timeSlot}
               </p>
-              <p className="text-xs md:text-sm text-blue-50 mt-1">
+              <p className="text-xs md:text-sm text-white/90 mt-1">
                 {!workflowStep.status.hasAttendance
                   ? 'Belum presensi hari ini'
                   : !workflowStep.status.hasJournal
@@ -442,7 +442,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 md:w-5 md:h-5 text-[#2F6B4F]" />
-              <h3 className="text-[10px] md:text-xs font-extrabold text-gray-700 uppercase tracking-wider">
+              <h3 className="text-[11px] md:text-xs font-extrabold text-gray-700 uppercase tracking-wider">
                 Perlu Diselesaikan Hari Ini ({currentDayName})
               </h3>
             </div>
@@ -597,7 +597,7 @@ export default function DashboardPage() {
           <div className="bg-[#FFFEF9] p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-amber-200 space-y-3 md:space-y-4">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 md:w-5 md:h-5 text-amber-500" />
-              <h3 className="text-[10px] md:text-xs font-extrabold text-gray-700 uppercase tracking-wider">
+              <h3 className="text-[11px] md:text-xs font-extrabold text-gray-700 uppercase tracking-wider">
                 Perlu Konfirmasi
               </h3>
             </div>
@@ -654,11 +654,11 @@ export default function DashboardPage() {
                 <div className="w-8 h-8 md:w-9 md:h-9 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
                   <FileText className="w-4 h-4 md:w-4.5 md:h-4.5" />
                 </div>
-                <p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                <p className="text-[10px] md:text-[11px] font-bold text-gray-500 uppercase tracking-wider">
                   Catatan Cepat
                 </p>
               </div>
-              <span className="text-[8px] md:text-[9px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 md:px-2.5 md:py-1 rounded-lg">
+              <span className="text-[10px] md:text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 md:px-2.5 md:py-1 rounded-lg">
                 Auto-Save
               </span>
             </div>
@@ -667,10 +667,10 @@ export default function DashboardPage() {
               placeholder="Tulis catatan kilat atau pengingat di sini..."
               value={quickNote}
               onChange={(e) => handleQuickNoteChange(e.target.value)}
-              className={`w-full p-2 md:p-3 notebook-paper border rounded-xl text-xs font-bold text-[#242923] placeholder:text-[#5D665E] outline-none resize-none transition-colors ${
+              className={`w-full p-2 md:p-3 notebook-paper border rounded-xl text-sm font-medium text-[#242923] placeholder:text-[#5D665E] outline-none resize-none transition-colors ${
                 syncStatus === "offline"
                   ? "border-red-300 focus:ring-red-500"
-                  : "border-gray-200 focus:ring-2 focus:ring-amber-500"
+                  : "border-gray-200 focus:ring-2 focus:ring-[#2F6B4F]"
               }`}
             />
             <p className="text-[11px] md:text-xs">
@@ -702,7 +702,7 @@ export default function DashboardPage() {
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-extrabold text-gray-900">Pusat Kegiatan Kelas</p>
-                <p className="text-[10px] md:text-xs text-gray-500 truncate">Jurnal, Presensi, &amp; Nilai</p>
+                <p className="text-[11px] md:text-xs text-gray-500 truncate">Jurnal, Presensi, &amp; Nilai</p>
               </div>
             </Link>
 
@@ -715,7 +715,7 @@ export default function DashboardPage() {
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-extrabold text-gray-900">Jadwal Mengajar</p>
-                <p className="text-[10px] md:text-xs text-gray-500 truncate">Atur jam &amp; jadwal mingguan</p>
+                <p className="text-[11px] md:text-xs text-gray-500 truncate">Atur jam &amp; jadwal mingguan</p>
               </div>
             </Link>
 
@@ -728,7 +728,7 @@ export default function DashboardPage() {
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-extrabold text-gray-900">Manajemen Kelas</p>
-                <p className="text-[10px] md:text-xs text-gray-500 truncate">Kelola daftar siswa &amp; impor</p>
+                <p className="text-[11px] md:text-xs text-gray-500 truncate">Kelola daftar siswa &amp; impor</p>
               </div>
             </Link>
           </div>
