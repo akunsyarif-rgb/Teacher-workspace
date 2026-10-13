@@ -52,25 +52,25 @@ export default function AttachmentViewer({ attachment, onClose }: { attachment: 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3" onClick={onClose}>
       <div
-        className="bg-white rounded-3xl w-full max-w-3xl max-h-[92vh] flex flex-col shadow-xl overflow-hidden"
+        className="bg-nb-paper rounded-3xl w-full max-w-3xl max-h-[92vh] flex flex-col shadow-xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-label={attachment.fileName || 'Lampiran'}
       >
-        <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-gray-100 shrink-0">
-          <h3 className="text-sm font-bold text-gray-900 truncate">{attachment.fileName || 'Lampiran'}</h3>
+        <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-nb-rule shrink-0">
+          <h3 className="text-sm font-bold text-nb-ink truncate">{attachment.fileName || 'Lampiran'}</h3>
           <div className="flex items-center gap-1 shrink-0">
             {url && (
-              <a href={url} target="_blank" rel="noopener noreferrer" className="p-2 text-nb-ink-muted hover:text-gray-600 rounded-xl" aria-label="Buka di tab baru">
+              <a href={url} target="_blank" rel="noopener noreferrer" className="p-2 text-nb-ink-muted hover:text-nb-ink-muted rounded-xl" aria-label="Buka di tab baru">
                 <ExternalLink className="w-4 h-4" />
               </a>
             )}
-            <button type="button" onClick={onClose} className="p-2 text-nb-ink-muted hover:text-gray-600 rounded-xl" aria-label="Tutup">
+            <button type="button" onClick={onClose} className="p-2 text-nb-ink-muted hover:text-nb-ink-muted rounded-xl" aria-label="Tutup">
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
-        <div className="flex-1 overflow-auto bg-gray-50 flex items-center justify-center min-h-[40vh]">
+        <div className="flex-1 overflow-auto bg-nb-workspace flex items-center justify-center min-h-[40vh]">
           {error ? (
             <p className="text-xs font-bold text-red-600 p-6 text-center">{error}</p>
           ) : !url ? (
@@ -82,7 +82,7 @@ export default function AttachmentViewer({ attachment, onClose }: { attachment: 
             <iframe src={url} title={attachment.fileName || 'Lampiran PDF'} className="w-full h-[80vh] border-0" />
           ) : (
             <div className="p-6 text-center space-y-3">
-              <p className="text-xs text-gray-500">Jenis file ini tidak bisa ditampilkan langsung.</p>
+              <p className="text-xs text-nb-ink-muted">Jenis file ini tidak bisa ditampilkan langsung.</p>
               <a href={url} target="_blank" rel="noopener noreferrer" className="inline-block text-xs font-bold text-nb-green hover:underline">
                 Buka / unduh file
               </a>

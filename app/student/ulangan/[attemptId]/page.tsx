@@ -120,20 +120,20 @@ function Exam({ attemptId }: { attemptId: string }) {
   if (!active) {
     const r = view.attempt.result;
     return (
-      <div className="text-gray-900 bg-white p-6 rounded-3xl border border-gray-100 text-center space-y-3">
+      <div className="text-nb-ink bg-nb-paper p-6 rounded-3xl border border-nb-rule text-center space-y-3">
         <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
-        <p className="text-sm font-extrabold text-gray-900">{view.attempt.status === "expired" ? "Waktu habis — jawabanmu sudah dikumpulkan" : "Jawabanmu sudah dikumpulkan"}</p>
-        {r ? <p className="text-xs text-gray-600">Nilai: <b>{r.score}</b> ({r.correctCount}/{r.maxScore} poin benar)</p> : <p className="text-xs text-gray-500">Nilai akan diumumkan gurumu.</p>}
+        <p className="text-sm font-extrabold text-nb-ink">{view.attempt.status === "expired" ? "Waktu habis — jawabanmu sudah dikumpulkan" : "Jawabanmu sudah dikumpulkan"}</p>
+        {r ? <p className="text-xs text-nb-ink-muted">Nilai: <b>{r.score}</b> ({r.correctCount}/{r.maxScore} poin benar)</p> : <p className="text-xs text-nb-ink-muted">Nilai akan diumumkan gurumu.</p>}
         <button type="button" onClick={() => router.push("/student/ulangan")} className="px-5 py-2.5 rounded-2xl text-xs font-bold bg-gray-100">Kembali</button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 pb-24 text-gray-900">
-      <div className="sticky top-0 z-10 -mx-4 px-4 py-2 bg-white/95 backdrop-blur border-b border-gray-100 flex items-center justify-between">
-        <p className="text-xs font-extrabold text-gray-900 truncate">{view.attempt.title}</p>
-        <p className={`text-sm font-black tabular-nums ${left <= 60 && left > 0 ? "text-red-600" : "text-gray-900"}`}>{clock(left || view.attempt.remainingSeconds)}</p>
+    <div className="space-y-4 pb-24 text-nb-ink">
+      <div className="sticky top-0 z-10 -mx-4 px-4 py-2 bg-white/95 backdrop-blur border-b border-nb-rule flex items-center justify-between">
+        <p className="text-xs font-extrabold text-nb-ink truncate">{view.attempt.title}</p>
+        <p className={`text-sm font-black tabular-nums ${left <= 60 && left > 0 ? "text-red-600" : "text-nb-ink"}`}>{clock(left || view.attempt.remainingSeconds)}</p>
       </div>
       <InlineAlert message={error} onDismiss={() => setError("")} />
       {warning && (
@@ -143,9 +143,9 @@ function Exam({ attemptId }: { attemptId: string }) {
         </div>
       )}
       {/* Status simpan PERMANEN (tidak hilang): menyimpan / gagal / semua tersimpan + jam terakhir. */}
-      <div role="status" aria-live="polite" className={`px-3 py-2 rounded-xl text-[11px] font-bold border ${
+      <div role="status" aria-live="polite" className={`px-3 py-2 rounded-xl text-xs font-bold border ${
         unsaved > 0 ? (saveFailed ? "bg-red-50 border-red-200 text-red-700" : "bg-amber-50 border-amber-200 text-amber-700")
-        : answeredCount > 0 ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-gray-50 border-gray-200 text-gray-500"}`}>
+        : answeredCount > 0 ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-nb-workspace border-nb-rule text-nb-ink-muted"}`}>
         {unsaved > 0
           ? (saveFailed ? `${unsaved} jawaban BELUM tersimpan — koneksi bermasalah. Dicoba lagi otomatis; tetap di halaman ini.` : "Menyimpan jawaban...")
           : answeredCount > 0
@@ -153,33 +153,33 @@ function Exam({ attemptId }: { attemptId: string }) {
             : "Belum ada jawaban. Jawabanmu tersimpan otomatis begitu dipilih."}
       </div>
       {view.questions.map((q) => (
-        <div key={q.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-3">
-          <p className="text-xs font-bold text-gray-900 whitespace-pre-wrap"><span className="text-blue-600">{q.position}.</span> {q.body}</p>
+        <div key={q.id} className="bg-nb-paper p-4 rounded-2xl border border-nb-rule shadow-sm space-y-3">
+          <p className="text-xs font-bold text-nb-ink whitespace-pre-wrap"><span className="text-nb-green">{q.position}.</span> {q.body}</p>
           <div className="space-y-2">
             {q.options.map((o) => (
               <button key={o.id} type="button" onClick={() => choose(q.id, o.id)} aria-pressed={answers[q.id] === o.id}
-                className={`w-full text-left px-3.5 py-3 rounded-xl text-xs border transition-colors ${answers[q.id] === o.id ? "bg-blue-50 border-blue-500 font-bold text-blue-800" : "bg-white border-gray-200 text-gray-700"}`}>
+                className={`w-full text-left px-3.5 py-3 rounded-xl text-xs border transition-colors ${answers[q.id] === o.id ? "bg-nb-green-soft border-nb-green font-bold text-nb-green-strong" : "bg-nb-paper border-nb-rule text-nb-ink"}`}>
                 {o.label}
               </button>
             ))}
           </div>
           {answers[q.id] && (
-            <p className={`text-[10px] font-bold ${!pendingIds.includes(q.id) ? "text-emerald-600" : saveFailed ? "text-red-600" : "text-amber-600"}`}>
+            <p className={`text-xs font-bold ${!pendingIds.includes(q.id) ? "text-emerald-600" : saveFailed ? "text-red-600" : "text-amber-600"}`}>
               {!pendingIds.includes(q.id) ? "✓ Tersimpan" : saveFailed ? "Belum tersimpan — dicoba lagi" : "Menyimpan..."}
             </p>
           )}
         </div>
       ))}
-      <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-white border-t border-gray-100">
+      <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-nb-paper border-t border-nb-rule">
         {confirmSubmit ? (
           <div className="max-w-2xl mx-auto flex gap-2">
             <button type="button" onClick={() => setConfirmSubmit(false)} className="flex-1 py-3 rounded-2xl text-xs font-bold bg-gray-100">Batal</button>
-            <button type="button" disabled={finishing} onClick={() => void finish()} className="flex-1 py-3 rounded-2xl text-xs font-bold bg-blue-600 text-white disabled:bg-blue-300">
+            <button type="button" disabled={finishing} onClick={() => void finish()} className="flex-1 py-3 rounded-2xl text-xs font-bold bg-nb-green text-white disabled:bg-[#DDE3D8] disabled:text-[#5D665E]">
               {finishing ? "Mengirim..." : `Kumpulkan (${Object.keys(answers).length}/${view.questions.length} terjawab)`}
             </button>
           </div>
         ) : (
-          <button type="button" onClick={() => setConfirmSubmit(true)} className="max-w-2xl mx-auto block w-full py-3 rounded-2xl text-xs font-bold bg-blue-600 text-white">Selesai & Kumpulkan</button>
+          <button type="button" onClick={() => setConfirmSubmit(true)} className="max-w-2xl mx-auto block w-full py-3 rounded-2xl text-xs font-bold bg-nb-green text-white">Selesai & Kumpulkan</button>
         )}
       </div>
     </div>

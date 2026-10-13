@@ -259,15 +259,15 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
 
   return (
     <div className="space-y-4">
-      <button onClick={onBack} className="flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-gray-900">
+      <button onClick={onBack} className="flex items-center gap-1.5 text-xs font-bold text-nb-ink-muted hover:text-nb-ink">
         <ArrowLeft className="w-4 h-4" />
         Kembali ke Daftar Tugas
       </button>
 
       <Card className="space-y-1">
-        <h3 className="text-sm font-bold text-gray-900">{assignment.title}</h3>
-        {assignment.description && <p className="text-xs text-gray-500">{assignment.description}</p>}
-        <p className="text-[10px] font-bold text-nb-ink-muted uppercase tracking-wider">
+        <h3 className="text-sm font-bold text-nb-ink">{assignment.title}</h3>
+        {assignment.description && <p className="text-xs text-nb-ink-muted">{assignment.description}</p>}
+        <p className="text-xs font-bold text-nb-ink-muted uppercase tracking-wider">
           Tenggat {assignment.dueDate}
         </p>
         {assignment.materialFileUrl && (
@@ -275,7 +275,7 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
             href={assignment.materialFileUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-[11px] font-bold text-nb-green hover:underline pt-1"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-nb-green hover:underline pt-1"
           >
             <FileText className="w-3.5 h-3.5" />
             {assignment.materialFileName || 'Lihat materi soal'}
@@ -287,7 +287,7 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
 
       {!loading && rows.length > 0 && (
         <div className="flex items-center justify-between gap-2 px-1">
-          <p className="text-[11px] font-bold text-gray-500">
+          <p className="text-xs font-bold text-nb-ink-muted">
             {rows.filter((r) => r.status !== SUBMISSION_STATUS.BELUM_MENGUMPULKAN).length} dari {rows.length} siswa
             sudah mengumpulkan
           </p>
@@ -297,7 +297,7 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
               onClick={handleRefresh}
               disabled={refreshing}
               title="Muat ulang untuk melihat pengumpulan terbaru"
-              className="flex items-center gap-1.5 text-[11px] font-bold text-gray-500 hover:text-gray-900 disabled:opacity-50"
+              className="flex items-center gap-1.5 text-xs font-bold text-nb-ink-muted hover:text-nb-ink disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
               {refreshing ? 'Menyegarkan...' : 'Segarkan'}
@@ -305,7 +305,7 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
             <button
               type="button"
               onClick={handleDownloadCsv}
-              className="flex items-center gap-1.5 text-[11px] font-bold text-nb-green hover:underline"
+              className="flex items-center gap-1.5 text-xs font-bold text-nb-green hover:underline"
             >
               <Download className="w-3.5 h-3.5" />
               Unduh Jawaban (CSV)
@@ -314,7 +314,7 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
         </div>
       )}
 
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm divide-y divide-gray-100 overflow-hidden">
+      <div className="bg-nb-paper rounded-3xl border border-nb-rule shadow-sm divide-y divide-gray-100 overflow-hidden">
         {loading ? (
           <div className="p-6">
             <SkeletonText lines={4} />
@@ -335,8 +335,8 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
               <div key={row.studentId} className="p-4 space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-gray-900 truncate">{row.studentName}</p>
-                    <p className={`flex items-center gap-1.5 text-[11px] font-bold ${status.className}`}>
+                    <p className="text-xs font-bold text-nb-ink truncate">{row.studentName}</p>
+                    <p className={`flex items-center gap-1.5 text-xs font-bold ${status.className}`}>
                       <StatusIcon className="w-3.5 h-3.5" />
                       {status.label}
                       {submittedAtLabel && row.status !== SUBMISSION_STATUS.BELUM_MENGUMPULKAN && (
@@ -370,12 +370,12 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
                     {/* LANGKAH 1 — lihat dulu apa yang dikumpulkan. Ini
                         sengaja berada di atas kolom nilai: nilai tidak
                         boleh diisi sebelum isinya terlihat. */}
-                    <div className="p-3 bg-gray-50 rounded-xl space-y-2">
-                      <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">
+                    <div className="p-3 bg-nb-workspace rounded-xl space-y-2">
+                      <p className="text-xs font-extrabold text-nb-ink-muted uppercase tracking-wider">
                         Jawaban siswa
                       </p>
                       {!hasContent ? (
-                        <p className="text-[11px] text-nb-ink-muted">
+                        <p className="text-xs text-nb-ink-muted">
                           Siswa ini belum mengumpulkan apa pun. Nilai tetap bisa diisi (mis. pekerjaan luring), tapi
                           statusnya tetap &quot;Belum mengumpulkan&quot; supaya siswa masih bisa mengirim.
                         </p>
@@ -384,13 +384,13 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
                           {row.textAnswer && (
                             <>
                               {row.answerPastedFlag && (
-                                <p className="flex items-center gap-1.5 text-[10px] font-bold text-amber-700 bg-amber-50 rounded-lg px-2 py-1 w-fit">
+                                <p className="flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 rounded-lg px-2 py-1 w-fit">
                                   <ClipboardPaste className="w-3 h-3 shrink-0" />
                                   Jawaban ini ditempel dari clipboard — bukan bukti kecurangan, tapi layak diperiksa
                                   lebih teliti
                                 </p>
                               )}
-                              <p className="text-[11px] text-gray-700 whitespace-pre-wrap">{row.textAnswer}</p>
+                              <p className="text-xs text-nb-ink whitespace-pre-wrap">{row.textAnswer}</p>
                             </>
                           )}
                           {attachments.map((att: any, idx: number) => (
@@ -403,7 +403,7 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
  }}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 text-[11px] font-bold text-nb-green hover:underline"
+                              className="flex items-center gap-1.5 text-xs font-bold text-nb-green hover:underline"
                             >
                               <FileText className="w-3.5 h-3.5" />
                               {att.fileName || `Buka lampiran ${idx + 1}`}
@@ -419,7 +419,7 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
                               href={externalLink.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 text-[11px] font-bold text-nb-green hover:underline"
+                              className="flex items-center gap-1.5 text-xs font-bold text-nb-green hover:underline"
                             >
                               <Link2 className="w-3.5 h-3.5" />
                               {externalLink.label || 'Buka Google Drive'}
@@ -432,7 +432,7 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
                     {/* LANGKAH 2 — catatan, berdiri sendiri: boleh disimpan
                         tanpa mengisi nilai sama sekali. */}
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">
+                      <label className="text-xs font-extrabold text-nb-ink-muted uppercase tracking-wider">
                         Catatan untuk siswa
                       </label>
                       <textarea
@@ -440,7 +440,7 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
                         onChange={(e) => setFeedbackInput(e.target.value)}
                         rows={2}
                         placeholder="Masukan untuk siswa (opsional)"
-                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-nb-green"
+                        className="w-full p-2.5 bg-nb-paper border border-nb-control rounded-xl text-xs text-nb-ink outline-none focus:bg-nb-paper focus:ring-2 focus:ring-nb-green"
                       />
                       <div className="flex items-center gap-2">
                         <Button
@@ -453,7 +453,7 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
                           <span>Simpan Catatan</span>
                         </Button>
                         {feedbackSavedFor === row.studentId && (
-                          <span className="text-[11px] font-bold text-emerald-600">Catatan tersimpan</span>
+                          <span className="text-xs font-bold text-emerald-600">Catatan tersimpan</span>
                         )}
                       </div>
                     </div>
@@ -461,7 +461,7 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
                     {/* LANGKAH 3 — nilai, lewat kunci & konfirmasi yang sama
                         dengan matriks nilai. */}
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">
+                      <label className="text-xs font-extrabold text-nb-ink-muted uppercase tracking-wider">
                         Nilai
                       </label>
                       <div className="flex flex-col sm:flex-row gap-2">
@@ -484,7 +484,7 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
                             value={scoreInput}
                             onChange={(e) => setScoreInput(e.target.value)}
                             placeholder="Nilai"
-                            className="w-full sm:w-40 p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-nb-green"
+                            className="w-full sm:w-40 p-2.5 bg-nb-paper border border-nb-control rounded-xl text-xs text-nb-ink outline-none focus:bg-nb-paper focus:ring-2 focus:ring-nb-green"
                           />
                         )}
                         <div className="flex gap-2 sm:ml-auto">
@@ -507,10 +507,10 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
 
                 {!isReviewing && row.feedback && (
                   <div className="p-3 bg-nb-green-soft rounded-xl">
-                    <p className="text-[10px] font-bold text-nb-green uppercase tracking-wider mb-0.5">
+                    <p className="text-xs font-bold text-nb-green uppercase tracking-wider mb-0.5">
                       Catatan untuk siswa
                     </p>
-                    <p className="text-[11px] text-nb-green-strong whitespace-pre-wrap">{row.feedback}</p>
+                    <p className="text-xs text-nb-green-strong whitespace-pre-wrap">{row.feedback}</p>
                   </div>
                 )}
               </div>
@@ -524,13 +524,13 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
           ulang. */}
       <Modal isOpen={unlockAsked} onClose={() => setUnlockAsked(false)} title="Ubah nilai?">
         <div className="space-y-4">
-          <p className="text-xs text-gray-600">
+          <p className="text-xs text-nb-ink-muted">
             Nilai ini sudah terkunci. Kalau dilanjutkan, kolomnya dibuka untuk diketik ulang — nilai baru tetap harus
             dikonfirmasi sebelum tersimpan.
           </p>
-          <div className="p-3 bg-gray-50 border border-gray-100 rounded-2xl space-y-0.5">
-            <p className="text-xs font-bold text-gray-900">{reviewingRow?.studentName}</p>
-            <p className="text-[11px] text-gray-500">
+          <div className="p-3 bg-nb-workspace border border-nb-rule rounded-2xl space-y-0.5">
+            <p className="text-xs font-bold text-nb-ink">{reviewingRow?.studentName}</p>
+            <p className="text-xs text-nb-ink-muted">
               {assignment.title} — nilai sekarang{' '}
               <span className="font-bold text-emerald-700">{existingScore}</span>
             </p>
@@ -558,14 +558,14 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
         title={existingScore ? 'Ubah Nilai?' : 'Simpan Nilai?'}
       >
         <div className="space-y-4">
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-nb-ink-muted">
             {existingScore
               ? 'Nilai yang sudah terkunci 🔒 akan diubah. Periksa sekali lagi sebelum konfirmasi.'
               : 'Nilai akan disimpan dan terkunci 🔒. Periksa sekali lagi sebelum konfirmasi — nilai terkunci tetap bisa dikoreksi lewat ikon pensil.'}
           </p>
-          <div className="p-3 bg-gray-50 border border-gray-100 rounded-2xl space-y-0.5">
-            <p className="text-xs font-bold text-gray-900">{reviewingRow?.studentName}</p>
-            <p className="text-[11px] text-gray-500">
+          <div className="p-3 bg-nb-workspace border border-nb-rule rounded-2xl space-y-0.5">
+            <p className="text-xs font-bold text-nb-ink">{reviewingRow?.studentName}</p>
+            <p className="text-xs text-nb-ink-muted">
               {assignment.title}
               {existingScore ? ` — ${existingScore} → ` : ' — nilai '}
               <span className="font-bold text-nb-green">{scoreInput.trim() || '-'}</span>

@@ -222,7 +222,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
       <div className="space-y-6">
         <Card className="space-y-4">
           <div>
-            <label className="text-xs font-bold text-gray-700 block mb-1">Tanggal Hari Ini</label>
+            <label className="text-xs font-bold text-nb-ink block mb-1">Tanggal Hari Ini</label>
             <div className="p-3 bg-[#F7F5EF] border border-[#D9DED5] rounded-xl text-sm text-[#5D665E] flex items-center gap-2">
               <Calendar className="w-4 h-4 text-nb-ink-muted" />
               <span>{formattedDate || "Memuat tanggal..."}</span>
@@ -255,7 +255,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
                 mulai (recordId ada), supaya sebelum itu tidak menyesatkan
                 seolah-olah sudah ada yang tersimpan. */}
             {recordId && !loadingData && (
-              <span className="flex items-center gap-1.5 text-[11px] font-bold">
+              <span className="flex items-center gap-1.5 text-xs font-bold">
                 {autoSaveState === "saving" && (
                   <>
                     <Loader2 className="w-3.5 h-3.5 text-nb-ink-muted animate-spin" />
@@ -289,7 +289,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
               <SkeletonTable rows={3} cols={2} />
             </div>
           ) : students.length === 0 ? (
-            <p className="text-xs text-gray-500 text-center py-12">Belum ada siswa di kelas ini.</p>
+            <p className="text-xs text-nb-ink-muted text-center py-12">Belum ada siswa di kelas ini.</p>
           ) : (
             <AttendanceGrid students={students} history={history} statusMap={statusMap} onChange={handleEntryChange} />
           )}
@@ -328,7 +328,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
             <button
               type="button"
               onClick={handleExportPdf}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#EDF3E8] hover:bg-[#DCE9D9] text-[#24563F] rounded-xl text-[11px] font-bold transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#EDF3E8] hover:bg-[#DCE9D9] text-[#24563F] rounded-xl text-xs font-bold transition-colors"
             >
               <FileDown className="w-3.5 h-3.5" />
               Export PDF Rekap
@@ -354,18 +354,18 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
               >
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[10px] font-extrabold text-[#2F6B4F] bg-nb-green-soft px-2 py-0.5 rounded-md">
+                    <span className="text-xs font-extrabold text-[#2F6B4F] bg-nb-green-soft px-2 py-0.5 rounded-md">
                       {item.date}
                     </span>
-                    <span className="text-xs font-bold text-gray-900">• {item.subject}</span>
+                    <span className="text-xs font-bold text-nb-ink">• {item.subject}</span>
                     {item.completed && (
-                      <span className="flex items-center gap-1 text-[10px] font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
+                      <span className="flex items-center gap-1 text-xs font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
                         <CheckCircle2 className="w-3 h-3" />
                         Selesai
                       </span>
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-2 pt-1 text-[11px] font-semibold">
+                  <div className="flex flex-wrap gap-2 pt-1 text-xs font-semibold">
                     <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">Hadir: {item.summary?.hadir || 0}</span>
                     {(item.summary?.terlambat || 0) > 0 && (
                       <span className="text-orange-600 bg-orange-50 px-2 py-0.5 rounded">

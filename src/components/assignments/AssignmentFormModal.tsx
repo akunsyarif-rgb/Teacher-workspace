@@ -67,18 +67,18 @@ export default function AssignmentFormModal({ isOpen, onClose, onSubmit }: Assig
     return (
       <Modal isOpen={isOpen} onClose={onClose} title="Preview Tugas">
         <div className="space-y-4">
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-nb-ink-muted">
             Periksa sekali lagi sebelum Publish — begitu dipublish, tugas langsung tampil di Student Companion.
           </p>
-          <div className="p-4 bg-gray-50 border border-gray-200 rounded-2xl space-y-2">
-            <p className="text-sm font-extrabold text-gray-900">{title}</p>
-            {description && <p className="text-xs text-gray-600 whitespace-pre-wrap">{description}</p>}
-            <p className="flex items-center gap-1.5 text-[11px] font-bold text-gray-500">
+          <div className="p-4 bg-nb-paper border border-nb-control rounded-2xl space-y-2">
+            <p className="text-sm font-extrabold text-nb-ink">{title}</p>
+            {description && <p className="text-xs text-nb-ink-muted whitespace-pre-wrap">{description}</p>}
+            <p className="flex items-center gap-1.5 text-xs font-bold text-nb-ink-muted">
               <Calendar className="w-3.5 h-3.5" />
               Tenggat {dueDate}
             </p>
             {file && (
-              <p className="flex items-center gap-1.5 text-[11px] font-bold text-nb-green-strong">
+              <p className="flex items-center gap-1.5 text-xs font-bold text-nb-green-strong">
                 <FileText className="w-3.5 h-3.5" />
                 {file.name}
               </p>
@@ -89,7 +89,7 @@ export default function AssignmentFormModal({ isOpen, onClose, onSubmit }: Assig
               type="button"
               onClick={() => setStep('form')}
               disabled={saving}
-              className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 rounded-xl text-xs font-bold transition-colors"
+              className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-nb-ink rounded-xl text-xs font-bold transition-colors"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               Kembali
@@ -117,25 +117,25 @@ export default function AssignmentFormModal({ isOpen, onClose, onSubmit }: Assig
         />
 
         <div>
-          <label className="text-xs font-bold text-gray-700 block mb-1">Instruksi (opsional)</label>
+          <label className="text-xs font-bold text-nb-ink block mb-1">Instruksi (opsional)</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Jelaskan apa yang harus dikerjakan siswa"
             rows={3}
-            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-nb-green"
+            className="w-full p-3 bg-nb-paper border border-nb-control rounded-xl text-xs text-nb-ink outline-none focus:bg-nb-paper focus:ring-2 focus:ring-nb-green"
           />
         </div>
 
         <Input label="Tenggat Waktu" type="date" value={dueDate} onChange={setDueDate} required />
 
         <div>
-          <label className="text-xs font-bold text-gray-700 block mb-1">Materi Soal (opsional)</label>
+          <label className="text-xs font-bold text-nb-ink block mb-1">Materi Soal (opsional)</label>
           {file ? (
             <div className="flex items-center justify-between gap-2 p-2.5 bg-nb-green-soft rounded-xl">
               <span className="flex items-center gap-1.5 min-w-0">
                 <FileText className="w-3.5 h-3.5 text-nb-green shrink-0" />
-                <span className="text-[11px] font-bold text-nb-green-strong truncate">{file.name}</span>
+                <span className="text-xs font-bold text-nb-green-strong truncate">{file.name}</span>
               </span>
               <button
                 type="button"
@@ -150,7 +150,7 @@ export default function AssignmentFormModal({ isOpen, onClose, onSubmit }: Assig
           ) : (
             <label className="flex items-center justify-center gap-1.5 p-2.5 border border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-nb-green transition-colors">
               <Paperclip className="w-3.5 h-3.5 text-nb-ink-muted" />
-              <span className="text-[11px] font-bold text-gray-500">Lampirkan foto / PDF / Word</span>
+              <span className="text-xs font-bold text-nb-ink-muted">Lampirkan foto / PDF / Word</span>
               <input
                 type="file"
                 accept="image/*,application/pdf,.doc,.docx"

@@ -80,11 +80,11 @@ export default function AssignmentsTab({ className, subject }: AssignmentsTabPro
     <div className="space-y-4">
       <Card className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+          <h3 className="text-sm font-bold text-nb-ink flex items-center gap-2">
             <ClipboardList className="w-4 h-4 text-nb-green" />
             Tugas Kelas {className}
           </h3>
-          <p className="text-xs text-gray-500">Buat tugas dan nilai pengumpulan siswa</p>
+          <p className="text-xs text-nb-ink-muted">Buat tugas dan nilai pengumpulan siswa</p>
         </div>
         <Button className="w-auto px-4" onClick={() => setShowModal(true)}>
           <Plus className="w-4 h-4" />
@@ -111,16 +111,16 @@ export default function AssignmentsTab({ className, subject }: AssignmentsTabPro
             <button
               key={assignment.id}
               onClick={() => setSelected(assignment)}
-              className="w-full bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between gap-3 text-left hover:border-nb-rule transition-colors"
+              className="w-full bg-nb-paper p-4 rounded-2xl border border-nb-rule shadow-sm flex items-center justify-between gap-3 text-left hover:border-nb-rule transition-colors"
             >
               <div>
-                <p className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                <p className="text-xs font-bold text-nb-ink flex items-center gap-1.5">
                   {assignment.title}
                   {assignment.materialFileUrl && (
                     <Paperclip className="w-3 h-3 text-nb-ink-muted shrink-0" aria-label="Ada lampiran materi" />
                   )}
                 </p>
-                <p className="text-[11px] text-gray-500">Tenggat {assignment.dueDate}</p>
+                <p className="text-xs text-nb-ink-muted">Tenggat {assignment.dueDate}</p>
               </div>
               <div className="flex items-center gap-2">
                 <span

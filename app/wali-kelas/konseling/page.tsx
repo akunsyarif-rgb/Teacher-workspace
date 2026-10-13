@@ -8,11 +8,11 @@ import { STUDENT_NOTE_CATEGORIES } from '@/lib/config/constants';
 
 export default function KonselingPage() {
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 md:p-10">
+    <div className="min-h-screen bg-nb-workspace p-4 sm:p-6 md:p-10">
       <div className="max-w-2xl mx-auto space-y-6">
         <div>
-          <h1 className="text-lg font-bold text-gray-900">Catatan Konseling</h1>
-          <p className="text-xs text-gray-500">Catat sesi konseling dan tindak lanjut siswa</p>
+          <h1 className="text-lg font-bold text-nb-ink">Catatan Konseling</h1>
+          <p className="text-xs text-nb-ink-muted">Catat sesi konseling dan tindak lanjut siswa</p>
         </div>
         <HomeroomGuard featureName="Konseling" icon={HeartHandshake}>
           <StudentNoteList

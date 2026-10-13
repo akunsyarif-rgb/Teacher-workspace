@@ -82,11 +82,11 @@ export default function AnnouncementsTab({ className, subject }: AnnouncementsTa
     <div className="space-y-4">
       <Card className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+          <h3 className="text-sm font-bold text-nb-ink flex items-center gap-2">
             <Megaphone className="w-4 h-4 text-nb-green" />
             Pengumuman Kelas {className}
           </h3>
-          <p className="text-xs text-gray-500">Langsung tampil di aplikasi siswa, tanpa lewat WhatsApp</p>
+          <p className="text-xs text-nb-ink-muted">Langsung tampil di aplikasi siswa, tanpa lewat WhatsApp</p>
         </div>
         <Button className="w-auto px-4" onClick={() => setShowModal(true)}>
           <Plus className="w-4 h-4" />
@@ -97,19 +97,19 @@ export default function AnnouncementsTab({ className, subject }: AnnouncementsTa
       {step === 'preview' ? (
         <Modal isOpen={showModal} onClose={closeModal} title="Preview Pengumuman">
           <div className="space-y-4">
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-nb-ink-muted">
               Periksa sekali lagi sebelum dikirim — begitu dikirim, pengumuman langsung tampil di Student Companion.
             </p>
-            <div className="p-4 bg-gray-50 border border-gray-200 rounded-2xl space-y-1.5">
-              <p className="text-sm font-extrabold text-gray-900">{title}</p>
-              <p className="text-xs text-gray-600 whitespace-pre-wrap">{body}</p>
+            <div className="p-4 bg-nb-paper border border-nb-control rounded-2xl space-y-1.5">
+              <p className="text-sm font-extrabold text-nb-ink">{title}</p>
+              <p className="text-xs text-nb-ink-muted whitespace-pre-wrap">{body}</p>
             </div>
             <div className="flex gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => setStep('form')}
                 disabled={saving}
-                className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 rounded-xl text-xs font-bold transition-colors"
+                className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-nb-ink rounded-xl text-xs font-bold transition-colors"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 Kembali
@@ -133,14 +133,14 @@ export default function AnnouncementsTab({ className, subject }: AnnouncementsTa
               required
             />
             <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Isi Pengumuman</label>
+              <label className="text-xs font-bold text-nb-ink block mb-1">Isi Pengumuman</label>
               <textarea
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
                 rows={4}
                 required
                 placeholder="Tulis pengumuman untuk siswa"
-                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-nb-green"
+                className="w-full p-3 bg-nb-paper border border-nb-control rounded-xl text-xs text-nb-ink outline-none focus:bg-nb-paper focus:ring-2 focus:ring-nb-green"
               />
             </div>
             <div className="flex gap-2 pt-2">
@@ -167,11 +167,11 @@ export default function AnnouncementsTab({ className, subject }: AnnouncementsTa
       ) : (
         <div className="space-y-2">
           {announcements.map((announcement) => (
-            <div key={announcement.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+            <div key={announcement.id} className="bg-nb-paper p-4 rounded-2xl border border-nb-rule shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-xs font-bold text-gray-900">{announcement.title}</p>
-                  <p className="text-[10px] font-bold text-nb-ink-muted uppercase tracking-wider mt-0.5">
+                  <p className="text-xs font-bold text-nb-ink">{announcement.title}</p>
+                  <p className="text-xs font-bold text-nb-ink-muted uppercase tracking-wider mt-0.5">
                     {announcement.date}
                   </p>
                 </div>
@@ -183,7 +183,7 @@ export default function AnnouncementsTab({ className, subject }: AnnouncementsTa
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
-              <p className="text-[11px] text-gray-600 mt-2 whitespace-pre-wrap">{announcement.body}</p>
+              <p className="text-xs text-nb-ink-muted mt-2 whitespace-pre-wrap">{announcement.body}</p>
             </div>
           ))}
         </div>

@@ -21,7 +21,7 @@ export default function StudentBottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-100 shadow-[0_-2px_10px_rgba(0,0,0,0.04)]">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-nb-paper border-t border-nb-rule shadow-[0_-2px_10px_rgba(0,0,0,0.04)]">
       <div className="max-w-md mx-auto grid grid-cols-6">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           const isActive = href === '/student' ? pathname === '/student' : pathname.startsWith(href);
@@ -29,8 +29,8 @@ export default function StudentBottomNav() {
             <Link
               key={href}
               href={href}
-              className={`flex flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-bold transition-colors ${
-                isActive ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'
+              className={`flex flex-col items-center justify-center gap-1 py-2.5 text-xs font-bold transition-colors ${
+                isActive ? 'text-nb-green' : 'text-nb-ink-muted hover:text-nb-ink-muted'
               }`}
             >
               <Icon className={`w-5 h-5 ${isActive ? 'scale-105' : ''} transition-transform`} />

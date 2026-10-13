@@ -161,18 +161,18 @@ export default function StudentNoteList({
       )}
 
       <Card className="space-y-4">
-        <h3 className="text-sm font-bold text-gray-900">Tambah Catatan</h3>
+        <h3 className="text-sm font-bold text-nb-ink">Tambah Catatan</h3>
         {students.length === 0 ? (
-          <p className="text-xs text-gray-400 py-4 text-center">Belum ada siswa di kelas ini.</p>
+          <p className="text-xs text-nb-ink-muted py-4 text-center">Belum ada siswa di kelas ini.</p>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Siswa</label>
+              <label className="text-xs font-bold text-nb-ink block mb-1">Siswa</label>
               <select
                 value={studentId}
                 onChange={(e) => setStudentId(e.target.value)}
                 required
-                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+                className="w-full p-3 bg-nb-paper border border-nb-control rounded-xl text-xs text-nb-ink outline-none focus:bg-nb-paper focus:ring-2 focus:ring-nb-green"
               >
                 {students.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -182,14 +182,14 @@ export default function StudentNoteList({
               </select>
             </div>
             <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">{titleLabel}</label>
+              <label className="text-xs font-bold text-nb-ink block mb-1">{titleLabel}</label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder={titlePlaceholder}
                 required
-                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 placeholder:text-gray-400 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+                className="w-full p-3 bg-nb-paper border border-nb-control rounded-xl text-xs text-nb-ink placeholder:text-gray-500 outline-none focus:bg-nb-paper focus:ring-2 focus:ring-nb-green"
               />
             </div>
             <Textarea label="Keterangan (Opsional)" value={detail} onChange={setDetail} placeholder="Catatan tambahan..." />
@@ -202,9 +202,9 @@ export default function StudentNoteList({
       </Card>
 
       <Card className="space-y-4">
-        <h3 className="text-sm font-bold text-gray-900">Riwayat Catatan ({notes.length})</h3>
+        <h3 className="text-sm font-bold text-nb-ink">Riwayat Catatan ({notes.length})</h3>
         {notes.length === 0 ? (
-          <p className="text-xs text-gray-400 py-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+          <p className="text-xs text-nb-ink-muted py-8 text-center bg-nb-workspace rounded-2xl border border-dashed border-nb-rule">
             {emptyMessage}
           </p>
         ) : (
@@ -212,17 +212,17 @@ export default function StudentNoteList({
             {notes.map((n) => (
               <div
                 key={n.id}
-                className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-start justify-between gap-3"
+                className="p-4 bg-nb-workspace rounded-2xl border border-nb-rule flex items-start justify-between gap-3"
               >
                 <div className="min-w-0 space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[10px] font-extrabold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+                    <span className="text-xs font-extrabold text-nb-green bg-nb-green-soft px-2 py-0.5 rounded-md">
                       {n.date}
                     </span>
-                    <span className="text-xs font-bold text-gray-900">{n.studentName}</span>
+                    <span className="text-xs font-bold text-nb-ink">{n.studentName}</span>
                   </div>
-                  <p className="text-xs font-extrabold text-gray-800">{n.title}</p>
-                  {n.notes && <p className="text-[11px] text-gray-500">{n.notes}</p>}
+                  <p className="text-xs font-extrabold text-nb-ink">{n.title}</p>
+                  {n.notes && <p className="text-xs text-nb-ink-muted">{n.notes}</p>}
                 </div>
                 <button
                   onClick={() => setDeleteTarget({ id: n.id, title: n.title })}

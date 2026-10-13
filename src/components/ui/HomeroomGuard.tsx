@@ -13,12 +13,12 @@ type HomeroomGuardProps = {
 
 function NotHomeroomTeacher({ featureName, icon: Icon }: Omit<HomeroomGuardProps, 'children'>) {
   return (
-    <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 text-center space-y-3">
+    <div className="bg-nb-paper p-8 rounded-3xl shadow-sm border border-nb-rule text-center space-y-3">
       <div className="w-16 h-16 mx-auto bg-nb-green-soft rounded-full flex items-center justify-center">
         <Icon className="w-7 h-7 text-nb-green" />
       </div>
-      <h3 className="text-sm font-extrabold text-gray-700">Khusus Wali Kelas</h3>
-      <p className="text-xs text-gray-500 max-w-sm mx-auto">
+      <h3 className="text-sm font-extrabold text-nb-ink">Khusus Wali Kelas</h3>
+      <p className="text-xs text-nb-ink-muted max-w-sm mx-auto">
         Fitur {featureName} hanya tersedia untuk guru yang menjadi wali kelas. Atur penugasan
         wali kelas di halaman Profil.
       </p>

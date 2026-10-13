@@ -33,14 +33,14 @@ export default function ExamMonitor({ examId, onClose }: { examId: string; onClo
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-sm font-extrabold">{view.exam.title}</p>
-        <button type="button" onClick={onClose} className="text-xs font-bold text-blue-600 px-2 py-2">Tutup</button>
+        <button type="button" onClick={onClose} className="text-xs font-bold text-nb-green px-2 py-2">Tutup</button>
       </div>
       <InlineAlert message={error} onDismiss={() => setError("")} />
-      <p className="text-[11px] text-gray-600">{s.started}/{s.assigned} mulai · {s.submitted} selesai{s.avgScore !== null ? ` · rata-rata ${s.avgScore} (min ${s.minScore}, maks ${s.maxScore})` : ""}</p>
-      <p className="text-[10px] text-gray-400">Sinyal integritas hanyalah indikasi (mis. berpindah tab/aplikasi), bukan bukti kecurangan. Tidak ada sanksi otomatis; tinjau konteksnya.</p>
-      <div className="overflow-x-auto bg-white rounded-2xl border border-gray-100">
-        <table className="w-full text-[11px]">
-          <thead><tr className="text-left text-gray-500"><th className="p-2">Siswa</th><th>Kelas</th><th>Status</th><th>Terjawab</th><th>Nilai</th><th>Integritas</th></tr></thead>
+      <p className="text-xs text-nb-ink-muted">{s.started}/{s.assigned} mulai · {s.submitted} selesai{s.avgScore !== null ? ` · rata-rata ${s.avgScore} (min ${s.minScore}, maks ${s.maxScore})` : ""}</p>
+      <p className="text-xs text-nb-ink-muted">Sinyal integritas hanyalah indikasi (mis. berpindah tab/aplikasi), bukan bukti kecurangan. Tidak ada sanksi otomatis; tinjau konteksnya.</p>
+      <div className="overflow-x-auto bg-nb-paper rounded-2xl border border-nb-rule">
+        <table className="w-full text-xs">
+          <thead><tr className="text-left text-nb-ink-muted"><th className="p-2">Siswa</th><th>Kelas</th><th>Status</th><th>Terjawab</th><th>Nilai</th><th>Integritas</th></tr></thead>
           <tbody>
             {view.rows.map((r) => (
               <tr key={r.studentId} className="border-t border-gray-50">
@@ -49,7 +49,7 @@ export default function ExamMonitor({ examId, onClose }: { examId: string; onClo
                 <td>{r.score ?? "-"}</td>
                 <td>
                   {r.attemptId && r.leaveCount > 0 ? (
-                    <button type="button" className={`underline ${r.maxWarningLevel >= 3 ? "text-red-600" : r.maxWarningLevel === 2 ? "text-amber-600" : "text-gray-600"}`} onClick={() => showEvents(r.attemptId as string, r.name)}>
+                    <button type="button" className={`underline ${r.maxWarningLevel >= 3 ? "text-red-600" : r.maxWarningLevel === 2 ? "text-amber-600" : "text-nb-ink-muted"}`} onClick={() => showEvents(r.attemptId as string, r.name)}>
                       {r.leaveCount}× keluar halaman ({LEVEL[r.maxWarningLevel]})
                     </button>
                   ) : "-"}
@@ -60,14 +60,14 @@ export default function ExamMonitor({ examId, onClose }: { examId: string; onClo
         </table>
       </div>
       {events && (
-        <div className="bg-white p-3 rounded-2xl border border-gray-100 space-y-1">
+        <div className="bg-nb-paper p-3 rounded-2xl border border-nb-rule space-y-1">
           <p className="text-xs font-extrabold">Kejadian: {events.name}</p>
           {events.rows.map((e) => (
-            <p key={e.id} className="text-[11px] text-gray-700">
+            <p key={e.id} className="text-xs text-nb-ink">
               {new Date(e.occurredAt).toLocaleTimeString("id-ID", { timeZone: "Asia/Makassar" })} · {e.eventType}{e.durationMs ? ` · ${Math.round(e.durationMs / 1000)} dtk` : ""} · {e.severity}
             </p>
           ))}
-          <button type="button" onClick={() => setEvents(null)} className="text-[11px] font-bold text-blue-600 py-1">Tutup</button>
+          <button type="button" onClick={() => setEvents(null)} className="text-xs font-bold text-nb-green py-1">Tutup</button>
         </div>
       )}
     </div>

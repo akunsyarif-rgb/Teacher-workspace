@@ -51,21 +51,21 @@ function HomeContent({ profile }: { profile: StudentProfile }) {
     <div className="space-y-4">
       {/* Kartu identitas sekaligus pintu ke Profil — supaya bottom nav
           tetap 5 item dan tidak sesak di layar HP kecil. */}
-      <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex items-center justify-between gap-3">
+      <div className="bg-nb-paper p-5 rounded-3xl border border-nb-rule shadow-sm flex items-center justify-between gap-3">
         <Link href="/student/profil" className="flex items-center gap-3 min-w-0 group">
-          <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-extrabold shrink-0">
+          <div className="w-10 h-10 rounded-2xl bg-nb-green text-white flex items-center justify-center font-extrabold shrink-0">
             {profile.name.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-extrabold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
+            <p className="text-sm font-extrabold text-nb-ink truncate group-hover:text-nb-green transition-colors">
               {profile.name}
             </p>
-            <p className="text-xs text-gray-500">Kelas {profile.className} • Lihat profil</p>
+            <p className="text-xs text-nb-ink-muted">Kelas {profile.className} • Lihat profil</p>
           </div>
         </Link>
         <button
           onClick={handleLogout}
-          className="p-2.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+          className="p-2.5 rounded-xl text-nb-ink-muted hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
           title="Keluar"
           aria-label="Keluar"
         >
@@ -74,24 +74,24 @@ function HomeContent({ profile }: { profile: StudentProfile }) {
       </div>
 
       <div className="space-y-2">
-        <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+        <p className="text-xs font-extrabold text-nb-ink-muted uppercase tracking-wider flex items-center gap-1.5">
           <Megaphone className="w-3.5 h-3.5" />
           Pengumuman Guru
         </p>
         {loadingAnnouncements ? (
           <SkeletonCard />
         ) : announcements.length === 0 ? (
-          <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-            <p className="text-[11px] text-gray-400 text-center py-2">Belum ada pengumuman.</p>
+          <div className="bg-nb-paper p-4 rounded-2xl border border-nb-rule shadow-sm">
+            <p className="text-xs text-nb-ink-muted text-center py-2">Belum ada pengumuman.</p>
           </div>
         ) : (
           announcements.map((announcement) => (
-            <div key={announcement.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+            <div key={announcement.id} className="bg-nb-paper p-4 rounded-2xl border border-nb-rule shadow-sm">
               <div className="flex items-baseline justify-between gap-2">
-                <p className="text-xs font-bold text-gray-900">{announcement.title}</p>
-                <p className="text-[10px] font-bold text-gray-400 shrink-0">{announcement.date}</p>
+                <p className="text-xs font-bold text-nb-ink">{announcement.title}</p>
+                <p className="text-xs font-bold text-nb-ink-muted shrink-0">{announcement.date}</p>
               </div>
-              <p className="text-[11px] text-gray-600 mt-1 whitespace-pre-wrap">{announcement.body}</p>
+              <p className="text-xs text-nb-ink-muted mt-1 whitespace-pre-wrap">{announcement.body}</p>
             </div>
           ))
         )}
@@ -102,15 +102,15 @@ function HomeContent({ profile }: { profile: StudentProfile }) {
           <Link
             key={href}
             href={href}
-            className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between gap-3 hover:border-blue-200 transition-colors"
+            className="bg-nb-paper p-4 rounded-2xl border border-nb-rule shadow-sm flex items-center justify-between gap-3 hover:border-nb-rule transition-colors"
           >
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-nb-green-soft text-nb-green flex items-center justify-center shrink-0">
                 <Icon className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-xs font-bold text-gray-900">{label}</p>
-                <p className="text-[11px] text-gray-500">{description}</p>
+                <p className="text-xs font-bold text-nb-ink">{label}</p>
+                <p className="text-xs text-nb-ink-muted">{description}</p>
               </div>
             </div>
             <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />

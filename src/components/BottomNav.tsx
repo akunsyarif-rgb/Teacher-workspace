@@ -59,7 +59,7 @@ export default function BottomNav() {
               <div className="relative xl:flex xl:items-center">
                 <Icon className={`w-5 h-5 ${isActive ? "scale-105" : ""} transition-transform`} />
                 {showBadge && (
-                  <span className="absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 bg-red-500 text-white text-[8px] font-extrabold rounded-full shadow-md animate-pulse">
+                  <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-5 h-5 px-1 bg-red-600 text-white text-xs font-extrabold rounded-full shadow-md animate-pulse">
                     {pendingCount > 9 ? '9+' : pendingCount}
                   </span>
                 )}

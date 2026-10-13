@@ -35,7 +35,7 @@ function HistoryBadge({ detail, date }: { detail?: { status: string; late?: bool
   if (!detail) {
     return (
       <span
-        className="inline-flex shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-lg border border-dashed border-gray-200"
+        className="inline-flex shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-lg border border-dashed border-nb-rule"
         title={date}
       />
     );
@@ -48,7 +48,7 @@ function HistoryBadge({ detail, date }: { detail?: { status: string; late?: bool
       aria-label={`${formatShortDate(date)}: ${detail.status}${detail.late ? ' (Terlambat)' : ''}`}
     >
       <span
-        className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center text-[10px] sm:text-[11px] font-extrabold text-white ${bg}`}
+        className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center text-xs sm:text-xs font-extrabold text-white ${bg}`}
       >
         {STATUS_LETTER[detail.status] || '?'}
       </span>
@@ -66,7 +66,7 @@ function HistoryBadge({ detail, date }: { detail?: { status: string; late?: bool
 // jatuh rata ke tepi kiri di bawah nomornya (default reflow teks inline).
 function StudentName({ idx, name, className }: { idx: number; name: string; className?: string }) {
   return (
-    <p className={`flex gap-1.5 font-bold text-gray-900 ${className || ''}`}>
+    <p className={`flex gap-1.5 font-bold text-nb-ink ${className || ''}`}>
       <span className="shrink-0 text-nb-ink-muted font-normal">{idx + 1}.</span>
       <span>{name}</span>
     </p>
@@ -103,7 +103,7 @@ function TodayStatusControl({ value, onChange }: { value: TodayEntry; onChange: 
         aria-pressed={value.late}
         className={`w-11 h-11 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nb-green focus-visible:ring-offset-1 flex items-center justify-center transition-all active:scale-90 ${
           value.status !== 'Hadir'
-            ? 'bg-[#F7F5EF] text-gray-400 cursor-not-allowed'
+            ? 'bg-[#F7F5EF] text-nb-ink-muted cursor-not-allowed'
             : value.late
             ? `${LATE_COLOR} text-white shadow-sm`
             : 'bg-gray-100 text-nb-ink-muted hover:bg-gray-200'
@@ -147,12 +147,12 @@ export default function AttendanceGrid({ students, history, statusMap, onChange 
         {students.map((student, idx) => {
           const entry = statusMap[student.id] || { status: 'Hadir', late: false };
           return (
-            <div key={student.id} className="bg-white rounded-2xl border border-nb-rule p-3 space-y-2.5">
+            <div key={student.id} className="bg-nb-paper rounded-2xl border border-nb-rule p-3 space-y-2.5">
               <StudentName idx={idx} name={student.name} className="text-sm" />
 
               {sortedHistory.length > 0 && (
                 <div className="flex items-center gap-2">
-                  <span className="shrink-0 text-[10px] font-bold text-nb-ink-muted uppercase tracking-wider">Riwayat</span>
+                  <span className="shrink-0 text-xs font-bold text-nb-ink-muted uppercase tracking-wider">Riwayat</span>
                   <div className="flex items-center gap-1.5 overflow-x-auto">
                     {sortedHistory.map((session) => {
                       const detail = (session.details || []).find((d) => d.studentId === student.id);
@@ -163,7 +163,7 @@ export default function AttendanceGrid({ students, history, statusMap, onChange 
               )}
 
               <div className="flex items-center gap-2 pt-2 border-t border-nb-rule">
-                <span className="shrink-0 text-[10px] font-bold text-nb-ink-muted uppercase tracking-wider">Hari Ini</span>
+                <span className="shrink-0 text-xs font-bold text-nb-ink-muted uppercase tracking-wider">Hari Ini</span>
                 <TodayStatusControl value={entry} onChange={(next) => onChange(student.id, next)} />
               </div>
             </div>
@@ -185,10 +185,10 @@ export default function AttendanceGrid({ students, history, statusMap, onChange 
                 title={session.date}
               >
                 <div>{i + 1}</div>
-                <div className="text-[11px] font-medium text-nb-ink-muted">{formatShortDate(session.date)}</div>
+                <div className="text-xs font-medium text-nb-ink-muted">{formatShortDate(session.date)}</div>
               </div>
             ))}
-            <div className={`border-l-2 border-gray-200 px-3 py-2.5 text-center font-bold text-nb-ink-muted ${TODAY_COL}`}>
+            <div className={`border-l-2 border-nb-rule px-3 py-2.5 text-center font-bold text-nb-ink-muted ${TODAY_COL}`}>
               Hari Ini
             </div>
           </div>
@@ -208,7 +208,7 @@ export default function AttendanceGrid({ students, history, statusMap, onChange 
                     </div>
                   );
                 })}
-                <div className={`border-l-2 border-gray-200 px-3 py-2.5 flex items-center ${TODAY_COL}`}>
+                <div className={`border-l-2 border-nb-rule px-3 py-2.5 flex items-center ${TODAY_COL}`}>
                   <TodayStatusControl value={entry} onChange={(next) => onChange(student.id, next)} />
                 </div>
               </div>

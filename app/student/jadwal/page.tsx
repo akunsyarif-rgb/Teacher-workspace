@@ -40,8 +40,8 @@ function ScheduleContent({ profile }: { profile: StudentProfile }) {
   const hasAny = days.some((day) => day.items.length > 0);
   if (!hasAny) {
     return (
-      <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-        <p className="text-xs text-gray-400 text-center py-4">
+      <div className="bg-nb-paper p-6 rounded-3xl border border-nb-rule shadow-sm">
+        <p className="text-xs text-nb-ink-muted text-center py-4">
           Gurumu belum mengisi jadwal untuk kelas ini.
         </p>
       </div>
@@ -53,16 +53,16 @@ function ScheduleContent({ profile }: { profile: StudentProfile }) {
       {days
         .filter((day) => day.items.length > 0)
         .map((day) => (
-          <div key={day.day} className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-3">
-            <h3 className="text-xs font-extrabold text-blue-600 uppercase tracking-wider flex items-center gap-1.5 border-b border-gray-100 pb-3">
+          <div key={day.day} className="bg-nb-paper p-5 rounded-3xl border border-nb-rule shadow-sm space-y-3">
+            <h3 className="text-xs font-extrabold text-nb-green uppercase tracking-wider flex items-center gap-1.5 border-b border-nb-rule pb-3">
               <Calendar className="w-4 h-4" />
               <span>{day.day}</span>
             </h3>
             <div className="space-y-2">
               {day.items.map((item: any) => (
-                <div key={item.id} className="p-3 bg-gray-50 rounded-2xl border border-gray-100">
-                  <p className="text-xs font-extrabold text-gray-900">{item.subject}</p>
-                  <p className="text-[10px] font-bold text-blue-600">{item.timeSlot}</p>
+                <div key={item.id} className="p-3 bg-nb-workspace rounded-2xl border border-nb-rule">
+                  <p className="text-xs font-extrabold text-nb-ink">{item.subject}</p>
+                  <p className="text-xs font-bold text-nb-green">{item.timeSlot}</p>
                 </div>
               ))}
             </div>

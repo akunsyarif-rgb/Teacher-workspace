@@ -88,29 +88,29 @@ export default function DownloadDataPanel() {
 
   return (
     <Card className="space-y-4">
-      <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-        <Download className="w-4 h-4 text-blue-600" />
+      <h3 className="text-sm font-bold text-nb-ink flex items-center gap-2">
+        <Download className="w-4 h-4 text-nb-green" />
         Download Data
       </h3>
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-nb-ink-muted">
         Untuk export cepat presensi satu kelas, tetap pakai &quot;Export PDF Rekap&quot; di Kelas Aktif → Presensi → Riwayat.
         Ini untuk unduhan lintas kelas/periode.
       </p>
 
       <div>
-        <label className="text-xs font-bold text-gray-700 block mb-1.5">Cakupan Kelas</label>
+        <label className="text-xs font-bold text-nb-ink block mb-1.5">Cakupan Kelas</label>
         <div className="flex gap-2 mb-2">
           <button
             type="button"
             onClick={() => setScopeType('all')}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-colors ${scopeType === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-colors ${scopeType === 'all' ? 'bg-nb-green text-white' : 'bg-gray-100 text-nb-ink-muted'}`}
           >
             Semua Kelas
           </button>
           <button
             type="button"
             onClick={() => setScopeType('class')}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-colors ${scopeType === 'class' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-colors ${scopeType === 'class' ? 'bg-nb-green text-white' : 'bg-gray-100 text-nb-ink-muted'}`}
           >
             Per Kelas
           </button>
@@ -121,11 +121,11 @@ export default function DownloadDataPanel() {
       </div>
 
       <div>
-        <label className="text-xs font-bold text-gray-700 block mb-1.5">Periode</label>
+        <label className="text-xs font-bold text-nb-ink block mb-1.5">Periode</label>
         <select
           value={preset}
           onChange={(e) => setPreset(e.target.value as PeriodPreset)}
-          className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:ring-2 focus:ring-blue-600"
+          className="w-full p-3 bg-nb-paper border border-nb-control rounded-xl text-xs text-nb-ink outline-none focus:ring-2 focus:ring-nb-green"
         >
           {DOWNLOAD_PRESETS.map((p) => (
             <option key={p} value={p}>{PERIOD_PRESET_LABELS[p]}</option>
@@ -135,7 +135,7 @@ export default function DownloadDataPanel() {
           <select
             value={selectedYearId}
             onChange={(e) => setSelectedYearId(e.target.value)}
-            className="w-full mt-2 p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:ring-2 focus:ring-blue-600"
+            className="w-full mt-2 p-3 bg-nb-paper border border-nb-control rounded-xl text-xs text-nb-ink outline-none focus:ring-2 focus:ring-nb-green"
           >
             <option value="">Pilih tahun ajaran...</option>
             {academicYears.map((y) => (
@@ -152,20 +152,20 @@ export default function DownloadDataPanel() {
       </div>
 
       <div>
-        <label className="text-xs font-bold text-gray-700 block mb-1.5">Jenis Data</label>
+        <label className="text-xs font-bold text-nb-ink block mb-1.5">Jenis Data</label>
         <div className="grid grid-cols-2 gap-2">
           {ALL_DATA_TYPES.map((key) => (
-            <label key={key} className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-xl text-xs font-bold text-gray-700 cursor-pointer">
+            <label key={key} className="flex items-center gap-2 p-2.5 bg-nb-workspace rounded-xl text-xs font-bold text-nb-ink cursor-pointer">
               <input type="checkbox" checked={dataTypeKeys.includes(key)} onChange={() => toggleDataType(key)} />
               {EXPORT_DATA_TYPE_LABELS[key]}
             </label>
           ))}
         </div>
-        <p className="text-[10px] text-gray-400 mt-1.5">Nilai selalu data saat ini (tidak difilter periode).</p>
+        <p className="text-xs text-nb-ink-muted mt-1.5">Nilai selalu data saat ini (tidak difilter periode).</p>
       </div>
 
       <div>
-        <label className="text-xs font-bold text-gray-700 block mb-1.5">Format</label>
+        <label className="text-xs font-bold text-nb-ink block mb-1.5">Format</label>
         <div className="grid grid-cols-3 gap-2">
           {FORMAT_OPTIONS.map(({ value, label, hint, icon: Icon }) => (
             <button
@@ -173,12 +173,12 @@ export default function DownloadDataPanel() {
               type="button"
               onClick={() => setFormat(value)}
               className={`p-3 rounded-xl border text-center transition-colors ${
-                format === value ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-600'
+                format === value ? 'bg-nb-green-soft border-nb-green/40 text-nb-green-strong' : 'bg-nb-workspace border-nb-rule text-nb-ink-muted'
               }`}
             >
               <Icon className="w-4 h-4 mx-auto mb-1" />
-              <p className="text-[11px] font-bold">{label}</p>
-              <p className="text-[9px] text-gray-400">{hint}</p>
+              <p className="text-xs font-bold">{label}</p>
+              <p className="text-xs text-nb-ink-muted">{hint}</p>
             </button>
           ))}
         </div>

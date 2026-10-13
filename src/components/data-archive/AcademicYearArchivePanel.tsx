@@ -81,29 +81,29 @@ export default function AcademicYearArchivePanel() {
       <Card className="space-y-4">
         <button
           onClick={() => setViewingYear(null)}
-          className="flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-gray-900"
+          className="flex items-center gap-1.5 text-xs font-bold text-nb-ink-muted hover:text-nb-ink"
         >
           <ArrowLeft className="w-4 h-4" />
           Kembali ke Daftar Tahun Ajaran
         </button>
         <div>
-          <h3 className="text-sm font-extrabold text-gray-900">{viewingYear.label}</h3>
-          <p className="text-xs text-gray-500">
+          <h3 className="text-sm font-extrabold text-nb-ink">{viewingYear.label}</h3>
+          <p className="text-xs text-nb-ink-muted">
             {viewingYear.startDate} — {viewingYear.endDate || 'sekarang'}
             {viewingYear.isActive && <span className="text-emerald-600 font-bold"> • Aktif</span>}
           </p>
         </div>
-        <p className="text-[11px] text-gray-400">
+        <p className="text-xs text-nb-ink-muted">
           Data arsip ini tetap bisa dibaca untuk kroscek/laporan, tapi tidak ikut alur kerja tahun berjalan.
         </p>
         {loadingCounts ? (
-          <p className="text-xs text-gray-400">Memuat ringkasan...</p>
+          <p className="text-xs text-nb-ink-muted">Memuat ringkasan...</p>
         ) : (
           <div className="grid grid-cols-2 gap-2">
             {ARCHIVE_TYPE_KEYS.map((key) => (
-              <div key={key} className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-                <p className="text-lg font-extrabold text-gray-900">{viewCounts?.[key] ?? 0}</p>
-                <p className="text-[10px] font-bold text-gray-500">{EXPORT_DATA_TYPE_LABELS[key]}</p>
+              <div key={key} className="p-3 bg-nb-workspace rounded-xl border border-nb-rule">
+                <p className="text-lg font-extrabold text-nb-ink">{viewCounts?.[key] ?? 0}</p>
+                <p className="text-xs font-bold text-nb-ink-muted">{EXPORT_DATA_TYPE_LABELS[key]}</p>
               </div>
             ))}
           </div>
@@ -115,8 +115,8 @@ export default function AcademicYearArchivePanel() {
   return (
     <Card className="space-y-4">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-          <Archive className="w-4 h-4 text-blue-600" />
+        <h3 className="text-sm font-bold text-nb-ink flex items-center gap-2">
+          <Archive className="w-4 h-4 text-nb-green" />
           Arsip Tahun Ajaran
         </h3>
         <Button className="w-auto px-4" onClick={() => setShowNewForm((v) => !v)}>
@@ -124,17 +124,17 @@ export default function AcademicYearArchivePanel() {
           <span>Tahun Baru</span>
         </Button>
       </div>
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-nb-ink-muted">
         Data tahun berjalan adalah data aktif. Data lama TIDAK otomatis terhapus — tetap tersimpan di sini sebagai
         arsip.
       </p>
 
       {showNewForm && (
-        <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 space-y-3">
+        <div className="p-4 bg-nb-green-soft rounded-2xl border border-nb-rule space-y-3">
           <Input label="Label Tahun Ajaran" value={label} onChange={setLabel} placeholder="Contoh: 2026/2027" />
           <Input label="Tanggal Mulai" type="date" value={startDate} onChange={setStartDate} />
           {error && <p className="text-xs font-bold text-red-600">{error}</p>}
-          <p className="text-[10px] text-gray-400">
+          <p className="text-xs text-nb-ink-muted">
             Tahun ajaran yang sedang aktif (kalau ada) otomatis ditutup sehari sebelum tanggal ini. Roster/nama
             kelas TIDAK ikut berubah — atur sendiri lewat Manajemen Kelas.
           </p>
@@ -150,22 +150,22 @@ export default function AcademicYearArchivePanel() {
       )}
 
       {loading ? (
-        <p className="text-xs text-gray-400">Memuat...</p>
+        <p className="text-xs text-nb-ink-muted">Memuat...</p>
       ) : years.length === 0 ? (
-        <p className="text-xs text-gray-400 text-center py-6">Belum ada tahun ajaran tercatat.</p>
+        <p className="text-xs text-nb-ink-muted text-center py-6">Belum ada tahun ajaran tercatat.</p>
       ) : (
         <div className="divide-y divide-gray-100">
           {years.map((year) => (
             <button
               key={year.id}
               onClick={() => openYear(year)}
-              className="w-full py-3 flex items-center justify-between gap-3 text-left hover:bg-gray-50 transition-colors -mx-2 px-2 rounded-xl"
+              className="w-full py-3 flex items-center justify-between gap-3 text-left hover:bg-nb-workspace transition-colors -mx-2 px-2 rounded-xl"
             >
               <div className="flex items-center gap-2">
                 {year.isActive && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
                 <div>
-                  <p className="text-sm font-extrabold text-gray-900">{year.label}</p>
-                  <p className="text-[10px] text-gray-400">
+                  <p className="text-sm font-extrabold text-nb-ink">{year.label}</p>
+                  <p className="text-xs text-nb-ink-muted">
                     {year.isActive ? 'Aktif' : `Arsip • s.d. ${year.endDate}`}
                   </p>
                 </div>

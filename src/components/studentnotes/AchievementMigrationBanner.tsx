@@ -47,10 +47,10 @@ export default function AchievementMigrationBanner({ onMigrated }: { onMigrated:
   if (pendingCount === 0) return null;
 
   return (
-    <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div className="p-4 bg-nb-green-soft border border-nb-rule rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div className="flex items-start gap-2">
-        <ArrowRightLeft className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-        <p className="text-[11px] font-bold text-blue-800">
+        <ArrowRightLeft className="w-4 h-4 text-nb-green shrink-0 mt-0.5" />
+        <p className="text-xs font-bold text-nb-green-strong">
           Ada {pendingCount} prestasi lama yang belum bisa dilihat siswa. Pindahkan sekali saja — catatan
           aslinya tidak dihapus.
         </p>
@@ -58,7 +58,7 @@ export default function AchievementMigrationBanner({ onMigrated }: { onMigrated:
       <button
         onClick={handleMigrate}
         disabled={migrating}
-        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-xl text-[11px] font-bold transition-colors shadow-sm shrink-0"
+        className="px-4 py-2 bg-nb-green hover:bg-nb-green-strong disabled:bg-[#DDE3D8] disabled:text-[#5D665E] text-white rounded-xl text-xs font-bold transition-colors shadow-sm shrink-0"
       >
         {migrating ? 'Memindahkan...' : 'Pindahkan'}
       </button>

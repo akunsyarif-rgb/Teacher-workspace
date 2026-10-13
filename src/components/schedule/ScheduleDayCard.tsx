@@ -32,7 +32,7 @@ export default function ScheduleDayCard({ day, items, onRequestDelete }: Schedul
       </div>
 
       {items.length === 0 ? (
-        <p className="text-[11px] text-nb-ink-muted py-6 text-center italic">Tidak ada jadwal mengajar.</p>
+        <p className="text-xs text-nb-ink-muted py-6 text-center italic">Tidak ada jadwal mengajar.</p>
       ) : (
         <div className="space-y-2">
           {items.map((item) => (
@@ -43,7 +43,7 @@ export default function ScheduleDayCard({ day, items, onRequestDelete }: Schedul
               <div className="space-y-0.5">
                 <p className="text-sm font-extrabold text-[#242923]">Kelas {item.className}</p>
                 <p className="text-xs font-bold text-[#2F6B4F]">{item.timeSlot}</p>
-                <p className="text-[10px] text-gray-500">{item.subject}</p>
+                <p className="text-xs text-nb-ink-muted">{item.subject}</p>
               </div>
 
               <div className="flex items-center gap-1">

@@ -19,7 +19,7 @@ export default function Textarea({ label, value, onChange, placeholder, rows = 3
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full p-3 bg-nb-paper border border-nb-control rounded-xl text-base sm:text-sm text-nb-ink outline-none focus:bg-white focus:ring-2 focus:ring-nb-green"
+        className="w-full p-3 bg-nb-paper border border-nb-control rounded-xl text-base sm:text-sm text-nb-ink outline-none focus:bg-nb-paper focus:ring-2 focus:ring-nb-green"
       />
     </div>
   );

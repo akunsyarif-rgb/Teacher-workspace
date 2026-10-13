@@ -256,12 +256,12 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
     <div className="space-y-6">
       <Card className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+          <h3 className="text-sm font-bold text-nb-ink flex items-center gap-2">
             <Table className="w-4 h-4 text-nb-green" />
             Matriks Daftar Nilai Kelas {className}
           </h3>
-          <p className="text-xs text-gray-500">Kelola komponen nilai tugas, ulangan, dan rekap rata-rata</p>
-          <div className="flex items-center gap-3 pt-2 text-[10px] font-bold text-nb-ink-muted">
+          <p className="text-xs text-nb-ink-muted">Kelola komponen nilai tugas, ulangan, dan rekap rata-rata</p>
+          <div className="flex items-center gap-3 pt-2 text-xs font-bold text-nb-ink-muted">
             <span className="flex items-center gap-1">
               <Circle className="w-3 h-3" /> Belum diisi
             </span>
@@ -316,13 +316,13 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
 
       <Modal isOpen={!!unlockTarget} onClose={() => setUnlockTarget(null)} title="Ubah nilai?">
         <div className="space-y-4">
-          <p className="text-xs text-gray-600">
+          <p className="text-xs text-nb-ink-muted">
             Nilai ini sudah terkunci. Kalau dilanjutkan, selnya dibuka untuk diketik ulang — nilai baru
             tetap harus melewati Review sebelum tersimpan.
           </p>
-          <div className="p-3 bg-gray-50 border border-gray-100 rounded-2xl space-y-0.5">
-            <p className="text-xs font-bold text-gray-900">{unlockTarget?.studentName}</p>
-            <p className="text-[11px] text-gray-500">
+          <div className="p-3 bg-nb-workspace border border-nb-rule rounded-2xl space-y-0.5">
+            <p className="text-xs font-bold text-nb-ink">{unlockTarget?.studentName}</p>
+            <p className="text-xs text-nb-ink-muted">
               {unlockTarget?.columnTitle} — nilai sekarang{' '}
               <span className="font-bold text-emerald-700">{unlockTarget?.currentValue}</span>
             </p>
@@ -380,7 +380,7 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
         type="warning"
       />
 
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-nb-paper rounded-3xl border border-nb-rule shadow-sm overflow-hidden">
         {loadingData ? (
           <div className="p-6">
             <SkeletonTable rows={4} cols={5} />

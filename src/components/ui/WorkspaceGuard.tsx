@@ -19,12 +19,12 @@ export default function WorkspaceGuard({ children, fallback }: WorkspaceGuardPro
   if (!workspaceId) {
     return (
       fallback || (
-        <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 text-center space-y-3">
+        <div className="bg-nb-paper p-8 rounded-3xl shadow-sm border border-nb-rule text-center space-y-3">
           <div className="w-16 h-16 mx-auto bg-amber-50 rounded-full flex items-center justify-center">
             <span className="text-3xl">🏫</span>
           </div>
-          <h3 className="text-sm font-extrabold text-gray-700">Belum Ada Workspace</h3>
-          <p className="text-xs text-gray-500 max-w-sm mx-auto">
+          <h3 className="text-sm font-extrabold text-nb-ink">Belum Ada Workspace</h3>
+          <p className="text-xs text-nb-ink-muted max-w-sm mx-auto">
             Anda belum terdaftar dalam workspace. Silakan hubungi admin sekolah atau buat workspace baru.
           </p>
           <button

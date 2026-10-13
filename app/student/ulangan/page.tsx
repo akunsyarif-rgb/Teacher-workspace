@@ -37,31 +37,31 @@ function List() {
 
   if (!exams) return <SkeletonCard />;
   return (
-    <div className="space-y-3 text-gray-900">
+    <div className="space-y-3 text-nb-ink">
       <InlineAlert message={error} onDismiss={() => setError("")} />
-      {exams.length === 0 && <p className="text-xs text-gray-500 text-center py-10">Belum ada ulangan untuk kelasmu.</p>}
+      {exams.length === 0 && <p className="text-xs text-nb-ink-muted text-center py-10">Belum ada ulangan untuk kelasmu.</p>}
       {exams.map((e) => {
         const opens = Date.parse(e.opensAt);
         const closes = Date.parse(e.closesAt);
         const state = e.attempt?.status === "active" ? "lanjut" : e.attempt ? "selesai" : e.status !== "published" || serverNow >= closes ? "tutup" : serverNow < opens ? "belum" : "mulai";
         return (
-          <div key={e.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2">
+          <div key={e.id} className="bg-nb-paper p-4 rounded-2xl border border-nb-rule shadow-sm space-y-2">
             <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0"><ClipboardCheck className="w-4 h-4" /></div>
+              <div className="w-9 h-9 rounded-xl bg-nb-green-soft text-nb-green flex items-center justify-center shrink-0"><ClipboardCheck className="w-4 h-4" /></div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-extrabold text-gray-900">{e.title}</p>
-                <p className="text-[10px] text-gray-500">{e.subject ? `${e.subject} · ` : ""}{e.durationMinutes} menit · {fmt(e.opensAt)} – {fmt(e.closesAt)}</p>
+                <p className="text-xs font-extrabold text-nb-ink">{e.title}</p>
+                <p className="text-xs text-nb-ink-muted">{e.subject ? `${e.subject} · ` : ""}{e.durationMinutes} menit · {fmt(e.opensAt)} – {fmt(e.closesAt)}</p>
               </div>
             </div>
             {e.attempt?.result && (
               <p className="text-xs font-bold text-emerald-600">Nilai: {e.attempt.result.score} ({e.attempt.result.correctCount}/{e.attempt.result.maxScore} poin benar)</p>
             )}
-            {state === "selesai" && !e.attempt?.result && <p className="text-xs font-bold text-gray-500">Sudah dikumpulkan.</p>}
+            {state === "selesai" && !e.attempt?.result && <p className="text-xs font-bold text-nb-ink-muted">Sudah dikumpulkan.</p>}
             {state === "belum" && <p className="text-xs font-bold text-amber-600">Belum dibuka.</p>}
-            {state === "tutup" && <p className="text-xs font-bold text-gray-400">Sudah ditutup.</p>}
+            {state === "tutup" && <p className="text-xs font-bold text-nb-ink-muted">Sudah ditutup.</p>}
             {(state === "mulai" || state === "lanjut") && (
               <button type="button" disabled={busy === e.id} onClick={() => open(e)}
-                className="w-full py-3 rounded-2xl text-xs font-bold bg-blue-600 text-white disabled:bg-blue-300 active:scale-[0.97]">
+                className="w-full py-3 rounded-2xl text-xs font-bold bg-nb-green text-white disabled:bg-[#DDE3D8] disabled:text-[#5D665E] active:scale-[0.97]">
                 {busy === e.id ? "Membuka..." : state === "lanjut" ? "Lanjutkan" : "Mulai Ulangan"}
               </button>
             )}
@@ -75,7 +75,7 @@ function List() {
 export default function StudentUlanganPage() {
   return (
     <StudentShell title="Ulangan" subtitle="Ulangan harian kelasmu">
-      {() => (isUlanganEnabled() ? <List /> : <p className="text-xs text-gray-500 text-center py-10">Fitur ulangan belum diaktifkan.</p>)}
+      {() => (isUlanganEnabled() ? <List /> : <p className="text-xs text-nb-ink-muted text-center py-10">Fitur ulangan belum diaktifkan.</p>)}
     </StudentShell>
   );
 }

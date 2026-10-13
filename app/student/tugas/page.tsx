@@ -17,7 +17,7 @@ import { isValidSubmissionLink, SUBMISSION_LINK_ERROR_MESSAGE } from "@/lib/util
 import type { StudentProfile } from "@/src/context/StudentAuthContext";
 
 const STATUS_LABEL: Record<string, { label: string; className: string; icon: LucideIcon }> = {
-  [SUBMISSION_STATUS.BELUM_MENGUMPULKAN]: { label: "Belum dikumpulkan", className: "text-gray-400", icon: Circle },
+  [SUBMISSION_STATUS.BELUM_MENGUMPULKAN]: { label: "Belum dikumpulkan", className: "text-nb-ink-muted", icon: Circle },
   [SUBMISSION_STATUS.MENUNGGU_PENILAIAN]: { label: "Sudah dikumpulkan", className: "text-amber-600", icon: Clock },
   [SUBMISSION_STATUS.DINILAI]: { label: "Sudah dinilai", className: "text-emerald-600", icon: CheckCircle2 },
 };
@@ -339,8 +339,8 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
 
   if (assignments.length === 0) {
     return (
-      <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-        <p className="text-xs text-gray-400 text-center py-4">Belum ada tugas dari gurumu.</p>
+      <div className="bg-nb-paper p-6 rounded-3xl border border-nb-rule shadow-sm">
+        <p className="text-xs text-nb-ink-muted text-center py-4">Belum ada tugas dari gurumu.</p>
       </div>
     );
   }
@@ -359,22 +359,22 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
         const submittedAtLabel = formatSubmittedAt(assignment.submittedAt);
 
         return (
-          <div key={assignment.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-3">
+          <div key={assignment.id} className="bg-nb-paper p-4 rounded-2xl border border-nb-rule shadow-sm space-y-3">
             {justSubmittedId === assignment.id && (
-              <div className="flex items-center gap-1.5 p-2.5 bg-emerald-50 text-emerald-700 rounded-xl text-[11px] font-bold">
+              <div className="flex items-center gap-1.5 p-2.5 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold">
                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                 Tugas berhasil dikumpulkan!
               </div>
             )}
 
             <div>
-              <p className="text-xs font-bold text-gray-900">{assignment.title}</p>
+              <p className="text-xs font-bold text-nb-ink">{assignment.title}</p>
               {assignment.description && (
-                <p className="text-[11px] text-gray-500 mt-0.5">{assignment.description}</p>
+                <p className="text-xs text-nb-ink-muted mt-0.5">{assignment.description}</p>
               )}
               <p
-                className={`text-[10px] font-bold uppercase tracking-wider mt-1 ${
-                  overdue && !hasSubmitted ? "text-red-500" : "text-gray-400"
+                className={`text-xs font-bold uppercase tracking-wider mt-1 ${
+                  overdue && !hasSubmitted ? "text-red-500" : "text-nb-ink-muted"
                 }`}
               >
                 Tenggat {assignment.dueDate}
@@ -384,7 +384,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                   href={assignment.materialFileUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline mt-1.5"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-nb-green hover:underline mt-1.5"
                 >
                   <FileText className="w-3.5 h-3.5" />
                   {assignment.materialFileName || 'Lihat materi soal'}
@@ -392,18 +392,18 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
               )}
             </div>
 
-            <div className="flex items-center justify-between gap-3 pt-2 border-t border-gray-100">
-              <span className={`flex items-center gap-1.5 text-[11px] font-bold ${status.className}`}>
+            <div className="flex items-center justify-between gap-3 pt-2 border-t border-nb-rule">
+              <span className={`flex items-center gap-1.5 text-xs font-bold ${status.className}`}>
                 <StatusIcon className="w-3.5 h-3.5" />
                 {status.label}
                 {submittedAtLabel && hasSubmitted && (
-                  <span className="font-medium text-gray-400">• {submittedAtLabel}</span>
+                  <span className="font-medium text-nb-ink-muted">• {submittedAtLabel}</span>
                 )}
               </span>
               {!isOpen && gate.allowed && (
                 <button
                   onClick={() => openForm(assignment)}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-bold transition-colors shadow-sm"
+                  className="px-3 py-1.5 bg-nb-green hover:bg-nb-green-strong text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
                 >
                   {hasSubmitted ? "Ubah Pengumpulan" : "Kerjakan Tugas"}
                 </button>
@@ -414,16 +414,16 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                 begitu saja — inilah yang dulu membuat siswa mengira
                 aplikasinya rusak. */}
             {!isOpen && !gate.allowed && (
-              <p className="flex items-start gap-1.5 text-[11px] text-gray-500 bg-gray-50 rounded-xl p-2.5">
-                <CalendarX className="w-3.5 h-3.5 shrink-0 mt-px text-gray-400" />
+              <p className="flex items-start gap-1.5 text-xs text-nb-ink-muted bg-nb-workspace rounded-xl p-2.5">
+                <CalendarX className="w-3.5 h-3.5 shrink-0 mt-px text-nb-ink-muted" />
                 <span>{gate.reason}</span>
               </p>
             )}
 
             {assignment.feedback && (
               <div className="p-3 bg-emerald-50 rounded-xl">
-                <p className="text-[10px] font-extrabold text-emerald-700 uppercase tracking-wider">Catatan Guru</p>
-                <p className="text-[11px] text-emerald-800 mt-0.5 whitespace-pre-wrap">{assignment.feedback}</p>
+                <p className="text-xs font-extrabold text-emerald-700 uppercase tracking-wider">Catatan Guru</p>
+                <p className="text-xs text-emerald-800 mt-0.5 whitespace-pre-wrap">{assignment.feedback}</p>
               </div>
             )}
 
@@ -437,20 +437,20 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                   onPaste={handlePasteAnswer}
                   rows={4}
                   placeholder="Tulis jawabanmu di sini"
-                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+                  className="w-full p-3 bg-nb-paper border border-nb-control rounded-xl text-xs text-nb-ink outline-none focus:bg-nb-paper focus:ring-2 focus:ring-nb-green"
                 />
 
                 {files.length > 0 && (
                   <div className="space-y-1.5">
                     {files.map((f, idx) => (
-                      <div key={`${f.name}-${idx}`} className="flex items-center justify-between gap-2 p-2.5 bg-blue-50 rounded-xl">
+                      <div key={`${f.name}-${idx}`} className="flex items-center justify-between gap-2 p-2.5 bg-nb-green-soft rounded-xl">
                         <span className="flex items-center gap-1.5 min-w-0">
-                          <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                          <span className="text-[11px] font-bold text-blue-800 truncate">{f.name}</span>
+                          <FileText className="w-3.5 h-3.5 text-nb-green shrink-0" />
+                          <span className="text-xs font-bold text-nb-green-strong truncate">{f.name}</span>
                         </span>
                         <button
                           onClick={() => removeFile(idx)}
-                          className="p-1 text-blue-400 hover:text-red-500 transition-colors shrink-0"
+                          className="p-1 text-nb-green hover:text-red-500 transition-colors shrink-0"
                           title="Hapus foto ini"
                           aria-label="Hapus foto ini"
                         >
@@ -464,18 +464,18 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                 {files.length === 0 && existingAttachments.length > 0 && (
                   <div className="space-y-1.5">
                     {existingAttachments.map((att, idx) => (
-                      <div key={`${att.fileUrl}-${idx}`} className="flex items-center gap-1.5 p-2.5 bg-gray-50 rounded-xl">
-                        <FileText className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                        <span className="text-[11px] font-bold text-gray-600 truncate">{att.fileName || "Lampiran"}</span>
+                      <div key={`${att.fileUrl}-${idx}`} className="flex items-center gap-1.5 p-2.5 bg-nb-workspace rounded-xl">
+                        <FileText className="w-3.5 h-3.5 text-nb-ink-muted shrink-0" />
+                        <span className="text-xs font-bold text-nb-ink-muted truncate">{att.fileName || "Lampiran"}</span>
                       </div>
                     ))}
                   </div>
                 )}
 
                 {files.length < MAX_SUBMISSION_FILES && (
-                  <label className="flex items-center justify-center gap-1.5 p-2.5 border border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-blue-400 transition-colors">
-                    <Paperclip className="w-3.5 h-3.5 text-gray-400" />
-                    <span className="text-[11px] font-bold text-gray-500">
+                  <label className="flex items-center justify-center gap-1.5 p-2.5 border border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-nb-green transition-colors">
+                    <Paperclip className="w-3.5 h-3.5 text-nb-ink-muted" />
+                    <span className="text-xs font-bold text-nb-ink-muted">
                       {files.length > 0 || existingAttachments.length > 0
                         ? `Tambah foto (${files.length}/${MAX_SUBMISSION_FILES})`
                         : `Lampirkan foto / PDF, maks ${MAX_SUBMISSION_FILES} (opsional)`}
@@ -494,14 +494,14 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                   <button
                     type="button"
                     onClick={() => setShowDriveLink(true)}
-                    className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline"
+                    className="flex items-center gap-1.5 text-xs font-bold text-nb-green hover:underline"
                   >
                     <Link2 className="w-3.5 h-3.5" />
                     Atau kumpulkan lewat Google Drive
                   </button>
                 ) : (
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">
+                    <label className="text-xs font-extrabold text-nb-ink-muted uppercase tracking-wider">
                       Tempel link Google Drive
                     </label>
                     <div className="flex items-center gap-2">
@@ -513,7 +513,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                           setDriveLinkRemoved(false);
                         }}
                         placeholder="https://drive.google.com/..."
-                        className="flex-1 min-w-0 p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+                        className="flex-1 min-w-0 p-2.5 bg-nb-paper border border-nb-control rounded-xl text-xs text-nb-ink outline-none focus:bg-nb-paper focus:ring-2 focus:ring-nb-green"
                       />
                       {(driveLinkInput || (existingExternalLink && !driveLinkRemoved)) && (
                         <button
@@ -522,7 +522,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                             setDriveLinkInput("");
                             setDriveLinkRemoved(true);
                           }}
-                          className="p-2 text-gray-400 hover:text-red-500 transition-colors shrink-0"
+                          className="p-2 text-nb-ink-muted hover:text-red-500 transition-colors shrink-0"
                           title="Hapus link"
                           aria-label="Hapus link"
                         >
@@ -531,13 +531,13 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                       )}
                     </div>
                     {!driveLinkInput && existingExternalLink && !driveLinkRemoved && (
-                      <p className="text-[11px] text-gray-500">
+                      <p className="text-xs text-nb-ink-muted">
                         Link tersimpan:{" "}
                         <a
                           href={existingExternalLink.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="font-bold text-blue-600 hover:underline"
+                          className="font-bold text-nb-green hover:underline"
                         >
                           {existingExternalLink.label}
                         </a>
@@ -545,9 +545,9 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                     )}
                     {driveLinkInput.trim() &&
                       (isValidSubmissionLink(driveLinkInput) ? (
-                        <p className="text-[11px] font-bold text-emerald-600">Link Google Drive siap dikumpulkan</p>
+                        <p className="text-xs font-bold text-emerald-600">Link Google Drive siap dikumpulkan</p>
                       ) : (
-                        <p className="text-[11px] font-bold text-red-500">{SUBMISSION_LINK_ERROR_MESSAGE}</p>
+                        <p className="text-xs font-bold text-red-500">{SUBMISSION_LINK_ERROR_MESSAGE}</p>
                       ))}
                   </div>
                 )}
@@ -556,14 +556,14 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                   <button
                     onClick={() => setOpenId(null)}
                     disabled={saving}
-                    className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 transition-colors"
+                    className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-nb-ink transition-colors"
                   >
                     Batal
                   </button>
                   <button
                     onClick={() => handleSubmit(assignment)}
                     disabled={saving}
-                    className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white shadow-sm transition-colors flex items-center justify-center gap-1.5"
+                    className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-nb-green hover:bg-nb-green-strong disabled:bg-[#DDE3D8] disabled:text-[#5D665E] text-white shadow-sm transition-colors flex items-center justify-center gap-1.5"
                   >
                     <Send className="w-3.5 h-3.5" />
                     {uploading ? "Mengunggah..." : saving ? "Mengirim..." : "Kirim Tugas"}
@@ -573,10 +573,10 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
             )}
 
             {!isOpen && (assignment.textAnswer || existingAttachments.length > 0 || existingExternalLink) && (
-              <div className="p-3 bg-gray-50 rounded-xl space-y-1.5">
-                <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">Jawabanmu</p>
+              <div className="p-3 bg-nb-workspace rounded-xl space-y-1.5">
+                <p className="text-xs font-extrabold text-nb-ink-muted uppercase tracking-wider">Jawabanmu</p>
                 {assignment.textAnswer && (
-                  <p className="text-[11px] text-gray-700 whitespace-pre-wrap">{assignment.textAnswer}</p>
+                  <p className="text-xs text-nb-ink whitespace-pre-wrap">{assignment.textAnswer}</p>
                 )}
                 {existingAttachments.map((att, idx) => (
                   <a
@@ -588,7 +588,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
  }}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline"
+                    className="flex items-center gap-1.5 text-xs font-bold text-nb-green hover:underline"
                   >
                     <FileText className="w-3.5 h-3.5" />
                     {att.fileName || "Lihat lampiran"}
@@ -599,7 +599,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                     href={existingExternalLink.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:underline"
+                    className="flex items-center gap-1.5 text-xs font-bold text-nb-green hover:underline"
                   >
                     <Link2 className="w-3.5 h-3.5" />
                     {existingExternalLink.label}

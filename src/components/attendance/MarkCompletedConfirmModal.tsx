@@ -38,7 +38,7 @@ export default function MarkCompletedConfirmModal({
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 rounded-xl text-xs font-bold transition-colors"
+            className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-nb-ink rounded-xl text-xs font-bold transition-colors"
           >
             Batal
           </button>

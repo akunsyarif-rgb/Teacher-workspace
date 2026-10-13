@@ -42,7 +42,7 @@ export default function GradesReviewModal({ isOpen, onClose, onConfirm, changes 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={hasCorrections ? 'Ubah Nilai?' : 'Simpan Nilai?'}>
       <div className="space-y-4">
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-nb-ink-muted">
           {hasCorrections
             ? `${changes.length} nilai yang sudah terkunci 🔒 akan diubah. Periksa sekali lagi sebelum konfirmasi.`
             : `${changes.length} nilai akan disimpan dan terkunci 🔒. Periksa sekali lagi sebelum konfirmasi — nilai yang sudah terkunci tetap bisa dikoreksi nanti lewat tombol Edit.`}
@@ -52,10 +52,10 @@ export default function GradesReviewModal({ isOpen, onClose, onConfirm, changes 
           {changes.map((change, idx) => (
             <div
               key={idx}
-              className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between gap-3 text-xs"
+              className="p-3 bg-nb-workspace rounded-xl border border-nb-rule flex items-center justify-between gap-3 text-xs"
             >
               <div className="min-w-0">
-                <p className="font-bold text-gray-900 truncate">{change.studentName}</p>
+                <p className="font-bold text-nb-ink truncate">{change.studentName}</p>
                 <p className="text-nb-ink-muted">
                   {change.columnTitle} {change.oldValue ? 'akan diubah' : 'akan disimpan'}:
                 </p>
@@ -78,7 +78,7 @@ export default function GradesReviewModal({ isOpen, onClose, onConfirm, changes 
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 rounded-xl text-xs font-bold transition-colors"
+            className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-nb-ink rounded-xl text-xs font-bold transition-colors"
           >
             Batal
           </button>

@@ -29,11 +29,11 @@ export default function PrestasiPage() {
   const [reloadKey, setReloadKey] = useState(0);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 md:p-10">
+    <div className="min-h-screen bg-nb-workspace p-4 sm:p-6 md:p-10">
       <div className="max-w-2xl mx-auto space-y-6">
         <div>
-          <h1 className="text-lg font-bold text-gray-900">Prestasi Siswa</h1>
-          <p className="text-xs text-gray-500">
+          <h1 className="text-lg font-bold text-nb-ink">Prestasi Siswa</h1>
+          <p className="text-xs text-nb-ink-muted">
             Catat pencapaian siswa — otomatis tampil di profil Student Companion mereka
           </p>
         </div>

@@ -100,7 +100,7 @@ function UpgradeContent() {
   if (!isOwner) {
     return (
       <Card>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-nb-ink-muted">
           Hanya pemilik workspace yang bisa mengelola paket &amp; pembayaran. Hubungi admin/pemilik workspace-mu kalau
           workspace perlu di-upgrade.
         </p>
@@ -113,8 +113,8 @@ function UpgradeContent() {
       <Script src={SNAP_SRC} data-client-key={process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY} onReady={() => setScriptReady(true)} />
 
       <div>
-        <h1 className="text-xl font-extrabold text-gray-900">Upgrade Paket</h1>
-        <p className="text-xs text-gray-500 mt-1">
+        <h1 className="text-xl font-extrabold text-nb-ink">Upgrade Paket</h1>
+        <p className="text-xs text-nb-ink-muted mt-1">
           Paket saat ini: <span className="font-bold">{workspace?.plan}</span> · Batas kelas:{' '}
           <span className="font-bold">{workspace?.classLimit ?? 'Tak terbatas'}</span>
         </p>
@@ -128,18 +128,18 @@ function UpgradeContent() {
           const Icon = info.icon;
           return (
             <Card key={key} className="space-y-3 flex flex-col">
-              <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-2xl bg-nb-green-soft text-nb-green flex items-center justify-center">
                 <Icon className="w-5 h-5" />
               </div>
               <div className="flex-1">
-                <h3 className="text-sm font-extrabold text-gray-900">{info.title}</h3>
-                <p className="text-lg font-extrabold text-blue-600 mt-1">{info.price}</p>
-                <p className="text-xs text-gray-500 mt-1">{info.desc}</p>
+                <h3 className="text-sm font-extrabold text-nb-ink">{info.title}</h3>
+                <p className="text-lg font-extrabold text-nb-green mt-1">{info.price}</p>
+                <p className="text-xs text-nb-ink-muted mt-1">{info.desc}</p>
               </div>
 
               {key === 'school_annual' && (
                 <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                  <label className="text-xs font-bold text-nb-ink-muted uppercase tracking-wider">
                     Jumlah Kursi Guru
                   </label>
                   <input
@@ -147,9 +147,9 @@ function UpgradeContent() {
                     min={1}
                     value={seatCount}
                     onChange={(e) => setSeatCount(Math.max(1, Number(e.target.value) || 1))}
-                    className="w-full mt-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+                    className="w-full mt-1 px-3 py-2 bg-nb-paper border border-nb-control rounded-xl text-sm font-bold text-nb-ink outline-none focus:bg-nb-paper focus:ring-2 focus:ring-nb-green"
                   />
-                  <p className="text-[10px] text-gray-400 mt-1">
+                  <p className="text-xs text-nb-ink-muted mt-1">
                     Total: Rp{(seatCount * SCHOOL_ANNUAL_PRICE_PER_SEAT).toLocaleString('id-ID')} / tahun
                   </p>
                 </div>
@@ -169,7 +169,7 @@ function UpgradeContent() {
 
 export default function UpgradePage() {
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 md:p-10">
+    <div className="min-h-screen bg-nb-workspace p-4 sm:p-6 md:p-10">
       <div className="max-w-4xl mx-auto">
         <WorkspaceGuard>
           <UpgradeContent />

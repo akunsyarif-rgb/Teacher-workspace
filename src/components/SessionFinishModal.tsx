@@ -33,21 +33,21 @@ export default function SessionFinishModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Selesai Mengajar?">
       <div className="space-y-4">
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-nb-ink-muted">
           Ringkasan sesi Kelas {className} hari ini. Data tidak dikunci — kamu tetap bisa kembali memperbaiki kapan
           saja.
         </p>
 
         <div className="space-y-2">
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-            <span className="text-xs font-bold text-gray-700">Presensi</span>
+          <div className="flex items-center justify-between p-3 bg-nb-workspace rounded-xl">
+            <span className="text-xs font-bold text-nb-ink">Presensi</span>
             <span className={`flex items-center gap-1.5 text-xs font-bold ${hasAttendance ? 'text-emerald-600' : 'text-nb-ink-muted'}`}>
               {hasAttendance ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
               {hasAttendance ? 'Tersimpan' : 'Belum diisi'}
             </span>
           </div>
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-            <span className="text-xs font-bold text-gray-700">Jurnal</span>
+          <div className="flex items-center justify-between p-3 bg-nb-workspace rounded-xl">
+            <span className="text-xs font-bold text-nb-ink">Jurnal</span>
             <span className={`flex items-center gap-1.5 text-xs font-bold ${hasJournal ? 'text-emerald-600' : 'text-nb-ink-muted'}`}>
               {hasJournal ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
               {hasJournal ? 'Tersimpan' : 'Belum diisi'}
@@ -68,7 +68,7 @@ export default function SessionFinishModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-colors"
+            className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-nb-ink rounded-xl text-xs font-bold transition-colors"
           >
             Lanjutkan Mengajar
           </button>

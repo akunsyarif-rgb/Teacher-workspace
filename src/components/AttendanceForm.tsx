@@ -72,6 +72,10 @@ export default function AttendanceForm() {
   const [gradesDraftCount, setGradesDraftCount] = useState(0);
   const journalSaveRef = useRef<(() => Promise<void>) | null>(null);
   const tabRefs = useRef<Partial<Record<WorkspaceTab, HTMLButtonElement | null>>>({});
+  // Tab aktif di HP bisa berada di luar area gulir baris tab; bawa ke tampilan.
+  useEffect(() => {
+    tabRefs.current[activeTab]?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' });
+  }, [activeTab]);
   const gradesOpenReviewRef = useRef<(() => void) | null>(null);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
@@ -321,7 +325,7 @@ export default function AttendanceForm() {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="w-8 h-8 border-4 border-nb-green border-t-transparent rounded-full animate-spin" />
-        <span className="ml-3 text-xs font-bold text-gray-500">Memuat data kelas...</span>
+        <span className="ml-3 text-xs font-bold text-nb-ink-muted">Memuat data kelas...</span>
       </div>
     );
   }
@@ -330,10 +334,10 @@ export default function AttendanceForm() {
     <div className="max-w-4xl mx-auto space-y-6">
       <Card className="space-y-4">
         <div>
-          <h2 className="text-lg font-bold text-gray-900">
+          <h2 className="text-lg font-bold text-nb-ink">
             {selectedClass ? `Kelas ${selectedClass}` : 'Pusat Kegiatan Kelas & Penilaian'}
           </h2>
-          <p className="text-xs text-gray-500">Kelola jurnal, presensi, nilai, dan riwayat dalam satu layar</p>
+          <p className="text-xs text-nb-ink-muted">Kelola jurnal, presensi, nilai, dan riwayat dalam satu layar</p>
         </div>
 
         {/* Baris tab di-scroll horizontal (bukan disempitkan/disingkat)
@@ -397,8 +401,8 @@ export default function AttendanceForm() {
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
-              <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">Sesi Mengajar</p>
-              <p className="text-sm font-extrabold text-gray-900">
+              <p className="text-xs font-extrabold text-nb-ink-muted uppercase tracking-wider">Sesi Mengajar</p>
+              <p className="text-sm font-extrabold text-nb-ink">
                 Kelas {currentSession.className} • {currentSession.timeSlot}
                 {currentSession.subject ? ` • ${currentSession.subject}` : ''}
               </p>
@@ -415,7 +419,7 @@ export default function AttendanceForm() {
               <button
                 type="button"
                 onClick={() => setShowFinishModal(true)}
-                className="flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-gray-900 transition-colors"
+                className="flex items-center gap-1.5 text-xs font-bold text-nb-ink-muted hover:text-nb-ink transition-colors"
               >
                 <Flag className="w-4 h-4" />
                 Selesai Mengajar

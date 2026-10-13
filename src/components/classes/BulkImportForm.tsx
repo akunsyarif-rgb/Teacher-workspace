@@ -55,9 +55,9 @@ export default function BulkImportForm({ onAdded, lockedClassName }: BulkImportF
             <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
               <Users className="w-4 h-4" />
             </div>
-            <h3 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">Impor Banyak Siswa</h3>
+            <h3 className="text-xs font-extrabold text-nb-ink uppercase tracking-wider">Impor Banyak Siswa</h3>
           </div>
-          <span className="text-[10px] font-bold text-nb-ink-muted">1 Baris = 1 Nama</span>
+          <span className="text-xs font-bold text-nb-ink-muted">1 Baris = 1 Nama</span>
         </div>
 
         {error && (
@@ -69,8 +69,8 @@ export default function BulkImportForm({ onAdded, lockedClassName }: BulkImportF
         <form onSubmit={handleSubmit} className="space-y-3">
           {lockedClassName ? (
             <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Kelas Tujuan</label>
-              <p className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-extrabold text-gray-700">
+              <label className="text-xs font-bold text-nb-ink block mb-1">Kelas Tujuan</label>
+              <p className="p-3 bg-nb-paper border border-nb-control rounded-xl text-xs font-extrabold text-nb-ink">
                 {lockedClassName}
               </p>
             </div>

@@ -87,7 +87,7 @@ function GradeCell({
         value={currentValue}
         onChange={(e) => onScoreChange(studentId, col.id, e.target.value)}
         aria-label={`Nilai ${studentName} - ${col.title}`}
-        className={`w-16 p-2 text-center border rounded-xl font-bold text-sm text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-[#2F6B4F] ${
+        className={`w-16 p-2 text-center border rounded-xl font-bold text-sm text-nb-ink outline-none focus:bg-nb-paper focus:ring-2 focus:ring-[#2F6B4F] ${
           isDraft ? 'bg-amber-50 border-amber-300' : 'bg-[#F7F5EF] border-[#D9DED5]'
         }`}
       />

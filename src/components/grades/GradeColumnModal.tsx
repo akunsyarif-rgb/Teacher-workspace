@@ -34,11 +34,11 @@ export default function GradeColumnModal({ isOpen, onClose, onSubmit }: GradeCol
         />
 
         <div>
-          <label className="text-xs font-bold text-gray-700 block mb-1">Kategori Penilaian</label>
+          <label className="text-xs font-bold text-nb-ink block mb-1">Kategori Penilaian</label>
           <select
             value={type}
             onChange={(e) => setType(e.target.value)}
-            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:ring-2 focus:ring-nb-green"
+            className="w-full p-3 bg-nb-paper border border-nb-control rounded-xl text-xs text-nb-ink outline-none focus:ring-2 focus:ring-nb-green"
           >
             <option value="Tugas">Tugas</option>
             <option value="UH">UH (Ulangan Harian)</option>

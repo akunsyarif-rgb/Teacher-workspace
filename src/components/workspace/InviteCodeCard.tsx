@@ -51,40 +51,40 @@ export default function InviteCodeCard() {
   }
 
   return (
-    <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-3">
+    <div className="bg-nb-paper p-5 rounded-3xl shadow-sm border border-nb-rule space-y-3">
       <div className="flex items-center gap-2">
-        <KeyRound className="w-4 h-4 text-blue-600" />
-        <p className="text-sm font-extrabold text-gray-900">Kode Undangan Sekolah</p>
+        <KeyRound className="w-4 h-4 text-nb-green" />
+        <p className="text-sm font-extrabold text-nb-ink">Kode Undangan Sekolah</p>
       </div>
-      <p className="text-[11px] text-gray-500">
+      <p className="text-xs text-nb-ink-muted">
         Bagikan kode ini ke guru lain agar mereka bisa bergabung ke workspace ini lewat menu &quot;Gabung&quot;
         saat mendaftar.
       </p>
 
       {workspace?.inviteCode ? (
         <>
-          <div className="flex items-center justify-between gap-2 p-3 bg-gray-50 rounded-2xl border border-gray-200">
-            <span className="text-lg font-extrabold tracking-widest text-blue-600">{workspace.inviteCode}</span>
+          <div className="flex items-center justify-between gap-2 p-3 bg-nb-workspace rounded-2xl border border-nb-rule">
+            <span className="text-lg font-extrabold tracking-widest text-nb-green">{workspace.inviteCode}</span>
             <button
               onClick={handleCopy}
-              className="p-2.5 bg-white border border-gray-200 hover:border-blue-300 rounded-xl transition-colors"
+              className="p-2.5 bg-nb-paper border border-nb-rule hover:border-nb-green/40 rounded-xl transition-colors"
               title="Salin kode undangan"
             >
-              {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-gray-400" />}
+              {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-nb-ink-muted" />}
             </button>
           </div>
-          <p className={`text-[10px] font-bold ${isExpired ? "text-red-500" : "text-gray-400"}`}>
+          <p className={`text-xs font-bold ${isExpired ? "text-red-500" : "text-nb-ink-muted"}`}>
             {isExpired ? "Kode ini sudah kedaluwarsa." : `Berlaku sampai ${expiresLabel}.`}
           </p>
         </>
       ) : (
-        <p className="text-[11px] text-gray-400">Belum ada kode undangan aktif.</p>
+        <p className="text-xs text-nb-ink-muted">Belum ada kode undangan aktif.</p>
       )}
 
       <button
         onClick={handleRegenerate}
         disabled={regenerating}
-        className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 text-blue-600 rounded-xl text-xs font-bold transition-colors"
+        className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-nb-green-soft hover:bg-nb-green-soft disabled:opacity-50 text-nb-green rounded-xl text-xs font-bold transition-colors"
       >
         <RefreshCw className={`w-3.5 h-3.5 ${regenerating ? "animate-spin" : ""}`} />
         {regenerating ? "Membuat kode baru..." : "Buat Kode Baru"}

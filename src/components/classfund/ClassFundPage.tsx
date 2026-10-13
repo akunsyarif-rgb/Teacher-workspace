@@ -101,8 +101,8 @@ export default function ClassFundPage() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-blue-600 p-5 md:p-6 rounded-2xl md:rounded-3xl shadow-lg text-white space-y-1">
-        <p className="text-[10px] font-extrabold uppercase tracking-wider text-blue-100">
+      <div className="bg-nb-green p-5 md:p-6 rounded-2xl md:rounded-3xl shadow-lg text-white space-y-1">
+        <p className="text-xs font-extrabold uppercase tracking-wider text-white/90">
           Saldo Kas Kelas {className}
         </p>
         <p className="text-3xl font-extrabold">{formatRupiah(balance)}</p>
@@ -118,8 +118,8 @@ export default function ClassFundPage() {
       )}
 
       <Card className="space-y-4">
-        <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-          <Wallet className="w-4 h-4 text-blue-600" />
+        <h3 className="text-sm font-bold text-nb-ink flex items-center gap-2">
+          <Wallet className="w-4 h-4 text-nb-green" />
           Tambah Transaksi
         </h3>
         <form onSubmit={handleSubmit} className="space-y-3">
@@ -128,7 +128,7 @@ export default function ClassFundPage() {
               type="button"
               onClick={() => setType('masuk')}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-colors ${
-                type === 'masuk' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600'
+                type === 'masuk' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-nb-ink-muted'
               }`}
             >
               <ArrowUpCircle className="w-4 h-4" />
@@ -138,7 +138,7 @@ export default function ClassFundPage() {
               type="button"
               onClick={() => setType('keluar')}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-colors ${
-                type === 'keluar' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600'
+                type === 'keluar' ? 'bg-red-600 text-white' : 'bg-gray-100 text-nb-ink-muted'
               }`}
             >
               <ArrowDownCircle className="w-4 h-4" />
@@ -168,9 +168,9 @@ export default function ClassFundPage() {
       </Card>
 
       <Card className="space-y-4">
-        <h3 className="text-sm font-bold text-gray-900">Riwayat Transaksi ({transactions.length})</h3>
+        <h3 className="text-sm font-bold text-nb-ink">Riwayat Transaksi ({transactions.length})</h3>
         {transactions.length === 0 ? (
-          <p className="text-xs text-gray-400 py-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+          <p className="text-xs text-nb-ink-muted py-8 text-center bg-nb-workspace rounded-2xl border border-dashed border-nb-rule">
             Belum ada transaksi kas untuk kelas ini.
           </p>
         ) : (
@@ -178,7 +178,7 @@ export default function ClassFundPage() {
             {transactions.map((t) => (
               <div
                 key={t.id}
-                className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between gap-3"
+                className="p-4 bg-nb-workspace rounded-2xl border border-nb-rule flex items-center justify-between gap-3"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   {t.type === 'masuk' ? (
@@ -187,8 +187,8 @@ export default function ClassFundPage() {
                     <ArrowDownCircle className="w-5 h-5 text-red-600 shrink-0" />
                   )}
                   <div className="min-w-0">
-                    <p className="text-xs font-extrabold text-gray-900 truncate">{t.description}</p>
-                    <p className="text-[10px] text-gray-500">{t.date}</p>
+                    <p className="text-xs font-extrabold text-nb-ink truncate">{t.description}</p>
+                    <p className="text-xs text-nb-ink-muted">{t.date}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
