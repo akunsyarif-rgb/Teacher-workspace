@@ -339,6 +339,7 @@ export default function AttendanceForm() {
             </button>
           ))}
         </div>
+        <p className="px-2 text-[11px] font-medium text-[#5D665E] sm:hidden">Geser untuk melihat tab lainnya →</p>
 
         <div className="border-t border-[#D9DED5] pt-3">
           {classesList.length === 0 ? (
