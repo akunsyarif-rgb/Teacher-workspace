@@ -68,7 +68,7 @@ export default function ClassManagement() {
           </h3>
           <button
             onClick={() => setShowAddClass(true)}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm active:scale-95 shrink-0"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-[#2F6B4F] hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm active:scale-95 shrink-0"
           >
             <Plus className="w-4 h-4" />
             Tambah Kelas Baru
@@ -76,9 +76,9 @@ export default function ClassManagement() {
         </div>
 
         {classSummaries.length === 0 ? (
-          <div className="bg-white p-10 rounded-3xl text-center border border-gray-100 shadow-sm">
+          <div className="bg-[#FFFEF9] p-10 rounded-3xl text-center border border-[#D9DED5] shadow-sm">
             <p className="text-xs font-bold text-gray-400">Belum ada kelas atau data siswa yang diinput.</p>
-            <p className="text-[10px] text-gray-400 mt-1">Buat kelas baru lewat tombol di atas.</p>
+            <p className="text-xs text-[#5D665E] mt-1">Buat kelas baru lewat tombol di atas.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
