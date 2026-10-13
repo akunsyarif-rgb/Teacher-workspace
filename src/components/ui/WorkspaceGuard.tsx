@@ -29,7 +29,7 @@ export default function WorkspaceGuard({ children, fallback }: WorkspaceGuardPro
           </p>
           <button
             onClick={() => window.location.href = '/'}
-            className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-colors"
+            className="mt-2 px-4 py-2 bg-nb-green text-white rounded-xl text-xs font-bold hover:bg-nb-green-strong transition-colors"
           >
             Kembali ke Beranda
           </button>

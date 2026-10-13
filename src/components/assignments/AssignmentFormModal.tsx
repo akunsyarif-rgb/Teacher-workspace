@@ -78,7 +78,7 @@ export default function AssignmentFormModal({ isOpen, onClose, onSubmit }: Assig
               Tenggat {dueDate}
             </p>
             {file && (
-              <p className="flex items-center gap-1.5 text-[11px] font-bold text-blue-700">
+              <p className="flex items-center gap-1.5 text-[11px] font-bold text-nb-green-strong">
                 <FileText className="w-3.5 h-3.5" />
                 {file.name}
               </p>
@@ -123,7 +123,7 @@ export default function AssignmentFormModal({ isOpen, onClose, onSubmit }: Assig
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Jelaskan apa yang harus dikerjakan siswa"
             rows={3}
-            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-nb-green"
           />
         </div>
 
@@ -132,15 +132,15 @@ export default function AssignmentFormModal({ isOpen, onClose, onSubmit }: Assig
         <div>
           <label className="text-xs font-bold text-gray-700 block mb-1">Materi Soal (opsional)</label>
           {file ? (
-            <div className="flex items-center justify-between gap-2 p-2.5 bg-blue-50 rounded-xl">
+            <div className="flex items-center justify-between gap-2 p-2.5 bg-nb-green-soft rounded-xl">
               <span className="flex items-center gap-1.5 min-w-0">
-                <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                <span className="text-[11px] font-bold text-blue-800 truncate">{file.name}</span>
+                <FileText className="w-3.5 h-3.5 text-nb-green shrink-0" />
+                <span className="text-[11px] font-bold text-nb-green-strong truncate">{file.name}</span>
               </span>
               <button
                 type="button"
                 onClick={() => setFile(null)}
-                className="p-1 text-blue-400 hover:text-red-500 transition-colors shrink-0"
+                className="p-1 text-nb-green hover:text-red-500 transition-colors shrink-0"
                 title="Hapus pilihan file"
                 aria-label="Hapus pilihan file"
               >
@@ -148,8 +148,8 @@ export default function AssignmentFormModal({ isOpen, onClose, onSubmit }: Assig
               </button>
             </div>
           ) : (
-            <label className="flex items-center justify-center gap-1.5 p-2.5 border border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-blue-400 transition-colors">
-              <Paperclip className="w-3.5 h-3.5 text-gray-400" />
+            <label className="flex items-center justify-center gap-1.5 p-2.5 border border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-nb-green transition-colors">
+              <Paperclip className="w-3.5 h-3.5 text-nb-ink-muted" />
               <span className="text-[11px] font-bold text-gray-500">Lampirkan foto / PDF / Word</span>
               <input
                 type="file"

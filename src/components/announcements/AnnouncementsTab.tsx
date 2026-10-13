@@ -83,7 +83,7 @@ export default function AnnouncementsTab({ className, subject }: AnnouncementsTa
       <Card className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-            <Megaphone className="w-4 h-4 text-blue-600" />
+            <Megaphone className="w-4 h-4 text-nb-green" />
             Pengumuman Kelas {className}
           </h3>
           <p className="text-xs text-gray-500">Langsung tampil di aplikasi siswa, tanpa lewat WhatsApp</p>
@@ -140,7 +140,7 @@ export default function AnnouncementsTab({ className, subject }: AnnouncementsTa
                 rows={4}
                 required
                 placeholder="Tulis pengumuman untuk siswa"
-                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-nb-green"
               />
             </div>
             <div className="flex gap-2 pt-2">
@@ -160,7 +160,7 @@ export default function AnnouncementsTab({ className, subject }: AnnouncementsTa
         </div>
       ) : announcements.length === 0 ? (
         <Card>
-          <p className="text-xs text-gray-400 text-center py-4">
+          <p className="text-xs text-nb-ink-muted text-center py-4">
             Belum ada pengumuman untuk kelas ini.
           </p>
         </Card>
@@ -171,7 +171,7 @@ export default function AnnouncementsTab({ className, subject }: AnnouncementsTa
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-gray-900">{announcement.title}</p>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">
+                  <p className="text-[10px] font-bold text-nb-ink-muted uppercase tracking-wider mt-0.5">
                     {announcement.date}
                   </p>
                 </div>

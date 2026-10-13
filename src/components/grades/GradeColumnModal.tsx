@@ -38,7 +38,7 @@ export default function GradeColumnModal({ isOpen, onClose, onSubmit }: GradeCol
           <select
             value={type}
             onChange={(e) => setType(e.target.value)}
-            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:ring-2 focus:ring-blue-600"
+            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:ring-2 focus:ring-nb-green"
           >
             <option value="Tugas">Tugas</option>
             <option value="UH">UH (Ulangan Harian)</option>

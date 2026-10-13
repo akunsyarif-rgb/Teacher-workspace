@@ -235,15 +235,15 @@ export default function JournalTab({
                 </>
               ) : (
                 <>
-                  <Circle className="w-3.5 h-3.5 text-gray-400" />
-                  <span className="text-gray-400">Belum diisi</span>
+                  <Circle className="w-3.5 h-3.5 text-nb-ink-muted" />
+                  <span className="text-nb-ink-muted">Belum diisi</span>
                 </>
               )}
             </span>
           )}
         </div>
         <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-600 flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-gray-400" />
+          <Calendar className="w-4 h-4 text-nb-ink-muted" />
           <span>{formattedDate || "Memuat tanggal..."}</span>
         </div>
       </Card>
@@ -255,14 +255,14 @@ export default function JournalTab({
             <button
               type="button"
               onClick={handleStartEdit}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl text-[11px] font-bold transition-colors shrink-0"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-nb-green-soft hover:bg-nb-green-soft text-nb-green rounded-xl text-[11px] font-bold transition-colors shrink-0"
             >
               <Pencil className="w-3.5 h-3.5" />
               Edit Jurnal
             </button>
           </div>
           {savedNotes && savedNotes !== "-" && <p className="text-xs text-gray-500">{savedNotes}</p>}
-          <p className="text-[11px] text-gray-400">
+          <p className="text-[11px] text-nb-ink-muted">
             Jurnal hari ini sudah tersimpan. Bisa diperbaiki kapan saja lewat tombol Edit.
           </p>
         </Card>

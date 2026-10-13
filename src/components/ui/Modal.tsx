@@ -32,7 +32,7 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
           <button
             type="button"
             onClick={onClose}
-            className="p-2.5 -m-1.5 -mt-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors active:scale-90 shrink-0"
+            className="p-2.5 -m-1.5 -mt-2 text-nb-ink-muted hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors active:scale-90 shrink-0"
             aria-label="Tutup"
           >
             <X className="w-4 h-4" />

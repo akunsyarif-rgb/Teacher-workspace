@@ -131,7 +131,7 @@ const GradesRow = React.memo(function GradesRow({
 }: GradesRowProps) {
   return (
     <tr className="transition-colors hover:bg-[#F7F5EF]/70">
-      <td className="p-4 text-center text-gray-400 font-bold">{idx + 1}</td>
+      <td className="p-4 text-center text-nb-ink-muted font-bold">{idx + 1}</td>
       <td className="sticky left-0 z-10 bg-[#FFFEF9] p-4 font-bold text-[#242923]">
         <p className="text-sm">{student.name}</p>
         <p className="text-xs text-[#687168] font-normal">NIS: {student.nis || '-'}</p>
@@ -155,7 +155,7 @@ const GradesRow = React.memo(function GradesRow({
           </td>
         );
       })}
-      <td className="p-4 text-center text-sm font-extrabold text-[#24563F] bg-[#EDF3E8]/60">
+      <td className="p-4 text-center text-sm font-extrabold text-[#24563F] bg-[#EDF3E8] md:sticky md:right-0 md:z-10 md:border-l md:border-nb-rule">
         {calculateAverage(studentGrades, columns)}
       </td>
     </tr>
@@ -174,7 +174,7 @@ function GradesTable({
   onDeleteColumn,
 }: GradesTableProps) {
   if (students.length === 0) {
-    return <div className="text-center py-12 text-xs text-gray-400">Belum ada siswa terdaftar di kelas ini.</div>;
+    return <div className="text-center py-12 text-xs text-nb-ink-muted">Belum ada siswa terdaftar di kelas ini.</div>;
   }
 
   return (
@@ -194,7 +194,7 @@ function GradesTable({
                     <Badge label={col.type} />
                     <button
                       onClick={() => onEditColumn(col.id)}
-                      className="p-2 -m-1 text-gray-400 hover:text-[#2F6B4F] rounded active:scale-90 transition-transform"
+                      className="p-2 -m-1 text-nb-ink-muted hover:text-[#2F6B4F] rounded active:scale-90 transition-transform"
                       title="Edit Nama Kolom"
                       aria-label={`Edit Nama Kolom ${col.title}`}
                     >
@@ -212,7 +212,7 @@ function GradesTable({
                 </div>
               </th>
             ))}
-            <th className="min-w-[100px] bg-[#EDF3E8] p-4 text-center font-extrabold text-[#24563F]">RATA-RATA</th>
+            <th className="min-w-[100px] bg-[#EDF3E8] p-4 text-center font-extrabold text-[#24563F] md:sticky md:right-0 md:z-10 md:border-l md:border-nb-rule">RATA-RATA</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-[#D9DED5] bg-[#FFFEF9] text-sm">

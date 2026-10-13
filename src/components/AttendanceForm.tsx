@@ -301,7 +301,7 @@ export default function AttendanceForm() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-4 border-nb-green border-t-transparent rounded-full animate-spin" />
         <span className="ml-3 text-xs font-bold text-gray-500">Memuat data kelas...</span>
       </div>
     );
@@ -319,16 +319,17 @@ export default function AttendanceForm() {
 
         {/* Baris tab di-scroll horizontal (bukan disempitkan/disingkat)
             supaya label tetap terbaca penuh walau ada 6 tab di layar HP. */}
-        <div className="flex gap-1.5 bg-gray-100 p-1.5 rounded-2xl overflow-x-auto no-scrollbar">
+        <div role="group" aria-label="Pusat Kegiatan Kelas" className="flex gap-1.5 bg-[#ECE9DF] p-1.5 rounded-2xl overflow-x-auto no-scrollbar">
           {tabs.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
+              aria-pressed={activeTab === key}
               onClick={() => {
                 if (key === activeTab) return;
                 requestLeave(() => setActiveTab(key));
               }}
               title={label}
-              className={`shrink-0 flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all active:scale-95 ${
+              className={`shrink-0 flex items-center justify-center gap-1.5 sm:gap-2 min-h-11 px-3 sm:px-4 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nb-green ${
                 activeTab === key ? 'bg-[#FFFEF9] text-[#2F6B4F] shadow-sm' : 'text-[#5D665E] hover:text-[#242923]'
               }`}
             >
@@ -340,7 +341,7 @@ export default function AttendanceForm() {
 
         <div className="pt-2 border-t border-[#D9DED5]">
           {classesList.length === 0 ? (
-            <p className="text-xs text-gray-400">Belum ada data kelas atau siswa di database.</p>
+            <p className="text-xs text-nb-ink-muted">Belum ada data kelas atau siswa di database.</p>
           ) : (
             <ClassSelector
               classes={classesList}
@@ -371,11 +372,11 @@ export default function AttendanceForm() {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <span className={`flex items-center gap-1.5 text-xs font-bold ${currentSession.hasAttendance ? 'text-emerald-700' : 'text-gray-400'}`}>
+              <span className={`flex items-center gap-1.5 text-xs font-bold ${currentSession.hasAttendance ? 'text-emerald-700' : 'text-nb-ink-muted'}`}>
                 {currentSession.hasAttendance ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
                 Presensi
               </span>
-              <span className={`flex items-center gap-1.5 text-xs font-bold ${currentSession.hasJournal ? 'text-emerald-700' : 'text-gray-400'}`}>
+              <span className={`flex items-center gap-1.5 text-xs font-bold ${currentSession.hasJournal ? 'text-emerald-700' : 'text-nb-ink-muted'}`}>
                 {currentSession.hasJournal ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
                 Jurnal
               </span>

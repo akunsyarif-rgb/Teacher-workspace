@@ -77,7 +77,7 @@ export default function ClassManagement() {
 
         {classSummaries.length === 0 ? (
           <div className="bg-[#FFFEF9] p-10 rounded-3xl text-center border border-[#D9DED5] shadow-sm">
-            <p className="text-xs font-bold text-gray-400">Belum ada kelas atau data siswa yang diinput.</p>
+            <p className="text-xs font-bold text-nb-ink-muted">Belum ada kelas atau data siswa yang diinput.</p>
             <p className="text-xs text-[#5D665E] mt-1">Buat kelas baru lewat tombol di atas.</p>
           </div>
         ) : (
@@ -96,7 +96,7 @@ export default function ClassManagement() {
 
       <Modal isOpen={showAddClass} onClose={() => setShowAddClass(false)} title="Tambah Kelas Baru">
         <div className="space-y-6">
-          <p className="text-[11px] text-gray-400 -mt-2">
+          <p className="text-[11px] text-nb-ink-muted -mt-2">
             Langkah 1: tulis nama kelas barunya di form di bawah. Langkah 2: kelas otomatis terbuat begitu siswa
             pertamanya tersimpan — tidak perlu langkah terpisah untuk &quot;membuat kelas kosong&quot;.
           </p>

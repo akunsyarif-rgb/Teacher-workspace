@@ -257,11 +257,11 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
       <Card className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-            <Table className="w-4 h-4 text-blue-600" />
+            <Table className="w-4 h-4 text-nb-green" />
             Matriks Daftar Nilai Kelas {className}
           </h3>
           <p className="text-xs text-gray-500">Kelola komponen nilai tugas, ulangan, dan rekap rata-rata</p>
-          <div className="flex items-center gap-3 pt-2 text-[10px] font-bold text-gray-400">
+          <div className="flex items-center gap-3 pt-2 text-[10px] font-bold text-nb-ink-muted">
             <span className="flex items-center gap-1">
               <Circle className="w-3 h-3" /> Belum diisi
             </span>

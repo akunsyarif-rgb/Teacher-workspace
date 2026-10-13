@@ -195,7 +195,7 @@ export default function ClassDetail({
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
           <h3 className="text-sm font-extrabold text-[#242923] uppercase tracking-wider">Kelas {className}</h3>
-          <p className="text-xs font-bold text-gray-400 mt-0.5">Total {students.length} Siswa</p>
+          <p className="text-xs font-bold text-nb-ink-muted mt-0.5">Total {students.length} Siswa</p>
         </div>
         <div className="flex items-center gap-2 self-end sm:self-auto">
           <button
@@ -248,14 +248,14 @@ export default function ClassDetail({
       )}
 
       {missingCodeCount > 0 && (
-        <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <p className="text-[11px] font-bold text-blue-800">
+        <div className="p-4 bg-nb-green-soft border border-nb-rule rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <p className="text-[11px] font-bold text-nb-green-strong">
             {missingCodeCount} siswa belum punya kode akses Student Companion.
           </p>
           <button
             onClick={handleGenerateMissingCodes}
             disabled={generating}
-            className="px-4 py-2 bg-[#2F6B4F] hover:bg-[#24563F] disabled:bg-blue-300 text-white rounded-xl text-[11px] font-bold transition-colors shadow-sm shrink-0"
+            className="px-4 py-2 bg-[#2F6B4F] hover:bg-[#24563F] disabled:bg-[#B6C8B8] text-white rounded-xl text-[11px] font-bold transition-colors shadow-sm shrink-0"
           >
             {generating ? 'Membuat...' : 'Buatkan Kode'}
           </button>
@@ -263,7 +263,7 @@ export default function ClassDetail({
       )}
 
       {students.length === 0 ? (
-        <p className="text-xs font-bold text-gray-400 text-center py-10">Belum ada siswa di kelas ini.</p>
+        <p className="text-xs font-bold text-nb-ink-muted text-center py-10">Belum ada siswa di kelas ini.</p>
       ) : (
         <div className="space-y-2.5">
           {students.map((student, idx) => (
@@ -281,7 +281,7 @@ export default function ClassDetail({
                   {student.accessCode && (
                     <button
                       onClick={() => handleCopyCode(student)}
-                      className="mt-1.5 inline-flex items-center gap-1.5 px-2 py-1 bg-[#FFFEF9] border border-[#D9DED5] hover:border-blue-300 rounded-lg transition-colors"
+                      className="mt-1.5 inline-flex items-center gap-1.5 px-2 py-1 bg-[#FFFEF9] border border-[#D9DED5] hover:border-nb-green/40 rounded-lg transition-colors"
                       title="Salin kode akses Student Companion"
                     >
                       <span className="text-[10px] font-extrabold tracking-widest text-[#2F6B4F]">
@@ -290,7 +290,7 @@ export default function ClassDetail({
                       {copiedId === student.id ? (
                         <Check className="w-3 h-3 text-emerald-600" />
                       ) : (
-                        <Copy className="w-3 h-3 text-gray-400" />
+                        <Copy className="w-3 h-3 text-nb-ink-muted" />
                       )}
                     </button>
                   )}
@@ -376,7 +376,7 @@ export default function ClassDetail({
               autoCapitalize="off"
               spellCheck={false}
             />
-            <p className="text-[10px] text-gray-400 mt-1.5">
+            <p className="text-[10px] text-nb-ink-muted mt-1.5">
               Boleh mengandung spasi dan angka, mis. &quot;XI A KESEHATAN 1&quot;. Mengganti nama akan otomatis
               merapikan seluruh data terkait kelas ini (siswa, jurnal, presensi, nilai, tugas, pengumuman, jadwal) —
               termasuk akun Student Companion siswa, supaya mereka tidak kehilangan akses.

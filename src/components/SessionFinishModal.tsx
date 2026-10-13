@@ -41,14 +41,14 @@ export default function SessionFinishModal({
         <div className="space-y-2">
           <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
             <span className="text-xs font-bold text-gray-700">Presensi</span>
-            <span className={`flex items-center gap-1.5 text-xs font-bold ${hasAttendance ? 'text-emerald-600' : 'text-gray-400'}`}>
+            <span className={`flex items-center gap-1.5 text-xs font-bold ${hasAttendance ? 'text-emerald-600' : 'text-nb-ink-muted'}`}>
               {hasAttendance ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
               {hasAttendance ? 'Tersimpan' : 'Belum diisi'}
             </span>
           </div>
           <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
             <span className="text-xs font-bold text-gray-700">Jurnal</span>
-            <span className={`flex items-center gap-1.5 text-xs font-bold ${hasJournal ? 'text-emerald-600' : 'text-gray-400'}`}>
+            <span className={`flex items-center gap-1.5 text-xs font-bold ${hasJournal ? 'text-emerald-600' : 'text-nb-ink-muted'}`}>
               {hasJournal ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
               {hasJournal ? 'Tersimpan' : 'Belum diisi'}
             </span>

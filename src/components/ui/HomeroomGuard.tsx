@@ -14,8 +14,8 @@ type HomeroomGuardProps = {
 function NotHomeroomTeacher({ featureName, icon: Icon }: Omit<HomeroomGuardProps, 'children'>) {
   return (
     <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 text-center space-y-3">
-      <div className="w-16 h-16 mx-auto bg-blue-50 rounded-full flex items-center justify-center">
-        <Icon className="w-7 h-7 text-blue-600" />
+      <div className="w-16 h-16 mx-auto bg-nb-green-soft rounded-full flex items-center justify-center">
+        <Icon className="w-7 h-7 text-nb-green" />
       </div>
       <h3 className="text-sm font-extrabold text-gray-700">Khusus Wali Kelas</h3>
       <p className="text-xs text-gray-500 max-w-sm mx-auto">
@@ -24,7 +24,7 @@ function NotHomeroomTeacher({ featureName, icon: Icon }: Omit<HomeroomGuardProps
       </p>
       <Link
         href="/profile"
-        className="inline-block mt-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-colors"
+        className="inline-block mt-2 px-4 py-2 bg-nb-green text-white rounded-xl text-xs font-bold hover:bg-nb-green-strong transition-colors"
       >
         Buka Halaman Profil
       </Link>

@@ -63,3 +63,84 @@ The textarea line-height and CSS background-size must share the same design toke
 
 ## Out of scope
 Database/schema migrations, authorization/authentication changes, business logic, new features, production data changes, deployment, merging, and any SmadaExam changes.
+
+---
+
+# Status implementasi (diperbarui 2026-10-13)
+
+Bagian di bawah mencatat kondisi NYATA. Centang hanya berarti ada bukti; sisanya dinyatakan belum.
+
+## Inventaris aktual
+Rute guru: `/` (Beranda), `/attendance` (Pusat Kegiatan Kelas, 6 tab lewat `AttendanceForm`), `/schedule`, `/classes`, `/analytics`, `/account*`, `/profile`, `/ulangan`, `/wali-kelas/*`, `/admin`, `/owner`. Rute siswa `/student/*` memakai `StudentShell` sendiri dan tidak termasuk redesign ini.
+Komponen bersama: `ui/Button`, `Card`, `Badge`, `Input`, `Textarea`, `Modal`, `ConfirmDeleteModal`, `InlineAlert`, `LoadingSpinner`, `Skeleton`, `OfflineBanner`, `WorkspaceGuard`, `BottomNav`.
+Tab kelas: `journal/JournalTab`, `attendance/AttendanceTab`+`AttendanceGrid`, `grades/GradesTab`+`GradesTable`, `assignments/AssignmentsTab`, `announcements/AnnouncementsTab`, `timeline/TimelineTab` (Riwayat).
+
+## Token (app/globals.css) dan aturan pakai
+Variabel CSS: `--workspace --paper --ink --ink-muted --green --green-strong --green-soft --highlight --rule --control-border --notebook-line-height --notebook-pad-block`. Utilitas Tailwind: `bg-nb-paper`, `text-nb-ink`, `text-nb-ink-muted`, `bg-nb-green`, `text-nb-green-strong`, `border-nb-rule`, `border-nb-control`, dst.
+- Hijau = aksi utama/aktif/fokus. Merah/amber/ungu/teal tetap untuk makna semantik (galat/draf/dst) dan selalu disertai teks/ikon.
+- `--rule` hanya garis dekoratif. Garis tepi kontrol input memakai `--control-border`.
+- Target sentuh minimum 44px (`min-h-11`/`w-11 h-11`) pada tab kelas dan tombol status presensi. Fokus: cincin `nb-green` 2px.
+- Skala 4px mengikuti utilitas Tailwind; skala tipografi: metadata >= 12px, isi 14-16px.
+
+Kontras terukur (WCAG 2.2, dihitung dari nilai hex):
+| Pasangan | Rasio | Hasil |
+|---|---|---|
+| ink / paper | 14.68 | lulus |
+| ink-muted / paper | 5.90 | lulus |
+| putih / green | 6.29 | lulus |
+| putih / green-strong | 8.47 | lulus |
+| green-strong / green-soft | 7.50 | lulus |
+| ink / highlight | 12.23 | lulus |
+| control-border / paper (non-teks) | 3.69 | lulus |
+| rule / paper (non-teks) | 1.35 | dekoratif saja, bukan batas kontrol |
+| amber-800/amber-50, red-700, purple-700, teal-700 (Badge) | >= 4.5 setelah penggelapan | lulus; nilai lama amber-600 = 3.07, teal-600 = 3.59 gagal dan sudah diganti |
+| gray-400 / paper | 2.51 | gagal; `text-gray-400` di area cakupan diganti `text-nb-ink-muted` |
+| teks tombol nonaktif (putih / #B6C8B8) | 1.76 | dikecualikan WCAG (kontrol nonaktif), tetap ditandai `disabled` |
+
+## Catatan Cepat (garis kertas)
+Penyebab ketidaksejajaran: padding-block textarea menggeser baris teks, sedangkan ubin gradien mulai dari tepi padding. Perbaikan CSS murni: `background-origin: content-box`, `background-clip: content-box`, `line-height` dan `background-size` memakai `--notebook-line-height`, `padding-block` memakai `--notebook-pad-block`. Format teks, autosave, status sinkron, dan offline tidak disentuh.
+Tes `tests/visual/quick-note-rules.mjs` (Chromium, piksel): posisi garis pertama, jarak antar garis, dan tidak ada glyph menembus garis; 5 skenario (Enter berulang, baris kosong, paste 12 baris, teks panjang, campuran) x resize x 3 lebar viewport x skala font 1/1.25/1.5 = 90 kasus, 0 gagal. Hanya Chromium; belum dicoba di Safari.
+
+## Perilaku responsif
+- < 1280px: bottom nav 4 item (`min-h-14`), konten diberi `pb-20`.
+- >= 1280px (`xl`): indeks samping 224px, konten `xl:pl-56`. Rute, peran, dan item navigasi sama dengan mobile.
+- Tab kelas: baris scroll horizontal (label penuh, tidak dipotong), tombol tab >= 44px.
+- Matriks nilai: kolom nama sticky kiri; kolom RATA-RATA sticky kanan mulai `md` (iPad+) agar tetap terlihat saat digulir. Di mobile tidak sticky agar ruang gulir cukup.
+- Presensi (md+): kolom nama sticky; kontrol status 44px dengan huruf (H/S/I/A) + `aria-pressed`, tidak hanya warna.
+
+## Kriteria penerimaan dan status bukti
+| # | Kriteria | Status |
+|---|---|---|
+| 1 | Palet/komponen konsisten di Beranda, Kelas, Jadwal, Siswa | Sebagian: token + sapuan warna biru lama di komponen guru; halaman di luar cakupan (akun, wali-kelas, ulangan, owner/admin) belum |
+| 2 | Kontras AA | Terukur untuk token dan Badge (tabel); audit per-halaman otomatis belum |
+| 3 | Garis Catatan Cepat | Lulus 90 kasus Chromium; Safari belum |
+| 4 | Navigasi adaptif | Kode selesai; belum dilihat di browser/perangkat |
+| 5 | Nilai/presensi tak berubah | Diff hanya kelas CSS/atribut ARIA; e2e grade-lock 9/9, attendance-complete-confirm 9/9 |
+| 6 | State loading/kosong/simpan/offline/galat | Komponen yang ada dipertahankan; belum diaudit visual per tab |
+| 7 | Build/lint/tes | Lihat matriks |
+| 8 | Safari iPad / mobile / desktop | BELUM dijalankan |
+| 9 | Satu PR, tanpa merge/deploy | PR #72 |
+
+## Matriks tes (hasil nyata)
+| Tes | Hasil |
+|---|---|
+| `npm run build` (env Firebase emulator palsu) | lulus |
+| `tsc --noEmit` | bersih |
+| `eslint app src` (binari lokal) | 114 error/18 warning, identik dengan `main` (baseline, bukan regresi). `npm run lint` memakai ESLint global yang crash di lingkungan ini |
+| `npm run test:e2e` (smoke) | 19/19 |
+| `test:e2e:grade-lock` | 9/9 |
+| `test:e2e:attendance-complete-confirm` | 9/9 (sempat gagal saat `role="tab"` ditambahkan; diganti `aria-pressed` agar selector tombol tetap valid) |
+| `test:e2e:rename-class` | 14/14 |
+| `test:e2e:onboarding` | 11/11 |
+| `tests/visual/quick-note-rules.mjs` | 90/90 |
+| `test:rules` (vitest + emulator) | tidak dijalankan (tidak menyentuh rules) |
+| e2e jadwal/impor siswa | tidak ada skrip khusus; tidak dijalankan |
+| Pratinjau visual mobile/iPad/desktop, Safari iPad | tidak dijalankan |
+
+## Ditunda (sengaja)
+- Mode gelap: tetap `color-scheme: light` sampai dirancang dan diuji penuh.
+- Sapuan warna pada halaman `/account*`, `/wali-kelas/*`, `/ulangan`, `/admin`, `/owner`, `/analytics` dan area siswa: di luar enam area wajib; risiko regresi tanpa pratinjau visual.
+- `TimelineTab` (Riwayat): biru dipertahankan karena membedakan jenis item jurnal vs presensi.
+- Ukuran font 8-10px yang tersisa di beberapa metadata: perlu pratinjau perangkat sebelum dinaikkan.
+- Tab kelas belum memakai pola ARIA `tablist/tab`: mengubah role tombol memecah selector e2e yang ada; memakai `aria-pressed`. Migrasi menunggu pembaruan e2e.
+- Verifikasi Safari iPad dan screenshot responsif: butuh perangkat/preview.

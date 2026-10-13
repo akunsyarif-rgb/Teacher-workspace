@@ -20,12 +20,12 @@ export default function JournalHistoryList({ entries, onDelete }: JournalHistory
   return (
     <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-4">
       <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-        <History className="w-4 h-4 text-blue-600" />
+        <History className="w-4 h-4 text-nb-green" />
         Riwayat Jurnal ({entries.length} Catatan)
       </h3>
 
       {entries.length === 0 ? (
-        <p className="text-xs text-gray-400 py-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+        <p className="text-xs text-nb-ink-muted py-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
           Belum ada riwayat jurnal untuk kelas ini.
         </p>
       ) : (
@@ -37,7 +37,7 @@ export default function JournalHistoryList({ entries, onDelete }: JournalHistory
             >
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-extrabold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+                  <span className="text-[10px] font-extrabold text-nb-green bg-nb-green-soft px-2 py-0.5 rounded-md">
                     {item.date}
                   </span>
                   <span className="text-xs font-bold text-gray-900">• {item.subject}</span>

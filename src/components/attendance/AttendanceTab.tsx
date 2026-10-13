@@ -224,7 +224,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
           <div>
             <label className="text-xs font-bold text-gray-700 block mb-1">Tanggal Hari Ini</label>
             <div className="p-3 bg-[#F7F5EF] border border-[#D9DED5] rounded-xl text-sm text-[#5D665E] flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-gray-400" />
+              <Calendar className="w-4 h-4 text-nb-ink-muted" />
               <span>{formattedDate || "Memuat tanggal..."}</span>
             </div>
           </div>
@@ -258,8 +258,8 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
               <span className="flex items-center gap-1.5 text-[11px] font-bold">
                 {autoSaveState === "saving" && (
                   <>
-                    <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin" />
-                    <span className="text-gray-400">Menyimpan...</span>
+                    <Loader2 className="w-3.5 h-3.5 text-nb-ink-muted animate-spin" />
+                    <span className="text-nb-ink-muted">Menyimpan...</span>
                   </>
                 )}
                 {autoSaveState === "saved" && isOnline && (
@@ -354,7 +354,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
               >
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[10px] font-extrabold text-[#2F6B4F] bg-blue-50 px-2 py-0.5 rounded-md">
+                    <span className="text-[10px] font-extrabold text-[#2F6B4F] bg-nb-green-soft px-2 py-0.5 rounded-md">
                       {item.date}
                     </span>
                     <span className="text-xs font-bold text-gray-900">• {item.subject}</span>
@@ -373,7 +373,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
                       </span>
                     )}
                     <span className="text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded">Sakit: {item.summary?.sakit || 0}</span>
-                    <span className="text-[#2F6B4F] bg-blue-50 px-2 py-0.5 rounded">Izin: {item.summary?.izin || 0}</span>
+                    <span className="text-[#2F6B4F] bg-nb-green-soft px-2 py-0.5 rounded">Izin: {item.summary?.izin || 0}</span>
                     <span className="text-red-600 bg-red-50 px-2 py-0.5 rounded">Alpa: {item.summary?.alpa || 0}</span>
                   </div>
                 </div>

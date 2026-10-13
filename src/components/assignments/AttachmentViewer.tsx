@@ -61,11 +61,11 @@ export default function AttachmentViewer({ attachment, onClose }: { attachment: 
           <h3 className="text-sm font-bold text-gray-900 truncate">{attachment.fileName || 'Lampiran'}</h3>
           <div className="flex items-center gap-1 shrink-0">
             {url && (
-              <a href={url} target="_blank" rel="noopener noreferrer" className="p-2 text-gray-400 hover:text-gray-600 rounded-xl" aria-label="Buka di tab baru">
+              <a href={url} target="_blank" rel="noopener noreferrer" className="p-2 text-nb-ink-muted hover:text-gray-600 rounded-xl" aria-label="Buka di tab baru">
                 <ExternalLink className="w-4 h-4" />
               </a>
             )}
-            <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-xl" aria-label="Tutup">
+            <button type="button" onClick={onClose} className="p-2 text-nb-ink-muted hover:text-gray-600 rounded-xl" aria-label="Tutup">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -74,7 +74,7 @@ export default function AttachmentViewer({ attachment, onClose }: { attachment: 
           {error ? (
             <p className="text-xs font-bold text-red-600 p-6 text-center">{error}</p>
           ) : !url ? (
-            <p className="text-xs text-gray-400 p-6">Memuat lampiran…</p>
+            <p className="text-xs text-nb-ink-muted p-6">Memuat lampiran…</p>
           ) : kind === 'image' ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={url} alt={attachment.fileName || 'Lampiran'} className="max-w-full max-h-[80vh] object-contain" />
@@ -83,7 +83,7 @@ export default function AttachmentViewer({ attachment, onClose }: { attachment: 
           ) : (
             <div className="p-6 text-center space-y-3">
               <p className="text-xs text-gray-500">Jenis file ini tidak bisa ditampilkan langsung.</p>
-              <a href={url} target="_blank" rel="noopener noreferrer" className="inline-block text-xs font-bold text-blue-600 hover:underline">
+              <a href={url} target="_blank" rel="noopener noreferrer" className="inline-block text-xs font-bold text-nb-green hover:underline">
                 Buka / unduh file
               </a>
             </div>

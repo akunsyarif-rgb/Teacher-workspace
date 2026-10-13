@@ -32,7 +32,7 @@ export default function ScheduleDayCard({ day, items, onRequestDelete }: Schedul
       </div>
 
       {items.length === 0 ? (
-        <p className="text-[11px] text-gray-400 py-6 text-center italic">Tidak ada jadwal mengajar.</p>
+        <p className="text-[11px] text-nb-ink-muted py-6 text-center italic">Tidak ada jadwal mengajar.</p>
       ) : (
         <div className="space-y-2">
           {items.map((item) => (

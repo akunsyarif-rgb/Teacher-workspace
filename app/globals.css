@@ -14,13 +14,27 @@
   --green-strong: #24563F;
   --highlight: #DDF2A5;
   --rule: #D9DED5;
+  --green-soft: #EDF3E8;
+  --control-border: #7D877C; /* >= 3:1 on paper for input outlines (WCAG 1.4.11) */
   --notebook-line-height: 2.25rem;
   --notebook-rule: #D9DED5;
+  /* Quick Note: padding-block shared by textarea and ruled background. */
+  --notebook-pad-block: 0.25rem;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-nb-workspace: var(--workspace);
+  --color-nb-paper: var(--paper);
+  --color-nb-ink: var(--ink);
+  --color-nb-ink-muted: var(--ink-muted);
+  --color-nb-green: var(--green);
+  --color-nb-green-strong: var(--green-strong);
+  --color-nb-green-soft: var(--green-soft);
+  --color-nb-highlight: var(--highlight);
+  --color-nb-rule: var(--rule);
+  --color-nb-control: var(--control-border);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -41,7 +55,7 @@ body {
 .notebook-paper {
   --notebook-line-height: 2.25rem;
   line-height: var(--notebook-line-height);
-  padding-block: 0.25rem;
+  padding-block: var(--notebook-pad-block);
   background-color: var(--paper);
   background-image: linear-gradient(
     to bottom,
@@ -51,6 +65,9 @@ body {
   );
   background-size: 100% var(--notebook-line-height);
   background-attachment: local;
+  /* Tiles start at the first text line and are clipped to the content box, so no stray rule appears in the top padding. */
+  background-origin: content-box;
+  background-clip: content-box;
   background-repeat: repeat-y;
   overflow-wrap: anywhere;
   -webkit-text-size-adjust: 100%;

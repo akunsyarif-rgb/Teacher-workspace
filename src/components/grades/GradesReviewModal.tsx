@@ -56,18 +56,18 @@ export default function GradesReviewModal({ isOpen, onClose, onConfirm, changes 
             >
               <div className="min-w-0">
                 <p className="font-bold text-gray-900 truncate">{change.studentName}</p>
-                <p className="text-gray-400">
+                <p className="text-nb-ink-muted">
                   {change.columnTitle} {change.oldValue ? 'akan diubah' : 'akan disimpan'}:
                 </p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0 font-extrabold">
                 {change.oldValue && (
                   <>
-                    <span className="text-gray-400">{change.oldValue}</span>
+                    <span className="text-nb-ink-muted">{change.oldValue}</span>
                     <ArrowRight className="w-3 h-3 text-gray-300" />
                   </>
                 )}
-                <span className="text-blue-600">{change.newValue || '-'}</span>
+                <span className="text-nb-green">{change.newValue || '-'}</span>
               </div>
             </div>
           ))}

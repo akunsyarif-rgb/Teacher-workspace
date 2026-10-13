@@ -81,7 +81,7 @@ export default function AssignmentsTab({ className, subject }: AssignmentsTabPro
       <Card className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-            <ClipboardList className="w-4 h-4 text-blue-600" />
+            <ClipboardList className="w-4 h-4 text-nb-green" />
             Tugas Kelas {className}
           </h3>
           <p className="text-xs text-gray-500">Buat tugas dan nilai pengumpulan siswa</p>
@@ -101,7 +101,7 @@ export default function AssignmentsTab({ className, subject }: AssignmentsTabPro
         </div>
       ) : assignments.length === 0 ? (
         <Card>
-          <p className="text-xs text-gray-400 text-center py-4">
+          <p className="text-xs text-nb-ink-muted text-center py-4">
             Belum ada tugas untuk kelas ini. Klik &quot;Buat Tugas&quot; untuk mulai.
           </p>
         </Card>
@@ -111,13 +111,13 @@ export default function AssignmentsTab({ className, subject }: AssignmentsTabPro
             <button
               key={assignment.id}
               onClick={() => setSelected(assignment)}
-              className="w-full bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between gap-3 text-left hover:border-blue-200 transition-colors"
+              className="w-full bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between gap-3 text-left hover:border-nb-rule transition-colors"
             >
               <div>
                 <p className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
                   {assignment.title}
                   {assignment.materialFileUrl && (
-                    <Paperclip className="w-3 h-3 text-gray-400 shrink-0" aria-label="Ada lampiran materi" />
+                    <Paperclip className="w-3 h-3 text-nb-ink-muted shrink-0" aria-label="Ada lampiran materi" />
                   )}
                 </p>
                 <p className="text-[11px] text-gray-500">Tenggat {assignment.dueDate}</p>

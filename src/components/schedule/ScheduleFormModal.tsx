@@ -52,7 +52,7 @@ export default function ScheduleFormModal({
           <select
             value={day}
             onChange={(e) => setDay(e.target.value)}
-            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:ring-2 focus:ring-blue-600"
+            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:ring-2 focus:ring-nb-green"
           >
             {activeDays.map((d) => (
               <option key={d} value={d}>

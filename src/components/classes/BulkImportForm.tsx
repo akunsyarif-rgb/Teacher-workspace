@@ -57,7 +57,7 @@ export default function BulkImportForm({ onAdded, lockedClassName }: BulkImportF
             </div>
             <h3 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">Impor Banyak Siswa</h3>
           </div>
-          <span className="text-[10px] font-bold text-gray-400">1 Baris = 1 Nama</span>
+          <span className="text-[10px] font-bold text-nb-ink-muted">1 Baris = 1 Nama</span>
         </div>
 
         {error && (

@@ -234,7 +234,7 @@ export default function DashboardPage() {
   if (loading || profileLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 gap-3">
-        <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center animate-pulse shadow-lg shadow-blue-200">
+        <div className="w-10 h-10 bg-nb-green rounded-2xl flex items-center justify-center animate-pulse shadow-lg shadow-nb-green/20">
           <GraduationCap className="w-6 h-6 text-white" />
         </div>
         <p className="text-xs font-bold text-gray-500 tracking-wide">Memuat Beranda...</p>
@@ -255,7 +255,7 @@ export default function DashboardPage() {
           </p>
           <button
             onClick={handleLogout}
-            className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-colors"
+            className="mt-2 px-4 py-2 bg-nb-green text-white rounded-xl text-xs font-bold hover:bg-nb-green-strong transition-colors"
           >
             Keluar & Login Ulang
           </button>
@@ -337,7 +337,7 @@ export default function DashboardPage() {
         <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-2 text-[10px] font-bold text-blue-600 uppercase tracking-wider bg-blue-50/60 px-2.5 py-1 rounded-xl w-fit">
+              <div className="flex items-center gap-2 text-[10px] font-bold text-nb-green uppercase tracking-wider bg-nb-green-soft px-2.5 py-1 rounded-xl w-fit">
                 <Calendar className="w-3 h-3" />
                 <span>{getCompleteDateLabel()}</span>
               </div>
@@ -354,11 +354,11 @@ export default function DashboardPage() {
             <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
               <span>
                 Mapel Utama:{" "}
-                <strong className="text-blue-600">{subject || "Belum diatur"}</strong>
+                <strong className="text-nb-green">{subject || "Belum diatur"}</strong>
               </span>
               <Link
                 href="/account"
-                className="text-gray-400 hover:text-blue-600 transition-colors active:scale-90 p-2.5 -m-1.5"
+                className="text-nb-ink-muted hover:text-nb-green transition-colors active:scale-90 p-2.5 -m-1.5"
                 title="Akun"
                 aria-label="Akun"
               >
@@ -370,7 +370,7 @@ export default function DashboardPage() {
             <SyncIndicator />
             <Link
               href="/analytics"
-              className="flex items-center gap-1.5 px-3 py-3 bg-gray-50 hover:bg-blue-50 text-gray-600 hover:text-blue-600 rounded-xl text-xs font-bold transition-all active:scale-95 border border-gray-200 hover:border-blue-200 shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-3 bg-gray-50 hover:bg-nb-green-soft text-gray-600 hover:text-nb-green rounded-xl text-xs font-bold transition-all active:scale-95 border border-gray-200 hover:border-nb-rule shadow-sm"
               title="Lihat Statistik"
               aria-label="Lihat Statistik"
             >
@@ -383,10 +383,10 @@ export default function DashboardPage() {
         {isUlanganEnabled() && (
           <Link
             href="/ulangan"
-            className="flex items-center justify-between gap-2 px-4 py-2.5 bg-white rounded-2xl border border-gray-100 shadow-sm text-[11px] md:text-xs font-bold text-gray-500 hover:border-blue-200 hover:text-blue-600 transition-colors"
+            className="flex items-center justify-between gap-2 px-4 py-2.5 bg-white rounded-2xl border border-gray-100 shadow-sm text-[11px] md:text-xs font-bold text-gray-500 hover:border-nb-rule hover:text-nb-green transition-colors"
           >
             <span>Ulangan Harian</span>
-            <ArrowRight className="w-3 h-3 text-blue-600" />
+            <ArrowRight className="w-3 h-3 text-nb-green" />
           </Link>
         )}
 
@@ -394,12 +394,12 @@ export default function DashboardPage() {
             detail lengkap ada di /analytics. */}
         <Link
           href="/analytics"
-          className="flex items-center justify-between gap-2 px-4 py-2.5 bg-white rounded-2xl border border-gray-100 shadow-sm text-[11px] md:text-xs font-bold text-gray-500 hover:border-blue-200 hover:text-blue-600 transition-colors"
+          className="flex items-center justify-between gap-2 px-4 py-2.5 bg-white rounded-2xl border border-gray-100 shadow-sm text-[11px] md:text-xs font-bold text-gray-500 hover:border-nb-rule hover:text-nb-green transition-colors"
         >
           <span>
             {uniqueClasses.length} Kelas &middot; {totalJournals} Jurnal Terisi
           </span>
-          <span className="flex items-center gap-1 text-blue-600 shrink-0">
+          <span className="flex items-center gap-1 text-nb-green shrink-0">
             Lihat Statistik
             <ArrowRight className="w-3 h-3" />
           </span>
@@ -407,15 +407,15 @@ export default function DashboardPage() {
 
         {/* Workflow Engine: satu langkah paling relevan sekarang, dipilihkan otomatis */}
         {workflowStep && (
-          <div className="bg-blue-600 p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-lg text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="bg-nb-green p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-lg text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-[11px] font-extrabold uppercase tracking-wider text-blue-50">
+              <p className="text-[11px] font-extrabold uppercase tracking-wider text-white">
                 {workflowStep.isOngoing ? 'Sedang Berlangsung Sekarang' : 'Sesi Berikutnya'}
               </p>
               <p className="text-lg md:text-xl font-extrabold mt-1 truncate">
                 Kelas {workflowStep.status.className} • {workflowStep.status.timeSlot}
               </p>
-              <p className="text-xs md:text-sm text-blue-50 mt-1">
+              <p className="text-xs md:text-sm text-white mt-1">
                 {!workflowStep.status.hasAttendance
                   ? 'Belum presensi hari ini'
                   : !workflowStep.status.hasJournal
@@ -427,7 +427,7 @@ export default function DashboardPage() {
               href={`/attendance?class=${encodeURIComponent(workflowStep.status.className)}&tab=${
                 !workflowStep.status.hasAttendance ? 'presensi' : 'jurnal'
               }&scheduleId=${encodeURIComponent(workflowStep.status.scheduleId)}`}
-              className="shrink-0 flex items-center justify-center gap-1.5 px-5 py-3 bg-white text-blue-700 rounded-xl text-sm font-extrabold shadow-sm hover:bg-blue-50 transition-colors"
+              className="shrink-0 flex items-center justify-center gap-1.5 px-5 py-3 bg-white text-nb-green-strong rounded-xl text-sm font-extrabold shadow-sm hover:bg-nb-green-soft transition-colors"
             >
               {workflowStep.isOngoing ? 'Lanjutkan Mengajar' : 'Mulai Sekarang'}
               <ArrowRight className="w-4 h-4" />
@@ -440,7 +440,7 @@ export default function DashboardPage() {
         <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 space-y-3 md:space-y-4">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 md:w-5 md:h-5 text-blue-600" />
+              <Clock className="w-4 h-4 md:w-5 md:h-5 text-nb-green" />
               <h3 className="text-[10px] md:text-xs font-extrabold text-gray-700 uppercase tracking-wider">
                 Perlu Diselesaikan Hari Ini ({currentDayName})
               </h3>
@@ -468,7 +468,7 @@ export default function DashboardPage() {
           {jadwalHariIniStatuses.length === 0 ? (
             todayClassStatuses.length === 0 ? (
               <div className="p-4 md:p-6 bg-gray-50 rounded-xl md:rounded-2xl border border-dashed border-gray-200 text-center space-y-1">
-                <div className="w-9 h-9 mx-auto mb-1 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center">
+                <div className="w-9 h-9 mx-auto mb-1 rounded-full bg-gray-100 text-nb-ink-muted flex items-center justify-center">
                   <CalendarX className="w-4.5 h-4.5" aria-hidden />
                 </div>
                 <p className="text-sm font-bold text-gray-600">
@@ -476,7 +476,7 @@ export default function DashboardPage() {
                 </p>
                 <Link
                   href="/schedule"
-                  className="inline-block text-[11px] md:text-xs text-blue-600 underline underline-offset-2 font-bold"
+                  className="inline-block text-[11px] md:text-xs text-nb-green underline underline-offset-2 font-bold"
                 >
                   Tambahkan lewat menu Jadwal Mengajar
                 </Link>
@@ -526,7 +526,7 @@ export default function DashboardPage() {
                   ? 'text-amber-500'
                   : status.sessionState === 'ongoing'
                   ? 'text-emerald-500'
-                  : 'text-blue-400';
+                  : 'text-nb-green';
 
                 return (
                   <div key={status.scheduleId} className="py-3 md:py-4 flex items-center justify-between gap-3">
@@ -574,7 +574,7 @@ export default function DashboardPage() {
                     ) : (
                       <Link
                         href={`/attendance?class=${encodeURIComponent(status.className)}&tab=${nextTab}&scheduleId=${encodeURIComponent(status.scheduleId)}`}
-                        className="shrink-0 px-3 py-1.5 md:px-4 md:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] md:text-xs font-bold transition-colors shadow-sm"
+                        className="shrink-0 px-3 py-1.5 md:px-4 md:py-2 bg-nb-green hover:bg-nb-green-strong text-white rounded-xl text-[11px] md:text-xs font-bold transition-colors shadow-sm"
                       >
                         {status.hasAttendance || status.hasJournal ? 'Lanjut' : 'Mulai'}
                       </Link>
@@ -689,14 +689,14 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 gap-3 md:gap-4">
             <Link
               href="/attendance"
-              className="bg-white p-4 md:p-5 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 hover:border-blue-300 transition-all flex items-center gap-4 group relative"
+              className="bg-white p-4 md:p-5 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 hover:border-nb-green/40 transition-all flex items-center gap-4 group relative"
             >
               {hasPending && (
                 <span className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 bg-red-500 text-white text-[9px] font-extrabold rounded-full shadow-md animate-pulse">
                   {pendingClasses.length}
                 </span>
               )}
-              <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-200 group-hover:scale-105 transition-transform shrink-0">
+              <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-nb-green text-white flex items-center justify-center shadow-md shadow-nb-green/20 group-hover:scale-105 transition-transform shrink-0">
                 <BookOpen className="w-5 h-5 md:w-6 md:h-6" />
               </div>
               <div className="min-w-0">
@@ -707,9 +707,9 @@ export default function DashboardPage() {
 
             <Link
               href="/schedule"
-              className="bg-white p-4 md:p-5 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 hover:border-blue-300 transition-all flex items-center gap-4 group"
+              className="bg-white p-4 md:p-5 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 hover:border-nb-green/40 transition-all flex items-center gap-4 group"
             >
-              <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-200 group-hover:scale-105 transition-transform shrink-0">
+              <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-nb-green text-white flex items-center justify-center shadow-md shadow-nb-green/20 group-hover:scale-105 transition-transform shrink-0">
                 <Calendar className="w-5 h-5 md:w-6 md:h-6" />
               </div>
               <div className="min-w-0">

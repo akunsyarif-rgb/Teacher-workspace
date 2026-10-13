@@ -84,7 +84,7 @@ export default function SkipReasonModal({
               onClick={() => setReason(option)}
               className={`px-3 py-2.5 rounded-xl text-xs font-bold text-left transition-colors border ${
                 reason === option
-                  ? 'bg-blue-50 border-blue-300 text-blue-700'
+                  ? 'bg-nb-green-soft border-nb-green/40 text-nb-green-strong'
                   : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
               }`}
             >
@@ -102,7 +102,7 @@ export default function SkipReasonModal({
             onChange={(e) => setNote(e.target.value)}
             rows={3}
             placeholder={isLainnya ? 'Jelaskan alasannya...' : 'Catatan tambahan (opsional)'}
-            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-nb-green"
           />
         </div>
 

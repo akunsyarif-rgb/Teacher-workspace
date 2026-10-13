@@ -26,9 +26,9 @@ export default function MarkCompletedConfirmModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Tandai Presensi Selesai?">
       <div className="space-y-4">
-        <div className="p-3.5 bg-blue-50 border border-blue-100 rounded-2xl flex items-start gap-2.5">
-          <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-          <p className="text-xs text-blue-800">
+        <div className="p-3.5 bg-nb-green-soft border border-nb-rule rounded-2xl flex items-start gap-2.5">
+          <CheckCircle2 className="w-4 h-4 text-nb-green shrink-0 mt-0.5" />
+          <p className="text-xs text-nb-green-strong">
             Presensi akan ditandai selesai. Ini murni penanda progres — status masih bisa dikoreksi kapan saja
             setelah ini kalau ada kesalahan.
           </p>
