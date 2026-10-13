@@ -175,7 +175,7 @@ export default function ClassDetail({
   const missingCodeCount = students.filter((student) => !student.accessCode).length;
 
   return (
-    <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
+    <div className="bg-[#FFFEF9] p-6 sm:p-8 rounded-3xl shadow-sm border border-[#D9DED5] space-y-6">
       {loading ? (
         // Skeleton ini SENGAJA hanya menggantikan konten di bawah (header +
         // daftar siswa), BUKAN seluruh return seperti sebelumnya — versi
@@ -188,13 +188,13 @@ export default function ClassDetail({
         // dihapus" tidak pernah sempat terlihat sama sekali.
         <div className="flex items-center justify-center py-12">
           <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-          <span className="ml-3 text-xs font-bold text-gray-500">Memuat data siswa...</span>
+          <span className="ml-3 text-xs font-bold text-[#5D665E]">Memuat data siswa...</span>
         </div>
       ) : (
         <>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h3 className="text-sm font-extrabold text-gray-900 uppercase tracking-wider">Kelas {className}</h3>
+          <h3 className="text-sm font-extrabold text-[#242923] uppercase tracking-wider">Kelas {className}</h3>
           <p className="text-xs font-bold text-gray-400 mt-0.5">Total {students.length} Siswa</p>
         </div>
         <div className="flex items-center gap-2 self-end sm:self-auto">
@@ -255,7 +255,7 @@ export default function ClassDetail({
           <button
             onClick={handleGenerateMissingCodes}
             disabled={generating}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-xl text-[11px] font-bold transition-colors shadow-sm shrink-0"
+            className="px-4 py-2 bg-[#2F6B4F] hover:bg-[#24563F] disabled:bg-blue-300 text-white rounded-xl text-[11px] font-bold transition-colors shadow-sm shrink-0"
           >
             {generating ? 'Membuat...' : 'Buatkan Kode'}
           </button>
@@ -269,22 +269,22 @@ export default function ClassDetail({
           {students.map((student, idx) => (
             <div
               key={student.id}
-              className="p-4 bg-gray-50 rounded-2xl flex justify-between items-center border border-gray-100 shadow-sm hover:border-emerald-200 transition-all"
+              className="p-4 bg-gray-50 rounded-2xl flex justify-between items-center border border-[#D9DED5] shadow-sm hover:border-emerald-200 transition-all"
             >
               <div className="flex items-center gap-4">
                 <span className="w-7 h-7 rounded-xl bg-emerald-100 text-emerald-700 font-extrabold text-xs flex items-center justify-center shrink-0">
                   {idx + 1}
                 </span>
                 <div>
-                  <p className="text-sm font-extrabold text-gray-900">{student.name}</p>
-                  <p className="text-[10px] font-bold text-gray-500 mt-0.5">NIS: {student.nis || '-'}</p>
+                  <p className="text-sm font-extrabold text-[#242923]">{student.name}</p>
+                  <p className="text-[10px] font-bold text-[#5D665E] mt-0.5">NIS: {student.nis || '-'}</p>
                   {student.accessCode && (
                     <button
                       onClick={() => handleCopyCode(student)}
-                      className="mt-1.5 inline-flex items-center gap-1.5 px-2 py-1 bg-white border border-gray-200 hover:border-blue-300 rounded-lg transition-colors"
+                      className="mt-1.5 inline-flex items-center gap-1.5 px-2 py-1 bg-[#FFFEF9] border border-[#D9DED5] hover:border-blue-300 rounded-lg transition-colors"
                       title="Salin kode akses Student Companion"
                     >
-                      <span className="text-[10px] font-extrabold tracking-widest text-blue-600">
+                      <span className="text-[10px] font-extrabold tracking-widest text-[#2F6B4F]">
                         {student.accessCode}
                       </span>
                       {copiedId === student.id ? (
