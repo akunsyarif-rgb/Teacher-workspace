@@ -231,7 +231,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
 
           {students.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-[#D9DED5]">
-              <span className="text-xs font-bold text-gray-500">Pintasan Cepat:</span>
+              <span className="text-sm font-bold text-[#5D665E]">Pintasan Cepat:</span>
               <button
                 type="button"
                 onClick={handleSetAllHadir}
