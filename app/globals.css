@@ -1,30 +1,46 @@
 @import "tailwindcss";
 
+/* Teacher Workspace — Digital Notebook design tokens. Keep light theme
+   explicit until every component has a complete, tested dark-mode design. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  --background: #F7F5EF;
+  --foreground: #242923;
+  --workspace: #F7F5EF;
+  --paper: #FFFEF9;
+  --ink: #242923;
+  --ink-muted: #5D665E;
+  --green: #2F6B4F;
+  --green-strong: #24563F;
+  --highlight: #DDF2A5;
+  --rule: #D9DED5;
+  --green-soft: #EDF3E8;
+  --control-border: #7D877C; /* >= 3:1 on paper for input outlines (WCAG 1.4.11) */
+  --notebook-line-height: 2.25rem;
+  --notebook-rule: #D9DED5;
+  /* Quick Note: padding-block shared by textarea and ruled background. */
+  --notebook-pad-block: 0.25rem;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-nb-workspace: var(--workspace);
+  --color-nb-paper: var(--paper);
+  --color-nb-ink: var(--ink);
+  --color-nb-ink-muted: var(--ink-muted);
+  --color-nb-green: var(--green);
+  --color-nb-green-strong: var(--green-strong);
+  --color-nb-green-soft: var(--green-soft);
+  --color-nb-highlight: var(--highlight);
+  --color-nb-rule: var(--rule);
+  --color-nb-control: var(--control-border);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 html,
 body {
-  /* Cegah seluruh halaman ikut scroll horizontal di hp saat ada elemen
-     anak yang salah hitung lebarnya (mis. tabel di dalam kontainer
-     overflow-x-auto) — kontainer overflow-x-auto tetap bisa discroll
-     sendiri, tapi body tidak lagi ikut bergeser membuka area kosong. */
   overflow-x: hidden;
 }
 
@@ -34,10 +50,35 @@ body {
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
 
-/* Dipakai pada baris yang sengaja discroll horizontal (mis. tab Class
-   Workspace) supaya terasa seperti kontrol navigasi, bukan tabel yang
-   "bocor" — scroll tetap berfungsi penuh lewat swipe/drag, cuma track
-   scrollbar-nya yang disembunyikan. */
+/* Ruled textarea: line-height and background-size share one value so
+   consecutive Enter/newline characters stay aligned with the paper rules. */
+.notebook-paper {
+  --notebook-line-height: 2.25rem;
+  line-height: var(--notebook-line-height);
+  padding-block: var(--notebook-pad-block);
+  background-color: var(--paper);
+  background-image: linear-gradient(
+    to bottom,
+    transparent calc(var(--notebook-line-height) - 1px),
+    var(--notebook-rule) calc(var(--notebook-line-height) - 1px),
+    var(--notebook-rule) var(--notebook-line-height)
+  );
+  background-size: 100% var(--notebook-line-height);
+  background-attachment: local;
+  /* Tiles start at the first text line and are clipped to the content box, so no stray rule appears in the top padding. */
+  background-origin: content-box;
+  background-clip: content-box;
+  background-repeat: repeat-y;
+  overflow-wrap: anywhere;
+  -webkit-text-size-adjust: 100%;
+}
+
+.notebook-paper:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+
+/* Used for intentionally horizontal tab rows: swipe remains enabled. */
 .no-scrollbar {
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -45,4 +86,15 @@ body {
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

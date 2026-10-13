@@ -16,7 +16,7 @@ const CONDITION_COLOR: Record<string, string> = {
   Baik: 'text-emerald-600 bg-emerald-50 border-emerald-200',
   'Rusak Ringan': 'text-amber-600 bg-amber-50 border-amber-200',
   'Rusak Berat': 'text-red-600 bg-red-50 border-red-200',
-  Hilang: 'text-gray-500 bg-gray-100 border-gray-200',
+  Hilang: 'text-nb-ink-muted bg-gray-100 border-nb-rule',
 };
 
 export default function InventoryPage() {
@@ -114,8 +114,8 @@ export default function InventoryPage() {
       )}
 
       <Card className="space-y-4">
-        <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-          <Package className="w-4 h-4 text-blue-600" />
+        <h3 className="text-sm font-bold text-nb-ink flex items-center gap-2">
+          <Package className="w-4 h-4 text-nb-green" />
           Tambah Barang Inventaris
         </h3>
         <form onSubmit={handleSubmit} className="space-y-3">
@@ -130,9 +130,9 @@ export default function InventoryPage() {
       </Card>
 
       <Card className="space-y-4">
-        <h3 className="text-sm font-bold text-gray-900">Daftar Barang ({items.length})</h3>
+        <h3 className="text-sm font-bold text-nb-ink">Daftar Barang ({items.length})</h3>
         {items.length === 0 ? (
-          <p className="text-xs text-gray-400 py-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+          <p className="text-xs text-nb-ink-muted py-8 text-center bg-nb-workspace rounded-2xl border border-dashed border-nb-rule">
             Belum ada barang inventaris untuk kelas ini.
           </p>
         ) : (
@@ -140,20 +140,20 @@ export default function InventoryPage() {
             {items.map((item) => (
               <div
                 key={item.id}
-                className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                className="p-4 bg-nb-workspace rounded-2xl border border-nb-rule flex flex-col sm:flex-row sm:items-center justify-between gap-3"
               >
                 <div className="min-w-0">
-                  <p className="text-xs font-extrabold text-gray-900">
-                    {item.name} <span className="text-gray-400 font-bold">× {item.quantity}</span>
+                  <p className="text-xs font-extrabold text-nb-ink">
+                    {item.name} <span className="text-nb-ink-muted font-bold">× {item.quantity}</span>
                   </p>
-                  {item.note && <p className="text-[10px] text-gray-500 mt-0.5">{item.note}</p>}
+                  {item.note && <p className="text-xs text-nb-ink-muted mt-0.5">{item.note}</p>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <select
                     value={item.condition}
                     onChange={(e) => handleConditionChange(item.id, e.target.value)}
-                    className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border outline-none ${
-                      CONDITION_COLOR[item.condition] || 'text-gray-600 bg-white border-gray-200'
+                    className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border outline-none ${
+                      CONDITION_COLOR[item.condition] || 'text-nb-ink-muted bg-nb-paper border-nb-rule'
                     }`}
                   >
                     {inventoryController.CONDITION_OPTIONS.map((opt) => (

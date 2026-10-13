@@ -225,9 +225,9 @@ export default function JournalTab({
 
       <Card className="space-y-4">
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <label className="text-xs font-bold text-gray-700">Tanggal Mengajar</label>
+          <label className="text-xs font-bold text-nb-ink">Tanggal Mengajar</label>
           {!loadingToday && (
-            <span className="flex items-center gap-1.5 text-[11px] font-bold">
+            <span className="flex items-center gap-1.5 text-xs font-bold">
               {todayEntryId ? (
                 <>
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
@@ -235,15 +235,15 @@ export default function JournalTab({
                 </>
               ) : (
                 <>
-                  <Circle className="w-3.5 h-3.5 text-gray-400" />
-                  <span className="text-gray-400">Belum diisi</span>
+                  <Circle className="w-3.5 h-3.5 text-nb-ink-muted" />
+                  <span className="text-nb-ink-muted">Belum diisi</span>
                 </>
               )}
             </span>
           )}
         </div>
-        <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-600 flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-gray-400" />
+        <div className="p-3 bg-nb-paper border border-nb-control rounded-xl text-xs text-nb-ink-muted flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-nb-ink-muted" />
           <span>{formattedDate || "Memuat tanggal..."}</span>
         </div>
       </Card>
@@ -251,18 +251,18 @@ export default function JournalTab({
       {mode === "view" ? (
         <Card className="space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="text-sm font-extrabold text-gray-900">{savedTopic}</h3>
+            <h3 className="text-sm font-extrabold text-nb-ink">{savedTopic}</h3>
             <button
               type="button"
               onClick={handleStartEdit}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl text-[11px] font-bold transition-colors shrink-0"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-nb-green-soft hover:bg-nb-green-soft text-nb-green rounded-xl text-xs font-bold transition-colors shrink-0"
             >
               <Pencil className="w-3.5 h-3.5" />
               Edit Jurnal
             </button>
           </div>
-          {savedNotes && savedNotes !== "-" && <p className="text-xs text-gray-500">{savedNotes}</p>}
-          <p className="text-[11px] text-gray-400">
+          {savedNotes && savedNotes !== "-" && <p className="text-xs text-nb-ink-muted">{savedNotes}</p>}
+          <p className="text-xs text-nb-ink-muted">
             Jurnal hari ini sudah tersimpan. Bisa diperbaiki kapan saja lewat tombol Edit.
           </p>
         </Card>
@@ -293,7 +293,7 @@ export default function JournalTab({
               <button
                 type="button"
                 onClick={handleCancelEdit}
-                className="shrink-0 px-4 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-2xl transition-colors"
+                className="shrink-0 px-4 py-3.5 bg-gray-100 hover:bg-gray-200 text-nb-ink-muted rounded-2xl transition-colors"
                 title="Batal"
                 aria-label="Batal"
               >
@@ -306,7 +306,7 @@ export default function JournalTab({
 
       {/* Riwayat dengan Skeleton */}
       {loadingHistory ? (
-        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+        <div className="bg-nb-paper p-6 rounded-3xl border border-nb-rule shadow-sm space-y-4">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-gray-200 rounded animate-pulse" />
             <SkeletonText lines={1} className="w-32" />

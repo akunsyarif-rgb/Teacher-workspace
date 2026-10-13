@@ -41,7 +41,7 @@ export default function UnsavedChangesModal({
   return (
     <Modal isOpen={isOpen} onClose={onCancel} title="Ada Perubahan Belum Tersimpan">
       <div className="space-y-4">
-        <p className="text-xs text-gray-500 flex items-start gap-2">
+        <p className="text-xs text-nb-ink-muted flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
           Kamu punya perubahan yang belum tersimpan. Simpan dulu sebelum keluar, atau lanjutkan tanpa menyimpan?
         </p>
@@ -61,7 +61,7 @@ export default function UnsavedChangesModal({
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="w-full py-3 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-600 rounded-2xl text-xs font-bold transition-colors"
+            className="w-full py-3 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-nb-ink-muted rounded-2xl text-xs font-bold transition-colors"
           >
             Batal
           </button>

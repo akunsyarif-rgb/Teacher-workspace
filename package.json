@@ -20,6 +20,8 @@
     "test:e2e:submission-drive-link": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only auth,firestore,storage \"node tests/e2e/submission-drive-link.mjs\"",
     "test:e2e:attendance-complete-confirm": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only auth,firestore,storage \"node tests/e2e/attendance-complete-confirm.mjs\"",
     "test:e2e:backup": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only auth,firestore,storage \"node tests/e2e/backup.mjs\"",
+    "test:e2e:class-tabs": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only auth,firestore,storage \"node tests/e2e/class-tabs-a11y.mjs\"",
+    "test:e2e:visual": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only auth,firestore,storage \"node tests/e2e/redesign-visual.mjs\"",
     "test:e2e:ulangan": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only auth,firestore,storage \"node tests/e2e/ulangan.mjs\""
   },
   "comments": {

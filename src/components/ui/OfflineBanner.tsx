@@ -11,7 +11,7 @@ export default function OfflineBanner() {
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 z-50 bg-amber-500 text-amber-950 text-center text-[11px] sm:text-xs font-bold py-2 px-4 flex items-center justify-center gap-2 shadow-md"
+      className="fixed top-0 left-0 right-0 z-50 bg-amber-500 text-amber-950 text-center text-xs sm:text-xs font-bold py-2 px-4 flex items-center justify-center gap-2 shadow-md"
       role="status"
     >
       <WifiOff className="w-3.5 h-3.5 shrink-0" />

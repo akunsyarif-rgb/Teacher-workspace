@@ -39,8 +39,8 @@ function GradesContent({ profile }: { profile: StudentProfile }) {
 
   if (!data || data.items.length === 0) {
     return (
-      <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-        <p className="text-xs text-gray-400 text-center py-4">Belum ada komponen nilai di kelas ini.</p>
+      <div className="bg-nb-paper p-6 rounded-3xl border border-nb-rule shadow-sm">
+        <p className="text-xs text-nb-ink-muted text-center py-4">Belum ada komponen nilai di kelas ini.</p>
       </div>
     );
   }
@@ -53,12 +53,12 @@ function GradesContent({ profile }: { profile: StudentProfile }) {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
-        <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">Rata-rata</p>
-        <p className="text-2xl font-extrabold text-gray-900">
+      <div className="bg-nb-paper p-5 rounded-3xl border border-nb-rule shadow-sm">
+        <p className="text-xs font-extrabold text-nb-ink-muted uppercase tracking-wider">Rata-rata</p>
+        <p className="text-2xl font-extrabold text-nb-ink">
           {data.average === null ? "—" : data.average.toFixed(1)}
         </p>
-        <p className="text-[11px] text-gray-500">
+        <p className="text-xs text-nb-ink-muted">
           {data.average === null
             ? "Belum ada nilai yang masuk"
             : "Dihitung dari komponen yang sudah dinilai saja"}
@@ -66,27 +66,27 @@ function GradesContent({ profile }: { profile: StudentProfile }) {
       </div>
 
       {scored.length >= 2 && (
-        <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-3">
-          <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">Perkembangan Nilai</p>
+        <div className="bg-nb-paper p-5 rounded-3xl border border-nb-rule shadow-sm space-y-3">
+          <p className="text-xs font-extrabold text-nb-ink-muted uppercase tracking-wider">Perkembangan Nilai</p>
           <GradeTrendChart
             labels={scored.map((item: any) => item.title)}
             scores={scored.map((item: any) => Number(item.score))}
           />
-          <p className="text-[10px] text-gray-400 text-center">Urut sesuai komponen penilaian</p>
+          <p className="text-xs text-nb-ink-muted text-center">Urut sesuai komponen penilaian</p>
         </div>
       )}
 
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm divide-y divide-gray-100 overflow-hidden">
+      <div className="bg-nb-paper rounded-3xl border border-nb-rule shadow-sm divide-y divide-gray-100 overflow-hidden">
         {data.items.map((item: any) => (
           <div key={item.id} className="p-4 flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-bold text-gray-900">{item.title}</p>
-              <p className="text-[11px] text-gray-500">{item.type}</p>
+              <p className="text-xs font-bold text-nb-ink">{item.title}</p>
+              <p className="text-xs text-nb-ink-muted">{item.type}</p>
             </div>
             {item.score === null || String(item.score).trim() === "" ? (
-              <span className="text-[11px] font-bold text-gray-300">Belum dinilai</span>
+              <span className="text-xs font-bold text-gray-300">Belum dinilai</span>
             ) : (
-              <span className="text-sm font-extrabold text-gray-900">{item.score}</span>
+              <span className="text-sm font-extrabold text-nb-ink">{item.score}</span>
             )}
           </div>
         ))}

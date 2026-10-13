@@ -6,8 +6,8 @@ import WorkspaceGuard from "@/src/components/ui/WorkspaceGuard";
 
 export default function AttendancePage() {
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 md:p-10">
-      <div className="max-w-5xl mx-auto">
+    <div className="min-h-screen bg-[#F7F5EF] p-4 sm:p-6 md:p-10">
+      <div className="mx-auto max-w-5xl">
         <WorkspaceGuard>
           <AttendanceForm />
         </WorkspaceGuard>

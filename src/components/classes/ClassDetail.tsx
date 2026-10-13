@@ -175,7 +175,7 @@ export default function ClassDetail({
   const missingCodeCount = students.filter((student) => !student.accessCode).length;
 
   return (
-    <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
+    <div className="bg-[#FFFEF9] p-6 sm:p-8 rounded-3xl shadow-sm border border-[#D9DED5] space-y-6">
       {loading ? (
         // Skeleton ini SENGAJA hanya menggantikan konten di bawah (header +
         // daftar siswa), BUKAN seluruh return seperti sebelumnya — versi
@@ -188,14 +188,14 @@ export default function ClassDetail({
         // dihapus" tidak pernah sempat terlihat sama sekali.
         <div className="flex items-center justify-center py-12">
           <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-          <span className="ml-3 text-xs font-bold text-gray-500">Memuat data siswa...</span>
+          <span className="ml-3 text-xs font-bold text-[#5D665E]">Memuat data siswa...</span>
         </div>
       ) : (
         <>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h3 className="text-sm font-extrabold text-gray-900 uppercase tracking-wider">Kelas {className}</h3>
-          <p className="text-xs font-bold text-gray-400 mt-0.5">Total {students.length} Siswa</p>
+          <h3 className="text-sm font-extrabold text-[#242923] uppercase tracking-wider">Kelas {className}</h3>
+          <p className="text-xs font-bold text-nb-ink-muted mt-0.5">Total {students.length} Siswa</p>
         </div>
         <div className="flex items-center gap-2 self-end sm:self-auto">
           <button
@@ -208,7 +208,7 @@ export default function ClassDetail({
           <button
             onClick={handleCopyAllCodes}
             disabled={students.length === 0}
-            className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 rounded-xl text-xs font-bold transition-all"
+            className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed text-nb-ink rounded-xl text-xs font-bold transition-all"
             title="Salin semua kode akses siswa di kelas ini untuk dibagikan sekaligus"
           >
             <Copy className="w-3.5 h-3.5" />
@@ -216,7 +216,7 @@ export default function ClassDetail({
           </button>
           <button
             onClick={openSettings}
-            className="p-2.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl transition-all active:scale-95"
+            className="p-2.5 bg-gray-100 hover:bg-gray-200 text-nb-ink-muted rounded-xl transition-all active:scale-95"
             title="Pengaturan Kelas"
             aria-label="Pengaturan Kelas"
           >
@@ -233,7 +233,7 @@ export default function ClassDetail({
           )}
           <button
             onClick={onBack}
-            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all"
+            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-nb-ink rounded-xl text-xs font-bold transition-all"
           >
             {backLabel}
           </button>
@@ -241,21 +241,21 @@ export default function ClassDetail({
       </div>
 
       {copiedAll && (
-        <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-2xl text-[11px] font-bold text-emerald-700 flex items-center gap-2">
+        <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-2xl text-xs font-bold text-emerald-700 flex items-center gap-2">
           <Check className="w-3.5 h-3.5 shrink-0" />
           Kode siswa berhasil disalin
         </div>
       )}
 
       {missingCodeCount > 0 && (
-        <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <p className="text-[11px] font-bold text-blue-800">
+        <div className="p-4 bg-nb-green-soft border border-nb-rule rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <p className="text-xs font-bold text-nb-green-strong">
             {missingCodeCount} siswa belum punya kode akses Student Companion.
           </p>
           <button
             onClick={handleGenerateMissingCodes}
             disabled={generating}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-xl text-[11px] font-bold transition-colors shadow-sm shrink-0"
+            className="px-4 py-2 bg-[#2F6B4F] hover:bg-[#24563F] disabled:bg-[#DDE3D8] disabled:text-[#5D665E] text-white rounded-xl text-xs font-bold transition-colors shadow-sm shrink-0"
           >
             {generating ? 'Membuat...' : 'Buatkan Kode'}
           </button>
@@ -263,34 +263,34 @@ export default function ClassDetail({
       )}
 
       {students.length === 0 ? (
-        <p className="text-xs font-bold text-gray-400 text-center py-10">Belum ada siswa di kelas ini.</p>
+        <p className="text-xs font-bold text-nb-ink-muted text-center py-10">Belum ada siswa di kelas ini.</p>
       ) : (
         <div className="space-y-2.5">
           {students.map((student, idx) => (
             <div
               key={student.id}
-              className="p-4 bg-gray-50 rounded-2xl flex justify-between items-center border border-gray-100 shadow-sm hover:border-emerald-200 transition-all"
+              className="p-4 bg-nb-workspace rounded-2xl flex justify-between items-center border border-[#D9DED5] shadow-sm hover:border-emerald-200 transition-all"
             >
               <div className="flex items-center gap-4">
                 <span className="w-7 h-7 rounded-xl bg-emerald-100 text-emerald-700 font-extrabold text-xs flex items-center justify-center shrink-0">
                   {idx + 1}
                 </span>
                 <div>
-                  <p className="text-sm font-extrabold text-gray-900">{student.name}</p>
-                  <p className="text-[10px] font-bold text-gray-500 mt-0.5">NIS: {student.nis || '-'}</p>
+                  <p className="text-sm font-extrabold text-[#242923]">{student.name}</p>
+                  <p className="text-xs font-bold text-[#5D665E] mt-0.5">NIS: {student.nis || '-'}</p>
                   {student.accessCode && (
                     <button
                       onClick={() => handleCopyCode(student)}
-                      className="mt-1.5 inline-flex items-center gap-1.5 px-2 py-1 bg-white border border-gray-200 hover:border-blue-300 rounded-lg transition-colors"
+                      className="mt-1.5 inline-flex items-center gap-1.5 px-2 py-1 bg-[#FFFEF9] border border-[#D9DED5] hover:border-nb-green/40 rounded-lg transition-colors"
                       title="Salin kode akses Student Companion"
                     >
-                      <span className="text-[10px] font-extrabold tracking-widest text-blue-600">
+                      <span className="text-xs font-extrabold tracking-widest text-[#2F6B4F]">
                         {student.accessCode}
                       </span>
                       {copiedId === student.id ? (
                         <Check className="w-3 h-3 text-emerald-600" />
                       ) : (
-                        <Copy className="w-3 h-3 text-gray-400" />
+                        <Copy className="w-3 h-3 text-nb-ink-muted" />
                       )}
                     </button>
                   )}
@@ -376,7 +376,7 @@ export default function ClassDetail({
               autoCapitalize="off"
               spellCheck={false}
             />
-            <p className="text-[10px] text-gray-400 mt-1.5">
+            <p className="text-xs text-nb-ink-muted mt-1.5">
               Boleh mengandung spasi dan angka, mis. &quot;XI A KESEHATAN 1&quot;. Mengganti nama akan otomatis
               merapikan seluruh data terkait kelas ini (siswa, jurnal, presensi, nilai, tugas, pengumuman, jadwal) —
               termasuk akun Student Companion siswa, supaya mereka tidak kehilangan akses.
@@ -388,7 +388,7 @@ export default function ClassDetail({
               type="button"
               onClick={() => setShowSettings(false)}
               disabled={renaming}
-              className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 rounded-xl text-xs font-bold transition-colors"
+              className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-nb-ink rounded-xl text-xs font-bold transition-colors"
             >
               Batal
             </button>

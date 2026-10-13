@@ -28,21 +28,21 @@ export default function StudentShell({ title, subtitle, children }: StudentShell
 
   if (loading || !profile) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 gap-3">
-        <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center animate-pulse shadow-lg shadow-blue-200">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-nb-workspace gap-3">
+        <div className="w-10 h-10 bg-nb-green rounded-2xl flex items-center justify-center animate-pulse shadow-lg shadow-nb-green/20">
           <GraduationCap className="w-6 h-6 text-white" />
         </div>
-        <p className="text-xs font-bold text-gray-500 tracking-wide">Memuat...</p>
+        <p className="text-xs font-bold text-nb-ink-muted tracking-wide">Memuat...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-5 pb-24">
+    <div className="min-h-screen bg-nb-workspace p-5 pb-24">
       <div className="max-w-md mx-auto space-y-5">
         <div>
-          <h1 className="text-lg font-extrabold text-gray-900">{title}</h1>
-          <p className="text-xs text-gray-500">{subtitle || `Kelas ${profile.className}`}</p>
+          <h1 className="text-lg font-extrabold text-nb-ink">{title}</h1>
+          <p className="text-xs text-nb-ink-muted">{subtitle || `Kelas ${profile.className}`}</p>
         </div>
         {children(profile)}
       </div>

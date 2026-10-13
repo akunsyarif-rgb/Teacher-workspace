@@ -22,11 +22,11 @@ export default function Button({
   className = '', // default kosong
 }: ButtonProps) {
   const baseClass =
-    'w-full py-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 active:scale-[0.97]';
+    'w-full min-h-11 py-3 rounded-2xl text-sm font-bold transition-all flex items-center justify-center gap-2 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2F6B4F]';
   const variantClass =
     variant === 'primary'
-      ? 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white shadow-sm'
-      : 'bg-gray-100 hover:bg-gray-200 text-gray-700';
+      ? 'bg-[#2F6B4F] hover:bg-[#24563F] disabled:bg-[#DDE3D8] disabled:text-[#5D665E] text-white shadow-sm'
+      : 'bg-[#F0EEE6] hover:bg-[#E7E5DC] text-[#242923]';
 
   return (
     <button

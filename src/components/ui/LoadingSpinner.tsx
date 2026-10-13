@@ -16,8 +16,8 @@ export default function LoadingSpinner({ size = 'md', text = 'Memuat...' }: Load
 
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-12">
-      <div className={`${sizeClass} border-blue-600 border-t-transparent rounded-full animate-spin`} />
-      <p className="text-xs font-bold text-gray-500">{text}</p>
+      <div className={`${sizeClass} border-nb-green border-t-transparent rounded-full animate-spin`} />
+      <p className="text-xs font-bold text-nb-ink-muted">{text}</p>
     </div>
   );
 }

@@ -28,38 +28,38 @@ export default function PlanStatusCard() {
   return (
     <Card className="space-y-3">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+        <div className="w-10 h-10 rounded-2xl bg-nb-green-soft text-nb-green flex items-center justify-center">
           <CreditCard className="w-5 h-5" />
         </div>
         <div>
-          <h2 className="text-lg font-bold text-gray-900">Paket Workspace</h2>
-          <p className="text-xs text-gray-500">Kelola paket &amp; pembayaran workspace-mu</p>
+          <h2 className="text-lg font-bold text-nb-ink">Paket Workspace</h2>
+          <p className="text-xs text-nb-ink-muted">Kelola paket &amp; pembayaran workspace-mu</p>
         </div>
       </div>
 
-      {/* text-gray-600 eksplisit: tanpa itu label mengikuti warna bawaan body, yang hampir putih di mode gelap (tak terbaca di atas latar abu muda). */}
-      <div className="p-3 bg-gray-50 rounded-xl text-xs text-gray-600 space-y-1">
+      {/* text-nb-ink-muted eksplisit: tanpa itu label mengikuti warna bawaan body, yang hampir putih di mode gelap (tak terbaca di atas latar abu muda). */}
+      <div className="p-3 bg-nb-workspace rounded-xl text-xs text-nb-ink-muted space-y-1">
         <p>
-          Paket saat ini: <span className="font-bold text-gray-900">{planLabel}</span>
+          Paket saat ini: <span className="font-bold text-nb-ink">{planLabel}</span>
         </p>
         <p>
-          Batas kelas: <span className="font-bold text-gray-900">{workspace.classLimit ?? 'Tak terbatas'}</span>
+          Batas kelas: <span className="font-bold text-nb-ink">{workspace.classLimit ?? 'Tak terbatas'}</span>
         </p>
         {workspace.seatLimit !== undefined && workspace.seatLimit !== null && (
           <p>
-            Kuota guru: <span className="font-bold text-gray-900">{workspace.seatLimit}</span>
+            Kuota guru: <span className="font-bold text-nb-ink">{workspace.seatLimit}</span>
           </p>
         )}
         {expiresAt && (
           <p>
-            Berlaku sampai: <span className="font-bold text-gray-900">{expiresAt}</span>
+            Berlaku sampai: <span className="font-bold text-nb-ink">{expiresAt}</span>
           </p>
         )}
       </div>
 
       <Link
         href="/upgrade"
-        className="flex items-center justify-center gap-2 w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold transition-all"
+        className="flex items-center justify-center gap-2 w-full py-3 bg-nb-green hover:bg-nb-green-strong text-white rounded-2xl text-xs font-bold transition-all"
       >
         <span>Lihat/Upgrade Paket</span>
         <ArrowRight className="w-4 h-4" />

@@ -71,7 +71,7 @@ export default function SkipReasonModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Konfirmasi Sesi Terlewat">
       <div className="space-y-4">
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-nb-ink-muted">
           Kelas {className} • {timeSlot} sudah lewat tanpa presensi/jurnal. Ini bukan kesalahan otomatis — catat
           alasannya kalau memang tidak sempat mengajar.
         </p>
@@ -84,8 +84,8 @@ export default function SkipReasonModal({
               onClick={() => setReason(option)}
               className={`px-3 py-2.5 rounded-xl text-xs font-bold text-left transition-colors border ${
                 reason === option
-                  ? 'bg-blue-50 border-blue-300 text-blue-700'
-                  : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                  ? 'bg-nb-green-soft border-nb-green/40 text-nb-green-strong'
+                  : 'bg-nb-workspace border-nb-rule text-nb-ink-muted hover:bg-gray-100'
               }`}
             >
               {option}
@@ -94,7 +94,7 @@ export default function SkipReasonModal({
         </div>
 
         <div>
-          <label className="text-xs font-bold text-gray-700 block mb-1">
+          <label className="text-xs font-bold text-nb-ink block mb-1">
             Keterangan {isLainnya ? '(wajib)' : '(opsional)'}
           </label>
           <textarea
@@ -102,7 +102,7 @@ export default function SkipReasonModal({
             onChange={(e) => setNote(e.target.value)}
             rows={3}
             placeholder={isLainnya ? 'Jelaskan alasannya...' : 'Catatan tambahan (opsional)'}
-            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+            className="w-full p-3 bg-nb-paper border border-nb-control rounded-xl text-xs text-nb-ink outline-none focus:bg-nb-paper focus:ring-2 focus:ring-nb-green"
           />
         </div>
 
@@ -113,7 +113,7 @@ export default function SkipReasonModal({
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 rounded-xl text-xs font-bold transition-colors"
+            className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-nb-ink rounded-xl text-xs font-bold transition-colors"
           >
             Batal
           </button>

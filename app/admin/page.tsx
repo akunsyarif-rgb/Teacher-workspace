@@ -66,18 +66,18 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 md:p-10 pb-24">
+    <div className="min-h-screen bg-nb-workspace p-4 sm:p-6 md:p-10 pb-24">
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center gap-3">
-          <Link href="/account" className="p-2 -ml-2 text-gray-400 hover:text-gray-600" aria-label="Kembali ke Akun">
+          <Link href="/account" className="p-2 -ml-2 text-nb-ink-muted hover:text-nb-ink-muted" aria-label="Kembali ke Akun">
             <ArrowLeft className="w-5 h-5" />
           </Link>
-          <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-200">
+          <div className="w-10 h-10 rounded-2xl bg-nb-green text-white flex items-center justify-center shadow-md shadow-nb-green/20">
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-extrabold text-gray-900">Menu Admin</h1>
-            <p className="text-xs text-gray-500">Kelola guru di workspace sekolahmu</p>
+            <h1 className="text-xl font-extrabold text-nb-ink">Menu Admin</h1>
+            <p className="text-xs text-nb-ink-muted">Kelola guru di workspace sekolahmu</p>
           </div>
         </div>
 
@@ -85,21 +85,21 @@ export default function AdminPage() {
           {workspaceLoading ? (
             <LoadingSpinner text="Memuat..." />
           ) : !allowed ? (
-            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm text-center space-y-1">
-              <p className="text-sm font-extrabold text-gray-900">Menu ini khusus pemilik workspace sekolah</p>
-              <p className="text-xs text-gray-500">Akunmu tidak memiliki akses ke halaman ini.</p>
+            <div className="bg-nb-paper p-6 rounded-3xl border border-nb-rule shadow-sm text-center space-y-1">
+              <p className="text-sm font-extrabold text-nb-ink">Menu ini khusus pemilik workspace sekolah</p>
+              <p className="text-xs text-nb-ink-muted">Akunmu tidak memiliki akses ke halaman ini.</p>
             </div>
           ) : (
             <>
               <InviteCodeCard />
 
-              <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-3">
+              <div className="bg-nb-paper p-5 rounded-3xl shadow-sm border border-nb-rule space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4 text-blue-600" />
-                    <p className="text-sm font-extrabold text-gray-900">Guru di Workspace</p>
+                    <Users className="w-4 h-4 text-nb-green" />
+                    <p className="text-sm font-extrabold text-nb-ink">Guru di Workspace</p>
                   </div>
-                  <p className="text-[11px] font-bold text-gray-400">
+                  <p className="text-xs font-bold text-nb-ink-muted">
                     {members.length}
                     {seatLimit !== null ? ` dari ${seatLimit}` : ""} guru
                   </p>
@@ -114,22 +114,22 @@ export default function AdminPage() {
                     {members.map((member) => (
                       <li key={member.uid} className="flex items-center justify-between gap-3 py-3">
                         <div className="min-w-0">
-                          <p className="text-xs font-bold text-gray-900 truncate">
+                          <p className="text-xs font-bold text-nb-ink truncate">
                             {member.name}
-                            {member.isYou && <span className="text-gray-400 font-medium"> (kamu)</span>}
+                            {member.isYou && <span className="text-nb-ink-muted font-medium"> (kamu)</span>}
                           </p>
-                          <p className="text-[11px] text-gray-500 truncate">
+                          <p className="text-xs text-nb-ink-muted truncate">
                             {[member.email, member.subject].filter(Boolean).join(" · ") || "—"}
                           </p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-[10px] font-extrabold uppercase tracking-wide text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">
+                          <span className="text-xs font-extrabold uppercase tracking-wide text-nb-green bg-nb-green-soft px-2 py-1 rounded-lg">
                             {ROLE_LABEL[member.role] || member.role}
                           </span>
                           {member.role !== "OWNER" && !member.isYou && (
                             <button
                               onClick={() => setRemoveTarget(member)}
-                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                              className="p-2 text-nb-ink-muted hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
                               aria-label={`Keluarkan ${member.name}`}
                               title="Keluarkan dari workspace"
                             >

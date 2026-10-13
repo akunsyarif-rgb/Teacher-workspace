@@ -122,13 +122,13 @@ export default function ConfirmDeleteModal({
             <p className={`text-sm font-extrabold ${textColor}`}>
               Anda akan menghapus:
             </p>
-            <p className="text-base font-black text-gray-900">{itemName}</p>
+            <p className="text-base font-black text-nb-ink">{itemName}</p>
             {itemDetail && (
-              <p className="text-xs font-medium text-gray-500">{itemDetail}</p>
+              <p className="text-xs font-medium text-nb-ink-muted">{itemDetail}</p>
             )}
           </div>
 
-          <p className="text-xs text-gray-500 mt-2">
+          <p className="text-xs text-nb-ink-muted mt-2">
             Data yang dihapus <span className="font-bold text-red-500">tidak dapat dikembalikan</span>.
           </p>
 

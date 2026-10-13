@@ -80,31 +80,31 @@ export default function LoginPage() {
 
   if (checkingSession) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 gap-3">
-        <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center animate-pulse shadow-lg shadow-blue-200">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-nb-workspace gap-3">
+        <div className="w-10 h-10 bg-nb-green rounded-2xl flex items-center justify-center animate-pulse shadow-lg shadow-nb-green/20">
           <GraduationCap className="w-6 h-6 text-white" />
         </div>
-        <p className="text-xs font-bold text-gray-500 tracking-wide">Memeriksa sesi...</p>
+        <p className="text-xs font-bold text-nb-ink-muted tracking-wide">Memeriksa sesi...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
+    <div className="min-h-screen bg-nb-workspace flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-nb-paper p-8 rounded-3xl shadow-sm border border-nb-rule space-y-6">
         <div className="flex flex-col items-center text-center space-y-2">
-          <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-md shadow-blue-200">
+          <div className="w-12 h-12 bg-nb-green rounded-2xl flex items-center justify-center shadow-md shadow-nb-green/20">
             <GraduationCap className="w-7 h-7 text-white" />
           </div>
 
-        <p className="text-center text-xs text-gray-400">
+        <p className="text-center text-xs text-nb-ink-muted">
           Belum punya akun?{' '}
-          <a href="/signup" className="text-blue-600 font-bold hover:underline">
+          <a href="/signup" className="text-nb-green font-bold hover:underline">
             Daftar di sini
           </a>
         </p>
-          <h1 className="text-xl font-extrabold text-gray-900 mt-2">Masuk ke Aplikasi Guru</h1>
-          <p className="text-xs text-gray-400">Kelola absensi, jurnal, dan kegiatan kelas dengan mudah</p>
+          <h1 className="text-xl font-extrabold text-nb-ink mt-2">Masuk ke Aplikasi Guru</h1>
+          <p className="text-xs text-nb-ink-muted">Kelola absensi, jurnal, dan kegiatan kelas dengan mudah</p>
         </div>
 
         {/* Jalur siswa dibuat menonjol (bukan cuma tautan teks kecil di
@@ -114,23 +114,23 @@ export default function LoginPage() {
             pemilihan baru. */}
         <a
           href="/student/login"
-          className="flex items-center justify-between gap-3 p-4 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-2xl transition-colors group"
+          className="flex items-center justify-between gap-3 p-4 bg-nb-green-soft hover:bg-nb-green-soft border border-nb-rule rounded-2xl transition-colors group"
         >
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shrink-0 shadow-sm shadow-blue-200">
+            <div className="w-10 h-10 bg-nb-green rounded-xl flex items-center justify-center shrink-0 shadow-sm shadow-nb-green/20">
               <Users className="w-5 h-5 text-white" />
             </div>
             <div className="min-w-0 text-left">
-              <p className="text-xs font-extrabold text-gray-900">Masuk sebagai Siswa</p>
-              <p className="text-[10px] text-gray-500 truncate">Buka Student Companion pakai kode akses dari guru</p>
+              <p className="text-xs font-extrabold text-nb-ink">Masuk sebagai Siswa</p>
+              <p className="text-xs text-nb-ink-muted truncate">Buka Student Companion pakai kode akses dari guru</p>
             </div>
           </div>
-          <ArrowRight className="w-4 h-4 text-blue-600 group-hover:translate-x-0.5 transition-transform shrink-0" />
+          <ArrowRight className="w-4 h-4 text-nb-green group-hover:translate-x-0.5 transition-transform shrink-0" />
         </a>
 
         <div className="flex items-center gap-3">
           <div className="flex-1 h-px bg-gray-100" />
-          <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">atau, Guru masuk di sini</span>
+          <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">atau, Guru masuk di sini</span>
           <div className="flex-1 h-px bg-gray-100" />
         </div>
 
@@ -148,41 +148,41 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Email Akun</label>
+            <label className="text-xs font-bold text-nb-ink-muted uppercase tracking-wider">Email Akun</label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
+              <Mail className="w-4 h-4 text-nb-ink-muted absolute left-3.5 top-3.5" />
               <input
                 type="email"
                 placeholder="nama@sekolah.sch.id"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-extrabold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+                className="w-full pl-10 pr-4 py-3 bg-nb-paper border border-nb-control rounded-2xl text-xs font-extrabold text-nb-ink outline-none focus:bg-nb-paper focus:ring-2 focus:ring-nb-green"
               />
             </div>
           </div>
 
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Kata Sandi</label>
+              <label className="text-xs font-bold text-nb-ink-muted uppercase tracking-wider">Kata Sandi</label>
               <button
                 type="button"
                 onClick={handleForgotPassword}
                 disabled={resetLoading}
-                className="text-[10px] font-bold text-blue-600 hover:underline disabled:text-blue-300"
+                className="text-xs font-bold text-nb-green hover:underline disabled:text-blue-300"
               >
                 {resetLoading ? "Mengirim..." : "Lupa kata sandi?"}
               </button>
             </div>
             <div className="relative">
-              <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
+              <Lock className="w-4 h-4 text-nb-ink-muted absolute left-3.5 top-3.5" />
               <input
                 type="password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-extrabold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+                className="w-full pl-10 pr-4 py-3 bg-nb-paper border border-nb-control rounded-2xl text-xs font-extrabold text-nb-ink outline-none focus:bg-nb-paper focus:ring-2 focus:ring-nb-green"
               />
             </div>
           </div>
@@ -190,7 +190,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-blue-200 transition-all active:scale-[0.97] flex items-center justify-center gap-2 mt-2"
+            className="w-full py-3.5 bg-nb-green hover:bg-nb-green-strong text-white rounded-2xl text-xs font-bold shadow-md shadow-nb-green/20 transition-all active:scale-[0.97] flex items-center justify-center gap-2 mt-2"
           >
             <span>{loading ? "Memproses..." : "Masuk ke Beranda"}</span>
             <ArrowRight className="w-4 h-4" />

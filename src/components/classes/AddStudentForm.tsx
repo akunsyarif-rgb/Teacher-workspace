@@ -56,7 +56,7 @@ export default function AddStudentForm({ onAdded, lockedClassName }: AddStudentF
           <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
             <UserPlus className="w-4 h-4" />
           </div>
-          <h3 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">Tambah 1 Siswa</h3>
+          <h3 className="text-xs font-extrabold text-nb-ink uppercase tracking-wider">Tambah 1 Siswa</h3>
         </div>
 
         {error && (
@@ -71,8 +71,8 @@ export default function AddStudentForm({ onAdded, lockedClassName }: AddStudentF
 
           {lockedClassName ? (
             <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Kelas</label>
-              <p className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-extrabold text-gray-700">
+              <label className="text-xs font-bold text-nb-ink block mb-1">Kelas</label>
+              <p className="p-3 bg-nb-paper border border-nb-control rounded-xl text-xs font-extrabold text-nb-ink">
                 {lockedClassName}
               </p>
             </div>

@@ -6,7 +6,7 @@ import InlineAlert from "@/src/components/ui/InlineAlert";
 import * as ulangan from "@/lib/controllers/ulanganController";
 import type { ExamDetail, QuestionInput } from "@/lib/types/ulangan";
 
-const field = "w-full px-3 py-2.5 rounded-xl border border-gray-200 text-xs bg-white text-gray-900";
+const field = "w-full px-3 py-2.5 rounded-xl border border-nb-rule text-xs bg-nb-paper text-nb-ink";
 const blankQ = (): QuestionInput => ({ body: "", options: ["", "", "", ""], correctIndex: 0 });
 const toLocal = (iso: string) => {
   const d = new Date(iso);
@@ -54,7 +54,7 @@ export default function ExamEditor({ initial, classNames, onSaved, onCancel }: {
       <input className={field} placeholder="Judul ulangan (mis. UH Bab 1)" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} />
       <input className={field} placeholder="Mata pelajaran" value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={100} />
       {qs.map((q, i) => (
-        <div key={i} className="bg-white p-3 rounded-2xl border border-gray-100 space-y-2">
+        <div key={i} className="bg-nb-paper p-3 rounded-2xl border border-nb-rule space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-xs font-extrabold">Soal {i + 1}</p>
             <button type="button" aria-label={`Hapus soal ${i + 1}`} onClick={() => setQs((a) => a.filter((_, j) => j !== i))} className="p-2 text-red-500"><Trash2 className="w-4 h-4" /></button>
@@ -66,24 +66,24 @@ export default function ExamEditor({ initial, classNames, onSaved, onCancel }: {
               <input className={field} placeholder={`Pilihan ${String.fromCharCode(65 + k)}`} value={o} onChange={(e) => patch(i, { options: q.options.map((x, j) => (j === k ? e.target.value : x)) })} maxLength={500} />
             </label>
           ))}
-          <p className="text-[10px] text-gray-400">Pilih tombol bulat di samping jawaban yang benar.</p>
+          <p className="text-xs text-nb-ink-muted">Pilih tombol bulat di samping jawaban yang benar.</p>
         </div>
       ))}
       <button type="button" onClick={() => setQs((a) => [...a, blankQ()])} disabled={qs.length >= 100} className="w-full py-2.5 rounded-2xl text-xs font-bold bg-gray-100 flex items-center justify-center gap-1"><Plus className="w-4 h-4" />Tambah soal</button>
 
-      <label className="block text-[10px] font-bold text-gray-500">Durasi (menit)
+      <label className="block text-xs font-bold text-nb-ink-muted">Durasi (menit)
         <input className={field} type="number" min={1} max={300} value={duration} onChange={(e) => setDuration(Number(e.target.value))} />
       </label>
-      <label className="block text-[10px] font-bold text-gray-500">Dibuka
+      <label className="block text-xs font-bold text-nb-ink-muted">Dibuka
         <input className={field} type="datetime-local" value={opens} onChange={(e) => setOpens(e.target.value)} />
       </label>
-      <label className="block text-[10px] font-bold text-gray-500">Ditutup
+      <label className="block text-xs font-bold text-nb-ink-muted">Ditutup
         <input className={field} type="datetime-local" value={closes} onChange={(e) => setCloses(e.target.value)} />
       </label>
-      <fieldset className="space-y-1"><legend className="text-[10px] font-bold text-gray-500">Kelas</legend>
+      <fieldset className="space-y-1"><legend className="text-xs font-bold text-nb-ink-muted">Kelas</legend>
         <div className="flex flex-wrap gap-2">
           {classNames.map((c) => (
-            <label key={c} className={`px-3 py-2 rounded-xl text-xs border ${classes.includes(c) ? "bg-blue-50 border-blue-500 font-bold" : "border-gray-200"}`}>
+            <label key={c} className={`px-3 py-2 rounded-xl text-xs border ${classes.includes(c) ? "bg-nb-green-soft border-nb-green font-bold" : "border-nb-rule"}`}>
               <input type="checkbox" className="sr-only" checked={classes.includes(c)} onChange={() => setClasses((a) => (a.includes(c) ? a.filter((x) => x !== c) : [...a, c]))} />{c}
             </label>
           ))}
@@ -91,11 +91,11 @@ export default function ExamEditor({ initial, classNames, onSaved, onCancel }: {
       </fieldset>
       <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={shuffle} onChange={(e) => setShuffle(e.target.checked)} />Acak urutan soal dan pilihan</label>
       <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={showResult} onChange={(e) => setShowResult(e.target.checked)} />Tampilkan nilai ke siswa setelah selesai</label>
-      <p className="text-[10px] text-gray-400">Ulangan yang sudah diterbitkan tidak bisa diubah. Waktu mengikuti jam perangkatmu; server membatasi waktu pengerjaan siswa.</p>
+      <p className="text-xs text-nb-ink-muted">Ulangan yang sudah diterbitkan tidak bisa diubah. Waktu mengikuti jam perangkatmu; server membatasi waktu pengerjaan siswa.</p>
       <div className="grid grid-cols-3 gap-2">
         <button type="button" onClick={onCancel} className="py-3 rounded-2xl text-xs font-bold bg-gray-100">Batal</button>
         <button type="button" disabled={busy} onClick={() => save(false)} className="py-3 rounded-2xl text-xs font-bold bg-gray-200">Simpan Draft</button>
-        <button type="button" disabled={busy} onClick={() => save(true)} className="py-3 rounded-2xl text-xs font-bold bg-blue-600 text-white disabled:bg-blue-300">Terbitkan</button>
+        <button type="button" disabled={busy} onClick={() => save(true)} className="py-3 rounded-2xl text-xs font-bold bg-nb-green text-white disabled:bg-[#DDE3D8] disabled:text-[#5D665E]">Terbitkan</button>
       </div>
     </div>
   );

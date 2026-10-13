@@ -95,25 +95,25 @@ export default function MigrateWorkspacePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
-      <div className="max-w-lg w-full bg-white p-6 rounded-3xl shadow-sm border border-gray-100 space-y-4">
-        <h1 className="text-lg font-extrabold text-gray-900">Migrasi Data ke Workspace</h1>
-        <p className="text-xs text-gray-500">
+    <div className="min-h-screen bg-nb-workspace p-6 flex items-center justify-center">
+      <div className="max-w-lg w-full bg-nb-paper p-6 rounded-3xl shadow-sm border border-nb-rule space-y-4">
+        <h1 className="text-lg font-extrabold text-nb-ink">Migrasi Data ke Workspace</h1>
+        <p className="text-xs text-nb-ink-muted">
           Halaman ini hanya dipakai SEKALI untuk memindahkan data lama Anda ke sistem Workspace baru.
         </p>
 
         <button
           onClick={handleMigrate}
           disabled={running || done}
-          className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-2xl text-xs font-bold"
+          className="w-full py-3 bg-nb-green hover:bg-nb-green-strong disabled:opacity-50 text-white rounded-2xl text-xs font-bold"
         >
           {running ? 'Sedang migrasi...' : done ? 'Selesai' : 'Jalankan Migrasi'}
         </button>
 
         {log.length > 0 && (
-          <div className="bg-gray-50 rounded-xl p-3 space-y-1 max-h-96 overflow-y-auto">
+          <div className="bg-nb-workspace rounded-xl p-3 space-y-1 max-h-96 overflow-y-auto">
             {log.map((line, i) => (
-              <p key={i} className="text-[11px] font-mono text-gray-700">
+              <p key={i} className="text-xs font-mono text-nb-ink">
                 {line}
               </p>
             ))}

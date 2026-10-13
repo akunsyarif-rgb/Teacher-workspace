@@ -26,9 +26,9 @@ export default function MarkCompletedConfirmModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Tandai Presensi Selesai?">
       <div className="space-y-4">
-        <div className="p-3.5 bg-blue-50 border border-blue-100 rounded-2xl flex items-start gap-2.5">
-          <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-          <p className="text-xs text-blue-800">
+        <div className="p-3.5 bg-nb-green-soft border border-nb-rule rounded-2xl flex items-start gap-2.5">
+          <CheckCircle2 className="w-4 h-4 text-nb-green shrink-0 mt-0.5" />
+          <p className="text-xs text-nb-green-strong">
             Presensi akan ditandai selesai. Ini murni penanda progres — status masih bisa dikoreksi kapan saja
             setelah ini kalau ada kesalahan.
           </p>
@@ -38,7 +38,7 @@ export default function MarkCompletedConfirmModal({
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 rounded-xl text-xs font-bold transition-colors"
+            className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-nb-ink rounded-xl text-xs font-bold transition-colors"
           >
             Batal
           </button>

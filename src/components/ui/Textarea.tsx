@@ -13,13 +13,13 @@ type TextareaProps = {
 export default function Textarea({ label, value, onChange, placeholder, rows = 3 }: TextareaProps) {
   return (
     <div>
-      <label className="text-xs font-bold text-gray-700 block mb-1">{label}</label>
+      <label className="text-xs font-bold text-nb-ink block mb-1">{label}</label>
       <textarea
         rows={rows}
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-base sm:text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+        className="w-full p-3 bg-nb-paper border border-nb-control rounded-xl text-base sm:text-sm text-nb-ink outline-none focus:bg-nb-paper focus:ring-2 focus:ring-nb-green"
       />
     </div>
   );

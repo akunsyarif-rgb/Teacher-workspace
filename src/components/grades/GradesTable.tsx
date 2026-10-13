@@ -60,18 +60,18 @@ function GradeCell({
   if (isLocked) {
     return (
       <div className="relative inline-flex items-center justify-center">
-        <span className="w-16 h-9 flex items-center justify-center gap-1 bg-emerald-50 border border-emerald-200 rounded-xl font-bold text-sm text-emerald-700">
+        <span className="flex h-9 w-16 items-center justify-center gap-1 rounded-xl border border-[#B6C8B8] bg-[#EDF3E8] text-sm font-bold text-[#24563F]">
           <Lock className="w-2.5 h-2.5 shrink-0" />
           {savedValue}
         </span>
         <button
           type="button"
           onClick={() => onRequestUnlock(studentId, col.id)}
-          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50 transition-colors active:scale-90"
+          className="absolute -top-1.5 -right-1.5 flex h-6 w-6 items-center justify-center rounded-full border border-[#D9DED5] bg-[#FFFEF9] shadow-sm transition-colors hover:bg-[#F7F5EF] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6B4F]"
           title="Edit nilai"
           aria-label={`Edit nilai ${studentName} - ${col.title}`}
         >
-          <Pencil className="w-2.5 h-2.5 text-gray-500" />
+          <Pencil className="w-2.5 h-2.5 text-[#5D665E]" />
         </button>
       </div>
     );
@@ -87,8 +87,8 @@ function GradeCell({
         value={currentValue}
         onChange={(e) => onScoreChange(studentId, col.id, e.target.value)}
         aria-label={`Nilai ${studentName} - ${col.title}`}
-        className={`w-16 p-2 text-center border rounded-xl font-bold text-sm text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600 ${
-          isDraft ? 'bg-amber-50 border-amber-300' : 'bg-gray-50 border-gray-200'
+        className={`w-16 p-2 text-center border rounded-xl font-bold text-sm text-nb-ink outline-none focus:bg-nb-paper focus:ring-2 focus:ring-[#2F6B4F] ${
+          isDraft ? 'bg-amber-50 border-amber-300' : 'bg-[#F7F5EF] border-[#D9DED5]'
         }`}
       />
       {isDraft && (
@@ -130,11 +130,11 @@ const GradesRow = React.memo(function GradesRow({
   onRequestUnlock,
 }: GradesRowProps) {
   return (
-    <tr className="hover:bg-gray-50/50 transition-colors">
-      <td className="p-4 text-center text-gray-400 font-bold">{idx + 1}</td>
-      <td className="p-4 font-bold text-gray-900 sticky left-0 bg-white z-10">
+    <tr className="transition-colors hover:bg-[#F7F5EF]/70">
+      <td className="p-4 text-center text-nb-ink-muted font-bold">{idx + 1}</td>
+      <td className="sticky left-0 z-10 bg-[#FFFEF9] p-4 font-bold text-[#242923]">
         <p className="text-sm">{student.name}</p>
-        <p className="text-[10px] text-gray-400 font-normal">NIS: {student.nis || '-'}</p>
+        <p className="text-xs text-[#687168] font-normal">NIS: {student.nis || '-'}</p>
       </td>
       {columns.map((col) => {
         const savedValue = studentSavedGrades?.[col.id] ?? '';
@@ -155,7 +155,7 @@ const GradesRow = React.memo(function GradesRow({
           </td>
         );
       })}
-      <td className="p-4 text-center text-sm font-extrabold text-blue-600 bg-blue-50/30">
+      <td className="p-4 text-center text-sm font-extrabold text-[#24563F] bg-[#EDF3E8] md:sticky md:right-0 md:z-10 md:border-l md:border-nb-rule">
         {calculateAverage(studentGrades, columns)}
       </td>
     </tr>
@@ -174,27 +174,27 @@ function GradesTable({
   onDeleteColumn,
 }: GradesTableProps) {
   if (students.length === 0) {
-    return <div className="text-center py-12 text-xs text-gray-400">Belum ada siswa terdaftar di kelas ini.</div>;
+    return <div className="text-center py-12 text-xs text-nb-ink-muted">Belum ada siswa terdaftar di kelas ini.</div>;
   }
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left border-collapse">
         <thead>
-          <tr className="bg-gray-50 border-b border-gray-100 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+          <tr className="border-b border-[#D9DED5] bg-[#F7F5EF] text-xs font-bold uppercase tracking-wider text-[#5D665E]">
             <th className="p-4 w-12 text-center">No</th>
-            <th className="p-4 min-w-[200px] sticky left-0 bg-gray-50 z-10">Nama Siswa</th>
+            <th className="sticky left-0 z-10 min-w-[200px] bg-[#F7F5EF] p-4">Nama Siswa</th>
             {columns.map((col) => (
               <th key={col.id} className="p-4 min-w-[130px] text-center">
                 <div className="flex flex-col items-center gap-1">
-                  <span className="text-gray-900 font-bold truncate max-w-[110px]" title={col.title}>
+                  <span className="text-[#242923] font-bold truncate max-w-[110px]" title={col.title}>
                     {col.title}
                   </span>
                   <div className="flex items-center gap-1">
                     <Badge label={col.type} />
                     <button
                       onClick={() => onEditColumn(col.id)}
-                      className="p-2 -m-1 text-gray-400 hover:text-blue-600 rounded active:scale-90 transition-transform"
+                      className="p-2 -m-1 text-nb-ink-muted hover:text-[#2F6B4F] rounded active:scale-90 transition-transform"
                       title="Edit Nama Kolom"
                       aria-label={`Edit Nama Kolom ${col.title}`}
                     >
@@ -212,10 +212,10 @@ function GradesTable({
                 </div>
               </th>
             ))}
-            <th className="p-4 min-w-[100px] text-center bg-blue-50/50 text-blue-700 font-extrabold">RATA-RATA</th>
+            <th className="min-w-[100px] bg-[#EDF3E8] p-4 text-center font-extrabold text-[#24563F] md:sticky md:right-0 md:z-10 md:border-l md:border-nb-rule">RATA-RATA</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100 text-xs">
+        <tbody className="divide-y divide-[#D9DED5] bg-[#FFFEF9] text-sm">
           {students.map((student, idx) => (
             <GradesRow
               key={student.id}

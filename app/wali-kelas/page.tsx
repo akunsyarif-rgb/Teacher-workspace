@@ -18,15 +18,15 @@ export default function WaliKelasPage() {
   const { teacherProfile } = useWorkspace();
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 md:p-10 pb-24">
+    <div className="min-h-screen bg-nb-workspace p-4 sm:p-6 md:p-10 pb-24">
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-200">
+          <div className="w-10 h-10 rounded-2xl bg-nb-green text-white flex items-center justify-center shadow-md shadow-nb-green/20">
             <GraduationCap className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-extrabold text-gray-900">Wali Kelas</h1>
-            <p className="text-xs text-gray-500">
+            <h1 className="text-xl font-extrabold text-nb-ink">Wali Kelas</h1>
+            <p className="text-xs text-nb-ink-muted">
               {teacherProfile?.homeroomClassName
                 ? `Kelas ${teacherProfile.homeroomClassName}`
                 : "Menu khusus guru wali kelas"}
@@ -35,19 +35,19 @@ export default function WaliKelasPage() {
         </div>
 
         <HomeroomGuard featureName="Wali Kelas" icon={GraduationCap}>
-          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 divide-y divide-gray-100 overflow-hidden">
+          <div className="bg-nb-paper rounded-3xl shadow-sm border border-nb-rule divide-y divide-gray-100 overflow-hidden">
             {WALI_KELAS_MENU_ITEMS.map(({ href, label, desc, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}
-                className="flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-3 p-4 hover:bg-nb-workspace transition-colors"
               >
-                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 rounded-xl bg-nb-green-soft text-nb-green flex items-center justify-center shrink-0">
                   <Icon className="w-4 h-4" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-extrabold text-gray-900">{label}</p>
-                  <p className="text-[10px] text-gray-500 truncate">{desc}</p>
+                  <p className="text-xs font-extrabold text-nb-ink">{label}</p>
+                  <p className="text-xs text-nb-ink-muted truncate">{desc}</p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
               </Link>

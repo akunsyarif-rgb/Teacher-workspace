@@ -91,14 +91,14 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
+    <div className="min-h-screen bg-nb-workspace flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-nb-paper p-8 rounded-3xl shadow-sm border border-nb-rule space-y-6">
         <div className="flex flex-col items-center text-center space-y-2">
-          <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-md shadow-blue-200">
+          <div className="w-12 h-12 bg-nb-green rounded-2xl flex items-center justify-center shadow-md shadow-nb-green/20">
             <GraduationCap className="w-7 h-7 text-white" />
           </div>
-          <h1 className="text-xl font-extrabold text-gray-900 mt-2">Daftar Akun Guru</h1>
-          <p className="text-xs text-gray-400">Buat Workspace baru atau gabung ke sekolah Anda</p>
+          <h1 className="text-xl font-extrabold text-nb-ink mt-2">Daftar Akun Guru</h1>
+          <p className="text-xs text-nb-ink-muted">Buat Workspace baru atau gabung ke sekolah Anda</p>
         </div>
 
         <div className="flex bg-gray-100 p-1.5 rounded-2xl">
@@ -107,8 +107,8 @@ export default function SignupPage() {
               key={key}
               type="button"
               onClick={() => setMode(key)}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-[11px] font-bold transition-all active:scale-95 ${
-                mode === key ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
+              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+                mode === key ? 'bg-nb-paper text-nb-green shadow-sm' : 'text-nb-ink-muted'
               }`}
             >
               <Icon className="w-3.5 h-3.5" />
@@ -125,64 +125,64 @@ export default function SignupPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Email Akun</label>
+            <label className="text-xs font-bold text-nb-ink-muted uppercase tracking-wider">Email Akun</label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
+              <Mail className="w-4 h-4 text-nb-ink-muted absolute left-3.5 top-3.5" />
               <input
                 type="email"
                 placeholder="nama@sekolah.sch.id"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-extrabold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+                className="w-full pl-10 pr-4 py-3 bg-nb-paper border border-nb-control rounded-2xl text-xs font-extrabold text-nb-ink outline-none focus:bg-nb-paper focus:ring-2 focus:ring-nb-green"
               />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Kata Sandi</label>
+            <label className="text-xs font-bold text-nb-ink-muted uppercase tracking-wider">Kata Sandi</label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
+              <Lock className="w-4 h-4 text-nb-ink-muted absolute left-3.5 top-3.5" />
               <input
                 type="password"
                 placeholder="Minimal 6 karakter"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-extrabold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+                className="w-full pl-10 pr-4 py-3 bg-nb-paper border border-nb-control rounded-2xl text-xs font-extrabold text-nb-ink outline-none focus:bg-nb-paper focus:ring-2 focus:ring-nb-green"
               />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Konfirmasi Kata Sandi</label>
+            <label className="text-xs font-bold text-nb-ink-muted uppercase tracking-wider">Konfirmasi Kata Sandi</label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
+              <Lock className="w-4 h-4 text-nb-ink-muted absolute left-3.5 top-3.5" />
               <input
                 type="password"
                 placeholder="Ulangi kata sandi"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-extrabold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+                className="w-full pl-10 pr-4 py-3 bg-nb-paper border border-nb-control rounded-2xl text-xs font-extrabold text-nb-ink outline-none focus:bg-nb-paper focus:ring-2 focus:ring-nb-green"
               />
             </div>
           </div>
 
           {(mode === 'individual' || mode === 'school') && (
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+              <label className="text-xs font-bold text-nb-ink-muted uppercase tracking-wider">
                 {mode === 'individual' ? 'Nama Workspace' : 'Nama Sekolah'}
               </label>
               <div className="relative">
-                <Building2 className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
+                <Building2 className="w-4 h-4 text-nb-ink-muted absolute left-3.5 top-3.5" />
                 <input
                   type="text"
                   placeholder={mode === 'individual' ? 'Contoh: Kelas Pak Syarif' : 'Contoh: SMA Negeri 2 Tarakan'}
                   value={workspaceName}
                   onChange={(e) => setWorkspaceName(e.target.value)}
                   required
-                  className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-extrabold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+                  className="w-full pl-10 pr-4 py-3 bg-nb-paper border border-nb-control rounded-2xl text-xs font-extrabold text-nb-ink outline-none focus:bg-nb-paper focus:ring-2 focus:ring-nb-green"
                 />
               </div>
             </div>
@@ -190,35 +190,35 @@ export default function SignupPage() {
 
           {mode === 'join' && (
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Kode Undangan</label>
+              <label className="text-xs font-bold text-nb-ink-muted uppercase tracking-wider">Kode Undangan</label>
               <div className="relative">
-                <KeyRound className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
+                <KeyRound className="w-4 h-4 text-nb-ink-muted absolute left-3.5 top-3.5" />
                 <input
                   type="text"
                   placeholder="Contoh: AB3D9F"
                   value={inviteCode}
                   onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
                   required
-                  className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-extrabold text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600 tracking-widest"
+                  className="w-full pl-10 pr-4 py-3 bg-nb-paper border border-nb-control rounded-2xl text-xs font-extrabold text-nb-ink outline-none focus:bg-nb-paper focus:ring-2 focus:ring-nb-green tracking-widest"
                 />
               </div>
-              <p className="text-[10px] text-gray-400 px-1">Minta kode ini ke admin sekolah Anda.</p>
+              <p className="text-xs text-nb-ink-muted px-1">Minta kode ini ke admin sekolah Anda.</p>
             </div>
           )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-blue-200 transition-all active:scale-[0.97] flex items-center justify-center gap-2 mt-2"
+            className="w-full py-3.5 bg-nb-green hover:bg-nb-green-strong text-white rounded-2xl text-xs font-bold shadow-md shadow-nb-green/20 transition-all active:scale-[0.97] flex items-center justify-center gap-2 mt-2"
           >
             <span>{loading ? 'Memproses...' : 'Daftar & Masuk'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
 
-        <p className="text-center text-xs text-gray-400">
+        <p className="text-center text-xs text-nb-ink-muted">
           Sudah punya akun?{' '}
-          <a href="/login" className="text-blue-600 font-bold hover:underline">
+          <a href="/login" className="text-nb-green font-bold hover:underline">
             Masuk di sini
           </a>
         </p>

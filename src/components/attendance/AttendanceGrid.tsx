@@ -23,7 +23,7 @@ type AttendanceGridProps = {
 // Lebar kolom tetap untuk tampilan spreadsheet (tablet/laptop, md+).
 const NAME_COL = 'w-[200px] shrink-0';
 const HISTORY_COL = 'w-[40px] shrink-0';
-const TODAY_COL = 'w-[300px] shrink-0';
+const TODAY_COL = 'w-[340px] shrink-0';
 
 function formatShortDate(dateStr: string): string {
   const d = new Date(dateStr);
@@ -35,7 +35,7 @@ function HistoryBadge({ detail, date }: { detail?: { status: string; late?: bool
   if (!detail) {
     return (
       <span
-        className="inline-flex shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-lg border border-dashed border-gray-200"
+        className="inline-flex shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-lg border border-dashed border-nb-rule"
         title={date}
       />
     );
@@ -48,7 +48,7 @@ function HistoryBadge({ detail, date }: { detail?: { status: string; late?: bool
       aria-label={`${formatShortDate(date)}: ${detail.status}${detail.late ? ' (Terlambat)' : ''}`}
     >
       <span
-        className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center text-[10px] sm:text-[11px] font-extrabold text-white ${bg}`}
+        className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center text-xs sm:text-xs font-extrabold text-white ${bg}`}
       >
         {STATUS_LETTER[detail.status] || '?'}
       </span>
@@ -66,8 +66,8 @@ function HistoryBadge({ detail, date }: { detail?: { status: string; late?: bool
 // jatuh rata ke tepi kiri di bawah nomornya (default reflow teks inline).
 function StudentName({ idx, name, className }: { idx: number; name: string; className?: string }) {
   return (
-    <p className={`flex gap-1.5 font-bold text-gray-900 ${className || ''}`}>
-      <span className="shrink-0 text-gray-400 font-normal">{idx + 1}.</span>
+    <p className={`flex gap-1.5 font-bold text-nb-ink ${className || ''}`}>
+      <span className="shrink-0 text-nb-ink-muted font-normal">{idx + 1}.</span>
       <span>{name}</span>
     </p>
   );
@@ -85,8 +85,9 @@ function TodayStatusControl({ value, onChange }: { value: TodayEntry; onChange: 
             onClick={() => onChange({ status: option, late: option === 'Hadir' ? value.late : false })}
             title={option}
             aria-label={option}
-            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center text-xs font-extrabold transition-all active:scale-90 ${
-              isActive ? `${STATUS_COLOR[option]} text-white shadow-sm` : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+            aria-pressed={isActive}
+            className={`w-11 h-11 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nb-green focus-visible:ring-offset-1 flex items-center justify-center text-xs font-extrabold transition-all active:scale-90 ${
+              isActive ? `${STATUS_COLOR[option]} text-white shadow-sm` : 'bg-gray-100 text-nb-ink-muted hover:bg-gray-200'
             }`}
           >
             {STATUS_LETTER[option]}
@@ -99,12 +100,13 @@ function TodayStatusControl({ value, onChange }: { value: TodayEntry; onChange: 
         onClick={() => onChange({ ...value, late: !value.late })}
         title="Terlambat (hanya berlaku untuk Hadir)"
         aria-label="Terlambat (hanya berlaku untuk Hadir)"
-        className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center transition-all active:scale-90 ${
+        aria-pressed={value.late}
+        className={`w-11 h-11 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nb-green focus-visible:ring-offset-1 flex items-center justify-center transition-all active:scale-90 ${
           value.status !== 'Hadir'
-            ? 'bg-gray-50 text-gray-200 cursor-not-allowed'
+            ? 'bg-[#F7F5EF] text-nb-ink-muted cursor-not-allowed'
             : value.late
             ? `${LATE_COLOR} text-white shadow-sm`
-            : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+            : 'bg-gray-100 text-nb-ink-muted hover:bg-gray-200'
         }`}
       >
         <Clock className="w-4 h-4" />
@@ -145,12 +147,12 @@ export default function AttendanceGrid({ students, history, statusMap, onChange 
         {students.map((student, idx) => {
           const entry = statusMap[student.id] || { status: 'Hadir', late: false };
           return (
-            <div key={student.id} className="bg-white rounded-2xl border border-gray-100 p-3 space-y-2.5">
+            <div key={student.id} className="bg-nb-paper rounded-2xl border border-nb-rule p-3 space-y-2.5">
               <StudentName idx={idx} name={student.name} className="text-sm" />
 
               {sortedHistory.length > 0 && (
                 <div className="flex items-center gap-2">
-                  <span className="shrink-0 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Riwayat</span>
+                  <span className="shrink-0 text-xs font-bold text-nb-ink-muted uppercase tracking-wider">Riwayat</span>
                   <div className="flex items-center gap-1.5 overflow-x-auto">
                     {sortedHistory.map((session) => {
                       const detail = (session.details || []).find((d) => d.studentId === student.id);
@@ -160,8 +162,8 @@ export default function AttendanceGrid({ students, history, statusMap, onChange 
                 </div>
               )}
 
-              <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-                <span className="shrink-0 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Hari Ini</span>
+              <div className="flex items-center gap-2 pt-2 border-t border-nb-rule">
+                <span className="shrink-0 text-xs font-bold text-nb-ink-muted uppercase tracking-wider">Hari Ini</span>
                 <TodayStatusControl value={entry} onChange={(next) => onChange(student.id, next)} />
               </div>
             </div>
@@ -170,23 +172,23 @@ export default function AttendanceGrid({ students, history, statusMap, onChange 
       </div>
 
       {/* Tablet/laptop: spreadsheet, nama di-freeze */}
-      <div className="hidden md:block overflow-x-auto rounded-2xl border border-gray-100 text-xs">
+      <div className="hidden md:block overflow-x-auto rounded-2xl border border-nb-rule text-xs">
         <div className="w-fit min-w-full">
-          <div className="flex bg-gray-50">
-            <div className={`sticky left-0 z-20 bg-gray-50 text-left px-3 py-2.5 font-bold text-gray-500 ${NAME_COL}`}>
+          <div className="flex bg-[#F7F5EF]">
+            <div className={`sticky left-0 z-20 bg-[#F7F5EF] text-left px-3 py-2.5 font-bold text-nb-ink-muted ${NAME_COL}`}>
               Nama Siswa
             </div>
             {sortedHistory.map((session, i) => (
               <div
                 key={session.id}
-                className={`px-1 py-2.5 text-center font-bold text-gray-400 ${HISTORY_COL}`}
+                className={`px-1 py-2.5 text-center font-bold text-nb-ink-muted ${HISTORY_COL}`}
                 title={session.date}
               >
                 <div>{i + 1}</div>
-                <div className="text-[9px] font-medium text-gray-300">{formatShortDate(session.date)}</div>
+                <div className="text-xs font-medium text-nb-ink-muted">{formatShortDate(session.date)}</div>
               </div>
             ))}
-            <div className={`border-l-2 border-gray-200 px-3 py-2.5 text-center font-bold text-gray-500 ${TODAY_COL}`}>
+            <div className={`border-l-2 border-nb-rule px-3 py-2.5 text-center font-bold text-nb-ink-muted ${TODAY_COL}`}>
               Hari Ini
             </div>
           </div>
@@ -194,8 +196,8 @@ export default function AttendanceGrid({ students, history, statusMap, onChange 
           {students.map((student, idx) => {
             const entry = statusMap[student.id] || { status: 'Hadir', late: false };
             return (
-              <div key={student.id} className="flex border-t border-gray-100">
-                <div className={`sticky left-0 z-10 bg-white px-3 py-2.5 ${NAME_COL}`}>
+              <div key={student.id} className="flex border-t border-nb-rule">
+                <div className={`sticky left-0 z-10 bg-nb-paper px-3 py-2.5 ${NAME_COL}`}>
                   <StudentName idx={idx} name={student.name} className="text-sm" />
                 </div>
                 {sortedHistory.map((session) => {
@@ -206,7 +208,7 @@ export default function AttendanceGrid({ students, history, statusMap, onChange 
                     </div>
                   );
                 })}
-                <div className={`border-l-2 border-gray-200 px-3 py-2.5 flex items-center ${TODAY_COL}`}>
+                <div className={`border-l-2 border-nb-rule px-3 py-2.5 flex items-center ${TODAY_COL}`}>
                   <TodayStatusControl value={entry} onChange={(next) => onChange(student.id, next)} />
                 </div>
               </div>

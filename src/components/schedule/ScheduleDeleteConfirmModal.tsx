@@ -29,7 +29,7 @@ export default function ScheduleDeleteConfirmModal({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Hapus Jadwal Ini?">
-      <p className="text-xs text-gray-500">Jadwal yang dihapus tidak bisa dikembalikan.</p>
+      <p className="text-xs text-nb-ink-muted">Jadwal yang dihapus tidak bisa dikembalikan.</p>
       <div className="flex gap-2 pt-2">
         <Button type="button" variant="secondary" onClick={onClose}>
           Batal

@@ -7,7 +7,7 @@ import WorkspaceGuard from '@/src/components/ui/WorkspaceGuard';
 
 export default function ProfilePage() {
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 md:p-10">
+    <div className="min-h-screen bg-nb-workspace p-4 sm:p-6 md:p-10">
       <div className="max-w-2xl mx-auto space-y-6">
         <WorkspaceGuard>
           <ProfileForm />

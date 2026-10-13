@@ -19,7 +19,7 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col shadow-xl"
+        className="bg-nb-paper rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header sticky supaya tombol tutup tetap terjangkau walau isi
@@ -28,11 +28,11 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
             bawah tanpa batas dan tombol aksi di paling bawah (mis. Publish
             Tugas) jadi tidak pernah kelihatan maupun bisa dicapai scroll. */}
         <div className="flex items-start justify-between gap-3 p-6 pb-0 shrink-0">
-          <h3 className="text-sm font-bold text-gray-900">{title}</h3>
+          <h3 className="text-sm font-bold text-nb-ink">{title}</h3>
           <button
             type="button"
             onClick={onClose}
-            className="p-2.5 -m-1.5 -mt-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors active:scale-90 shrink-0"
+            className="p-2.5 -m-1.5 -mt-2 text-nb-ink-muted hover:text-nb-ink-muted hover:bg-gray-100 rounded-xl transition-colors active:scale-90 shrink-0"
             aria-label="Tutup"
           >
             <X className="w-4 h-4" />

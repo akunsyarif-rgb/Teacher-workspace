@@ -30,25 +30,25 @@ export default function AccountPage() {
   const canManageInviteCode = (role === "OWNER" || role === "ADMIN") && workspace?.plan === "school_annual";
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 md:p-10 pb-24">
+    <div className="min-h-screen bg-nb-workspace p-4 sm:p-6 md:p-10 pb-24">
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-200">
+          <div className="w-10 h-10 rounded-2xl bg-nb-green text-white flex items-center justify-center shadow-md shadow-nb-green/20">
             <User className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-extrabold text-gray-900">Akun</h1>
-            <p className="text-xs text-gray-500">Profil, statistik, dan sesi masuk</p>
+            <h1 className="text-xl font-extrabold text-nb-ink">Akun</h1>
+            <p className="text-xs text-nb-ink-muted">Profil, statistik, dan sesi masuk</p>
           </div>
         </div>
 
         <WorkspaceGuard>
-          <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-1">
-            <p className="text-sm font-extrabold text-gray-900">{teacherProfile?.name || "Guru Pengajar"}</p>
-            <p className="text-xs text-gray-500">{user?.email}</p>
+          <div className="bg-nb-paper p-5 rounded-3xl shadow-sm border border-nb-rule space-y-1">
+            <p className="text-sm font-extrabold text-nb-ink">{teacherProfile?.name || "Guru Pengajar"}</p>
+            <p className="text-xs text-nb-ink-muted">{user?.email}</p>
             {teacherProfile?.subject && (
-              <p className="text-xs text-gray-500">
-                Mapel Utama: <span className="font-bold text-blue-600">{teacherProfile.subject}</span>
+              <p className="text-xs text-nb-ink-muted">
+                Mapel Utama: <span className="font-bold text-nb-green">{teacherProfile.subject}</span>
               </p>
             )}
           </div>
@@ -58,60 +58,60 @@ export default function AccountPage() {
           {isOwnerOfSchool && (
             <Link
               href="/admin"
-              className="flex items-center justify-between gap-3 p-4 bg-white rounded-3xl shadow-sm border border-gray-100 hover:bg-gray-50 transition-colors"
+              className="flex items-center justify-between gap-3 p-4 bg-nb-paper rounded-3xl shadow-sm border border-nb-rule hover:bg-nb-workspace transition-colors"
             >
-              <span className="flex items-center gap-2 text-xs font-bold text-gray-700">
-                <ShieldCheck className="w-4 h-4 text-blue-600" />
+              <span className="flex items-center gap-2 text-xs font-bold text-nb-ink">
+                <ShieldCheck className="w-4 h-4 text-nb-green" />
                 Menu Admin — Kelola Guru
               </span>
               <ChevronRight className="w-4 h-4 text-gray-300" />
             </Link>
           )}
 
-          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 divide-y divide-gray-100 overflow-hidden">
+          <div className="bg-nb-paper rounded-3xl shadow-sm border border-nb-rule divide-y divide-gray-100 overflow-hidden">
             <Link
               href="/profile"
-              className="flex items-center justify-between gap-3 p-4 hover:bg-gray-50 transition-colors"
+              className="flex items-center justify-between gap-3 p-4 hover:bg-nb-workspace transition-colors"
             >
-              <span className="text-xs font-bold text-gray-700">Ubah Profil & Pengaturan</span>
+              <span className="text-xs font-bold text-nb-ink">Ubah Profil & Pengaturan</span>
               <ChevronRight className="w-4 h-4 text-gray-300" />
             </Link>
             <Link
               href="/analytics"
-              className="flex items-center justify-between gap-3 p-4 hover:bg-gray-50 transition-colors"
+              className="flex items-center justify-between gap-3 p-4 hover:bg-nb-workspace transition-colors"
             >
-              <span className="flex items-center gap-2 text-xs font-bold text-gray-700">
-                <BarChart3 className="w-4 h-4 text-gray-400" />
+              <span className="flex items-center gap-2 text-xs font-bold text-nb-ink">
+                <BarChart3 className="w-4 h-4 text-nb-ink-muted" />
                 Statistik & Laporan
               </span>
               <ChevronRight className="w-4 h-4 text-gray-300" />
             </Link>
             <Link
               href="/account/data-arsip"
-              className="flex items-center justify-between gap-3 p-4 hover:bg-gray-50 transition-colors"
+              className="flex items-center justify-between gap-3 p-4 hover:bg-nb-workspace transition-colors"
             >
-              <span className="flex items-center gap-2 text-xs font-bold text-gray-700">
-                <Database className="w-4 h-4 text-gray-400" />
+              <span className="flex items-center gap-2 text-xs font-bold text-nb-ink">
+                <Database className="w-4 h-4 text-nb-ink-muted" />
                 Data & Arsip
               </span>
               <ChevronRight className="w-4 h-4 text-gray-300" />
             </Link>
             <Link
               href="/account/backup"
-              className="flex items-center justify-between gap-3 p-4 hover:bg-gray-50 transition-colors"
+              className="flex items-center justify-between gap-3 p-4 hover:bg-nb-workspace transition-colors"
             >
-              <span className="flex items-center gap-2 text-xs font-bold text-gray-700">
-                <HardDriveDownload className="w-4 h-4 text-gray-400" />
+              <span className="flex items-center gap-2 text-xs font-bold text-nb-ink">
+                <HardDriveDownload className="w-4 h-4 text-nb-ink-muted" />
                 Backup & Ekspor Data
               </span>
               <ChevronRight className="w-4 h-4 text-gray-300" />
             </Link>
             <Link
               href="/upgrade"
-              className="flex items-center justify-between gap-3 p-4 hover:bg-gray-50 transition-colors"
+              className="flex items-center justify-between gap-3 p-4 hover:bg-nb-workspace transition-colors"
             >
-              <span className="flex items-center gap-2 text-xs font-bold text-gray-700">
-                <Wallet className="w-4 h-4 text-gray-400" />
+              <span className="flex items-center gap-2 text-xs font-bold text-nb-ink">
+                <Wallet className="w-4 h-4 text-nb-ink-muted" />
                 Paket Berlangganan
               </span>
               <ChevronRight className="w-4 h-4 text-gray-300" />
@@ -120,7 +120,7 @@ export default function AccountPage() {
 
           <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 p-4 bg-white hover:bg-red-50 text-red-600 rounded-3xl shadow-sm border border-gray-100 hover:border-red-200 text-xs font-bold transition-colors active:scale-[0.98]"
+            className="w-full flex items-center justify-center gap-2 p-4 bg-nb-paper hover:bg-red-50 text-red-600 rounded-3xl shadow-sm border border-nb-rule hover:border-red-200 text-xs font-bold transition-colors active:scale-[0.98]"
           >
             <LogOut className="w-4 h-4" />
             Keluar

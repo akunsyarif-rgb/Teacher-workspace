@@ -101,29 +101,29 @@ export default function CleanupDataPanel() {
 
   return (
     <Card className="space-y-4">
-      <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+      <h3 className="text-sm font-bold text-nb-ink flex items-center gap-2">
         <Trash2 className="w-4 h-4 text-red-500" />
         Bersihkan Data
       </h3>
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-nb-ink-muted">
         Hapus data percobaan/lama secara permanen. Ini <span className="font-bold text-red-500">berbeda dari Arsip</span> —
         data yang dihapus di sini tidak bisa dikembalikan.
       </p>
 
       <div>
-        <label className="text-xs font-bold text-gray-700 block mb-1.5">Cakupan Kelas</label>
+        <label className="text-xs font-bold text-nb-ink block mb-1.5">Cakupan Kelas</label>
         <div className="flex gap-2 mb-2">
           <button
             type="button"
             onClick={() => { setScopeType('all'); setPreview(null); }}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-colors ${scopeType === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-colors ${scopeType === 'all' ? 'bg-nb-green text-white' : 'bg-gray-100 text-nb-ink-muted'}`}
           >
             Semua Kelas
           </button>
           <button
             type="button"
             onClick={() => { setScopeType('class'); setPreview(null); }}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-colors ${scopeType === 'class' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-colors ${scopeType === 'class' ? 'bg-nb-green text-white' : 'bg-gray-100 text-nb-ink-muted'}`}
           >
             Per Kelas
           </button>
@@ -134,11 +134,11 @@ export default function CleanupDataPanel() {
       </div>
 
       <div>
-        <label className="text-xs font-bold text-gray-700 block mb-1.5">Periode</label>
+        <label className="text-xs font-bold text-nb-ink block mb-1.5">Periode</label>
         <select
           value={preset}
           onChange={(e) => { setPreset(e.target.value as PeriodPreset); setPreview(null); }}
-          className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:ring-2 focus:ring-blue-600"
+          className="w-full p-3 bg-nb-paper border border-nb-control rounded-xl text-xs text-nb-ink outline-none focus:ring-2 focus:ring-nb-green"
         >
           {CLEANUP_PRESETS.map((p) => (
             <option key={p} value={p}>{PERIOD_PRESET_LABELS[p]}</option>
@@ -148,7 +148,7 @@ export default function CleanupDataPanel() {
           <select
             value={selectedYearId}
             onChange={(e) => { setSelectedYearId(e.target.value); setPreview(null); }}
-            className="w-full mt-2 p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:ring-2 focus:ring-blue-600"
+            className="w-full mt-2 p-3 bg-nb-paper border border-nb-control rounded-xl text-xs text-nb-ink outline-none focus:ring-2 focus:ring-nb-green"
           >
             <option value="">Pilih tahun ajaran...</option>
             {academicYears.map((y) => (
@@ -165,16 +165,16 @@ export default function CleanupDataPanel() {
       </div>
 
       <div>
-        <label className="text-xs font-bold text-gray-700 block mb-1.5">Jenis Data</label>
+        <label className="text-xs font-bold text-nb-ink block mb-1.5">Jenis Data</label>
         <div className="grid grid-cols-2 gap-2">
           {DATA_LIFECYCLE_COLLECTIONS.map((c) => (
-            <label key={c.key} className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-xl text-xs font-bold text-gray-700 cursor-pointer">
+            <label key={c.key} className="flex items-center gap-2 p-2.5 bg-nb-workspace rounded-xl text-xs font-bold text-nb-ink cursor-pointer">
               <input type="checkbox" checked={dataTypeKeys.includes(c.key)} onChange={() => toggleDataType(c.key)} />
               {c.label}
             </label>
           ))}
         </div>
-        <p className="text-[10px] text-gray-400 mt-1.5">
+        <p className="text-xs text-nb-ink-muted mt-1.5">
           Nilai &amp; daftar siswa tidak bisa dibersihkan lewat sini (tidak punya &quot;tanggal periode&quot; yang andal).
         </p>
       </div>
@@ -192,7 +192,7 @@ export default function CleanupDataPanel() {
             <AlertTriangle className="w-4 h-4" />
             {preview.total} dokumen akan dihapus
           </p>
-          <div className="text-[11px] text-amber-700 space-y-0.5">
+          <div className="text-xs text-amber-700 space-y-0.5">
             {Object.entries(preview.counts).map(([key, count]) => {
               const config = DATA_LIFECYCLE_COLLECTIONS.find((c) => c.key === key);
               return <p key={key}>{config?.label || key}: {count}</p>;

@@ -62,12 +62,12 @@ export default function ProfileForm() {
   return (
     <Card className="space-y-4">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+        <div className="w-10 h-10 rounded-2xl bg-nb-green-soft text-nb-green flex items-center justify-center">
           <UserIcon className="w-5 h-5" />
         </div>
         <div>
-          <h2 className="text-lg font-bold text-gray-900">Profil Guru</h2>
-          <p className="text-xs text-gray-500">Kelola data diri dan penugasan wali kelas</p>
+          <h2 className="text-lg font-bold text-nb-ink">Profil Guru</h2>
+          <p className="text-xs text-nb-ink-muted">Kelola data diri dan penugasan wali kelas</p>
         </div>
       </div>
 
@@ -91,11 +91,11 @@ export default function ProfileForm() {
         />
 
         <div>
-          <label className="text-xs font-bold text-gray-700 block mb-1">Wali Kelas Dari</label>
+          <label className="text-xs font-bold text-nb-ink block mb-1">Wali Kelas Dari</label>
           <select
             value={homeroomClassName}
             onChange={(e) => setHomeroomClassName(e.target.value)}
-            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+            className="w-full p-3 bg-nb-paper border border-nb-control rounded-xl text-xs text-nb-ink outline-none focus:bg-nb-paper focus:ring-2 focus:ring-nb-green"
           >
             <option value="">Bukan Wali Kelas</option>
             {classesList.map((cls) => (
@@ -104,7 +104,7 @@ export default function ProfileForm() {
               </option>
             ))}
           </select>
-          <p className="text-[10px] text-gray-400 mt-1">
+          <p className="text-xs text-nb-ink-muted mt-1">
             Menentukan akses ke fitur khusus wali kelas (Kas Kelas, dan lainnya di kemudian hari).
           </p>
         </div>
