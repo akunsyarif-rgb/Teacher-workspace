@@ -63,7 +63,7 @@ export default function ClassManagement() {
     <div className="space-y-8">
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-3 px-1">
-          <h3 className="text-xs font-extrabold text-gray-400 uppercase tracking-wider">
+          <h3 className="text-sm font-extrabold text-[#5D665E] uppercase tracking-wider">
             Daftar Kelas Terdaftar ({classSummaries.length})
           </h3>
           <button
