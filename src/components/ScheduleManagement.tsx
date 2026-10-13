@@ -27,8 +27,7 @@ export default function ScheduleManagement() {
     const alreadyWarm = getCached(schedulesCacheKey(workspaceId)) !== undefined;
     if (!alreadyWarm) setLoading(true);
     try {
-      const data = await fetchSchedules(workspaceId);
-      setSchedules(data);
+      setSchedules(await fetchSchedules(workspaceId));
     } catch (error) {
       console.error('Gagal memuat jadwal:', error);
     } finally {
@@ -78,14 +77,10 @@ export default function ScheduleManagement() {
           </button>
         </div>
       </section>
-
       <ScheduleFormModal isOpen={showAddModal} onClose={() => setShowAddModal(false)} activeDays={activeDays} defaultSubject={defaultSubject} onSubmit={handleAddSchedule} />
       <ScheduleDeleteConfirmModal isOpen={deleteTargetId !== null} onClose={() => setDeleteTargetId(null)} onConfirm={handleConfirmDelete} />
-
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5">
-        {activeDays.map((d) => (
-          <ScheduleDayCard key={d} day={d} items={sortSchedulesChronologically(schedules.filter((s) => s.day === d))} onRequestDelete={setDeleteTargetId} />
-        ))}
+        {activeDays.map((d) => <ScheduleDayCard key={d} day={d} items={sortSchedulesChronologically(schedules.filter((s) => s.day === d))} onRequestDelete={setDeleteTargetId} />)}
       </div>
     </div>
   );
