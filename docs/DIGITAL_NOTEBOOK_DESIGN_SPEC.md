@@ -114,11 +114,11 @@ Tes `tests/visual/quick-note-rules.mjs` (Chromium, piksel): posisi garis pertama
 | 1 | Palet/komponen konsisten di Beranda, Kelas, Jadwal, Siswa | Sebagian: token + sapuan warna biru lama di komponen guru; halaman di luar cakupan (akun, wali-kelas, ulangan, owner/admin) belum |
 | 2 | Kontras AA | Terukur untuk token dan Badge (tabel); audit per-halaman otomatis belum |
 | 3 | Garis Catatan Cepat | Lulus 90 kasus Chromium; Safari belum |
-| 4 | Navigasi adaptif | Kode selesai; belum dilihat di browser/perangkat |
+| 4 | Navigasi adaptif | Pengguna menyatakan preview Vercel terbaru cocok dan aman; review visual manual diterima. Tidak ada hasil browser automation terpisah |
 | 5 | Nilai/presensi tak berubah | Diff hanya kelas CSS/atribut ARIA; e2e grade-lock 9/9, attendance-complete-confirm 9/9 |
 | 6 | State loading/kosong/simpan/offline/galat | Komponen yang ada dipertahankan; belum diaudit visual per tab |
 | 7 | Build/lint/tes | Lihat matriks |
-| 8 | Safari iPad / mobile / desktop | BELUM dijalankan |
+| 8 | Preview visual / Safari iPad / mobile / desktop | Preview Vercel terbaru telah diperiksa dan dinyatakan cocok/aman oleh pengguna (2026-10-13). Ini bukti review manual pengguna, bukan hasil tes otomatis atau matriks terukur untuk semua viewport |
 | 9 | Satu PR, tanpa merge/deploy | PR #72 |
 
 ## Matriks tes (hasil nyata)
@@ -133,9 +133,9 @@ Tes `tests/visual/quick-note-rules.mjs` (Chromium, piksel): posisi garis pertama
 | `test:e2e:rename-class` | 14/14 |
 | `test:e2e:onboarding` | 11/11 |
 | `tests/visual/quick-note-rules.mjs` | 90/90 |
-| `test:rules` (vitest + emulator) | tidak dijalankan (tidak menyentuh rules) |
-| e2e jadwal/impor siswa | tidak ada skrip khusus; tidak dijalankan |
-| Pratinjau visual mobile/iPad/desktop, Safari iPad | tidak dijalankan |
+| `test:rules` (Firestore & Storage Rules) | GitHub Actions workflow `Test Firestore & Storage Rules` berstatus `success` pada commit `293313a8c61e2a4ed7670112966cd8261e953932` |
+| e2e jadwal/impor siswa | Tidak ada skrip khusus di `package.json`; belum ada tes khusus yang dijalankan. Operasi bisnis tidak diubah oleh redesign, tetapi tes regresi khusus masih direkomendasikan sebelum cakupan fitur tersebut dikembangkan |
+| Preview visual mobile/iPad/desktop, Safari iPad | Pengguna telah menyetujui preview Vercel terbaru secara visual. Tidak ada tes visual otomatis lintas-browser yang dijalankan |
 
 ## Ditunda (sengaja)
 - Mode gelap: tetap `color-scheme: light` sampai dirancang dan diuji penuh.
