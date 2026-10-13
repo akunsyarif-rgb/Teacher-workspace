@@ -97,8 +97,8 @@ export default function SignupPage() {
           <div className="w-12 h-12 bg-nb-green rounded-2xl flex items-center justify-center shadow-md shadow-nb-green/20">
             <GraduationCap className="w-7 h-7 text-white" />
           </div>
-          <h1 className="text-xl font-extrabold text-nb-ink mt-2">Daftar Akun Guru</h1>
-          <p className="text-xs text-nb-ink-muted">Buat Workspace baru atau gabung ke sekolah Anda</p>
+          <h1 className="text-xl font-extrabold text-nb-ink mt-2">Buat akun Teacher Workspace</h1>
+          <p className="text-xs text-nb-ink-muted">Pendaftaran guru: buat workspace baru atau gabung ke sekolah Anda</p>
         </div>
 
         <div className="flex bg-gray-100 p-1.5 rounded-2xl">
