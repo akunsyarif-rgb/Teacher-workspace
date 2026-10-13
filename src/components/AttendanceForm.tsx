@@ -300,26 +300,26 @@ export default function AttendanceForm() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      <div className="flex items-center justify-center py-12 text-[#5D665E]">
+        <div className="w-8 h-8 border-4 border-[#2F6B4F] border-t-transparent rounded-full animate-spin" />
         <span className="ml-3 text-xs font-bold text-gray-500">Memuat data kelas...</span>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <Card className="space-y-4">
+    <div className="mx-auto max-w-6xl space-y-5 md:space-y-6 text-[#242923]">
+      <Card className="space-y-4 border border-[#D9DED5] bg-[#FFFEF9] shadow-sm">
         <div>
-          <h2 className="text-lg font-bold text-gray-900">
+          <h2 className="text-xl md:text-2xl font-extrabold tracking-tight text-[#242923]">
             {selectedClass ? `Kelas ${selectedClass}` : 'Pusat Kegiatan Kelas & Penilaian'}
           </h2>
-          <p className="text-xs text-gray-500">Kelola jurnal, presensi, nilai, dan riwayat dalam satu layar</p>
+          <p className="mt-1 text-sm text-[#5D665E]">Kelola jurnal, presensi, nilai, dan riwayat dalam satu layar</p>
         </div>
 
         {/* Baris tab di-scroll horizontal (bukan disempitkan/disingkat)
             supaya label tetap terbaca penuh walau ada 6 tab di layar HP. */}
-        <div className="flex gap-1.5 bg-gray-100 p-1.5 rounded-2xl overflow-x-auto no-scrollbar">
+        <div role="tablist" aria-label="Bagian kegiatan kelas" className="flex gap-1.5 rounded-2xl border border-[#D9DED5] bg-[#F1F0E9] p-1.5 overflow-x-auto no-scrollbar">
           {tabs.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
@@ -328,8 +328,10 @@ export default function AttendanceForm() {
                 requestLeave(() => setActiveTab(key));
               }}
               title={label}
-              className={`shrink-0 flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all active:scale-95 ${
-                activeTab === key ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+              role="tab"
+              aria-selected={activeTab === key}
+              className={`shrink-0 flex items-center justify-center gap-1.5 sm:gap-2 min-h-11 px-3 sm:px-4 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6B4F] focus-visible:ring-offset-2 ${
+                activeTab === key ? 'bg-[#FFFEF9] text-[#24563F] shadow-sm border border-[#D9DED5]' : 'text-[#5D665E] hover:bg-white/70 hover:text-[#242923]'
               }`}
             >
               <Icon className="w-4 h-4 shrink-0" />
@@ -338,7 +340,7 @@ export default function AttendanceForm() {
           ))}
         </div>
 
-        <div className="pt-2 border-t border-gray-100">
+        <div className="border-t border-[#D9DED5] pt-3">
           {classesList.length === 0 ? (
             <p className="text-xs text-gray-400">Belum ada data kelas atau siswa di database.</p>
           ) : (
@@ -356,33 +358,33 @@ export default function AttendanceForm() {
 
       {currentSession && (
         <div
-          className={`p-4 md:p-5 rounded-2xl md:rounded-3xl border space-y-3 ${
+          className={`rounded-2xl border p-4 md:p-5 space-y-3 ${
             currentSession.isDone
-              ? 'bg-emerald-50 border-emerald-200'
-              : 'bg-blue-50 border-blue-200'
+              ? 'bg-[#EDF3E8] border-[#B6C8B8]'
+              : 'bg-[#F0F5F1] border-[#C8D9CC]'
           }`}
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
-              <p className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">Sesi Mengajar</p>
-              <p className="text-sm font-extrabold text-gray-900">
+              <p className="text-xs font-extrabold text-[#5D665E] uppercase tracking-[0.14em]">Sesi Mengajar</p>
+              <p className="text-sm md:text-base font-extrabold leading-snug text-[#242923]">
                 Kelas {currentSession.className} • {currentSession.timeSlot}
                 {currentSession.subject ? ` • ${currentSession.subject}` : ''}
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <span className={`flex items-center gap-1.5 text-xs font-bold ${currentSession.hasAttendance ? 'text-emerald-700' : 'text-gray-400'}`}>
+              <span className={`flex items-center gap-1.5 text-xs font-bold ${currentSession.hasAttendance ? 'text-[#24563F]' : 'text-[#687168]'}`}>
                 {currentSession.hasAttendance ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
                 Presensi
               </span>
-              <span className={`flex items-center gap-1.5 text-xs font-bold ${currentSession.hasJournal ? 'text-emerald-700' : 'text-gray-400'}`}>
+              <span className={`flex items-center gap-1.5 text-xs font-bold ${currentSession.hasJournal ? 'text-[#24563F]' : 'text-[#687168]'}`}>
                 {currentSession.hasJournal ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
                 Jurnal
               </span>
               <button
                 type="button"
                 onClick={() => setShowFinishModal(true)}
-                className="flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-gray-900 transition-colors"
+                className="flex min-h-10 items-center gap-1.5 rounded-lg px-2 text-xs font-bold text-[#5D665E] hover:bg-white/70 hover:text-[#242923] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6B4F]"
               >
                 <Flag className="w-4 h-4" />
                 Selesai Mengajar
