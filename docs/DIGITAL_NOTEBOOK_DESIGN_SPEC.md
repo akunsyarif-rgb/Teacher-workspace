@@ -108,39 +108,66 @@ Tes `tests/visual/quick-note-rules.mjs` (Chromium, piksel): posisi garis pertama
 - Matriks nilai: kolom nama sticky kiri; kolom RATA-RATA sticky kanan mulai `md` (iPad+) agar tetap terlihat saat digulir. Di mobile tidak sticky agar ruang gulir cukup.
 - Presensi (md+): kolom nama sticky; kontrol status 44px dengan huruf (H/S/I/A) + `aria-pressed`, tidak hanya warna.
 
+## Tab Pusat Kegiatan Kelas (WAI-ARIA Tabs)
+`AttendanceForm` memakai `role="tablist"` (nama "Pusat Kegiatan Kelas"), enam `role="tab"` dengan `id="kelas-tab-<key>"`, `aria-selected`, `aria-controls="kelas-panel-<key>"`, dan satu `role="tabpanel"` (`aria-labelledby` ke tab aktif, `tabIndex=0`). Roving tabindex: hanya tab aktif yang masuk urutan Tab. Aktivasi manual: ArrowLeft/Right (wrap), Home, End memindah fokus; Enter/Spasi/klik memilih tab (lewat `requestLeave`, sehingga dialog "perubahan belum disimpan" tetap berlaku). Query `?class=&tab=` dan state tidak berubah. Tab aktif di-`scrollIntoView` di HP.
+Tes: `tests/e2e/class-tabs-a11y.mjs` (15 langkah). Selector e2e lama diganti `getByRole('tab', { name: 'Jurnal Mengajar' })`; tidak ada tes yang dihapus/dilemahkan.
+
+## Mode gelap: kesiapan dan gap (TIDAK diaktifkan)
+Status: tema terang saja. `:root { color-scheme: light }` di `app/globals.css` dan `export const viewport = { colorScheme: "light" }` di `app/layout.tsx` mencegah auto-dark OS/Safari membalik warna. Tidak ada `prefers-color-scheme` atau varian `dark:` di kode.
+Kesiapan: warna utama kini lewat token `nb-*` (`bg-nb-paper`, `text-nb-ink`, `border-nb-rule`, dst.), sehingga mode gelap kelak cukup mendefinisikan ulang variabel CSS.
+Gap sebelum mode gelap boleh diaktifkan:
+- Masih ada ~136 warna hex hard-coded (`bg-[#...]`, `text-[#...]`) dan banyak kelas semantik Tailwind (`bg-emerald-50`, `text-amber-800`, `bg-red-50`, `bg-gray-100`, dst.) yang tidak mengikuti token.
+- Belum ada palet gelap yang diukur kontrasnya (teks, kontrol, fokus, badge semantik).
+- Chart.js (`WeeklyChart`, tren siswa) memakai warna hex sendiri.
+- Belum ada pengujian visual gelap. Mode gelap TIDAK diklaim selesai.
+
+## Cakupan konsistensi visual (pass 2)
+Token `nb-*` (kertas, tinta, tinta redup, garis, hijau, border kontrol) kini diterapkan ke seluruh `app/` dan `src/components` (kecuali overlay debug `PerfOverlay`): akun/profil/arsip/backup, wali-kelas (5 halaman), Ulangan Harian (guru + siswa), owner/admin, analytics, login/signup/upgrade, dan area siswa `/student/*` termasuk `StudentShell`/`StudentBottomNav`. Biru aksi/fokus -> hijau notebook; `bg-white`/`bg-gray-50`/`border-gray-100|200`/`text-gray-*` -> token; input memakai `border-nb-control` (>= 3:1).
+Warna semantik yang SENGAJA dipertahankan: merah/amber/emerald (galat, draf, sukses), biru "Izin" di `app/student/presensi`, pembeda jenis item di `TimelineTab`, nada "Tugas" di feed `analytics`, warna Chart.js.
+Jenis aplikasi tidak diubah: tidak ada rute, role, guard, atau logika yang disentuh; hanya kelas CSS, atribut ARIA, dan `viewport.colorScheme`.
+
+## Ukuran font metadata
+Semua `text-[8px]`...`text-[11px]` (236 pemakaian) di `app/` dan `src/` dinaikkan ke `text-xs` (12px); tersisa hanya di `PerfOverlay` (overlay debug, bukan UI pengguna). Lencana hitungan merah (BottomNav, Beranda) diubah dari lingkaran 16px menjadi `min-w-5 h-5 px-1` agar angka 12px muat. Audit otomatis `tests/e2e/redesign-visual.mjs` memeriksa tidak ada teks tampil < 12px pada rute yang dicakup.
+Tidak diubah: hierarki heading dan ukuran teks lain.
+
 ## Kriteria penerimaan dan status bukti
 | # | Kriteria | Status |
 |---|---|---|
-| 1 | Palet/komponen konsisten di Beranda, Kelas, Jadwal, Siswa | Sebagian: token + sapuan warna biru lama di komponen guru; halaman di luar cakupan (akun, wali-kelas, ulangan, owner/admin) belum |
-| 2 | Kontras AA | Terukur untuk token dan Badge (tabel); audit per-halaman otomatis belum |
-| 3 | Garis Catatan Cepat | Lulus 90 kasus Chromium; Safari belum |
-| 4 | Navigasi adaptif | Pengguna menyatakan preview Vercel terbaru cocok dan aman; review visual manual diterima. Tidak ada hasil browser automation terpisah |
-| 5 | Nilai/presensi tak berubah | Diff hanya kelas CSS/atribut ARIA; e2e grade-lock 9/9, attendance-complete-confirm 9/9 |
-| 6 | State loading/kosong/simpan/offline/galat | Komponen yang ada dipertahankan; belum diaudit visual per tab |
+| 1 | Palet/komponen konsisten di seluruh area | Terapkan token ke seluruh `app/` + `src/components`; audit visual otomatis 66/66 pada rute guru yang dicakup (lihat matriks). Halaman siswa yang butuh sesi siswa (`/student/*` selain login) belum di-screenshot otomatis |
+| 2 | Kontras AA | Terukur untuk token dan Badge (tabel); badge hitungan merah memakai `red-600` (putih 4.8:1). Audit kontras otomatis per elemen belum ada |
+| 3 | Garis Catatan Cepat | 90/90 kasus Chromium; Safari belum |
+| 4 | Navigasi adaptif | Audit otomatis: bottom bar < 1280px, indeks samping >= 1280px; tidak ada konten tertutup nav pada 4 viewport. Pengguna juga menyatakan preview Vercel cocok (review manual) |
+| 5 | Nilai/presensi tak berubah | Diff hanya kelas CSS/ARIA; e2e grade-lock 9/9, attendance-complete-confirm 9/9 |
+| 6 | State loading/kosong/simpan/offline/galat | Komponen dipertahankan; tombol nonaktif kini abu-hijau terbaca (`#DDE3D8` + teks `#5D665E`); belum diaudit satu per satu |
 | 7 | Build/lint/tes | Lihat matriks |
-| 8 | Preview visual / Safari iPad / mobile / desktop | Preview Vercel terbaru telah diperiksa dan dinyatakan cocok/aman oleh pengguna (2026-10-13). Ini bukti review manual pengguna, bukan hasil tes otomatis atau matriks terukur untuk semua viewport |
-| 9 | Satu PR, tanpa merge/deploy | PR #72 |
+| 8 | Safari/WebKit | BELUM dijalankan: hanya Chromium tersedia. Preview Vercel dinilai manual oleh pengguna |
+| 9 | Tab ARIA + keyboard | 15/15 e2e |
+| 10 | Satu PR, tanpa merge/deploy | PR #72 |
 
-## Matriks tes (hasil nyata)
+## Matriks tes (hasil nyata, sesi 2026-10-13)
 | Tes | Hasil |
 |---|---|
-| `npm run build` (env Firebase emulator palsu) | lulus |
+| `next build` (env Firebase emulator palsu) | lulus |
 | `tsc --noEmit` | bersih |
-| `eslint app src` (binari lokal) | 114 error/18 warning, identik dengan `main` (baseline, bukan regresi). `npm run lint` memakai ESLint global yang crash di lingkungan ini |
-| `npm run test:e2e` (smoke) | 19/19 |
+| `eslint app src` (binari lokal) | 114 error / 18 warning, identik dengan `main` (baseline) |
+| `test:e2e:class-tabs` (baru) | 15/15 |
+| `test:e2e:visual` (baru; 16 rute x 4 viewport, Chromium) | 66/66: tanpa overflow horizontal, tanpa teks < 12px, tanpa konten tertutup nav, workspace termuat |
 | `test:e2e:grade-lock` | 9/9 |
-| `test:e2e:attendance-complete-confirm` | 9/9 (sempat gagal saat `role="tab"` ditambahkan; diganti `aria-pressed` agar selector tombol tetap valid) |
-| `test:e2e:rename-class` | 14/14 |
+| `test:e2e:attendance-complete-confirm` | 9/9 |
+| `test:e2e:rename-class` | 14/14 (satu kali time-out saat dijalankan berurutan; lulus saat diulang sendiri) |
 | `test:e2e:onboarding` | 11/11 |
+| `test:e2e:backup` | 34/34 |
+| `test:rules` (Firestore/Storage, emulator) | 538 lulus, 59 skip (28 file lulus, 5 skip) |
 | `tests/visual/quick-note-rules.mjs` | 90/90 |
-| `test:rules` (Firestore & Storage Rules) | GitHub Actions workflow `Test Firestore & Storage Rules` berstatus `success` pada commit `293313a8c61e2a4ed7670112966cd8261e953932` |
-| e2e jadwal/impor siswa | Tidak ada skrip khusus di `package.json`; belum ada tes khusus yang dijalankan. Operasi bisnis tidak diubah oleh redesign, tetapi tes regresi khusus masih direkomendasikan sebelum cakupan fitur tersebut dikembangkan |
-| Preview visual mobile/iPad/desktop, Safari iPad | Pengguna telah menyetujui preview Vercel terbaru secara visual. Tidak ada tes visual otomatis lintas-browser yang dijalankan |
+| `test:e2e` (smoke) | 18/19. Gagal: "Siswa bisa membuka materi soal dari guru" (tautan materi tidak muncul). Gagal IDENTIK pada commit sebelumnya `293313a` yang lulus 19/19 awal sesi, jadi bukan dari perubahan pass 2; penyebab belum terisolasi (kemungkinan lingkungan: fake Supabase Storage/jaringan sandbox). Perlu dijalankan ulang di lingkungan lain |
+| `test:e2e:ulangan` | TIDAK DAPAT dijalankan di sandbox ini (butuh Postgres + PostgREST lokal; skrip keluar kode 2) |
+| e2e jadwal/impor siswa | Tidak ada skrip khusus; tidak dijalankan |
+| Safari/WebKit iPad | Tidak dijalankan |
 
 ## Ditunda (sengaja)
-- Mode gelap: tetap `color-scheme: light` sampai dirancang dan diuji penuh.
-- Sapuan warna pada halaman `/account*`, `/wali-kelas/*`, `/ulangan`, `/admin`, `/owner`, `/analytics` dan area siswa: di luar enam area wajib; risiko regresi tanpa pratinjau visual.
-- `TimelineTab` (Riwayat): biru dipertahankan karena membedakan jenis item jurnal vs presensi.
-- Ukuran font 8-10px yang tersisa di beberapa metadata: perlu pratinjau perangkat sebelum dinaikkan.
-- Tab kelas belum memakai pola ARIA `tablist/tab`: mengubah role tombol memecah selector e2e yang ada; memakai `aria-pressed`. Migrasi menunggu pembaruan e2e.
-- Verifikasi Safari iPad dan screenshot responsif: butuh perangkat/preview.
+- Mode gelap: lihat bagian kesiapan di atas.
+- `/student/*` setelah login (nilai, presensi, tugas, jadwal, profil, ulangan): kelas sudah diselaraskan, tetapi audit visual otomatis hanya menjangkau `/student/login`. Alasan: butuh alur klaim siswa; smoke e2e hanya memastikan halaman terbuka.
+- Halaman owner/admin/ulangan guru: diaudit sebagai halaman guru biasa; tampilan role OWNER khusus tidak diverifikasi visual.
+- Warna semantik non-token (emerald/amber/red/purple/teal) dan hex hard-coded: dipertahankan demi makna; dibereskan bersama mode gelap.
+- Safari iPad: butuh perangkat/preview.
+- Smoke "materi soal" dan e2e Ulangan: lihat matriks.

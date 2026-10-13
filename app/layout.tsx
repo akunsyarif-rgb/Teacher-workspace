@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import BottomNav from "@/src/components/BottomNav";
@@ -19,6 +19,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Teacher Workspace",
   description: "Pusat operasional guru: jurnal mengajar, presensi, nilai, tugas, dan jadwal kelas.",
+};
+
+// Mode gelap belum dirancang: beri tahu browser/OS bahwa halaman hanya terang,
+// supaya kontrol native dan auto-dark Safari tidak membalik warna. Zoom
+// pengguna sengaja TIDAK dibatasi.
+export const viewport: Viewport = {
+  colorScheme: "light",
 };
 
 export default function RootLayout({

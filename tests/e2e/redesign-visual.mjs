@@ -160,8 +160,11 @@ async function run() {
       ['wali-kelas', '/wali-kelas'],
       ['ulangan', '/ulangan'],
       ['upgrade', '/upgrade'],
-      ['siswa-login', '/student/login'],
     ];
+    // Halaman login siswa memakai konteks terpisah: membukanya di sesi guru
+    // akan mengganti/mengeluarkan sesi guru dan merusak rute berikutnya.
+    const studentCtx = await browser.newContext();
+    const student = await studentCtx.newPage();
     for (const [vpName, w, h] of VIEWPORTS) {
       await teacher.setViewportSize({ width: w, height: h });
       for (const [name, path] of ROUTES) {
@@ -215,6 +218,25 @@ async function run() {
         if (problems.length) fail(label, problems.join('; ') + ` (nav=${r.navKind})`);
         else pass(label, `nav=${r.navKind}`);
       }
+      await student.setViewportSize({ width: w, height: h });
+      await student.goto(`${BASE_URL}/student/login`, { waitUntil: 'domcontentloaded' });
+      await student.waitForTimeout(1500);
+      const sr = await student.evaluate(() => {
+        const de = document.documentElement;
+        const tiny = [];
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        let n;
+        while ((n = walker.nextNode())) {
+          const t = n.textContent.trim();
+          if (!t || !n.parentElement || n.parentElement.closest('script,style,noscript')) continue;
+          const fs = parseFloat(getComputedStyle(n.parentElement).fontSize);
+          if (fs < 12) tiny.push(t.slice(0, 24));
+        }
+        return { overflow: de.scrollWidth - de.clientWidth, tiny };
+      });
+      await student.screenshot({ path: `${OUT}/${vpName}-siswa-login.png` });
+      if (sr.overflow > 1 || sr.tiny.length) fail(`${vpName} siswa-login`, `overflow=${sr.overflow} tiny=${sr.tiny.join('|')}`);
+      else pass(`${vpName} siswa-login`);
     }
   } catch (error) {
     fail('Alur uji berhenti karena error tak terduga', error.message);
