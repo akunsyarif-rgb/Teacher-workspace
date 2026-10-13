@@ -6,7 +6,7 @@ type ButtonProps = {
   children: React.ReactNode;
   onClick?: () => void;
   type?: 'button' | 'submit';
-  variant?: 'primary' | 'secondary';
+  variant?: 'primary' | 'secondary' | 'notebook';
   loading?: boolean;
   disabled?: boolean;
   className?: string; // TAMBAH: menerima className custom
@@ -26,7 +26,9 @@ export default function Button({
   const variantClass =
     variant === 'primary'
       ? 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white shadow-sm'
-      : 'bg-gray-100 hover:bg-gray-200 text-gray-700';
+      : variant === 'notebook'
+        ? 'bg-[#2F6B4F] hover:bg-[#24563F] disabled:bg-[#A7B9AD] text-white shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6B4F] focus-visible:ring-offset-2'
+        : 'bg-gray-100 hover:bg-gray-200 text-gray-700';
 
   return (
     <button

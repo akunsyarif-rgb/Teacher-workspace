@@ -253,14 +253,14 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
   }
 
   return (
-    <div className="space-y-6">
-      <Card className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="space-y-5 md:space-y-6">
+      <Card className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-[#D9DED5] bg-[#FFFEF9] shadow-sm">
         <div>
-          <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-            <Table className="w-4 h-4 text-blue-600" />
+          <h3 className="text-base font-extrabold text-[#242923] flex items-center gap-2">
+            <Table className="w-4 h-4 text-[#2F6B4F]" />
             Matriks Daftar Nilai Kelas {className}
           </h3>
-          <p className="text-xs text-gray-500">Kelola komponen nilai tugas, ulangan, dan rekap rata-rata</p>
+          <p className="mt-1 text-sm text-[#5D665E]">Kelola komponen nilai tugas, ulangan, dan rekap rata-rata</p>
           <div className="flex items-center gap-3 pt-2 text-[10px] font-bold text-gray-400">
             <span className="flex items-center gap-1">
               <Circle className="w-3 h-3" /> Belum diisi
@@ -380,7 +380,7 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
         type="warning"
       />
 
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="overflow-hidden rounded-2xl border border-[#D9DED5] bg-[#FFFEF9] shadow-sm">
         {loadingData ? (
           <div className="p-6">
             <SkeletonTable rows={4} cols={5} />

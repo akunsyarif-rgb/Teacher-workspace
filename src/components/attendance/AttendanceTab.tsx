@@ -216,14 +216,14 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 md:space-y-6">
       <InlineAlert message={errorMsg} onDismiss={() => setErrorMsg("")} />
 
       <div className="space-y-6">
-        <Card className="space-y-4">
+        <Card className="space-y-4 border border-[#D9DED5] bg-[#FFFEF9] shadow-sm">
           <div>
-            <label className="text-xs font-bold text-gray-700 block mb-1">Tanggal Hari Ini</label>
-            <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-600 flex items-center gap-2">
+            <label className="text-sm font-bold text-[#242923] block mb-2">Tanggal Hari Ini</label>
+            <div className="p-3 bg-[#F7F5EF] border border-[#D9DED5] rounded-xl text-sm text-[#5D665E] flex items-center gap-2">
               <Calendar className="w-4 h-4 text-gray-400" />
               <span>{formattedDate || "Memuat tanggal..."}</span>
             </div>
@@ -235,7 +235,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
               <button
                 type="button"
                 onClick={handleSetAllHadir}
-                className="px-4 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl text-xs font-bold transition-colors shadow-sm"
+                className="min-h-10 px-4 py-2 bg-[#EDF3E8] hover:bg-[#DDE9DE] text-[#24563F] rounded-xl text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6B4F]"
               >
                 Set Semua Hadir
               </button>
@@ -243,10 +243,10 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
           )}
         </Card>
 
-        <Card className="space-y-4 !p-3 sm:!p-4">
+        <Card className="space-y-4 !p-3 sm:!p-4 border border-[#D9DED5] bg-[#FFFEF9] shadow-sm">
           <div className="flex items-center justify-between gap-2 px-1 flex-wrap">
             <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-              <UserCheck className="w-4 h-4 text-blue-600" />
+              <UserCheck className="w-4 h-4 text-[#2F6B4F]" />
               Daftar Absen ({loadingData ? '...' : students.length} Siswa)
             </h3>
 
@@ -321,14 +321,14 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
       <Card className="space-y-4">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-            <History className="w-4 h-4 text-blue-600" />
+            <History className="w-4 h-4 text-[#2F6B4F]" />
             Riwayat Presensi ({loadingData ? '...' : history.length} Sesi)
           </h3>
           {!loadingData && history.length > 0 && (
             <button
               type="button"
               onClick={handleExportPdf}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl text-[11px] font-bold transition-colors"
+              className="flex min-h-10 items-center gap-1.5 rounded-xl bg-[#EDF3E8] px-3 py-2 text-xs font-bold text-[#24563F] transition-colors hover:bg-[#DDE9DE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6B4F]"
             >
               <FileDown className="w-3.5 h-3.5" />
               Export PDF Rekap
@@ -342,7 +342,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
             <SkeletonCard />
           </div>
         ) : history.length === 0 ? (
-          <p className="text-xs text-gray-400 py-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+          <p className="text-sm text-[#5D665E] py-8 text-center bg-[#F7F5EF] rounded-2xl border border-dashed border-[#D9DED5]">
             Belum ada rekap presensi untuk kelas ini.
           </p>
         ) : (
@@ -350,11 +350,11 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
             {history.map((item) => (
               <div
                 key={item.id}
-                className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-3"
+                className="p-4 bg-[#F7F5EF] rounded-2xl border border-[#D9DED5] flex flex-col md:flex-row justify-between items-start md:items-center gap-3"
               >
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[10px] font-extrabold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+                    <span className="text-xs font-extrabold text-[#24563F] bg-[#EDF3E8] px-2 py-1 rounded-md">
                       {item.date}
                     </span>
                     <span className="text-xs font-bold text-gray-900">• {item.subject}</span>

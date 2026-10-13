@@ -205,7 +205,7 @@ export default function JournalTab({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 md:space-y-6">
       <InlineAlert message={errorMsg} onDismiss={() => setErrorMsg("")} />
       {success && (
         <div className="p-4 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center gap-2 text-xs font-medium">
@@ -223,9 +223,9 @@ export default function JournalTab({
         </div>
       )}
 
-      <Card className="space-y-4">
+      <Card className="space-y-4 border border-[#D9DED5] bg-[#FFFEF9] shadow-sm">
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <label className="text-xs font-bold text-gray-700">Tanggal Mengajar</label>
+          <label className="text-sm font-bold text-[#242923]">Tanggal Mengajar</label>
           {!loadingToday && (
             <span className="flex items-center gap-1.5 text-[11px] font-bold">
               {todayEntryId ? (
@@ -242,20 +242,20 @@ export default function JournalTab({
             </span>
           )}
         </div>
-        <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-600 flex items-center gap-2">
+        <div className="p-3 bg-[#F7F5EF] border border-[#D9DED5] rounded-xl text-sm text-[#5D665E] flex items-center gap-2">
           <Calendar className="w-4 h-4 text-gray-400" />
           <span>{formattedDate || "Memuat tanggal..."}</span>
         </div>
       </Card>
 
       {mode === "view" ? (
-        <Card className="space-y-3">
+        <Card className="space-y-3 border border-[#D9DED5] bg-[#FFFEF9] shadow-sm">
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-sm font-extrabold text-gray-900">{savedTopic}</h3>
             <button
               type="button"
               onClick={handleStartEdit}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl text-[11px] font-bold transition-colors shrink-0"
+              className="flex min-h-10 items-center gap-1.5 rounded-xl bg-[#EDF3E8] px-3 py-2 text-xs font-bold text-[#24563F] transition-colors hover:bg-[#DDE9DE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6B4F] shrink-0"
             >
               <Pencil className="w-3.5 h-3.5" />
               Edit Jurnal
@@ -267,8 +267,8 @@ export default function JournalTab({
           </p>
         </Card>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <Card className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5 md:space-y-6">
+          <Card className="space-y-4 border border-[#D9DED5] bg-[#FFFEF9] shadow-sm">
             <Input
               label="Materi / Topik Pembelajaran"
               value={topic}
@@ -285,7 +285,7 @@ export default function JournalTab({
             />
           </Card>
           <div className="flex gap-2">
-            <Button type="submit" loading={loading}>
+            <Button type="submit" variant="notebook" loading={loading}>
               <CheckCircle2 className="w-5 h-5" />
               <span>{loading ? "Menyimpan Jurnal..." : todayEntryId ? "Simpan Perubahan" : "Simpan Jurnal Mengajar"}</span>
             </Button>
@@ -293,7 +293,7 @@ export default function JournalTab({
               <button
                 type="button"
                 onClick={handleCancelEdit}
-                className="shrink-0 px-4 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-2xl transition-colors"
+                className="min-h-11 shrink-0 rounded-xl border border-[#D9DED5] bg-[#F1F0E9] px-4 py-3 text-[#5D665E] transition-colors hover:bg-[#E8E7DF] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6B4F] focus-visible:ring-offset-2"
                 title="Batal"
                 aria-label="Batal"
               >
