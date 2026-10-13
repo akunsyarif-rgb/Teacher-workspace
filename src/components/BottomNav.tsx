@@ -44,7 +44,7 @@ export default function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#D9DED5] bg-[#FFFEF9]/95 shadow-[0_-2px_10px_rgba(36,41,35,0.05)] backdrop-blur supports-[backdrop-filter]:bg-[#FFFEF9]/90 xl:bottom-0 xl:left-0 xl:right-auto xl:top-0 xl:w-56 xl:border-r xl:border-t-0 xl:shadow-[2px_0_10px_rgba(36,41,35,0.04)]">
-      <div className="mx-auto grid w-full max-w-5xl grid-cols-4 px-1 sm:px-3 md:px-8 lg:max-w-4xl">
+      <div className="mx-auto grid w-full max-w-5xl grid-cols-4 px-1 sm:px-3 xl:flex xl:h-full xl:max-w-none xl:flex-col xl:justify-start xl:gap-2 xl:px-3 xl:pt-8">
         {navItems.map(({ href, label, icon: Icon }) => {
           const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href);
           const showBadge = href === "/attendance" && pendingCount > 0;
@@ -52,7 +52,7 @@ export default function BottomNav() {
             <Link
               key={href}
               href={href}
-              className={`flex flex-col items-center justify-center gap-1 min-h-14 min-w-0 py-2.5 text-xs font-bold transition-colors active:scale-95 relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2F6B4F] ${
+              className={`flex flex-col items-center justify-center gap-1 min-h-14 min-w-0 py-2.5 text-xs font-bold transition-colors active:scale-95 relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2F6B4F] xl:flex-row xl:justify-start xl:gap-3 xl:rounded-xl xl:px-4 xl:py-3 xl:text-sm ${
                 isActive ? "text-[#2F6B4F]" : "text-[#5D665E] hover:text-[#242923]"
               }`}
             >
