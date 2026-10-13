@@ -5,12 +5,14 @@ import Link from "next/link";
 import { signOut } from "firebase/auth";
 import { auth } from "@/src/config/firebase";
 import { useRouter } from "next/navigation";
-import { ClipboardCheck, Calendar, ClipboardList, Table, UserCheck, LogOut, ChevronRight, Megaphone, BookOpen } from "lucide-react";
+import { ClipboardCheck, Calendar, ClipboardList, Table, UserCheck, LogOut, ChevronRight, Megaphone, BookOpen, ExternalLink } from "lucide-react";
 import StudentShell from "@/src/components/student/StudentShell";
 import { SkeletonCard } from "@/src/components/ui/Skeleton";
 import * as studentPortalController from "@/lib/controllers/studentPortalController";
 import { isUlanganEnabled } from "@/lib/config/ulangan";
 import type { StudentProfile } from "@/src/context/StudentAuthContext";
+
+const NOTEBOOK_LM_URL = "https://notebook.google.com/notebook/048a08e5-7f96-4731-9839-2c6353cb523f";
 
 const MENU_ITEMS = [
   { href: "/student/jadwal", label: "Jadwal", description: "Jadwal pelajaran kelasmu", icon: Calendar },
@@ -75,21 +77,30 @@ function HomeContent({ profile }: { profile: StudentProfile }) {
 
       <section
         aria-labelledby="notebook-llm-title"
-        className="relative overflow-hidden bg-nb-paper p-5 rounded-2xl border border-dashed border-nb-green/50 shadow-sm"
+        className="relative overflow-hidden bg-nb-paper p-5 rounded-2xl border border-nb-green/30 shadow-sm"
       >
         <div className="flex items-start gap-3">
           <div className="w-11 h-11 rounded-xl bg-nb-green-soft text-nb-green flex items-center justify-center shrink-0">
             <BookOpen className="w-5 h-5" aria-hidden="true" />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-xs font-bold uppercase tracking-wider text-nb-green">Ruang belajar digital</p>
             <h2 id="notebook-llm-title" className="text-base font-bold text-nb-ink mt-1">Ruang Notebook LLM</h2>
             <p className="text-sm text-nb-ink-muted mt-1">
-              Area ini disiapkan untuk pengalaman belajar berbantuan AI. Konten dan integrasi akan ditambahkan pada tahap berikutnya.
+              Buka notebook pembelajaran berbantuan AI. Gunakan akun Google yang memiliki akses ke notebook ini.
             </p>
-            <span className="inline-flex items-center mt-3 px-2.5 py-1 rounded-full bg-nb-green-soft text-nb-green text-xs font-semibold">
-              Segera hadir
-            </span>
+            <a
+              href={NOTEBOOK_LM_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 mt-4 px-4 py-2.5 rounded-xl bg-nb-green text-white text-sm font-semibold hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nb-green transition-opacity"
+            >
+              Buka NotebookLM
+              <ExternalLink className="w-4 h-4" aria-hidden="true" />
+            </a>
+            <p className="text-xs text-nb-ink-muted mt-2">
+              Notebook terbuka di tab baru. Jika diminta, masuk menggunakan akun belajar.id.
+            </p>
           </div>
         </div>
       </section>
