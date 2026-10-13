@@ -329,7 +329,7 @@ export default function AttendanceForm() {
               }}
               title={label}
               className={`shrink-0 flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all active:scale-95 ${
-                activeTab === key ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                activeTab === key ? 'bg-[#FFFEF9] text-[#2F6B4F] shadow-sm' : 'text-[#5D665E] hover:text-[#242923]'
               }`}
             >
               <Icon className="w-4 h-4 shrink-0" />
@@ -338,7 +338,7 @@ export default function AttendanceForm() {
           ))}
         </div>
 
-        <div className="pt-2 border-t border-gray-100">
+        <div className="pt-2 border-t border-[#D9DED5]">
           {classesList.length === 0 ? (
             <p className="text-xs text-gray-400">Belum ada data kelas atau siswa di database.</p>
           ) : (
@@ -359,7 +359,7 @@ export default function AttendanceForm() {
           className={`p-4 md:p-5 rounded-2xl md:rounded-3xl border space-y-3 ${
             currentSession.isDone
               ? 'bg-emerald-50 border-emerald-200'
-              : 'bg-blue-50 border-blue-200'
+              : 'bg-[#EDF3E8] border-[#C8D8C8]'
           }`}
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -399,7 +399,7 @@ export default function AttendanceForm() {
               <button
                 type="button"
                 onClick={() => requestLeave(() => router.push('/'))}
-                className="text-xs font-bold text-blue-600 hover:underline"
+                className="text-xs font-bold text-[#2F6B4F] hover:underline"
               >
                 Kembali ke Beranda →
               </button>
