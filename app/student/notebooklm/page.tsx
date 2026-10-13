@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, ExternalLink, BookOpen, Info } from "lucide-react";
 import StudentShell from "@/src/components/student/StudentShell";
 
-const NOTEBOOK_LM_URL = "https://notebook.google.com/notebook/048a08e5-7f96-4731-9839-2c6353cb523f";
+const NOTEBOOK_LM_URL = "https://notebook.google.com/notebook/0dd94122-4449-46f9-b9a8-d9096bc28076";
 
 function NotebookContent() {
   return (
