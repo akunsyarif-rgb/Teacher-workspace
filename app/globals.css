@@ -48,6 +48,8 @@ body {
     var(--workspace-rule) 28px,
     transparent 29px
   );
+  /* Garis diletakkan di bawah baseline teks, bukan melintasi huruf. */
+  background-position: 0 8px;
   line-height: 28px;
 }
 
