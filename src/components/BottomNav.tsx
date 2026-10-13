@@ -43,8 +43,8 @@ export default function BottomNav() {
   if (pathname === "/login" || pathname.startsWith("/student")) return null;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-100 shadow-[0_-2px_10px_rgba(0,0,0,0.04)]">
-      <div className="max-w-5xl mx-auto grid grid-cols-4">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#D9DED5] bg-[#FFFEF9]/95 shadow-[0_-2px_10px_rgba(36,41,35,0.05)] backdrop-blur supports-[backdrop-filter]:bg-[#FFFEF9]/90">
+      <div className="mx-auto grid w-full max-w-5xl grid-cols-4 px-1 sm:px-3">
         {navItems.map(({ href, label, icon: Icon }) => {
           const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href);
           const showBadge = href === "/attendance" && pendingCount > 0;
@@ -52,8 +52,8 @@ export default function BottomNav() {
             <Link
               key={href}
               href={href}
-              className={`flex flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-bold transition-colors active:scale-95 relative ${
-                isActive ? "text-blue-600" : "text-gray-500 hover:text-gray-600"
+              className={`flex flex-col items-center justify-center gap-1 min-h-14 py-2.5 text-xs font-bold transition-colors active:scale-95 relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2F6B4F] ${
+                isActive ? "text-[#2F6B4F]" : "text-[#5D665E] hover:text-[#242923]"
               }`}
             >
               <div className="relative">
