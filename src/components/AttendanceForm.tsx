@@ -71,6 +71,7 @@ export default function AttendanceForm() {
   const [journalDirty, setJournalDirty] = useState(false);
   const [gradesDraftCount, setGradesDraftCount] = useState(0);
   const journalSaveRef = useRef<(() => Promise<void>) | null>(null);
+  const tabRefs = useRef<Partial<Record<WorkspaceTab, HTMLButtonElement | null>>>({});
   const gradesOpenReviewRef = useRef<(() => void) | null>(null);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
@@ -298,6 +299,24 @@ export default function AttendanceForm() {
     { key: 'riwayat', label: 'Riwayat', icon: History },
   ] as const;
 
+  // WAI-ARIA Tabs, aktivasi manual: panah/Home/End hanya memindah fokus
+  // (roving tabindex); Enter/Spasi memilih tab lewat onClick. Dengan begitu
+  // berpindah antar tab lewat keyboard tidak memicu dialog "perubahan belum
+  // disimpan" atau memuat chunk tab di setiap langkah panah.
+  const handleTabKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const order = tabs.map((t) => t.key);
+    const focused = order.findIndex((k) => tabRefs.current[k] === document.activeElement);
+    if (focused === -1) return;
+    let next = focused;
+    if (e.key === 'ArrowRight') next = (focused + 1) % order.length;
+    else if (e.key === 'ArrowLeft') next = (focused - 1 + order.length) % order.length;
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = order.length - 1;
+    else return;
+    e.preventDefault();
+    tabRefs.current[order[next]]?.focus();
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -319,11 +338,24 @@ export default function AttendanceForm() {
 
         {/* Baris tab di-scroll horizontal (bukan disempitkan/disingkat)
             supaya label tetap terbaca penuh walau ada 6 tab di layar HP. */}
-        <div role="group" aria-label="Pusat Kegiatan Kelas" className="flex gap-1.5 bg-[#ECE9DF] p-1.5 rounded-2xl overflow-x-auto no-scrollbar">
+        <div
+          role="tablist"
+          aria-label="Pusat Kegiatan Kelas"
+          onKeyDown={handleTabKeyDown}
+          className="flex gap-1.5 bg-[#ECE9DF] p-1.5 rounded-2xl overflow-x-auto no-scrollbar"
+        >
           {tabs.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
-              aria-pressed={activeTab === key}
+              ref={(el) => {
+                tabRefs.current[key] = el;
+              }}
+              id={`kelas-tab-${key}`}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === key}
+              aria-controls={`kelas-panel-${key}`}
+              tabIndex={activeTab === key ? 0 : -1}
               onClick={() => {
                 if (key === activeTab) return;
                 requestLeave(() => setActiveTab(key));
@@ -333,7 +365,7 @@ export default function AttendanceForm() {
                 activeTab === key ? 'bg-[#FFFEF9] text-[#2F6B4F] shadow-sm' : 'text-[#5D665E] hover:text-[#242923]'
               }`}
             >
-              <Icon className="w-4 h-4 shrink-0" />
+              <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
               <span>{label}</span>
             </button>
           ))}
@@ -409,37 +441,45 @@ export default function AttendanceForm() {
         </div>
       )}
 
+      <div
+        role="tabpanel"
+        id={`kelas-panel-${activeTab}`}
+        aria-labelledby={`kelas-tab-${activeTab}`}
+        tabIndex={0}
+        className="space-y-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nb-green rounded-2xl"
+      >
       {selectedClass && activeTab === 'jurnal' && (
-        <JournalTab
-          className={selectedClass}
-          subject={subject}
-          scheduleId={activeScheduleId}
-          onSubmitted={handleJournalSubmitted}
-          onDirtyChange={setJournalDirty}
-          saveHandleRef={journalSaveRef}
-        />
-      )}
-      {selectedClass && activeTab === 'presensi' && (
-        <AttendanceTab
-          className={selectedClass}
-          subject={subject}
-          scheduleId={activeScheduleId}
-          onSubmitted={handleAttendanceSubmitted}
-        />
-      )}
-      {selectedClass && activeTab === 'nilai' && (
-        <GradesTab
-          className={selectedClass}
-          onDraftChange={setGradesDraftCount}
-          openReviewRef={gradesOpenReviewRef}
-          onSavedSuccessfully={handleGradesSaved}
-        />
-      )}
-      {selectedClass && activeTab === 'tugas' && <AssignmentsTab className={selectedClass} subject={subject} />}
-      {selectedClass && activeTab === 'pengumuman' && (
-        <AnnouncementsTab className={selectedClass} subject={subject} />
-      )}
-      {selectedClass && activeTab === 'riwayat' && <TimelineTab className={selectedClass} />}
+          <JournalTab
+            className={selectedClass}
+            subject={subject}
+            scheduleId={activeScheduleId}
+            onSubmitted={handleJournalSubmitted}
+            onDirtyChange={setJournalDirty}
+            saveHandleRef={journalSaveRef}
+          />
+        )}
+        {selectedClass && activeTab === 'presensi' && (
+          <AttendanceTab
+            className={selectedClass}
+            subject={subject}
+            scheduleId={activeScheduleId}
+            onSubmitted={handleAttendanceSubmitted}
+          />
+        )}
+        {selectedClass && activeTab === 'nilai' && (
+          <GradesTab
+            className={selectedClass}
+            onDraftChange={setGradesDraftCount}
+            openReviewRef={gradesOpenReviewRef}
+            onSavedSuccessfully={handleGradesSaved}
+          />
+        )}
+        {selectedClass && activeTab === 'tugas' && <AssignmentsTab className={selectedClass} subject={subject} />}
+        {selectedClass && activeTab === 'pengumuman' && (
+          <AnnouncementsTab className={selectedClass} subject={subject} />
+        )}
+        {selectedClass && activeTab === 'riwayat' && <TimelineTab className={selectedClass} />}
+      </div>
 
       <UnsavedChangesModal
         isOpen={showUnsavedModal}

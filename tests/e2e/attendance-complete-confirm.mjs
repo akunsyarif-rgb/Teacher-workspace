@@ -218,7 +218,7 @@ async function run() {
     }
 
     // Guru tetap BEBAS pindah sendiri ke Jurnal kapan pun mau.
-    await teacher.getByRole('button', { name: 'Jurnal Mengajar' }).click();
+    await teacher.getByRole('tab', { name: 'Jurnal Mengajar' }).click();
     await teacher.waitForTimeout(1000);
     const canStillOpenJurnalManually = await teacher.getByRole('button', { name: /Simpan Jurnal Mengajar/i }).count();
     if (canStillOpenJurnalManually > 0) {
