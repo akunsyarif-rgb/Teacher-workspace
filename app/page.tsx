@@ -647,29 +647,29 @@ export default function DashboardPage() {
 
         {/* Catatan Cepat + Menu Utama */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-          <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 space-y-2 md:space-y-3">
+          <div className="bg-[#FFFEF9] p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-[#D9DED5] space-y-2 md:space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 md:w-9 md:h-9 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
                   <FileText className="w-4 h-4 md:w-4.5 md:h-4.5" />
                 </div>
-                <p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                <p className="text-xs font-bold text-[#5D665E] uppercase tracking-wider">
                   Catatan Cepat
                 </p>
               </div>
-              <span className="text-[8px] md:text-[9px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 md:px-2.5 md:py-1 rounded-lg">
+              <span className="text-xs font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg">
                 Auto-Save
               </span>
             </div>
             <textarea
-              rows={2}
+              rows={3}
               placeholder="Tulis catatan kilat atau pengingat di sini..."
               value={quickNote}
               onChange={(e) => handleQuickNoteChange(e.target.value)}
-              className={`w-full p-2 md:p-3 bg-gray-50 border rounded-xl text-xs font-bold text-gray-900 placeholder:text-gray-400 outline-none resize-none transition-colors ${
+              className={`notebook-paper w-full min-h-[7.5rem] p-3 rounded-xl border text-base font-medium text-[#242923] placeholder:text-gray-500 outline-none resize-y transition-colors focus:ring-2 focus:ring-[#2F6B4F] ${
                 syncStatus === "offline"
-                  ? "border-red-300 focus:ring-red-500"
-                  : "border-gray-200 focus:ring-2 focus:ring-amber-500"
+                  ? "border-red-400 focus:ring-red-500"
+                  : "border-[#D9DED5]"
               }`}
             />
             <p className="text-[11px] md:text-xs">
