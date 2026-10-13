@@ -69,8 +69,8 @@ export default function ScheduleManagement() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="mx-auto max-w-5xl space-y-6 text-[#242923]">
+      <div className="bg-[#FFFEF9] p-5 md:p-6 rounded-3xl border border-[#D9DED5] shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-lg font-bold text-gray-900">Kelola Jadwal Mengajar</h2>
           <p className="text-xs text-gray-500">Atur pembagian jam mengajar mingguan per kelas</p>
@@ -81,7 +81,7 @@ export default function ScheduleManagement() {
             <button
               onClick={() => setSchoolSystem('5')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                schoolSystem === '5' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
+                schoolSystem === '5' ? 'bg-[#FFFEF9] text-[#2F6B4F] shadow-sm' : 'text-[#5D665E]'
               }`}
             >
               5 Hari
@@ -98,7 +98,7 @@ export default function ScheduleManagement() {
 
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm shrink-0"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-[#2F6B4F] hover:bg-[#24563F] text-white rounded-xl text-sm font-bold transition-colors shadow-sm shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2F6B4F]"
           >
             <Plus className="w-4 h-4" />
             <span>Tambah Jadwal</span>
