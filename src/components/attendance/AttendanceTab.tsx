@@ -321,7 +321,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
       <Card className="space-y-4">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-            <History className="w-4 h-4 text-[#2F6B4F]"
+            <History className="w-4 h-4 text-[#2F6B4F]" />
             Riwayat Presensi ({loadingData ? '...' : history.length} Sesi)
           </h3>
           {!loadingData && history.length > 0 && (
