@@ -35,7 +35,7 @@ export default function RootLayout({
         {/* BUNGKUS SELURUH APLIKASI DENGAN WORKSPACE PROVIDER */}
         <WorkspaceProvider>
           <OfflineBanner />
-          <div className="flex-1 pb-20">{children}</div>
+          <div className="flex-1 pb-20 xl:pl-56 xl:pb-0">{children}</div>
           <BottomNav />
           <PerfOverlay />
         </WorkspaceProvider>
