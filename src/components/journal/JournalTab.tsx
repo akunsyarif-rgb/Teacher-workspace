@@ -267,8 +267,8 @@ export default function JournalTab({
           </p>
         </Card>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <Card className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5 md:space-y-6">
+          <Card className="space-y-4 border border-[#D9DED5] bg-[#FFFEF9] shadow-sm">
             <Input
               label="Materi / Topik Pembelajaran"
               value={topic}
@@ -285,7 +285,7 @@ export default function JournalTab({
             />
           </Card>
           <div className="flex gap-2">
-            <Button type="submit" loading={loading}>
+            <Button type="submit" variant="notebook" loading={loading}>
               <CheckCircle2 className="w-5 h-5" />
               <span>{loading ? "Menyimpan Jurnal..." : todayEntryId ? "Simpan Perubahan" : "Simpan Jurnal Mengajar"}</span>
             </Button>
@@ -293,7 +293,7 @@ export default function JournalTab({
               <button
                 type="button"
                 onClick={handleCancelEdit}
-                className="shrink-0 px-4 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-2xl transition-colors"
+                className="min-h-11 shrink-0 rounded-xl border border-[#D9DED5] bg-[#F1F0E9] px-4 py-3 text-[#5D665E] transition-colors hover:bg-[#E8E7DF] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6B4F] focus-visible:ring-offset-2"
                 title="Batal"
                 aria-label="Batal"
               >
