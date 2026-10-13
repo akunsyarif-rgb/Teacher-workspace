@@ -20,15 +20,12 @@ export default function ScheduleManagement() {
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [defaultSubject, setDefaultSubject] = useState('');
   const [loading, setLoading] = useState(true);
-
   const activeDays = schoolSystem === '5' ? SCHOOL_DAYS_5 : SCHOOL_DAYS_6;
 
   async function loadSchedules() {
     if (!workspaceId) return;
     const alreadyWarm = getCached(schedulesCacheKey(workspaceId)) !== undefined;
-    if (!alreadyWarm) {
-      setLoading(true);
-    }
+    if (!alreadyWarm) setLoading(true);
     try {
       const data = await fetchSchedules(workspaceId);
       setSchedules(data);
@@ -45,11 +42,8 @@ export default function ScheduleManagement() {
   }, []);
 
   useEffect(() => {
-    if (workspaceId) {
-      loadSchedules();
-    } else {
-      setLoading(false);
-    }
+    if (workspaceId) loadSchedules();
+    else setLoading(false);
   }, [workspaceId]);
 
   async function handleAddSchedule(input: Parameters<typeof submitSchedule>[1]) {
@@ -64,70 +58,33 @@ export default function ScheduleManagement() {
     await loadSchedules();
   }
 
-  if (loading) {
-    return <LoadingSpinner text="Memuat jadwal..." />;
-  }
+  if (loading) return <LoadingSpinner text="Memuat jadwal..." />;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 text-[#242923]">
-      <div className="bg-[#FFFEF9] p-5 md:p-6 rounded-3xl border border-[#D9DED5] shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="mx-auto max-w-5xl space-y-5 text-[#242923] sm:space-y-6">
+      <section className="flex flex-col items-start justify-between gap-4 rounded-2xl border border-[#D9DED5] bg-[#FFFEF9] p-4 shadow-sm sm:rounded-3xl sm:p-6 md:flex-row md:items-center">
         <div>
-          <h2 className="text-lg font-bold text-gray-900">Kelola Jadwal Mengajar</h2>
-          <p className="text-xs text-gray-500">Atur pembagian jam mengajar mingguan per kelas</p>
+          <p className="mb-1 text-xs font-bold uppercase tracking-[0.14em] text-[#2F6B4F]">Buku kerja guru · Perencanaan</p>
+          <h1 className="text-xl font-extrabold text-[#242923] sm:text-2xl">Jadwal Mengajar</h1>
+          <p className="mt-1 text-sm text-[#5D665E]">Atur pembagian jam mengajar mingguan per kelas</p>
         </div>
-
-        <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
-          <div className="flex bg-gray-100 p-1 rounded-xl">
-            <button
-              onClick={() => setSchoolSystem('5')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                schoolSystem === '5' ? 'bg-[#FFFEF9] text-[#2F6B4F] shadow-sm' : 'text-[#5D665E]'
-              }`}
-            >
-              5 Hari
-            </button>
-            <button
-              onClick={() => setSchoolSystem('6')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                schoolSystem === '6' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
-              }`}
-            >
-              6 Hari
-            </button>
+        <div className="flex w-full flex-wrap items-center justify-between gap-3 md:w-auto md:justify-end">
+          <div className="flex rounded-xl bg-[#F0EFE8] p-1" aria-label="Pilih sistem hari sekolah">
+            <button type="button" onClick={() => setSchoolSystem('5')} aria-pressed={schoolSystem === '5'} className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6B4F] ${schoolSystem === '5' ? 'bg-[#FFFEF9] text-[#24563F] shadow-sm' : 'text-[#5D665E] hover:text-[#242923]'}`}>5 Hari</button>
+            <button type="button" onClick={() => setSchoolSystem('6')} aria-pressed={schoolSystem === '6'} className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6B4F] ${schoolSystem === '6' ? 'bg-[#FFFEF9] text-[#24563F] shadow-sm' : 'text-[#5D665E] hover:text-[#242923]'}`}>6 Hari</button>
           </div>
-
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-[#2F6B4F] hover:bg-[#24563F] text-white rounded-xl text-sm font-bold transition-colors shadow-sm shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2F6B4F]"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Tambah Jadwal</span>
+          <button type="button" onClick={() => setShowAddModal(true)} className="flex min-h-11 items-center gap-2 rounded-xl bg-[#2F6B4F] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#24563F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6B4F] focus-visible:ring-offset-2">
+            <Plus className="h-4 w-4" aria-hidden="true" /> Tambah Jadwal
           </button>
         </div>
-      </div>
+      </section>
 
-      <ScheduleFormModal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        activeDays={activeDays}
-        defaultSubject={defaultSubject}
-        onSubmit={handleAddSchedule}
-      />
+      <ScheduleFormModal isOpen={showAddModal} onClose={() => setShowAddModal(false)} activeDays={activeDays} defaultSubject={defaultSubject} onSubmit={handleAddSchedule} />
+      <ScheduleDeleteConfirmModal isOpen={deleteTargetId !== null} onClose={() => setDeleteTargetId(null)} onConfirm={handleConfirmDelete} />
 
-      <ScheduleDeleteConfirmModal
-        isOpen={deleteTargetId !== null}
-        onClose={() => setDeleteTargetId(null)}
-        onConfirm={handleConfirmDelete}
-      />
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5">
         {activeDays.map((d) => (
-          <ScheduleDayCard
-            key={d}
-            day={d}
-            items={sortSchedulesChronologically(schedules.filter((s) => s.day === d))}
-            onRequestDelete={setDeleteTargetId}
-          />
+          <ScheduleDayCard key={d} day={d} items={sortSchedulesChronologically(schedules.filter((s) => s.day === d))} onRequestDelete={setDeleteTargetId} />
         ))}
       </div>
     </div>
