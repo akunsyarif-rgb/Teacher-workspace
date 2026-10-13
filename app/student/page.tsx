@@ -12,6 +12,7 @@ import * as studentPortalController from "@/lib/controllers/studentPortalControl
 import { isUlanganEnabled } from "@/lib/config/ulangan";
 import type { StudentProfile } from "@/src/context/StudentAuthContext";
 
+
 const MENU_ITEMS = [
   { href: "/student/jadwal", label: "Jadwal", description: "Jadwal pelajaran kelasmu", icon: Calendar },
   ...(isUlanganEnabled() ? [{ href: "/student/ulangan", label: "Ulangan", description: "Ulangan harian kelasmu", icon: ClipboardCheck }] : []),
@@ -75,21 +76,27 @@ function HomeContent({ profile }: { profile: StudentProfile }) {
 
       <section
         aria-labelledby="notebook-llm-title"
-        className="relative overflow-hidden bg-nb-paper p-5 rounded-2xl border border-dashed border-nb-green/50 shadow-sm"
+        className="relative overflow-hidden bg-nb-paper p-5 rounded-2xl border border-nb-green/30 shadow-sm"
       >
         <div className="flex items-start gap-3">
           <div className="w-11 h-11 rounded-xl bg-nb-green-soft text-nb-green flex items-center justify-center shrink-0">
             <BookOpen className="w-5 h-5" aria-hidden="true" />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-xs font-bold uppercase tracking-wider text-nb-green">Ruang belajar digital</p>
             <h2 id="notebook-llm-title" className="text-base font-bold text-nb-ink mt-1">Ruang Notebook LLM</h2>
             <p className="text-sm text-nb-ink-muted mt-1">
-              Area ini disiapkan untuk pengalaman belajar berbantuan AI. Konten dan integrasi akan ditambahkan pada tahap berikutnya.
+              Buka notebook pembelajaran berbantuan AI. Gunakan akun Google yang memiliki akses ke notebook ini.
             </p>
-            <span className="inline-flex items-center mt-3 px-2.5 py-1 rounded-full bg-nb-green-soft text-nb-green text-xs font-semibold">
-              Segera hadir
-            </span>
+            <Link
+              href="/student/notebooklm"
+              className="inline-flex items-center justify-center gap-2 mt-4 px-4 py-2.5 rounded-xl bg-nb-green text-white text-sm font-semibold hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nb-green transition-opacity"
+            >
+              Buka Ruang Notebook
+            </Link>
+            <p className="text-xs text-nb-ink-muted mt-2">
+              Notebook dicoba ditampilkan di halaman aplikasi. Jika tidak tampil, tersedia opsi buka di browser.
+            </p>
           </div>
         </div>
       </section>
