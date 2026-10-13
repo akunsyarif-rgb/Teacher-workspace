@@ -5,7 +5,7 @@ import Link from "next/link";
 import { signOut } from "firebase/auth";
 import { auth } from "@/src/config/firebase";
 import { useRouter } from "next/navigation";
-import { ClipboardCheck, Calendar, ClipboardList, Table, UserCheck, LogOut, ChevronRight, Megaphone } from "lucide-react";
+import { ClipboardCheck, Calendar, ClipboardList, Table, UserCheck, LogOut, ChevronRight, Megaphone, BookOpen } from "lucide-react";
 import StudentShell from "@/src/components/student/StudentShell";
 import { SkeletonCard } from "@/src/components/ui/Skeleton";
 import * as studentPortalController from "@/lib/controllers/studentPortalController";
@@ -72,6 +72,27 @@ function HomeContent({ profile }: { profile: StudentProfile }) {
           <LogOut className="w-4 h-4" />
         </button>
       </div>
+
+      <section
+        aria-labelledby="notebook-llm-title"
+        className="relative overflow-hidden bg-nb-paper p-5 rounded-2xl border border-dashed border-nb-green/50 shadow-sm"
+      >
+        <div className="flex items-start gap-3">
+          <div className="w-11 h-11 rounded-xl bg-nb-green-soft text-nb-green flex items-center justify-center shrink-0">
+            <BookOpen className="w-5 h-5" aria-hidden="true" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-wider text-nb-green">Ruang belajar digital</p>
+            <h2 id="notebook-llm-title" className="text-base font-bold text-nb-ink mt-1">Ruang Notebook LLM</h2>
+            <p className="text-sm text-nb-ink-muted mt-1">
+              Area ini disiapkan untuk pengalaman belajar berbantuan AI. Konten dan integrasi akan ditambahkan pada tahap berikutnya.
+            </p>
+            <span className="inline-flex items-center mt-3 px-2.5 py-1 rounded-full bg-nb-green-soft text-nb-green text-xs font-semibold">
+              Segera hadir
+            </span>
+          </div>
+        </div>
+      </section>
 
       <div className="space-y-2">
         <p className="text-xs font-extrabold text-nb-ink-muted uppercase tracking-wider flex items-center gap-1.5">
