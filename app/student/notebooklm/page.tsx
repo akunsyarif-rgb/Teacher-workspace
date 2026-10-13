@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, Info } from "lucide-react";
+import { ArrowLeft, ExternalLink, BookOpen, Info } from "lucide-react";
 import StudentShell from "@/src/components/student/StudentShell";
 
 const NOTEBOOK_LM_URL = "https://notebook.google.com/notebook/048a08e5-7f96-4731-9839-2c6353cb523f";
@@ -18,39 +18,38 @@ function NotebookContent() {
         Kembali ke halaman siswa
       </Link>
 
-      <div className="bg-nb-paper rounded-2xl border border-nb-rule shadow-sm overflow-hidden">
-        <div className="p-3 border-b border-nb-rule flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-bold text-nb-ink">NotebookLM</h2>
-            <p className="text-xs text-nb-ink-muted mt-0.5">Preview di dalam Teacher Workspace</p>
+      <section className="bg-nb-paper rounded-2xl border border-nb-rule shadow-sm p-5 space-y-4">
+        <div className="flex items-start gap-3">
+          <div className="w-11 h-11 rounded-xl bg-nb-green-soft text-nb-green flex items-center justify-center shrink-0">
+            <BookOpen className="w-5 h-5" aria-hidden="true" />
           </div>
-          <a
-            href={NOTEBOOK_LM_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-nb-green text-white text-xs font-bold hover:opacity-90 shrink-0"
-          >
-            Buka di browser
-            <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
-          </a>
+          <div>
+            <h2 className="text-base font-bold text-nb-ink">NotebookLM</h2>
+            <p className="text-sm text-nb-ink-muted mt-1">
+              Buka notebook pembelajaran ini menggunakan akun Google yang sudah memiliki akses.
+            </p>
+          </div>
         </div>
 
-        <div className="p-3 bg-amber-50 border-b border-amber-100 flex items-start gap-2">
+        <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl flex items-start gap-2">
           <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" aria-hidden="true" />
           <p className="text-xs text-amber-900">
-            Jika preview kosong atau Google meminta membuka halaman di browser, gunakan tombol “Buka di browser”. Beberapa layanan membatasi pemuatan di dalam frame.
+            NotebookLM berhasil dibuka melalui browser, tetapi tidak tampil di preview dalam halaman ini. Untuk memastikan chat dan login berfungsi, buka NotebookLM langsung. Setelah selesai, gunakan tombol kembali di browser untuk kembali ke Teacher Workspace.
           </p>
         </div>
 
-        <iframe
-          title="NotebookLM preview"
-          src={NOTEBOOK_LM_URL}
-          className="block w-full bg-white"
-          style={{ height: "72vh", minHeight: "520px" }}
-          referrerPolicy="strict-origin-when-cross-origin"
-          allow="clipboard-read; clipboard-write"
-        />
-      </div>
+        <a
+          href={NOTEBOOK_LM_URL}
+          className="inline-flex w-full items-center justify-center gap-2 px-4 py-3 rounded-xl bg-nb-green text-white text-sm font-semibold hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nb-green transition-opacity"
+        >
+          Buka NotebookLM
+          <ExternalLink className="w-4 h-4" aria-hidden="true" />
+        </a>
+
+        <p className="text-xs text-nb-ink-muted">
+          Jika diminta login, pilih akun Google siswa yang memiliki akses ke notebook.
+        </p>
+      </section>
     </div>
   );
 }
