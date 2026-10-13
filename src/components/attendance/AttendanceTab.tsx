@@ -223,19 +223,19 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
         <Card className="space-y-4">
           <div>
             <label className="text-xs font-bold text-gray-700 block mb-1">Tanggal Hari Ini</label>
-            <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-600 flex items-center gap-2">
+            <div className="p-3 bg-[#F7F5EF] border border-[#D9DED5] rounded-xl text-sm text-[#5D665E] flex items-center gap-2">
               <Calendar className="w-4 h-4 text-gray-400" />
               <span>{formattedDate || "Memuat tanggal..."}</span>
             </div>
           </div>
 
           {students.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-gray-100">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-[#D9DED5]">
               <span className="text-xs font-bold text-gray-500">Pintasan Cepat:</span>
               <button
                 type="button"
                 onClick={handleSetAllHadir}
-                className="px-4 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl text-xs font-bold transition-colors shadow-sm"
+                className="px-4 py-1.5 bg-[#EDF3E8] hover:bg-[#DCE9D9] text-[#24563F] rounded-xl text-xs font-bold transition-colors shadow-sm"
               >
                 Set Semua Hadir
               </button>
@@ -245,8 +245,8 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
 
         <Card className="space-y-4 !p-3 sm:!p-4">
           <div className="flex items-center justify-between gap-2 px-1 flex-wrap">
-            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-              <UserCheck className="w-4 h-4 text-blue-600" />
+            <h3 className="text-sm font-bold text-[#242923] flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-[#2F6B4F]" />
               Daftar Absen ({loadingData ? '...' : students.length} Siswa)
             </h3>
 
@@ -320,15 +320,15 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
       {/* Riwayat dengan Skeleton */}
       <Card className="space-y-4">
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-            <History className="w-4 h-4 text-blue-600" />
+          <h3 className="text-sm font-bold text-[#242923] flex items-center gap-2">
+            <History className="w-4 h-4 text-[#2F6B4F]" />
             Riwayat Presensi ({loadingData ? '...' : history.length} Sesi)
           </h3>
           {!loadingData && history.length > 0 && (
             <button
               type="button"
               onClick={handleExportPdf}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl text-[11px] font-bold transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#EDF3E8] hover:bg-[#DCE9D9] text-[#24563F] rounded-xl text-[11px] font-bold transition-colors"
             >
               <FileDown className="w-3.5 h-3.5" />
               Export PDF Rekap
@@ -342,7 +342,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
             <SkeletonCard />
           </div>
         ) : history.length === 0 ? (
-          <p className="text-xs text-gray-400 py-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+          <p className="text-xs text-[#5D665E] py-8 text-center bg-[#F7F5EF] rounded-2xl border border-dashed border-[#D9DED5]">
             Belum ada rekap presensi untuk kelas ini.
           </p>
         ) : (
@@ -350,11 +350,11 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
             {history.map((item) => (
               <div
                 key={item.id}
-                className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-3"
+                className="p-4 bg-[#F7F5EF] rounded-2xl border border-[#D9DED5] flex flex-col md:flex-row justify-between items-start md:items-center gap-3"
               >
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[10px] font-extrabold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+                    <span className="text-[10px] font-extrabold text-[#2F6B4F] bg-blue-50 px-2 py-0.5 rounded-md">
                       {item.date}
                     </span>
                     <span className="text-xs font-bold text-gray-900">• {item.subject}</span>
@@ -373,7 +373,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
                       </span>
                     )}
                     <span className="text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded">Sakit: {item.summary?.sakit || 0}</span>
-                    <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded">Izin: {item.summary?.izin || 0}</span>
+                    <span className="text-[#2F6B4F] bg-blue-50 px-2 py-0.5 rounded">Izin: {item.summary?.izin || 0}</span>
                     <span className="text-red-600 bg-red-50 px-2 py-0.5 rounded">Alpa: {item.summary?.alpa || 0}</span>
                   </div>
                 </div>
