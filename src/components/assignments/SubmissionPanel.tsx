@@ -266,7 +266,7 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
 
       <Card className="space-y-1">
         <h3 className="text-sm font-bold text-nb-ink">{assignment.title}</h3>
-        {assignment.description && <p className="text-xs text-nb-ink-muted">{assignment.description}</p>}
+        {assignment.description && <p className="text-xs text-nb-ink-muted whitespace-pre-wrap break-words">{assignment.description}</p>}
         <p className="text-xs font-bold text-nb-ink-muted uppercase tracking-wider">
           Tenggat {assignment.dueDate}
         </p>

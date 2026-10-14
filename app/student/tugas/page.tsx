@@ -370,7 +370,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
             <div>
               <p className="text-xs font-bold text-nb-ink">{assignment.title}</p>
               {assignment.description && (
-                <p className="text-xs text-nb-ink-muted mt-0.5">{assignment.description}</p>
+                <p className="text-xs text-nb-ink-muted mt-0.5 whitespace-pre-wrap break-words">{assignment.description}</p>
               )}
               <p
                 className={`text-xs font-bold uppercase tracking-wider mt-1 ${
