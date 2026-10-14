@@ -19,6 +19,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Teacher Workspace",
   description: "Pusat operasional guru: jurnal mengajar, presensi, nilai, tugas, dan jadwal kelas.",
+  appleWebApp: { capable: true, title: "Workspace", statusBarStyle: "default" },
 };
 
 // Mode gelap belum dirancang: beri tahu browser/OS bahwa halaman hanya terang,
