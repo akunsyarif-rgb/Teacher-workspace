@@ -464,10 +464,15 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                 {files.length === 0 && existingAttachments.length > 0 && (
                   <div className="space-y-1.5">
                     {existingAttachments.map((att, idx) => (
-                      <div key={`${att.fileUrl}-${idx}`} className="flex items-center gap-1.5 p-2.5 bg-nb-workspace rounded-xl">
+                      <button
+                        type="button"
+                        key={`${att.fileUrl}-${idx}`}
+                        onClick={() => openAttachment(att, existingAttachments)}
+                        className="w-full flex items-center gap-1.5 p-2.5 bg-nb-workspace rounded-xl text-left hover:bg-nb-green/10"
+                      >
                         <FileText className="w-3.5 h-3.5 text-nb-ink-muted shrink-0" />
-                        <span className="text-xs font-bold text-nb-ink-muted truncate">{att.fileName || "Lampiran"}</span>
-                      </div>
+                        <span className="text-xs font-bold text-nb-green truncate">{att.fileName || "Lampiran"} · Lihat</span>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -584,7 +589,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
                     href={att.fileUrl.startsWith("supabase-storage://") ? "#" : att.fileUrl}
                     onClick={(event) => {
  event.preventDefault();
- openAttachment(att);
+ openAttachment(att, existingAttachments);
  }}
                     target="_blank"
                     rel="noopener noreferrer"

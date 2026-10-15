@@ -399,7 +399,7 @@ export default function SubmissionPanel({ workspaceId, className, assignment, on
                               href={att.fileUrl.startsWith('supabase-storage://') ? '#' : att.fileUrl}
                               onClick={(event) => {
  event.preventDefault();
- openAttachment(att);
+ openAttachment(att, attachments.filter((a: any) => a.fileUrl));
  }}
                               target="_blank"
                               rel="noopener noreferrer"
