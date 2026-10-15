@@ -151,7 +151,20 @@ export default function AttachmentViewer({ attachment, onClose, position, onNavi
               style={zoom === MIN_ZOOM ? { maxWidth: '100%', maxHeight: '80vh' } : { width: `${zoom * 100}vw`, maxWidth: `${zoom * 48}rem`, maxHeight: 'none' }}
             />
           ) : kind === 'pdf' ? (
-            <iframe src={url} title={attachment.fileName || 'Lampiran PDF'} className="w-full h-[80vh] border-0" />
+            <div className="w-full min-w-[min(100vw,48rem)] flex flex-col">
+              {/* Safari iPad/iPhone hanya menampilkan halaman pertama PDF di iframe
+                  dan zoom-nya terbatas; tab baru memakai penampil PDF bawaan. */}
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="m-3 flex items-center justify-center gap-2 rounded-xl bg-nb-green px-4 py-2.5 text-xs font-bold text-white"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Buka PDF layar penuh (semua halaman & zoom)
+              </a>
+              <iframe src={url} title={attachment.fileName || 'Lampiran PDF'} className="w-full h-[75vh] border-0" />
+            </div>
           ) : (
             <div className="p-6 text-center space-y-3">
               <p className="text-xs text-nb-ink-muted">Jenis file ini tidak bisa ditampilkan langsung.</p>
