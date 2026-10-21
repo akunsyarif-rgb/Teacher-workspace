@@ -1,5 +1,7 @@
 import { getAdminDb } from './firebaseAdmin';
 import { normalizeClassName, validateClassName } from '../utils/classNameValidation';
+import { identityOnSupabase, serviceRequest } from './supabaseServer';
+import { renameClassInSupabase, supabaseClassExists, supabaseCollectionsToRename } from './supabaseClassRename';
 
 // Semua koleksi yang punya field className langsung, TERMASUK
 // student_profiles — satu-satunya alasan operasi ini harus lewat Admin
@@ -59,8 +61,15 @@ export async function renameClassServer(
 ) {
   const adminDb = db ?? getAdminDb();
 
-  const profileSnap = await adminDb.collection('teacher_profiles').doc(uid).get();
-  const workspaceId = profileSnap.exists ? (profileSnap.data() as { workspaceId?: string })?.workspaceId : null;
+  let workspaceId: string | null | undefined;
+  if (identityOnSupabase()) {
+    // uid sudah diverifikasi route (Firebase Admin); profil dibaca dengan service_role dan dibatasi uid itu saja.
+    const rows = (await serviceRequest(`teacher_profiles?user_id=eq.${encodeURIComponent(uid)}&select=workspace_id`)) as { workspace_id: string | null }[];
+    workspaceId = rows[0]?.workspace_id ?? null;
+  } else {
+    const profileSnap = await adminDb.collection('teacher_profiles').doc(uid).get();
+    workspaceId = profileSnap.exists ? (profileSnap.data() as { workspaceId?: string })?.workspaceId : null;
+  }
   if (!workspaceId) {
     throw new Error('Akun ini belum terhubung ke workspace mana pun.');
   }
@@ -87,7 +96,7 @@ export async function renameClassServer(
     .where('className', '==', newName)
     .limit(1)
     .get();
-  if (!collisionSnap.empty) {
+  if (!collisionSnap.empty || (await supabaseClassExists({ workspaceId, className: newName }))) {
     throw new Error(`Kelas "${newName}" sudah ada. Pilih nama lain.`);
   }
 
@@ -101,7 +110,11 @@ export async function renameClassServer(
     snap.docs.forEach((docSnap) => refsToUpdate.push(docSnap.ref));
   }
 
-  if (refsToUpdate.length === 0) {
+  // Bila students sudah di Supabase, daftar siswa Firestore bisa basi/kosong: kelas dianggap ada selama salah satu
+  // backend memilikinya (diputuskan setelah rename Supabase di bawah).
+  const supabaseFlagged = supabaseCollectionsToRename(
+    process.env.NEXT_PUBLIC_SUPABASE_COLLECTIONS, process.env.NEXT_PUBLIC_SUPABASE_STAGING_OVERRIDE, process.env.NEXT_PUBLIC_SUPABASE_STUDENT_AUTH_VERIFIED, process.env.NEXT_PUBLIC_SUPABASE_TEACHER_AUTH_VERIFIED).length > 0;
+  if (refsToUpdate.length === 0 && !supabaseFlagged) {
     throw new Error(`Kelas "${oldName}" tidak ditemukan.`);
   }
 
@@ -133,5 +146,13 @@ export async function renameClassServer(
     committed += chunk.length;
   }
 
-  return { renamedCount: refsToUpdate.length, className: newName };
+  // Koleksi yang sudah dialihkan ke Supabase (flag) ikut diganti namanya; default: tidak ada.
+  const supabaseCounts = await renameClassInSupabase({ workspaceId, oldName, newName }).catch((error: unknown) => {
+    const sebab = error instanceof Error ? error.message : 'penyebab tidak diketahui';
+    throw new Error(`Firestore sudah memakai nama "${newName}" (${refsToUpdate.length} dokumen), tetapi Supabase belum konsisten. ${sebab}`);
+  });
+
+  const renamedCount = refsToUpdate.length + Object.values(supabaseCounts).reduce((a, b) => a + b, 0);
+  if (renamedCount === 0) throw new Error(`Kelas "${oldName}" tidak ditemukan.`);
+  return { renamedCount, className: newName };
 }

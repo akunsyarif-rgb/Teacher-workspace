@@ -1,0 +1,75 @@
+name: Supabase backfill / rollback data (manual, dari GitHub Actions)
+
+# Dijalankan MANUAL dari iPad: GitHub → Actions → "Supabase backfill / rollback data" → Run workflow.
+# DEFAULT dry-run (hanya membaca & melaporkan). Menulis hanya bila mode "apply"/"reverse-apply" DAN kolom konfirmasi = TERAPKAN.
+# Tidak pernah menghapus data. Target dibatasi SUPABASE_ALLOWED_REFS; SmadaExam selalu ditolak oleh skrip.
+on:
+  workflow_dispatch:
+    inputs:
+      koleksi:
+        description: "Tahap atau koleksi: identity | teacher | school | students | submissions | all | nama koleksi tunggal"
+        required: true
+        default: identity
+      workspace_id:
+        description: "ID workspace SMAN 2 Tarakan (Firestore: dokumen di koleksi workspaces)"
+        required: true
+      mode:
+        description: "Mode"
+        required: true
+        type: choice
+        default: dry-run
+        options: [dry-run, apply, reverse-dry-run, reverse-apply]
+      konfirmasi:
+        description: "Ketik TERAPKAN untuk mode apply / reverse-apply (kosongkan untuk dry-run)"
+        required: false
+      izin_produksi:
+        description: "Target = project Workflow produksi? (hanya isi 'ya' setelah Anda menyetujui cutover)"
+        required: false
+        default: "tidak"
+
+permissions:
+  contents: read
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    environment: supabase-cutover
+    steps:
+      - name: Validasi masukan
+        env:
+          MODE: ${{ inputs.mode }}
+          KONFIRMASI: ${{ inputs.konfirmasi }}
+        run: |
+          case "$MODE" in
+            apply|reverse-apply)
+              if [ "$KONFIRMASI" != "TERAPKAN" ]; then
+                echo "Mode $MODE butuh konfirmasi 'TERAPKAN'. Dibatalkan, tidak ada yang ditulis." >&2
+                exit 2
+              fi;;
+          esac
+
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Jalankan
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SUPABASE_ALLOWED_REFS: ${{ secrets.SUPABASE_ALLOWED_REFS }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          ALLOW_PRODUCTION_BACKFILL: ${{ inputs.izin_produksi == 'ya' && 'yes' || 'no' }}
+          KOLEKSI: ${{ inputs.koleksi }}
+          WORKSPACE_ID: ${{ inputs.workspace_id }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          ARGS="--collection $KOLEKSI --workspace $WORKSPACE_ID"
+          case "$MODE" in
+            apply) ARGS="$ARGS --apply";;
+            reverse-dry-run) ARGS="$ARGS --reverse";;
+            reverse-apply) ARGS="$ARGS --reverse --apply";;
+          esac
+          npm run migrate:collection -- $ARGS

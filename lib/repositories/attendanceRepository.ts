@@ -1,9 +1,9 @@
-import { getDocuments, addDocument, updateDocument, deleteDocument } from '../adapters/firestoreAdapter';
+import { adapterFor } from '../adapters/dataAdapter';
 import { COLLECTIONS } from '../config/constants';
 
 export async function getAttendanceByClass(workspaceId: string, className: string) {
   if (!workspaceId || !className) return [];
-  return getDocuments(COLLECTIONS.ATTENDANCES, [
+  return adapterFor(COLLECTIONS.ATTENDANCES).getDocuments(COLLECTIONS.ATTENDANCES, [
     ['workspaceId', '==', workspaceId],
     ['className', '==', className],
   ]);
@@ -21,7 +21,7 @@ export async function getAttendanceByClassInRange(
   endDate: string
 ) {
   if (!workspaceId || !className) return [];
-  return getDocuments(COLLECTIONS.ATTENDANCES, [
+  return adapterFor(COLLECTIONS.ATTENDANCES).getDocuments(COLLECTIONS.ATTENDANCES, [
     ['workspaceId', '==', workspaceId],
     ['className', '==', className],
     ['date', '>=', startDate],
@@ -39,7 +39,7 @@ export async function findTodayAttendance(
   date: string
 ) {
   if (!workspaceId || !className) return null;
-  const docs = await getDocuments(COLLECTIONS.ATTENDANCES, [
+  const docs = await adapterFor(COLLECTIONS.ATTENDANCES).getDocuments(COLLECTIONS.ATTENDANCES, [
     ['workspaceId', '==', workspaceId],
     ['className', '==', className],
     ['date', '==', date],
@@ -51,13 +51,13 @@ export async function findTodayAttendance(
 }
 
 export async function createAttendance(data: Record<string, any>) {
-  return addDocument(COLLECTIONS.ATTENDANCES, data);
+  return adapterFor(COLLECTIONS.ATTENDANCES).addDocument(COLLECTIONS.ATTENDANCES, data);
 }
 
 export async function updateAttendance(id: string, data: Record<string, any>) {
-  return updateDocument(COLLECTIONS.ATTENDANCES, id, data);
+  return adapterFor(COLLECTIONS.ATTENDANCES).updateDocument(COLLECTIONS.ATTENDANCES, id, data);
 }
 
 export async function deleteAttendance(id: string) {
-  return deleteDocument(COLLECTIONS.ATTENDANCES, id);
+  return adapterFor(COLLECTIONS.ATTENDANCES).deleteDocument(COLLECTIONS.ATTENDANCES, id);
 }

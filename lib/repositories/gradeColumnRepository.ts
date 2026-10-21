@@ -1,9 +1,9 @@
-import { getDocuments, addDocument, updateDocument, deleteDocument } from '../adapters/firestoreAdapter';
+import { adapterFor } from '../adapters/dataAdapter';
 import { COLLECTIONS, DEFAULT_GRADE_COLUMNS } from '../config/constants';
 
 export async function getColumnsByClass(workspaceId: string, className: string) {
   if (!workspaceId || !className) return [];
-  const columns = await getDocuments(COLLECTIONS.GRADE_COLUMNS, [
+  const columns = await adapterFor(COLLECTIONS.GRADE_COLUMNS).getDocuments(COLLECTIONS.GRADE_COLUMNS, [
     ['workspaceId', '==', workspaceId],
     ['className', '==', className],
   ]);
@@ -14,25 +14,29 @@ export async function getColumnsByClass(workspaceId: string, className: string) 
   return columns.sort((a: any, b: any) => toMillis(a.createdAt) - toMillis(b.createdAt));
 }
 
-// createdAt bisa berupa Timestamp Firestore, atau null sesaat setelah
-// ditulis (serverTimestamp belum terisi saat masih di cache lokal).
-function toMillis(createdAt: any): number {
+// createdAt bisa berupa Timestamp Firestore, string ISO (Supabase), atau null
+// sesaat setelah ditulis (serverTimestamp belum terisi saat masih di cache lokal).
+export function toMillis(createdAt: any): number {
   if (!createdAt) return 0;
+  if (typeof createdAt === 'string') {
+    const ms = Date.parse(createdAt);
+    return Number.isNaN(ms) ? 0 : ms;
+  }
   if (typeof createdAt.toMillis === 'function') return createdAt.toMillis();
   if (typeof createdAt.seconds === 'number') return createdAt.seconds * 1000;
   return 0;
 }
 
 export async function createColumn(data: Record<string, any>) {
-  return addDocument(COLLECTIONS.GRADE_COLUMNS, data);
+  return adapterFor(COLLECTIONS.GRADE_COLUMNS).addDocument(COLLECTIONS.GRADE_COLUMNS, data);
 }
 
 export async function updateColumnTitle(id: string, title: string) {
-  return updateDocument(COLLECTIONS.GRADE_COLUMNS, id, { title });
+  return adapterFor(COLLECTIONS.GRADE_COLUMNS).updateDocument(COLLECTIONS.GRADE_COLUMNS, id, { title });
 }
 
 export async function deleteColumn(id: string) {
-  return deleteDocument(COLLECTIONS.GRADE_COLUMNS, id);
+  return adapterFor(COLLECTIONS.GRADE_COLUMNS).deleteDocument(COLLECTIONS.GRADE_COLUMNS, id);
 }
 
 export async function createDefaultColumns(workspaceId: string, className: string) {
