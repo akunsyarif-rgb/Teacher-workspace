@@ -7,12 +7,20 @@
 --
 -- Sama dengan lib/utils/uploadRules.ts (MAX_FILE_BYTES, ALLOWED_UPLOAD_TYPES).
 -- Bucket privat (public = false) ditegaskan ulang.
-update storage.buckets
-set public = false,
-    file_size_limit = 10485760,
-    allowed_mime_types = array[
-      'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
-      'application/pdf', 'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    ]
-where id = 'submission-attachments';
+-- Dibungkus pengecekan: skema `storage` hanya ada di Supabase. Pada Postgres biasa (uji
+-- migrasi lokal / CI) migrasi ini tidak melakukan apa-apa alih-alih gagal.
+do $$
+begin
+  if to_regclass('storage.buckets') is not null then
+    update storage.buckets
+    set public = false,
+        file_size_limit = 10485760,
+        allowed_mime_types = array[
+          'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
+          'application/pdf', 'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ]
+    where id = 'submission-attachments';
+  end if;
+end
+$$;

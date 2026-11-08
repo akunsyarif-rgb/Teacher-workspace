@@ -332,6 +332,8 @@ async function run() {
 
       // Owner login lagi (sesi sudah di-logout di langkah 3).
       await owner.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
+      // /login kini pemilih peran dulu (redesign); formulir email muncul setelah memilih jalur guru.
+      await owner.getByRole('button', { name: /Masuk sebagai Guru/i }).click();
       await owner.fill('input[type="email"]', OWNER_EMAIL);
       await owner.fill('input[type="password"]', PASSWORD);
       await owner.click('button[type="submit"]');
