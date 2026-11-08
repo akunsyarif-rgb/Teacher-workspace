@@ -164,7 +164,8 @@ async function createAssignment(teacher, className, title, dueDate) {
 }
 
 async function studentCard(student, title) {
-  const cards = await student.locator('div.bg-white.p-4.rounded-2xl').all();
+  // data-testid stabil (bukan kelas Tailwind yang berubah saat redesign).
+  const cards = await student.locator('[data-testid="assignment-card"]').all();
   for (const card of cards) {
     const text = await card.innerText();
     if (text.includes(title)) return card;
