@@ -57,10 +57,10 @@ export async function claimStudentAccessCodeServer(
     throw new ClaimError('Kode akses ini dibuat versi lama. Minta gurumu membuat ulang kode akses.', 409, false);
   }
 
-  // Siswa yang sudah dihapus: kodenya seharusnya ikut terhapus, tapi jangan
-  // bergantung pada itu.
+  // Siswa yang di-soft-delete (atau sudah hilang) tidak bisa masuk walau kodenya
+  // masih ada; kodenya berlaku lagi bila siswa dipulihkan.
   const studentSnap = await adminDb.collection('students').doc(loginCode.studentId).get();
-  if (!studentSnap.exists || studentSnap.data()?.workspaceId !== loginCode.workspaceId) {
+  if (!studentSnap.exists || studentSnap.data()?.workspaceId !== loginCode.workspaceId || studentSnap.data()?.deletedAt) {
     throw new ClaimError('Kode akses tidak ditemukan. Periksa kembali kode dari gurumu.', 404, true);
   }
 

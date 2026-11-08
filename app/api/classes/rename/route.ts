@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/server/requireAuth';
 import { errorResponse } from '@/lib/server/apiErrors';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60; // rename besar diproses bertahap; lihat renameClassServer
 
 // Butuh Node.js runtime (firebase-admin) — bukan Edge. Rename className
 // harus lewat Admin SDK karena juga menyentuh student_profiles yang

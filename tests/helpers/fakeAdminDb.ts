@@ -7,10 +7,12 @@ export function createFakeAdminDb() {
   const store: Record<string, Doc> = {};
   let idSeq = 0;
   let queue: Promise<unknown> = Promise.resolve();
+  const hooks = { commits: 0, failCommitNumber: 0, batchSizes: [] as number[] };
   const writes: { op: string; path: string; data?: Doc }[] = [];
 
-  const snap = (path: string) => ({
+  const snap = (path: string): any => ({
     id: path.split('/')[1],
+    ref: docRef(path.split('/')[0], path.split('/')[1]),
     exists: path in store,
     data: () => (path in store ? { ...store[path] } : undefined),
     get: (f: string) => store[path]?.[f],
@@ -20,7 +22,12 @@ export function createFakeAdminDb() {
     if (op === 'create' && path in store) throw Object.assign(new Error('ALREADY_EXISTS'), { code: 6 });
     if (op === 'update' && !(path in store)) throw Object.assign(new Error('NOT_FOUND'), { code: 5 });
     writes.push({ op, path, data });
-    store[path] = op === 'update' || (op === 'set' && merge) ? { ...store[path], ...data } : { ...data };
+    // Sentinel FieldValue.increment({__increment:n}) dari mock firebase-admin/firestore.
+    const resolved: Doc = {};
+    for (const [k, v] of Object.entries(data ?? {})) {
+      resolved[k] = v && typeof v === 'object' && '__increment' in (v as Doc) ? (store[path]?.[k] ?? 0) + (v as Doc).__increment : v;
+    }
+    store[path] = op === 'update' || (op === 'set' && merge) ? { ...store[path], ...resolved } : { ...resolved };
   }
 
   const docRef = (c: string, id: string) => ({
@@ -32,15 +39,34 @@ export function createFakeAdminDb() {
     update: async (data: Doc) => apply('update', `${c}/${id}`, data),
   });
 
-  type Query = { _query: true; c: string; filters: [string, unknown][]; select: () => Query; get: () => Promise<ReturnType<typeof runQuery>> };
-  const runQuery = (c: string, filters: [string, unknown][]) => {
+  type Query = {
+    _query: true;
+    c: string;
+    filters: [string, unknown][];
+    max: number;
+    select: (...f: string[]) => Query;
+    where: (f: string, op: string, v: unknown) => Query;
+    limit: (n: number) => Query;
+    get: () => Promise<ReturnType<typeof runQuery>>;
+  };
+  const runQuery = (c: string, filters: [string, unknown][], max = Infinity) => {
     const docs = Object.keys(store)
       .filter((k) => k.startsWith(`${c}/`) && filters.every(([f, v]) => store[k][f] === v))
+      .slice(0, max)
       .map((k) => snap(k));
     return { docs, size: docs.length, empty: docs.length === 0 };
   };
-  const query = (c: string, filters: [string, unknown][]): Query => {
-    const q: Query = { _query: true, c, filters, select: () => q, get: async () => runQuery(c, filters) };
+  const query = (c: string, filters: [string, unknown][], max = Infinity): Query => {
+    const q: Query = {
+      _query: true,
+      c,
+      filters,
+      max,
+      select: () => q,
+      where: (f, _op, v) => query(c, [...filters, [f, v]], max),
+      limit: (n) => query(c, filters, n),
+      get: async () => runQuery(c, filters, max),
+    };
     return q;
   };
 
@@ -48,12 +74,26 @@ export function createFakeAdminDb() {
     collection: (c: string) => ({
       doc: (id?: string) => docRef(c, id ?? `auto${++idSeq}`),
       where: (f: string, _op: string, v: unknown) => query(c, [[f, v]]),
+      get: async () => runQuery(c, []),
     }),
+    batch: () => {
+      const ops: (() => void)[] = [];
+      return {
+        update: (ref: { path: string }, data: Doc) => void ops.push(() => apply('update', ref.path, data)),
+        set: (ref: { path: string }, data: Doc, opts?: { merge?: boolean }) => void ops.push(() => apply('set', ref.path, data, !!opts?.merge)),
+        commit: async () => {
+          hooks.commits++;
+          if (hooks.failCommitNumber === hooks.commits) throw new Error('DEADLINE_EXCEEDED (simulasi)');
+          ops.forEach((o) => o()); // atomik: semua operasi satu batch diterapkan bersama
+          hooks.batchSizes.push(ops.length);
+        },
+      };
+    },
     runTransaction: <T>(fn: (tx: any) => Promise<T>): Promise<T> => {
       const run = async () => {
         const pending: (() => void)[] = [];
         const tx = {
-          get: async (ref: { path: string } | Query) => ('_query' in ref ? runQuery(ref.c, ref.filters) : snap(ref.path)),
+          get: async (ref: { path: string } | Query) => ('_query' in ref ? runQuery(ref.c, ref.filters, ref.max) : snap(ref.path)),
           set: (ref: { path: string }, data: Doc, opts?: { merge?: boolean }) =>
             void pending.push(() => apply('set', ref.path, data, !!opts?.merge)),
           create: (ref: { path: string }, data: Doc) => void pending.push(() => apply('create', ref.path, data)),
@@ -73,10 +113,14 @@ export function createFakeAdminDb() {
     db,
     store,
     writes,
+    hooks,
     reset() {
       for (const k of Object.keys(store)) delete store[k];
       writes.length = 0;
       idSeq = 0;
+      hooks.commits = 0;
+      hooks.failCommitNumber = 0;
+      hooks.batchSizes = [];
     },
   };
 }

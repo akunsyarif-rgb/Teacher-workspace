@@ -60,13 +60,21 @@ export async function createStudentsServer(
     const workspace = workspaceSnap.data() as { classLimit?: number | null; planExpiresAt?: number | null };
 
     const existingSnap = await tx.get(
-      adminDb.collection('students').where('workspaceId', '==', workspaceId).select('className')
+      adminDb.collection('students').where('workspaceId', '==', workspaceId).select('className', 'deletedAt')
     );
     const existingClasses = new Set<string>();
     existingSnap.docs.forEach((d) => {
+      if (d.get('deletedAt')) return; // kelas yang semua siswanya di-soft-delete tidak terhitung
       const c = normalizeClass(d.get('className'));
       if (c) existingClasses.add(c);
     });
+
+    // Kelas yang sedang diganti namanya tidak boleh ketambahan siswa (akan terlewat oleh rename berjalan).
+    const renameSnap = await tx.get(adminDb.collection('class_rename_jobs').doc(workspaceId));
+    const rename = renameSnap.exists ? (renameSnap.data() as { status?: string; oldName?: string }) : null;
+    if (rename?.status === 'running' && cleaned.some((s) => normalizeClass(rename.oldName) === s.className)) {
+      throw new StudentAdminError('Kelas ini sedang diganti namanya. Tunggu sampai selesai lalu coba lagi.', 409);
+    }
 
     const newClasses = new Set(cleaned.map((s) => s.className).filter((c) => !existingClasses.has(c)));
     const limit = getEffectiveClassLimit(workspace);

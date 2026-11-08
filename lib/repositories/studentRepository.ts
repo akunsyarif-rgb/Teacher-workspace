@@ -1,11 +1,23 @@
-import { getDocument, getDocuments, deleteDocument, batchWrite, BatchOperation } from '../adapters/firestoreAdapter';
+import { getDocuments, batchWrite, BatchOperation, softDeleteDocument, restoreDocument } from '../adapters/firestoreAdapter';
+import { activeOnly, deletedOnly } from '../utils/softDelete';
 import { COLLECTIONS } from '../config/constants';
 import { generateAccessCode } from '../utils/accessCode';
 import { postToServer } from '../adapters/serverApiAdapter';
 
+// Semua pembacaan siswa menyaring yang di-soft-delete (lib/utils/softDelete.ts).
+async function fetchAllStudents(workspaceId: string) {
+  return getDocuments(COLLECTIONS.STUDENTS, [['workspaceId', '==', workspaceId]]);
+}
+
 export async function getAllStudents(workspaceId: string) {
   if (!workspaceId) return [];
-  return getDocuments(COLLECTIONS.STUDENTS, [['workspaceId', '==', workspaceId]]);
+  return activeOnly(await fetchAllStudents(workspaceId));
+}
+
+// Untuk Recycle Bin / pemulihan.
+export async function getDeletedStudents(workspaceId: string) {
+  if (!workspaceId) return [];
+  return deletedOnly(await fetchAllStudents(workspaceId));
 }
 
 export async function getStudentsByClass(workspaceId: string, className: string) {
@@ -14,7 +26,7 @@ export async function getStudentsByClass(workspaceId: string, className: string)
     ['workspaceId', '==', workspaceId],
     ['className', '==', className],
   ]);
-  return students.sort((a: any, b: any) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
+  return activeOnly(students).sort((a: any, b: any) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
 }
 
 // Dokumen kode akses memuat SALINAN identitas siswa (nama, kelas, NIS),
@@ -101,46 +113,28 @@ export async function backfillAccessCodes(
   return missing.length;
 }
 
-// Menghapus dokumen siswa saja TIDAK cukup: kode aksesnya (student_login_
-// codes, id dokumen = accessCode itu sendiri) tetap valid dan bisa dipakai
-// klaim akun Student Companion baru yang menunjuk ke siswa yang sudah
-// tidak ada — claimAccessCode() di studentAuthService sengaja tidak
-// membaca koleksi students sama sekali (lihat komentarnya), jadi cuma
-// menghapus dokumen kode akses ini yang benar-benar mencegahnya.
-// firestore.rules sengaja melarang `list` pada student_login_codes (supaya
-// kode tidak bisa dienumerasi) — makanya di sini TIDAK query koleksi itu,
-// cukup pakai accessCode yang sudah tersimpan di dokumen siswa sendiri.
+// Soft delete satu siswa: dokumen hanya ditandai deletedAt. Kode aksesnya
+// (student_login_codes) tidak perlu dihapus — klaim kode menolak siswa yang
+// sudah di-soft-delete (lib/server/studentClaimService.ts), dan kodenya tetap
+// berlaku lagi bila siswa dipulihkan. Siapa yang boleh menghapus dijaga rules
+// (pembuat siswa atau OWNER/ADMIN). Hapus satu KELAS penuh lewat server
+// (POST /api/classes/delete, khusus OWNER/ADMIN).
 export async function deleteStudent(id: string) {
-  const student: any = await getDocument(COLLECTIONS.STUDENTS, id);
-  if (!student?.accessCode) {
-    return deleteDocument(COLLECTIONS.STUDENTS, id);
-  }
-  await batchWrite([
-    { type: 'delete', collectionName: COLLECTIONS.STUDENTS, id },
-    { type: 'delete', collectionName: COLLECTIONS.STUDENT_LOGIN_CODES, id: student.accessCode },
-  ]);
-  return true;
+  return softDeleteDocument(COLLECTIONS.STUDENTS, id);
 }
 
-// Hapus seluruh siswa satu kelas sekaligus (mis. kelas percobaan/salah
-// input) — satu batch commit, konsisten dengan pola createStudentsBatch.
-// Kode akses tiap siswa ikut dihapus (lihat catatan di deleteStudent).
-export async function deleteStudentsByClass(workspaceId: string, className: string) {
-  const students = await getStudentsByClass(workspaceId, className);
-  if (students.length === 0) return 0;
+export async function restoreStudent(id: string) {
+  return restoreDocument(COLLECTIONS.STUDENTS, id);
+}
 
-  const operations: BatchOperation[] = [];
-  students.forEach((student: any) => {
-    operations.push({ type: 'delete', collectionName: COLLECTIONS.STUDENTS, id: student.id });
-    if (student.accessCode) {
-      operations.push({
-        type: 'delete',
-        collectionName: COLLECTIONS.STUDENT_LOGIN_CODES,
-        id: student.accessCode,
-      });
-    }
-  });
+// Hapus / pulihkan satu KELAS penuh: lewat server (Admin SDK), khusus OWNER/ADMIN —
+// rules per-dokumen tidak bisa membatasi operasi massal atas data banyak guru.
+export async function deleteClassOnServer(className: string) {
+  const { deletedCount } = await postToServer<{ deletedCount: number }>('/api/classes/delete', { className });
+  return deletedCount;
+}
 
-  await batchWrite(operations);
-  return students.length;
+export async function restoreClassOnServer(className: string) {
+  const { restoredCount } = await postToServer<{ restoredCount: number }>('/api/classes/restore', { className });
+  return restoredCount;
 }

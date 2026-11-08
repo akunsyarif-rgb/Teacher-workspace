@@ -141,6 +141,22 @@ describe('POST /api/students/create', () => {
     expect((await POST(req({ students: [{ name: 'A', className: '7D' }] }))).status).toBe(200);
   });
 
+  it('kelas yang semua siswanya di-soft-delete tidak terhitung ke batas kelas', async () => {
+    seedClasses('w1', ['7A', '7B', '7C']);
+    store['students/seed-w1-2'].deletedAt = { seconds: 1 }; // 7C terhapus -> tersisa 2 kelas aktif
+    expect((await POST(req({ students: [{ name: 'A', className: '7D' }] }))).status).toBe(200);
+  });
+
+  it('kelas yang sedang diganti namanya tidak menerima siswa baru (409)', async () => {
+    store['class_rename_jobs/w1'] = { status: 'running', oldName: '7A', newName: '7Z' };
+    seedClasses('w1', ['7A']);
+    const res = await POST(req({ students: [{ name: 'A', className: '7a' }] }));
+    expect(res.status).toBe(409);
+    expect(created).toHaveLength(0);
+    store['class_rename_jobs/w1'].status = 'done';
+    expect((await POST(req({ students: [{ name: 'A', className: '7A' }] }))).status).toBe(200);
+  });
+
   it('paket aktif tak terbatas tidak dibatasi', async () => {
     store['workspaces/w1'] = { plan: 'individual_monthly', classLimit: null, planExpiresAt: Date.now() + 86_400_000 };
     seedClasses('w1', ['1', '2', '3', '4', '5']);

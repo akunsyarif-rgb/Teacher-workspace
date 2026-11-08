@@ -66,6 +66,14 @@ describe('POST /api/student/claim', () => {
     expect((await POST(req({ accessCode: 'ABCD2345' }))).status).toBe(404);
   });
 
+  it('siswa yang di-soft-delete tidak bisa masuk walau kodenya masih ada; bisa lagi setelah dipulihkan', async () => {
+    fake.store['students/s1'].deletedAt = { seconds: 1 };
+    expect((await POST(req({ accessCode: 'ABCD2345' }))).status).toBe(404);
+    expect(fake.store['student_profiles/anon1']).toBeUndefined();
+    fake.store['students/s1'].deletedAt = null; // dipulihkan
+    expect((await POST(req({ accessCode: 'ABCD2345' }))).status).toBe(200);
+  });
+
   it('siswa dari workspace lain dengan studentId sama tidak lolos', async () => {
     fake.store['students/s1'].workspaceId = 'w-lain';
     expect((await POST(req({ accessCode: 'ABCD2345' }))).status).toBe(404);

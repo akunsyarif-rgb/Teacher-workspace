@@ -467,7 +467,9 @@ describe.each(WORKSPACE_SCOPED_COLLECTIONS)('%s — isolasi workspace', (collect
   it('allows creating a document that belongs to your own workspace', async () => {
     await seedProfile('teacherA', 'ws1');
     const db = testEnv.authenticatedContext('teacherA').firestore();
-    const write = setDoc(doc(db, `${collectionName}/doc1`), { workspaceId: 'ws1', name: 'data' });
+    // Koleksi yang kepemilikannya dijaga (hapus hanya oleh pembuat/OWNER/ADMIN) mewajibkan createdBy = akun sendiri.
+    const owned = ['schedules', 'journals', 'attendances', 'grade_columns', 'assignments', 'announcements'].includes(collectionName);
+    const write = setDoc(doc(db, `${collectionName}/doc1`), { workspaceId: 'ws1', name: 'data', ...(owned ? { createdBy: 'teacherA' } : {}) });
     // students dibuat HANYA lewat /api/students/create (Admin SDK) supaya
     // batas kelas paket bisa ditegakkan — create langsung dari client ditolak.
     if (collectionName === 'students') await assertFails(write);
@@ -1568,12 +1570,14 @@ describe('students — batas paket tidak bisa dilewati dari client', () => {
     await assertFails(updateDoc(doc(db, 'students/s1'), { className: 'KELAS-BARU' }));
   });
 
-  it('tetap mengizinkan mengisi accessCode (backfill) dan menghapus siswa', async () => {
+  it('tetap mengizinkan mengisi accessCode (backfill); hapus permanen kini khusus OWNER/ADMIN', async () => {
     await seedProfile('teacherA', 'ws1');
-    await seed((db) => setDoc(doc(db, 'students/s1'), { workspaceId: 'ws1', className: 'XI-A', name: 'A' }));
+    await seedProfile('ownerA', 'ws1', 'OWNER');
+    await seed((db) => setDoc(doc(db, 'students/s1'), { workspaceId: 'ws1', className: 'XI-A', name: 'A', createdBy: 'teacherA' }));
     const db = testEnv.authenticatedContext('teacherA').firestore();
     await assertSucceeds(setDoc(doc(db, 'students/s1'), { accessCode: 'ABCD2345' }, { merge: true }));
-    await assertSucceeds(deleteDoc(doc(db, 'students/s1')));
+    await assertFails(deleteDoc(doc(db, 'students/s1'))); // bahkan pembuatnya tidak boleh hapus permanen
+    await assertSucceeds(deleteDoc(doc(testEnv.authenticatedContext('ownerA').firestore(), 'students/s1')));
   });
 });
 
@@ -1619,5 +1623,148 @@ describe('submissions — siswa tidak bisa mengubah createdAt/createdBy', () => 
       updateDoc(doc(db, 'submissions/a1_st1'), { createdAt: 2, textAnswer: 'x', status: 'menunggu_penilaian' })
     );
     await assertSucceeds(updateDoc(doc(db, 'submissions/a1_st1'), { textAnswer: 'x', status: 'menunggu_penilaian' }));
+  });
+});
+
+
+// ============================================================
+// Peran & kepemilikan untuk operasi destruktif (hapus / soft delete / pulihkan).
+// ============================================================
+const SOFT_DELETE_COLLECTIONS = ['students', 'assignments', 'grade_columns'];
+
+describe.each(SOFT_DELETE_COLLECTIONS)('%s — soft delete dibatasi pembuat atau OWNER/ADMIN', (c) => {
+  const doc1 = { workspaceId: 'ws1', className: 'XI-A', name: 'x', createdBy: 'teacherA', createdAt: 1 };
+  const softDelete = { deletedAt: 12345, deletedBy: 'x' };
+
+  async function setup() {
+    await seedProfile('teacherA', 'ws1'); // pembuat
+    await seedProfile('teacherB', 'ws1'); // guru lain, biasa
+    await seedProfile('adminC', 'ws1', 'ADMIN');
+    await seedProfile('ownerD', 'ws1', 'OWNER');
+    await seedProfile('ownerOther', 'ws2', 'OWNER'); // OWNER workspace LAIN
+    await seed((db) => setDoc(doc(db, `${c}/d1`), doc1));
+    const ctx = (uid: string) => testEnv.authenticatedContext(uid).firestore();
+    return ctx;
+  }
+
+  it('pembuat boleh soft delete dan memulihkan data miliknya', async () => {
+    const ctx = await setup();
+    await assertSucceeds(updateDoc(doc(ctx('teacherA'), `${c}/d1`), softDelete));
+    await assertSucceeds(updateDoc(doc(ctx('teacherA'), `${c}/d1`), { deletedAt: null, deletedBy: null, deletedBatchId: null }));
+  });
+
+  it('guru lain (bukan pembuat) TIDAK boleh soft delete data guru lain', async () => {
+    const ctx = await setup();
+    await assertFails(updateDoc(doc(ctx('teacherB'), `${c}/d1`), softDelete));
+  });
+
+  it('guru lain TIDAK boleh memulihkan data yang dihapus pembuatnya', async () => {
+    const ctx = await setup();
+    await seed((db) => setDoc(doc(db, `${c}/d2`), { ...doc1, ...softDelete }));
+    await assertFails(updateDoc(doc(ctx('teacherB'), `${c}/d2`), { deletedAt: null, deletedBy: null }));
+  });
+
+  it('guru lain tetap boleh mengedit field biasa (kolaborasi)', async () => {
+    const ctx = await setup();
+    await assertSucceeds(updateDoc(doc(ctx('teacherB'), `${c}/d1`), { name: 'diedit' }));
+  });
+
+  it('OWNER dan ADMIN workspace boleh soft delete data guru mana pun', async () => {
+    const ctx = await setup();
+    await assertSucceeds(updateDoc(doc(ctx('adminC'), `${c}/d1`), softDelete));
+    await assertSucceeds(updateDoc(doc(ctx('ownerD'), `${c}/d1`), { deletedAt: null, deletedBy: null }));
+  });
+
+  it('OWNER workspace LAIN tidak punya hak apa pun di sini', async () => {
+    const ctx = await setup();
+    await assertFails(updateDoc(doc(ctx('ownerOther'), `${c}/d1`), softDelete));
+    await assertFails(deleteDoc(doc(ctx('ownerOther'), `${c}/d1`)));
+  });
+
+  it('dokumen lama tanpa createdBy: hanya OWNER/ADMIN yang boleh soft delete', async () => {
+    const ctx = await setup();
+    await seed((db) => setDoc(doc(db, `${c}/legacy`), { workspaceId: 'ws1', className: 'XI-A', name: 'lama' }));
+    await assertFails(updateDoc(doc(ctx('teacherA'), `${c}/legacy`), softDelete));
+    await assertSucceeds(updateDoc(doc(ctx('ownerD'), `${c}/legacy`), softDelete));
+  });
+
+  it('hapus PERMANEN ditutup untuk guru (termasuk pembuat) dan admin-only', async () => {
+    const ctx = await setup();
+    await assertFails(deleteDoc(doc(ctx('teacherA'), `${c}/d1`)));
+    await assertFails(deleteDoc(doc(ctx('teacherB'), `${c}/d1`)));
+    await assertSucceeds(deleteDoc(doc(ctx('adminC'), `${c}/d1`)));
+  });
+});
+
+describe.each(['journals', 'attendances', 'announcements', 'schedules'])('%s — hapus hanya oleh pembuat atau OWNER/ADMIN', (c) => {
+  async function setup() {
+    await seedProfile('teacherA', 'ws1');
+    await seedProfile('teacherB', 'ws1');
+    await seedProfile('ownerD', 'ws1', 'OWNER');
+    await seed(async (db) => {
+      await setDoc(doc(db, `${c}/mine`), { workspaceId: 'ws1', createdBy: 'teacherA', className: 'XI-A' });
+      await setDoc(doc(db, `${c}/legacy`), { workspaceId: 'ws1', className: 'XI-A' });
+    });
+    return (uid: string) => testEnv.authenticatedContext(uid).firestore();
+  }
+  it('pembuat boleh menghapus miliknya, guru lain tidak', async () => {
+    const ctx = await setup();
+    await assertFails(deleteDoc(doc(ctx('teacherB'), `${c}/mine`)));
+    await assertSucceeds(deleteDoc(doc(ctx('teacherA'), `${c}/mine`)));
+  });
+  it('OWNER boleh menghapus data siapa pun; dokumen lama tanpa createdBy hanya OWNER/ADMIN', async () => {
+    const ctx = await setup();
+    await assertFails(deleteDoc(doc(ctx('teacherA'), `${c}/legacy`)));
+    await assertSucceeds(deleteDoc(doc(ctx('ownerD'), `${c}/legacy`)));
+  });
+  it('create wajib createdBy = akun sendiri (tidak bisa memalsukan pembuat)', async () => {
+    const ctx = await setup();
+    await assertFails(setDoc(doc(ctx('teacherB'), `${c}/x1`), { workspaceId: 'ws1', createdBy: 'teacherA' }));
+    await assertFails(setDoc(doc(ctx('teacherB'), `${c}/x2`), { workspaceId: 'ws1' }));
+    await assertSucceeds(setDoc(doc(ctx('teacherB'), `${c}/x3`), { workspaceId: 'ws1', createdBy: 'teacherB' }));
+  });
+});
+
+describe('grades — hapus sel nilai oleh pembuat kolom atau OWNER/ADMIN', () => {
+  async function setup() {
+    await seedProfile('teacherA', 'ws1');
+    await seedProfile('teacherB', 'ws1');
+    await seedProfile('ownerD', 'ws1', 'OWNER');
+    await seed(async (db) => {
+      await setDoc(doc(db, 'grade_columns/col1'), { workspaceId: 'ws1', className: 'XI-A', createdBy: 'teacherA' });
+      await setDoc(doc(db, 'grades/s1_col1'), { workspaceId: 'ws1', className: 'XI-A', studentId: 's1', columnId: 'col1', score: '80' });
+    });
+    return (uid: string) => testEnv.authenticatedContext(uid).firestore();
+  }
+  it('pembuat kolom boleh menghapus sel; guru lain tidak; OWNER boleh', async () => {
+    const ctx = await setup();
+    await assertFails(deleteDoc(doc(ctx('teacherB'), 'grades/s1_col1')));
+    await assertSucceeds(deleteDoc(doc(ctx('teacherA'), 'grades/s1_col1')));
+  });
+  it('OWNER boleh menghapus sel nilai mana pun', async () => {
+    const ctx = await setup();
+    await assertSucceeds(deleteDoc(doc(ctx('ownerD'), 'grades/s1_col1')));
+  });
+  it('mengisi / mengubah nilai tetap terbuka untuk guru workspace (hanya HAPUS yang dikunci)', async () => {
+    const ctx = await setup();
+    await assertSucceeds(setDoc(doc(ctx('teacherB'), 'grades/s1_col1'), { score: '90' }, { merge: true }));
+  });
+});
+
+describe('submissions, kode login, tahun ajaran — hapus permanen khusus OWNER/ADMIN', () => {
+  it.each(['submissions', 'student_login_codes', 'academic_years'])('%s', async (c) => {
+    await seedProfile('teacherA', 'ws1');
+    await seedProfile('ownerD', 'ws1', 'OWNER');
+    await seed((db) => setDoc(doc(db, `${c}/d1`), { workspaceId: 'ws1', createdBy: 'teacherA' }));
+    await assertFails(deleteDoc(doc(testEnv.authenticatedContext('teacherA').firestore(), `${c}/d1`)));
+    await assertSucceeds(deleteDoc(doc(testEnv.authenticatedContext('ownerD').firestore(), `${c}/d1`)));
+  });
+});
+
+describe('workspaces — tidak bisa dihapus siapa pun', () => {
+  it('bahkan OWNER ditolak (hapus workspace tidak ada di client)', async () => {
+    await seedProfile('ownerD', 'ws1', 'OWNER');
+    await seed((db) => setDoc(doc(db, 'workspaces/ws1'), { ownerUid: 'ownerD', plan: 'individual_lifetime', classLimit: 3 }));
+    await assertFails(deleteDoc(doc(testEnv.authenticatedContext('ownerD').firestore(), 'workspaces/ws1')));
   });
 });

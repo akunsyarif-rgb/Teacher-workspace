@@ -20,14 +20,14 @@ const src: IdentitySources = {
     return snap.exists ? (snap.data() as Record<string, unknown>) : null;
   },
   async classExists(ws, className) {
-    const snap = await getAdminDb().collection('students').where('workspaceId', '==', ws).where('className', '==', className).limit(1).get();
-    return !snap.empty;
+    const snap = await getAdminDb().collection('students').where('workspaceId', '==', ws).where('className', '==', className).get();
+    return snap.docs.some((d) => !d.get('deletedAt')); // siswa soft-deleted tidak membuat kelas "ada"
   },
   async listStudents(ws, classNames) {
     const out: { id: string; className: string; name: string }[] = [];
     for (const c of classNames) {
       const snap = await getAdminDb().collection('students').where('workspaceId', '==', ws).where('className', '==', c).get();
-      for (const d of snap.docs) out.push({ id: d.id, className: c, name: String(d.get('name') ?? '') });
+      for (const d of snap.docs) if (!d.get('deletedAt')) out.push({ id: d.id, className: c, name: String(d.get('name') ?? '') });
     }
     return out;
   },

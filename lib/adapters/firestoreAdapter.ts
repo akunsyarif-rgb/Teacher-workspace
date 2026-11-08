@@ -1,4 +1,4 @@
-import { db } from '@/src/config/firebase';
+import { auth, db } from '@/src/config/firebase';
 import {
   collection,
   doc,
@@ -61,11 +61,33 @@ export async function countDocuments(collectionName: string, filters: [string, a
 }
 
 export async function addDocument(collectionName: string, data: Record<string, any>) {
+  // createdBy = uid pembuat (dari sesi, bukan dari pemanggil): dasar aturan
+  // "hanya pembuat atau OWNER/ADMIN yang boleh menghapus" di firestore.rules.
+  // Immutable setelah dibuat.
+  const createdBy = auth.currentUser?.uid;
   const docRef = await addDoc(collection(db, collectionName), {
     ...data,
+    ...(createdBy ? { createdBy } : {}),
     createdAt: serverTimestamp(),
   });
   return { id: docRef.id, ...data };
+}
+
+// Soft delete: dokumen TIDAK dihapus, hanya ditandai (deletedAt/deletedBy) dan
+// disaring dari semua query repository (lib/utils/softDelete.ts). Pemulihan
+// mengosongkan tanda itu. Siapa yang boleh menandai/memulihkan dijaga
+// firestore.rules (pembuat dokumen atau OWNER/ADMIN).
+export async function softDeleteDocument(collectionName: string, id: string) {
+  await updateDoc(doc(db, collectionName, id), {
+    deletedAt: serverTimestamp(),
+    deletedBy: auth.currentUser?.uid ?? null,
+  });
+  return true;
+}
+
+export async function restoreDocument(collectionName: string, id: string) {
+  await updateDoc(doc(db, collectionName, id), { deletedAt: null, deletedBy: null, deletedBatchId: null });
+  return true;
 }
 
 // Beda dari updateDocument: berhasil walau dokumennya belum ada sama

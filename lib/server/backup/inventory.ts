@@ -44,8 +44,8 @@ export const EXCLUDED: { name: string; reason: string }[] = [
   { name: 'workspace_invites', reason: 'Indeks kode undangan (rahasia); dapat dibuat ulang di aplikasi.' },
 ];
 
-/** Koleksi operasional server (bukan data pengguna): cooldown backup dan pembatas laju (lib/server/rateLimit.ts). */
-export const INTERNAL = ['backup_exports', 'rate_limits'];
+/** Koleksi operasional server (bukan data pengguna): cooldown backup, pembatas laju (lib/server/rateLimit.ts), dan job rename kelas. */
+export const INTERNAL = ['backup_exports', 'rate_limits', 'class_rename_jobs'];
 
 export const KNOWN_COLLECTIONS = new Set([...EXPORTED.map((c) => c.name), ...EXCLUDED.map((c) => c.name), ...INTERNAL]);
 

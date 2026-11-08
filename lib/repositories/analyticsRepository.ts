@@ -1,3 +1,4 @@
+import { activeOnly } from '../utils/softDelete';
 import { getDocuments } from '../adapters/firestoreAdapter';
 import { COLLECTIONS } from '../config/constants';
 
@@ -6,7 +7,7 @@ import { COLLECTIONS } from '../config/constants';
 // pengelompokannya dilakukan di service.
 export async function getAssignmentsInWorkspace(workspaceId: string) {
   if (!workspaceId) return [];
-  return getDocuments(COLLECTIONS.ASSIGNMENTS, [['workspaceId', '==', workspaceId]]);
+  return activeOnly(await getDocuments(COLLECTIONS.ASSIGNMENTS, [['workspaceId', '==', workspaceId]]));
 }
 
 export async function getSubmissionsInWorkspace(workspaceId: string) {

@@ -1,9 +1,10 @@
+import { activeOnly } from '../utils/softDelete';
 import { getDocuments, countDocuments } from '../adapters/firestoreAdapter';
 import { COLLECTIONS } from '../config/constants';
 
 export async function getAllStudentsForSummary(workspaceId: string) {
   if (!workspaceId) return [];
-  return getDocuments(COLLECTIONS.STUDENTS, [['workspaceId', '==', workspaceId]]);
+  return activeOnly(await getDocuments(COLLECTIONS.STUDENTS, [['workspaceId', '==', workspaceId]]));
 }
 
 // Cuma rentang tanggal yang diminta (dipakai untuk 7 hari terakhir), BUKAN

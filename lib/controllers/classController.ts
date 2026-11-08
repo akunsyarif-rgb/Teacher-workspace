@@ -54,6 +54,22 @@ export async function deleteClass(workspaceId: string, className: string) {
   return result;
 }
 
+export async function restoreStudent(id: string) {
+  const result = await studentService.restoreStudent(id);
+  clearAllCached();
+  return result;
+}
+
+export async function fetchDeletedStudents(workspaceId: string) {
+  return studentService.listDeletedStudents(workspaceId);
+}
+
+export async function restoreClass(workspaceId: string, className: string) {
+  const result = await studentService.restoreClass(workspaceId, className);
+  clearAllCached();
+  return result;
+}
+
 export async function generateMissingAccessCodes(workspaceId: string, className: string) {
   const result = await studentService.generateMissingAccessCodes(workspaceId, className);
   clearAllCached();
@@ -63,7 +79,28 @@ export async function generateMissingAccessCodes(workspaceId: string, className:
 // Lewat route server (Admin SDK), bukan Firestore langsung — lihat
 // app/api/classes/rename/route.ts untuk alasannya (student_profiles
 // immutable dari client).
+// Rename besar diproses server secara bertahap (lihat renameClassServer): selama
+// server melapor `done: false`, panggil lagi dengan nama yang sama sampai selesai.
+// Aman diulang (idempoten, berlanjut dari titik terakhir). Batas putaran menjaga
+// agar tidak berputar tanpa akhir bila server terus melapor belum selesai.
+const MAX_RENAME_ROUNDS = 30;
+
 export async function submitRenameClass(idToken: string, oldName: string, newName: string) {
+  let data: RenameResponseBody | undefined;
+  for (let round = 0; round < MAX_RENAME_ROUNDS; round++) {
+    data = await renameClassOnce(idToken, oldName, newName);
+    if (data.done !== false) {
+      clearAllCached();
+      return data;
+    }
+  }
+  clearAllCached();
+  throw new Error(
+    'Penggantian nama kelas belum selesai setelah beberapa kali percobaan. Ulangi penggantian nama yang sama untuk melanjutkan — aman diulang.'
+  );
+}
+
+async function renameClassOnce(idToken: string, oldName: string, newName: string) {
   const res = await fetch('/api/classes/rename', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
@@ -88,11 +125,10 @@ export async function submitRenameClass(idToken: string, oldName: string, newNam
     );
   }
 
-  clearAllCached();
   return data;
 }
 
-type RenameResponseBody = { error?: string; renamedCount?: number; className?: string };
+type RenameResponseBody = { error?: string; renamedCount?: number; className?: string; done?: boolean };
 
 // undefined = body bukan JSON yang sah (bukan "JSON bernilai null").
 async function readJsonSafely(res: Response): Promise<RenameResponseBody | undefined> {
