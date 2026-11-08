@@ -2,9 +2,11 @@ import midtransClient from 'midtrans-client';
 import crypto from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from './firebaseAdmin';
+import { ApiError } from './apiErrors';
 import { PLAN_PRICES, PLAN_CLASS_LIMITS, PLAN_DURATION_MS, isPaidPlan, type PaidPlan } from '../config/plans';
 
 const PAYMENTS_COLLECTION = 'payments';
+const MAX_SEATS_PER_ORDER = 500;
 const WORKSPACES_COLLECTION = 'workspaces';
 
 function getSnapClient() {
@@ -47,10 +49,10 @@ type CreateTransactionInput = {
 export async function createPaymentTransaction(input: CreateTransactionInput) {
   const { workspaceId, uid, plan, customerEmail, customerName } = input;
   if (!workspaceId || !uid) {
-    throw new Error('workspaceId dan uid diperlukan.');
+    throw new ApiError('workspaceId dan uid diperlukan.', 400);
   }
   if (!isPaidPlan(plan)) {
-    throw new Error('Paket tidak valid.');
+    throw new ApiError('Paket tidak valid.', 400);
   }
 
   let grossAmount: number;
@@ -59,7 +61,10 @@ export async function createPaymentTransaction(input: CreateTransactionInput) {
   if (plan === 'school_annual') {
     seatCount = Math.floor(Number(input.seatCount));
     if (!seatCount || seatCount < 1) {
-      throw new Error('Jumlah kursi guru wajib diisi (minimal 1) untuk paket sekolah.');
+      throw new ApiError('Jumlah kursi guru wajib diisi (minimal 1) untuk paket sekolah.', 400);
+    }
+    if (seatCount > MAX_SEATS_PER_ORDER) {
+      throw new ApiError(`Jumlah kursi guru maksimal ${MAX_SEATS_PER_ORDER} per pesanan. Hubungi admin untuk kebutuhan lebih besar.`, 400);
     }
     grossAmount = PLAN_PRICES.school_annual * seatCount;
   } else {
@@ -129,13 +134,7 @@ type MidtransNotificationPayload = {
 // dibalas non-2xx: Midtrans menganggap non-2xx sebagai gagal kirim (mencoba
 // ulang / menandai di dashboard), dan kita ikut punya jejak log untuk
 // investigasi percobaan penyalahgunaan — bukan 200 yang menelan masalahnya.
-export class PaymentNotificationError extends Error {
-  status: number;
-  constructor(message: string, status: number) {
-    super(message);
-    this.status = status;
-  }
-}
+export class PaymentNotificationError extends ApiError {}
 
 // Perbandingan waktu-konstan (timingSafeEqual) agar signature tidak bisa
 // ditebak karakter demi karakter lewat selisih waktu respons. Panjang

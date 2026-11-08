@@ -13,6 +13,7 @@ vi.mock('@/lib/server/firebaseAdmin', () => ({ getAdminDb: () => fake.db, getAdm
 vi.mock('@/lib/server/workspaceAdminService', () => ({ joinWorkspaceByCodeServer: (...a: unknown[]) => join(...a) }));
 
 import { POST } from '../app/api/workspace/join/route';
+import { ApiError } from '../lib/server/apiErrors';
 
 const req = (body: unknown, ip = '1.1.1.1') =>
   new NextRequest('http://localhost/api/workspace/join', {
@@ -35,8 +36,8 @@ describe('POST /api/workspace/join — rate limit tebak kode undangan', () => {
   });
 
   it('6 percobaan gagal per uid -> 429; kode benar pun ditolak selama diblokir', async () => {
-    join.mockRejectedValue(new Error('Kode undangan tidak ditemukan.'));
-    for (let i = 0; i < 6; i++) expect((await POST(req({ inviteCode: `SALAH${i}` }))).status).toBe(400);
+    join.mockRejectedValue(new ApiError('Kode undangan tidak ditemukan.', 404));
+    for (let i = 0; i < 6; i++) expect((await POST(req({ inviteCode: `SALAH${i}` }))).status).toBe(404);
     join.mockResolvedValue({ id: 'w1' });
     const blocked = await POST(req({ inviteCode: 'ABC234' }));
     expect(blocked.status).toBe(429);
@@ -45,7 +46,7 @@ describe('POST /api/workspace/join — rate limit tebak kode undangan', () => {
   });
 
   it('akun lain dari IP yang sama ikut terbatas setelah 30 kegagalan IP', async () => {
-    join.mockRejectedValue(new Error('Kode undangan tidak ditemukan.'));
+    join.mockRejectedValue(new ApiError('Kode undangan tidak ditemukan.', 404));
     for (let i = 0; i < 30; i++) {
       verifyIdToken.mockResolvedValue({ uid: `g${Math.floor(i / 5)}` });
       await POST(req({ inviteCode: `SALAH${i}` }, '7.7.7.7'));

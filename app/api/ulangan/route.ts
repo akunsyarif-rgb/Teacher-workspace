@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminAuth, getAdminDb } from '@/lib/server/firebaseAdmin';
+import { getAdminDb } from '@/lib/server/firebaseAdmin';
+import { AuthFailure, authenticate, extractBearerToken } from '@/lib/server/requireAuth';
 import { ulanganRpc, UlanganDbError } from '@/lib/server/ulanganSupabase';
 import { isUlanganEnabled } from '@/lib/config/ulangan';
 import { AuthError, type IdentitySources } from '@/lib/server/ulanganAuth';
@@ -56,8 +57,7 @@ function dbError(e: UlanganDbError) {
 
 export async function POST(request: NextRequest) {
   if (!isUlanganEnabled()) return NextResponse.json({ error: 'Fitur belum diaktifkan.' }, { status: 501 });
-  const idToken = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
-  if (!idToken) return NextResponse.json({ error: 'Token otentikasi diperlukan.' }, { status: 401 });
+  if (!extractBearerToken(request)) return NextResponse.json({ error: 'Token otentikasi diperlukan.' }, { status: 401 });
   if (Number(request.headers.get('content-length') ?? 0) > MAX_BODY) return NextResponse.json({ error: 'Permintaan terlalu besar.' }, { status: 413 });
 
   let body: Record<string, unknown>;
@@ -72,20 +72,22 @@ export async function POST(request: NextRequest) {
   const action = body.action;
   if (!isAction(action)) return NextResponse.json({ error: 'unknown_action' }, { status: 400 });
 
-  let auth: ReturnType<typeof getAdminAuth>;
-  try {
-    auth = getAdminAuth();
-  } catch {
-    console.error('ulangan: konfigurasi Firebase Admin server belum lengkap/tidak valid');
-    return NextResponse.json({ error: 'server_config_firebase' }, { status: 503 });
-  }
   let uid: string;
   try {
-    // Aksi yang menentukan hak (guru, daftar/mulai siswa) memeriksa pencabutan sesi; autosave/submit cukup tanda tangan + masa berlaku.
-    uid = (await auth.verifyIdToken(idToken, needsTeacher(action) || needsStudentIdentity(action))).uid;
+    // Aksi yang menentukan hak (guru, daftar/mulai siswa) memeriksa pencabutan sesi; autosave/submit
+    // (berfrekuensi tinggi selama ujian) cukup tanda tangan + masa berlaku. Pengecualian SENGAJA dari
+    // default requireAuth (checkRevoked=true), supaya tiap autosave tidak menambah panggilan ke Firebase Auth.
+    ({ uid } = await authenticate(request, { checkRevoked: needsTeacher(action) || needsStudentIdentity(action) }));
   } catch (e) {
-    const c = String((e as { code?: unknown } | null)?.code ?? '').replace(/[^a-z0-9_/-]/gi, '').slice(0, 50); // kode Firebase (mis. auth/argument-error), bukan token
-    return NextResponse.json({ error: `Sesi tidak valid. Masuk kembali lalu coba lagi.${c ? ` [${c}]` : ''}` }, { status: 401 });
+    if (e instanceof AuthFailure) {
+      if (e.code === 'server_config') {
+        console.error('ulangan: konfigurasi Firebase Admin server belum lengkap/tidak valid');
+        return NextResponse.json({ error: 'server_config_firebase' }, { status: 503 });
+      }
+      if (e.code === 'no_token') return NextResponse.json({ error: 'Token otentikasi diperlukan.' }, { status: 401 });
+      return NextResponse.json({ error: `Sesi tidak valid. Masuk kembali lalu coba lagi.${e.firebaseCode ? ` [${e.firebaseCode}]` : ''}` }, { status: 401 });
+    }
+    throw e;
   }
 
   try {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminAuth, getAdminDb } from '@/lib/server/firebaseAdmin';
+import { getAdminDb } from '@/lib/server/firebaseAdmin';
+import { requireAuth } from '@/lib/server/requireAuth';
 
 export const runtime = 'nodejs';
 
@@ -33,31 +34,11 @@ function encodedPath(path: string) {
 }
 
 export async function POST(request: NextRequest) {
-  const authHeader = request.headers.get('authorization') || '';
-  const idToken = authHeader.replace(/^Bearer\s+/i, '').trim();
-  if (!idToken) return NextResponse.json({ error: 'Token otentikasi diperlukan.' }, { status: 401 });
-
-  // Inisialisasi Admin SDK dipisah dari verifikasi token: env var service
-  // account yang hilang bukan "sesi tidak valid" milik siswa, jadi tidak
-  // boleh disamarkan sebagai 401.
-  let adminAuth: ReturnType<typeof getAdminAuth>;
-  try {
-    adminAuth = getAdminAuth();
-  } catch (error) {
-    console.error('Firebase Admin tidak dapat diinisialisasi:', error instanceof Error ? error.message : error);
-    return NextResponse.json(
-      { error: 'Server belum dikonfigurasi untuk unggah lampiran. Hubungi gurumu.', code: 'server_config' },
-      { status: 503 }
-    );
-  }
-
-  let uid: string;
-  try {
-    uid = (await adminAuth.verifyIdToken(idToken)).uid;
-  } catch (error) {
-    console.error('Verifikasi token Firebase gagal:', error instanceof Error ? error.message : error);
-    return NextResponse.json({ error: 'Sesi tidak valid. Silakan masuk kembali.', code: 'invalid_token' }, { status: 401 });
-  }
+  const auth = await requireAuth(request, {
+    configErrorMessage: 'Server belum dikonfigurasi untuk unggah lampiran. Hubungi gurumu.',
+  });
+  if (auth instanceof NextResponse) return auth;
+  const { uid } = auth;
 
   try {
     const body = await request.json();

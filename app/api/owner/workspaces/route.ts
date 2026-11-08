@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminAuth } from '@/lib/server/firebaseAdmin';
+import { requireAuth } from '@/lib/server/requireAuth';
 import {
   OwnerPanelError,
   listWorkspacesForOwnerServer,
@@ -10,13 +10,8 @@ export const runtime = 'nodejs';
 
 // Panel pemilik aplikasi. Izin dicek ulang di server lewat env APP_OWNER_UIDS.
 async function authenticate(request: NextRequest): Promise<string | NextResponse> {
-  const idToken = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
-  if (!idToken) return NextResponse.json({ error: 'Token otentikasi diperlukan.' }, { status: 401 });
-  try {
-    return (await getAdminAuth().verifyIdToken(idToken)).uid;
-  } catch {
-    return NextResponse.json({ error: 'Sesi tidak valid. Silakan masuk kembali.' }, { status: 401 });
-  }
+  const auth = await requireAuth(request);
+  return auth instanceof NextResponse ? auth : auth.uid;
 }
 
 function failure(error: unknown, fallback: string) {

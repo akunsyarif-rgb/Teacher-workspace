@@ -1,4 +1,5 @@
 import { FieldValue } from 'firebase-admin/firestore';
+import { ApiError } from './apiErrors';
 import { getAdminDb } from './firebaseAdmin';
 
 const WORKSPACES_COLLECTION = 'workspaces';
@@ -7,13 +8,7 @@ const TEACHER_PROFILES_COLLECTION = 'teacher_profiles';
 export const OWNER_PLANS = ['individual_lifetime', 'individual_onetime', 'individual_monthly', 'school_annual'] as const;
 export type OwnerPlan = (typeof OWNER_PLANS)[number];
 
-export class OwnerPanelError extends Error {
-  status: number;
-  constructor(message: string, status: number) {
-    super(message);
-    this.status = status;
-  }
-}
+export class OwnerPanelError extends ApiError {}
 
 // Panel pemilik APLIKASI (bukan pemilik workspace): hanya uid yang tercantum
 // di env APP_OWNER_UIDS (dipisah koma) yang boleh masuk. Env kosong/tidak ada

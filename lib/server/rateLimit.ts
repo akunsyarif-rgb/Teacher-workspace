@@ -62,3 +62,28 @@ export async function recordFailures(db: Firestore, rules: RateRule[], nowMs = D
     });
   });
 }
+
+// Batas jumlah PERMINTAAN (bukan hanya kegagalan) — untuk endpoint mahal yang
+// rawan disalahgunakan (menandatangani upload, ekspor backup). Memeriksa lalu
+// langsung mencatat satu permintaan; mengembalikan null bila masih boleh.
+export async function limitRequests(
+  db: Firestore,
+  request: Request,
+  uid: string,
+  scope: string,
+  opts: { perUid: number; perIp: number; windowSeconds: number }
+): Promise<{ retryAfterSeconds: number; message: string } | null> {
+  const rules: RateRule[] = [
+    { key: `${scope}:uid:${uid}`, limit: opts.perUid, windowSeconds: opts.windowSeconds },
+    { key: `${scope}:ip:${clientIp(request)}`, limit: opts.perIp, windowSeconds: opts.windowSeconds },
+  ];
+  const check = await checkRateLimits(db, rules);
+  if (!check.ok) {
+    return {
+      retryAfterSeconds: check.retryAfterSeconds,
+      message: `Terlalu banyak permintaan. Coba lagi dalam ${Math.max(1, Math.ceil(check.retryAfterSeconds / 60))} menit.`,
+    };
+  }
+  await recordFailures(db, rules).catch((e) => console.error('rate limit record gagal:', e));
+  return null;
+}

@@ -1,17 +1,12 @@
 import { FieldValue } from 'firebase-admin/firestore';
+import { ApiError } from './apiErrors';
 import { getAdminDb } from './firebaseAdmin';
 import { generateAccessCode } from '../utils/accessCode';
 import { getEffectiveClassLimit } from '../config/plans';
 
 const MAX_STUDENTS_PER_REQUEST = 200; // 2 tulis/siswa, batas transaksi Firestore 500
 
-export class StudentAdminError extends Error {
-  status: number;
-  constructor(message: string, status: number) {
-    super(message);
-    this.status = status;
-  }
-}
+export class StudentAdminError extends ApiError {}
 
 export type NewStudentInput = { name: string; nis?: string; className: string };
 export type CreatedStudent = { id: string; name: string; nis: string; className: string; accessCode: string };

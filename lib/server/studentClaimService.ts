@@ -1,13 +1,12 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from './firebaseAdmin';
+import { ApiError } from './apiErrors';
 
-export class ClaimError extends Error {
-  status: number;
+export class ClaimError extends ApiError {
   // true = tebakan kode salah/tidak valid -> dihitung ke rate limit.
   countsAsFailure: boolean;
   constructor(message: string, status: number, countsAsFailure: boolean) {
-    super(message);
-    this.status = status;
+    super(message, status);
     this.countsAsFailure = countsAsFailure;
   }
 }

@@ -32,14 +32,30 @@ export function createFakeAdminDb() {
     update: async (data: Doc) => apply('update', `${c}/${id}`, data),
   });
 
+  type Query = { _query: true; c: string; filters: [string, unknown][]; select: () => Query; get: () => Promise<ReturnType<typeof runQuery>> };
+  const runQuery = (c: string, filters: [string, unknown][]) => {
+    const docs = Object.keys(store)
+      .filter((k) => k.startsWith(`${c}/`) && filters.every(([f, v]) => store[k][f] === v))
+      .map((k) => snap(k));
+    return { docs, size: docs.length, empty: docs.length === 0 };
+  };
+  const query = (c: string, filters: [string, unknown][]): Query => {
+    const q: Query = { _query: true, c, filters, select: () => q, get: async () => runQuery(c, filters) };
+    return q;
+  };
+
   const db = {
-    collection: (c: string) => ({ doc: (id?: string) => docRef(c, id ?? `auto${++idSeq}`) }),
+    collection: (c: string) => ({
+      doc: (id?: string) => docRef(c, id ?? `auto${++idSeq}`),
+      where: (f: string, _op: string, v: unknown) => query(c, [[f, v]]),
+    }),
     runTransaction: <T>(fn: (tx: any) => Promise<T>): Promise<T> => {
       const run = async () => {
         const pending: (() => void)[] = [];
         const tx = {
-          get: async (ref: { path: string }) => snap(ref.path),
-          set: (ref: { path: string }, data: Doc) => void pending.push(() => apply('set', ref.path, data)),
+          get: async (ref: { path: string } | Query) => ('_query' in ref ? runQuery(ref.c, ref.filters) : snap(ref.path)),
+          set: (ref: { path: string }, data: Doc, opts?: { merge?: boolean }) =>
+            void pending.push(() => apply('set', ref.path, data, !!opts?.merge)),
           create: (ref: { path: string }, data: Doc) => void pending.push(() => apply('create', ref.path, data)),
           update: (ref: { path: string }, data: Doc) => void pending.push(() => apply('update', ref.path, data)),
         };

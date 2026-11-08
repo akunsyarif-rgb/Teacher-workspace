@@ -1,4 +1,5 @@
 import { FieldValue } from 'firebase-admin/firestore';
+import { ApiError } from './apiErrors';
 import { getAdminAuth, getAdminDb } from './firebaseAdmin';
 import { isSeatLimitReached } from '../config/plans';
 
@@ -40,59 +41,64 @@ type WorkspaceRecord = {
 export async function joinWorkspaceByCodeServer(uid: string, inviteCode: string): Promise<WorkspaceRecord> {
   const adminDb = getAdminDb();
 
-  const existingProfileSnap = await adminDb.collection(TEACHER_PROFILES_COLLECTION).doc(uid).get();
-  if (existingProfileSnap.exists && existingProfileSnap.data()?.workspaceId) {
-    throw new Error('Akun ini sudah terhubung ke sebuah Workspace. Satu akun hanya boleh memiliki satu Workspace.');
-  }
-
-  const trimmedCode = inviteCode.trim().toUpperCase();
+  const trimmedCode = typeof inviteCode === 'string' ? inviteCode.trim().toUpperCase() : '';
   if (!trimmedCode) {
-    throw new Error('Mohon masukkan kode undangan.');
+    throw new ApiError('Mohon masukkan kode undangan.', 400);
   }
 
-  const bridgeSnap = await adminDb.collection(WORKSPACE_INVITES_COLLECTION).doc(trimmedCode).get();
-  const workspaceId = bridgeSnap.exists ? (bridgeSnap.data() as { workspaceId?: string }).workspaceId : null;
-  if (!workspaceId) {
-    throw new Error('Kode undangan tidak ditemukan.');
-  }
+  const profileRef = adminDb.collection(TEACHER_PROFILES_COLLECTION).doc(uid);
 
-  const workspaceSnap = await adminDb.collection(WORKSPACES_COLLECTION).doc(workspaceId).get();
-  if (!workspaceSnap.exists) {
-    throw new Error('Kode undangan tidak ditemukan.');
-  }
-  const workspace = { id: workspaceSnap.id, ...workspaceSnap.data() } as WorkspaceRecord;
+  // Cek kuota kursi + penulisan profil dalam SATU transaksi. Sebelumnya count()
+  // lalu set() terpisah: N guru yang join bersamaan sama-sama membaca "masih
+  // ada kursi" dan semuanya lolos melewati seatLimit.
+  //
+  // Dua lapis pengaman supaya join paralel pasti bertabrakan (lalu transaksi
+  // yang kalah di-retry SDK dan membaca hitungan baru): (1) query anggota
+  // dibaca di dalam transaksi, (2) dokumen workspace ikut DITULIS di setiap
+  // join (updatedAt) — satu dokumen yang sama untuk semua join ke workspace
+  // itu, sehingga konflik tidak bergantung pada perilaku penguncian rentang query.
+  return adminDb.runTransaction(async (tx) => {
+    const existingProfileSnap = await tx.get(profileRef);
+    if (existingProfileSnap.exists && existingProfileSnap.data()?.workspaceId) {
+      throw new ApiError('Akun ini sudah terhubung ke sebuah Workspace. Satu akun hanya boleh memiliki satu Workspace.', 409);
+    }
 
-  // Kode yang sudah diganti (regenerateInviteCode) tetap ditolak lewat
-  // pengecekan ini — bekas jembatan lama boleh tetap ada, tapi tidak lagi
-  // cocok dengan kode aktif workspace-nya. Sama seperti findWorkspaceByInviteCode
-  // di workspaceRepository.ts (client), cuma dijalankan Admin SDK di sini.
-  if (workspace.inviteCode !== trimmedCode) {
-    throw new Error('Kode undangan tidak ditemukan.');
-  }
-  if (workspace.inviteCodeExpiresAt && workspace.inviteCodeExpiresAt < Date.now()) {
-    throw new Error('Kode undangan sudah kedaluwarsa. Minta admin sekolah membuat kode baru.');
-  }
+    const bridgeSnap = await tx.get(adminDb.collection(WORKSPACE_INVITES_COLLECTION).doc(trimmedCode));
+    const workspaceId = bridgeSnap.exists ? (bridgeSnap.data() as { workspaceId?: string }).workspaceId : null;
+    if (!workspaceId) {
+      throw new ApiError('Kode undangan tidak ditemukan.', 404);
+    }
 
-  // Admin SDK bypass rules, jadi count query ini aman dijalankan di sini —
-  // tidak perlu rule list/count baru di firestore.rules sama sekali.
-  const memberCountSnap = await adminDb
-    .collection(TEACHER_PROFILES_COLLECTION)
-    .where('workspaceId', '==', workspaceId)
-    .count()
-    .get();
-  const memberCount = memberCountSnap.data().count;
-  if (isSeatLimitReached(workspace, memberCount)) {
-    throw new Error(
-      `Kuota guru workspace ini sudah penuh (maks ${workspace.seatLimit} guru). Admin sekolah perlu membeli kursi tambahan lewat halaman upgrade.`
+    const workspaceRef = adminDb.collection(WORKSPACES_COLLECTION).doc(workspaceId);
+    const workspaceSnap = await tx.get(workspaceRef);
+    if (!workspaceSnap.exists) {
+      throw new ApiError('Kode undangan tidak ditemukan.', 404);
+    }
+    const workspace = { id: workspaceSnap.id, ...workspaceSnap.data() } as WorkspaceRecord;
+
+    // Kode yang sudah diganti (regenerateInviteCode) tetap ditolak: jembatan lama
+    // boleh tersisa, tapi tidak cocok lagi dengan kode aktif workspace-nya.
+    if (workspace.inviteCode !== trimmedCode) {
+      throw new ApiError('Kode undangan tidak ditemukan.', 404);
+    }
+    if (workspace.inviteCodeExpiresAt && workspace.inviteCodeExpiresAt < Date.now()) {
+      throw new ApiError('Kode undangan sudah kedaluwarsa. Minta admin sekolah membuat kode baru.', 410);
+    }
+
+    const membersSnap = await tx.get(
+      adminDb.collection(TEACHER_PROFILES_COLLECTION).where('workspaceId', '==', workspaceId).select()
     );
-  }
+    if (isSeatLimitReached(workspace, membersSnap.size)) {
+      throw new ApiError(
+        `Kuota guru workspace ini sudah penuh (maks ${workspace.seatLimit} guru). Admin sekolah perlu membeli kursi tambahan lewat halaman upgrade.`,
+        409
+      );
+    }
 
-  await adminDb
-    .collection(TEACHER_PROFILES_COLLECTION)
-    .doc(uid)
-    .set({ workspaceId, role: 'TEACHER', isActive: true }, { merge: true });
-
-  return workspace;
+    tx.set(profileRef, { workspaceId, role: 'TEACHER', isActive: true }, { merge: true });
+    tx.update(workspaceRef, { updatedAt: FieldValue.serverTimestamp() });
+    return workspace;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -111,13 +117,7 @@ export type WorkspaceMember = {
   isYou: boolean;
 };
 
-export class WorkspaceAdminError extends Error {
-  status: number;
-  constructor(message: string, status: number) {
-    super(message);
-    this.status = status;
-  }
-}
+export class WorkspaceAdminError extends ApiError {}
 
 async function requireOwner(uid: string) {
   const adminDb = getAdminDb();

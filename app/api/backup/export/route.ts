@@ -1,11 +1,13 @@
 import { Readable } from 'node:stream';
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminAuth, getAdminDb } from '@/lib/server/firebaseAdmin';
+import { getAdminDb } from '@/lib/server/firebaseAdmin';
+import { AuthFailure, authenticate } from '@/lib/server/requireAuth';
+import { limitRequests } from '@/lib/server/rateLimit';
 import { ulanganRpc } from '@/lib/server/ulanganSupabase';
 import { BackupAuthError, resolveBackupActor } from '@/lib/server/backup/actor';
 import { claimExportSlot, DEFAULT_COOLDOWN_SECONDS } from '@/lib/server/backup/cooldown';
 import { countExportDocs, exportZip } from '@/lib/server/backup/exportWorkspace';
-import { resolveMaxDocs } from '@/lib/server/backup/limits';
+import { exportRateLimits, resolveMaxDocs } from '@/lib/server/backup/limits';
 import { firestoreIdentity, makeUlanganCollector } from '@/lib/server/backup/ulanganExport';
 
 export const runtime = 'nodejs';
@@ -18,19 +20,25 @@ const pad = (n: number) => String(n).padStart(2, '0');
 // Ekspor data workspace guru sebagai ZIP. Token Firebase diverifikasi (termasuk pencabutan sesi); identitas, workspace, dan peran
 // dibaca dari Firestore — TIDAK dari body. Respons streaming, tanpa berkas sementara, tanpa cache, tanpa URL publik.
 export async function POST(request: NextRequest) {
-  const idToken = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
-  if (!idToken) return fail(401, 'no_token', 'Token otentikasi diperlukan.');
-
-  let auth: ReturnType<typeof getAdminAuth>;
+  let uid: string;
   let db: ReturnType<typeof getAdminDb>;
-  try { auth = getAdminAuth(); db = getAdminDb(); } catch {
+  try {
+    ({ uid } = await authenticate(request));
+    db = getAdminDb();
+  } catch (error) {
+    if (error instanceof AuthFailure) {
+      return error.code === 'server_config'
+        ? fail(503, 'server_config', 'Server belum dikonfigurasi untuk backup. Hubungi admin.')
+        : fail(error.status, error.code, error.code === 'no_token' ? 'Token otentikasi diperlukan.' : 'Sesi tidak valid. Masuk kembali lalu coba lagi.');
+    }
     console.error('backup: konfigurasi Firebase Admin server belum lengkap/tidak valid');
     return fail(503, 'server_config', 'Server belum dikonfigurasi untuk backup. Hubungi admin.');
   }
-  let uid: string;
-  try { uid = (await auth.verifyIdToken(idToken, true)).uid; } catch {
-    return fail(401, 'invalid_token', 'Sesi tidak valid. Masuk kembali lalu coba lagi.');
-  }
+
+  // Pagar tambahan di depan cooldown per-workspace: ekspor membaca seluruh data workspace dan memakai kuota baca yang sama
+  // dengan aplikasi. Setiap permintaan (termasuk yang ditolak cooldown) dihitung, supaya spam tidak lolos ke Firestore.
+  const limited = await limitRequests(db, request, uid, 'backup-export', exportRateLimits());
+  if (limited) return fail(429, 'rate_limited', limited.message, { 'Retry-After': String(limited.retryAfterSeconds) });
 
   let release: (() => Promise<void>) | null = null;
   try {

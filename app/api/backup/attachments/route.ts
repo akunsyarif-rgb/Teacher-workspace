@@ -1,12 +1,14 @@
 import { Readable } from 'node:stream';
 import { NextRequest, NextResponse } from 'next/server';
 import { zipStream } from '@/lib/backup/zip.mjs';
-import { getAdminAuth, getAdminDb } from '@/lib/server/firebaseAdmin';
+import { getAdminDb } from '@/lib/server/firebaseAdmin';
+import { AuthFailure, authenticate } from '@/lib/server/requireAuth';
+import { limitRequests } from '@/lib/server/rateLimit';
 import { ulanganSupabaseConfig, UlanganDbError } from '@/lib/server/ulanganSupabase';
 import { BackupAuthError, resolveBackupActor } from '@/lib/server/backup/actor';
 import { claimExportSlot } from '@/lib/server/backup/cooldown';
 import { AttachmentLimitError, partEntries, PathError, planAttachments, probePart, validatePaths } from '@/lib/server/backup/attachments';
-import { planCooldownSeconds } from '@/lib/server/backup/limits';
+import { attachmentsRateLimits, planCooldownSeconds } from '@/lib/server/backup/limits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,13 +19,21 @@ const fail = (status: number, code: string, error: string, headers: Record<strin
 // Dua aksi: "plan" (daftar lampiran Supabase milik workspace) dan "part" (ZIP berisi sebagian lampiran). Otorisasi sama dengan
 // /api/backup/export; path yang diminta harus berada di bawah submissions/<workspace sendiri>/.
 export async function POST(request: NextRequest) {
-  const idToken = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
-  if (!idToken) return fail(401, 'no_token', 'Token otentikasi diperlukan.');
-  let auth: ReturnType<typeof getAdminAuth>;
-  let db: ReturnType<typeof getAdminDb>;
-  try { auth = getAdminAuth(); db = getAdminDb(); } catch { return fail(503, 'server_config', 'Server belum dikonfigurasi untuk backup. Hubungi admin.'); }
   let uid: string;
-  try { uid = (await auth.verifyIdToken(idToken, true)).uid; } catch { return fail(401, 'invalid_token', 'Sesi tidak valid. Masuk kembali lalu coba lagi.'); }
+  let db: ReturnType<typeof getAdminDb>;
+  try {
+    ({ uid } = await authenticate(request));
+    db = getAdminDb();
+  } catch (error) {
+    if (error instanceof AuthFailure && error.code !== 'server_config') {
+      return fail(error.status, error.code, error.code === 'no_token' ? 'Token otentikasi diperlukan.' : 'Sesi tidak valid. Masuk kembali lalu coba lagi.');
+    }
+    return fail(503, 'server_config', 'Server belum dikonfigurasi untuk backup. Hubungi admin.');
+  }
+
+  // Satu backup lampiran = 1 permintaan "plan" + banyak "part" (ZIP per bagian), jadi batasnya jauh lebih longgar dari ekspor Firestore.
+  const limited = await limitRequests(db, request, uid, 'backup-attachments', attachmentsRateLimits());
+  if (limited) return fail(429, 'rate_limited', limited.message, { 'Retry-After': String(limited.retryAfterSeconds) });
 
   let body: { action?: unknown; paths?: unknown };
   try { body = await request.json(); } catch { return fail(400, 'invalid_body', 'Permintaan tidak valid.'); }

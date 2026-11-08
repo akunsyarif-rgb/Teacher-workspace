@@ -110,10 +110,15 @@ describe('kegagalan antar-batch tidak pernah dilaporkan sebagai sukses', () => {
     expect(commits).toEqual([]);
   });
 
-  it('penyebab asli dari Firestore ikut disertakan', async () => {
+  it('penyebab asli dari Firestore TIDAK bocor ke pesan (hanya ke log server)', async () => {
     const { db } = buatFakeDb({ jumlahDokumen: 700, gagalPadaBatchKe: 2 });
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    await expect(renameClassServer(UID, 'X-1', 'X-2', db)).rejects.toThrow(/DEADLINE_EXCEEDED/);
+    const err = await renameClassServer(UID, 'X-1', 'X-2', db).catch((e) => e);
+    expect(err.message).toMatch(/500 dari 700/);
+    expect(err.message).not.toMatch(/DEADLINE_EXCEEDED/);
+    expect(String(log.mock.calls[0][1])).toMatch(/DEADLINE_EXCEEDED/);
+    log.mockRestore();
   });
 });
 

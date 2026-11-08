@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminAuth } from '@/lib/server/firebaseAdmin';
 import { renameClassServer } from '@/lib/server/classAdminService';
+import { requireAuth } from '@/lib/server/requireAuth';
+import { errorResponse } from '@/lib/server/apiErrors';
 
 export const runtime = 'nodejs';
 
@@ -8,29 +9,22 @@ export const runtime = 'nodejs';
 // harus lewat Admin SDK karena juga menyentuh student_profiles yang
 // rules-nya sengaja immutable dari client (lihat classAdminService.ts).
 export async function POST(request: NextRequest) {
+  // uid HARUS dari token yang diverifikasi, bukan dari body request —
+  // supaya workspaceId ditentukan dari identitas asli pemanggil, tidak
+  // bisa dipalsukan lewat body.
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
-    const authHeader = request.headers.get('authorization') || '';
-    const idToken = authHeader.replace(/^Bearer\s+/i, '').trim();
-    if (!idToken) {
-      return NextResponse.json({ error: 'Token otentikasi diperlukan.' }, { status: 401 });
-    }
-
-    // uid HARUS dari token yang diverifikasi, bukan dari body request —
-    // supaya workspaceId ditentukan dari identitas asli pemanggil, tidak
-    // bisa dipalsukan lewat body.
-    const decoded = await getAdminAuth().verifyIdToken(idToken);
-    const uid = decoded.uid;
-
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const { oldName, newName } = body ?? {};
     if (!oldName || typeof oldName !== 'string' || !newName || typeof newName !== 'string') {
       return NextResponse.json({ error: 'Nama kelas lama dan baru diperlukan.' }, { status: 400 });
     }
 
-    const result = await renameClassServer(uid, oldName, newName);
+    const result = await renameClassServer(auth.uid, oldName, newName);
     return NextResponse.json(result);
-  } catch (error: any) {
-    console.error('class rename error:', error);
-    return NextResponse.json({ error: error.message || 'Gagal mengganti nama kelas.' }, { status: 400 });
+  } catch (error) {
+    return errorResponse(error, 'Gagal mengganti nama kelas.', 'class rename error');
   }
 }

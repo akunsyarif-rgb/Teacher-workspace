@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminAuth, getAdminDb } from '@/lib/server/firebaseAdmin';
+import { getAdminDb } from '@/lib/server/firebaseAdmin';
+import { requireAuth } from '@/lib/server/requireAuth';
+import { errorResponse } from '@/lib/server/apiErrors';
 import { ClaimError, claimStudentAccessCodeServer } from '@/lib/server/studentClaimService';
 import { checkRateLimits, clientIp, recordFailures, type RateRule } from '@/lib/server/rateLimit';
 
@@ -14,15 +16,10 @@ const MAX_FAILURES_PER_IP = 40;
 // Satu-satunya jalur klaim kode akses siswa (firestore.rules menutup baca
 // student_login_codes dan create student_profiles dari client).
 export async function POST(request: NextRequest) {
-  const idToken = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
-  if (!idToken) return NextResponse.json({ error: 'Token otentikasi diperlukan.' }, { status: 401 });
-
-  let uid: string;
-  try {
-    uid = (await getAdminAuth().verifyIdToken(idToken)).uid;
-  } catch {
-    return NextResponse.json({ error: 'Sesi tidak valid. Muat ulang halaman lalu coba lagi.' }, { status: 401 });
-  }
+  // Token siswa anonim: tetap diperiksa pencabutannya (default requireAuth).
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+  const { uid } = auth;
 
   const rules: RateRule[] = [
     { key: `student-claim:uid:${uid}`, limit: MAX_FAILURES_PER_UID, windowSeconds: WINDOW_SECONDS },
@@ -51,7 +48,6 @@ export async function POST(request: NextRequest) {
       throw error;
     }
   } catch (error) {
-    console.error('student claim error:', error);
-    return NextResponse.json({ error: 'Gagal masuk. Coba lagi beberapa saat lagi.' }, { status: 500 });
+    return errorResponse(error, 'Gagal masuk. Coba lagi beberapa saat lagi.', 'student claim error');
   }
 }

@@ -1,4 +1,5 @@
 import { getAdminDb } from './firebaseAdmin';
+import { ApiError } from './apiErrors';
 import { normalizeClassName, validateClassName } from '../utils/classNameValidation';
 
 // Semua koleksi yang punya field className langsung, TERMASUK
@@ -62,24 +63,24 @@ export async function renameClassServer(
   const profileSnap = await adminDb.collection('teacher_profiles').doc(uid).get();
   const workspaceId = profileSnap.exists ? (profileSnap.data() as { workspaceId?: string })?.workspaceId : null;
   if (!workspaceId) {
-    throw new Error('Akun ini belum terhubung ke workspace mana pun.');
+    throw new ApiError('Akun ini belum terhubung ke workspace mana pun.', 403);
   }
 
   // oldName cuma dipakai untuk mencari dokumen existing (nilai className
   // yang sudah tersimpan, apa pun bentuknya) — bukan input baru dari guru,
   // jadi cukup dirapikan spasinya, tidak perlu divalidasi ulang.
   const oldName = normalizeClassName(oldNameInput);
-  if (!oldName) throw new Error('Kelas asal tidak valid.');
+  if (!oldName) throw new ApiError('Kelas asal tidak valid.', 400);
 
   // newName ADALAH input guru — validasi penuh di sini sebagai pertahanan
   // kedua (client sudah validasi juga), bukan cuma trim. Sengaja TIDAK ada
   // whitelist karakter: className bukan identifier/slug, boleh mengandung
   // spasi dan angka apa pun ("XI A KESEHATAN 1", "XI F TEKNIK 2", dst).
   const validation = validateClassName(newNameInput);
-  if (!validation.valid) throw new Error(validation.error);
+  if (!validation.valid) throw new ApiError(validation.error, 400);
   const newName = validation.value;
 
-  if (oldName === newName) throw new Error('Nama kelas baru sama dengan nama sekarang.');
+  if (oldName === newName) throw new ApiError('Nama kelas baru sama dengan nama sekarang.', 400);
 
   const collisionSnap = await adminDb
     .collection('students')
@@ -88,7 +89,7 @@ export async function renameClassServer(
     .limit(1)
     .get();
   if (!collisionSnap.empty) {
-    throw new Error(`Kelas "${newName}" sudah ada. Pilih nama lain.`);
+    throw new ApiError(`Kelas "${newName}" sudah ada. Pilih nama lain.`, 409);
   }
 
   const refsToUpdate: FirebaseFirestore.DocumentReference[] = [];
@@ -102,7 +103,7 @@ export async function renameClassServer(
   }
 
   if (refsToUpdate.length === 0) {
-    throw new Error(`Kelas "${oldName}" tidak ditemukan.`);
+    throw new ApiError(`Kelas "${oldName}" tidak ditemukan.`, 404);
   }
 
   // Firestore membatasi 500 operasi per batch, jadi rename kelas besar
@@ -125,9 +126,11 @@ export async function renameClassServer(
     try {
       await batch.commit();
     } catch (error: unknown) {
-      const sebab = error instanceof Error ? error.message : 'penyebab tidak diketahui';
-      throw new Error(
-        `Penggantian nama berhenti di tengah jalan: ${committed} dari ${refsToUpdate.length} dokumen sudah memakai nama "${newName}", sisanya masih "${oldName}". Periksa konsistensi data sebelum mencoba lagi. (${sebab})`
+      // Penyebab asli (pesan Firestore) hanya ke log server — tidak ke client.
+      console.error('class rename berhenti di tengah jalan:', error);
+      throw new ApiError(
+        `Penggantian nama berhenti di tengah jalan: ${committed} dari ${refsToUpdate.length} dokumen sudah memakai nama "${newName}", sisanya masih "${oldName}". Periksa konsistensi data sebelum mencoba lagi.`,
+        500
       );
     }
     committed += chunk.length;
