@@ -37,23 +37,35 @@ export default function RecycleBinPanel() {
 
   const viewer = useMemo(() => ({ uid, role: role ?? null }), [uid, role]);
 
-  const load = useCallback(async () => {
+  // Muat awal / saat peran berganti. State hanya diubah SETELAH data tiba (bukan sinkron di dalam
+  // efek), dan dibatalkan bila komponen sudah tidak dipakai.
+  useEffect(() => {
     if (!workspaceId || !uid) return;
-    setLoading(true);
-    setError('');
-    try {
-      setData(await recycleBinController.fetchRecycleBin(workspaceId, viewer));
-    } catch (e) {
-      console.error('Gagal memuat Sampah:', e);
-      setError('Gagal memuat Sampah. Periksa koneksi lalu coba lagi.');
-    } finally {
-      setLoading(false);
-    }
+    let cancelled = false;
+    recycleBinController
+      .fetchRecycleBin(workspaceId, viewer)
+      .then((result) => {
+        if (cancelled) return;
+        setData(result);
+        setError('');
+      })
+      .catch((e) => {
+        console.error('Gagal memuat Sampah:', e);
+        if (!cancelled) setError('Gagal memuat Sampah. Periksa koneksi lalu coba lagi.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [workspaceId, uid, viewer]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  // Muat ulang daftar setelah pemulihan (tanpa kembali ke layar "memuat").
+  const refresh = useCallback(async () => {
+    if (!workspaceId || !uid) return;
+    setData(await recycleBinController.fetchRecycleBin(workspaceId, viewer));
+  }, [workspaceId, uid, viewer]);
 
   async function handleRestore(item: BinItem) {
     setBusyKey(item.key);
@@ -62,7 +74,7 @@ export default function RecycleBinPanel() {
     try {
       await recycleBinController.restoreItem(item, viewer);
       setNotice(`${item.title} dipulihkan.`);
-      await load();
+      await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Gagal memulihkan. Coba lagi.');
     } finally {
