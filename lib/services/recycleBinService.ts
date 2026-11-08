@@ -1,6 +1,8 @@
 import * as studentRepository from '../repositories/studentRepository';
 import * as assignmentRepository from '../repositories/assignmentRepository';
 import * as gradeColumnRepository from '../repositories/gradeColumnRepository';
+import * as trashRepository from '../repositories/trashRepository';
+import type { PurgeCountsDto } from '../repositories/trashRepository';
 import type { Doc } from '../adapters/firestoreAdapter';
 import type { StudentData, AssignmentData, GradeColumnData } from '../types/models';
 
@@ -175,5 +177,58 @@ export async function restoreBinItem(item: Pick<BinItem, 'kind' | 'id' | 'classN
       return assignmentRepository.restoreAssignment(item.id);
     case 'column':
       return gradeColumnRepository.restoreColumn(item.id);
+  }
+}
+
+// ---------- Hapus permanen (khusus OWNER/ADMIN) ----------
+
+/** Tombol/aksi hapus permanen hanya untuk OWNER/ADMIN (server dan rules menegakkan ulang). */
+export const canPurge = (viewer: BinViewer) => isAdminRole(viewer.role);
+
+const MAX_PURGE_ROUNDS = 30;
+
+export type PurgeSummary = { counts: PurgeCountsDto; rounds: number };
+
+const addCounts = (a: PurgeCountsDto, b: PurgeCountsDto): PurgeCountsDto => ({
+  students: a.students + b.students, assignments: a.assignments + b.assignments, columns: a.columns + b.columns,
+  grades: a.grades + b.grades, submissions: a.submissions + b.submissions, achievements: a.achievements + b.achievements,
+  notes: a.notes + b.notes, profiles: a.profiles + b.profiles, loginCodes: a.loginCodes + b.loginCodes, files: a.files + b.files,
+});
+const zeroCounts = (): PurgeCountsDto => ({ students: 0, assignments: 0, columns: 0, grades: 0, submissions: 0, achievements: 0, notes: 0, profiles: 0, loginCodes: 0, files: 0 });
+
+// Pekerjaan besar diproses server bertahap (done:false = belum tuntas): panggil lagi sampai selesai.
+// Aman diulang (idempoten). Batas putaran menjaga agar tidak berputar tanpa akhir.
+async function runUntilDone(request: trashRepository.PurgeRequest): Promise<PurgeSummary> {
+  let counts = zeroCounts();
+  for (let round = 1; round <= MAX_PURGE_ROUNDS; round++) {
+    const res = await trashRepository.purgeOnServer(request);
+    counts = addCounts(counts, res.counts);
+    if (res.done) return { counts, rounds: round };
+  }
+  throw new Error('Penghapusan belum selesai setelah beberapa kali percobaan. Ulangi untuk melanjutkan — aman diulang.');
+}
+
+export async function purgeBinItem(item: Pick<BinItem, 'kind' | 'id' | 'className'>, viewer: BinViewer): Promise<PurgeSummary> {
+  // Pemeriksaan di sini hanya untuk pesan yang jelas dan agar tidak memanggil server percuma.
+  if (!canPurge(viewer)) throw new Error('Hanya pemilik atau admin workspace yang boleh menghapus permanen.');
+  return runUntilDone({ kind: item.kind, id: item.kind === 'class' ? item.className : item.id });
+}
+
+export async function emptyBin(viewer: BinViewer): Promise<PurgeSummary> {
+  if (!canPurge(viewer)) throw new Error('Hanya pemilik atau admin workspace yang boleh mengosongkan Sampah.');
+  return runUntilDone({ all: true });
+}
+
+/** Teks ringkas tentang apa yang ikut terhapus, untuk dialog konfirmasi. */
+export function describePurgeScope(item: Pick<BinItem, 'kind' | 'count'>): string {
+  switch (item.kind) {
+    case 'student':
+      return 'Siswa ini beserta kode akses, sesi login, nilai, pengumpulan tugas dan lampirannya, prestasi, dan catatan wali kelas dihapus SELAMANYA. Nama siswa pada rekap presensi per pertemuan tetap tersimpan.';
+    case 'assignment':
+      return 'Tugas ini beserta seluruh pengumpulan siswa dan lampirannya dihapus SELAMANYA. Kolom nilai di gradebook tidak ikut terhapus.';
+    case 'column':
+      return 'Kolom ini beserta seluruh nilai siswa di dalamnya dihapus SELAMANYA.';
+    case 'class':
+      return `${item.count ?? 0} siswa di kelas ini beserta seluruh data mereka (nilai, pengumpulan tugas dan lampiran, prestasi, catatan, kode akses) dihapus SELAMANYA. Jurnal, presensi, dan jadwal kelas tidak ikut terhapus.`;
   }
 }

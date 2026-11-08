@@ -50,6 +50,19 @@ export const StudentIdBodySchema = z.object({
 });
 export type StudentIdBody = z.infer<typeof StudentIdBodySchema>;
 
+// Hapus permanen dari Sampah: satu item (jenis + id; untuk kelas id = nama kelas) atau seluruh Sampah.
+export const PurgeBodySchema = z.union(
+  [
+    z.object({ all: z.literal(true) }),
+    z.object({
+      kind: z.enum(['student', 'assignment', 'column', 'class']),
+      id: z.string().trim().min(1).max(200),
+    }),
+  ],
+  { error: 'Permintaan hapus permanen tidak valid.' }
+);
+export type PurgeBody = z.infer<typeof PurgeBodySchema>;
+
 export const JoinWorkspaceBodySchema = z.object({
   inviteCode: z.string({ error: 'Kode undangan diperlukan.' }).trim().min(1, 'Kode undangan diperlukan.').max(64, 'Kode undangan diperlukan.'),
 });

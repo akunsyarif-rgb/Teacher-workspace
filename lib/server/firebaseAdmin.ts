@@ -1,6 +1,7 @@
 import { initializeApp, getApps, cert, type App, type ServiceAccount } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getAuth, type Auth } from 'firebase-admin/auth';
+import { getStorage } from 'firebase-admin/storage';
 
 // Server-only — Firebase Admin SDK, dipakai route handler pembayaran untuk
 // menulis field yang DIKUNCI dari client (plan/classLimit/seatLimit/
@@ -63,4 +64,9 @@ export function getAdminDb(): Firestore {
 
 export function getAdminAuth(): Auth {
   return getAuth(getAdminApp());
+}
+
+// Bucket Firebase Storage default (materi tugas dari guru). Nama dari env yang sama dengan SDK klien.
+export function getAdminBucket() {
+  return getStorage(getAdminApp()).bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
 }

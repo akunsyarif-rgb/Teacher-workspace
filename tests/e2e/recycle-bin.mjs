@@ -5,6 +5,9 @@
  * dan celah batas paket yang ditutup (hapus satu-satunya siswa kelas, isi kuota
  * dengan kelas baru, lalu pulihkan -> harus ditolak).
  *
+ * Juga: hapus PERMANEN dan "Kosongkan Sampah" khusus OWNER/ADMIN — tombolnya tidak tampil untuk
+ * guru biasa dan API-nya menolak (403); data benar-benar hilang dari Firestore beserta turunannya.
+ *
  * Jalankan: npm run test:e2e:recycle-bin
  */
 /**
@@ -22,9 +25,12 @@
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import net from 'node:net';
+import { initializeTestEnvironment } from '@firebase/rules-unit-testing';
+import { collection, doc, getDoc, getDocs, query, updateDoc, where } from 'firebase/firestore';
 
 const BASE_URL = 'http://127.0.0.1:3100';
-const TEACHER_EMAIL = `guru${Date.now()}@contoh.sch.id`;
+const TEACHER_EMAIL = `owner${Date.now()}@sekolah-uji.sch.id`;
+const JOINER_EMAIL = `guru2${Date.now()}@sekolah-uji.sch.id`;
 const TEACHER_PASSWORD = 'rahasia123';
 const CLASS_A = 'RB-A';
 const CLASS_B = 'RB-B';
@@ -34,6 +40,7 @@ const ANI = 'Ani Pulih';
 const BUDI = 'Budi Tetap';
 const CITRA = 'Citra Kelas B';
 const DINA = 'Dina Sendiri';
+const GURU2_SISWA = 'Siswa Guru Dua';
 
 const steps = [];
 function pass(name, detail = '') {
@@ -117,42 +124,73 @@ function stopServer(server) {
   try { process.kill(-server.pid, 'SIGTERM'); } catch {}
 }
 
+
+// Akses Firestore emulator TANPA rules — hanya untuk MEMERIKSA hasil (apakah dokumen benar-benar hilang)
+// dan menyiapkan kuota kursi; bukan jalur yang dipakai aplikasi.
+async function withAdminDb(fn) {
+  const testEnv = await initializeTestEnvironment({ projectId: 'demo-teacher-workspace', firestore: { host: 'localhost', port: 8080 } });
+  try {
+    let out;
+    await testEnv.withSecurityRulesDisabled(async (ctx) => { out = await fn(ctx.firestore()); });
+    return out;
+  } finally {
+    await testEnv.cleanup();
+  }
+}
+const docExists = (path) => withAdminDb(async (db) => (await getDoc(doc(db, ...path.split('/')))).exists());
+const findByField = (col, field, value) =>
+  withAdminDb(async (db) => (await getDocs(query(collection(db, col), where(field, '==', value)))).docs.map((d) => ({ id: d.id, ...d.data() })));
+const bumpSeatLimit = (inviteCode, seats) =>
+  withAdminDb(async (db) => {
+    const bridge = await getDoc(doc(db, 'workspace_invites', inviteCode));
+    await updateDoc(doc(db, 'workspaces', bridge.data().workspaceId), { seatLimit: seats });
+  });
+
+async function idTokenFor(email, password) {
+  const res = await fetch('http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password, returnSecureToken: true }),
+  });
+  return (await res.json()).idToken;
+}
+
 async function run() {
   const server = await startAppServer();
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
   const teacher = await (await browser.newContext()).newPage();
+  const joiner = await (await browser.newContext()).newPage();
 
   const jsErrors = [];
   teacher.on('pageerror', (err) => jsErrors.push(err.message));
+  joiner.on('pageerror', (err) => jsErrors.push(err.message));
 
-  async function addStudent(name, nis, className) {
-    await teacher.goto(`${BASE_URL}/classes`, { waitUntil: 'domcontentloaded' });
-    await teacher.getByRole('button', { name: /Tambah Kelas Baru/i }).click();
-    const form = teacher.locator('form').first();
+  async function addStudent(name, nis, className, page = teacher) {
+    await page.goto(`${BASE_URL}/classes`, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: /Tambah Kelas Baru/i }).click();
+    const form = page.locator('form').first();
     await form.locator('input').nth(0).fill(name, { timeout: 20000 });
     await form.locator('input').nth(1).fill(nis);
     await form.locator('input[placeholder*="TEKNIK"]').fill(className);
-    await teacher.getByRole('button', { name: /Simpan Siswa/i }).click();
-    await teacher.waitForTimeout(2500);
+    await page.getByRole('button', { name: /Simpan Siswa/i }).click();
+    await page.waitForTimeout(2500);
   }
 
-  async function openClass(className) {
-    await teacher.goto(`${BASE_URL}/classes`, { waitUntil: 'domcontentloaded' });
-    await teacher.getByText(className, { exact: true }).first().click();
-    await teacher.waitForTimeout(1200);
+  async function openClass(className, page = teacher) {
+    await page.goto(`${BASE_URL}/classes`, { waitUntil: 'domcontentloaded' });
+    await page.getByText(className, { exact: true }).first().click();
+    await page.waitForTimeout(1200);
   }
 
-  async function confirmDeletion() {
-    await teacher.getByPlaceholder('Ketik HAPUS').fill('HAPUS');
-    await teacher.getByRole('button', { name: /Ya, Hapus/i }).click();
-    await teacher.waitForTimeout(2200);
+  async function confirmDeletion(page = teacher) {
+    await page.getByPlaceholder('Ketik HAPUS').fill('HAPUS');
+    await page.getByRole('button', { name: /Ya, Hapus/i }).click();
+    await page.waitForTimeout(2200);
   }
 
-  async function binItems() {
-    await teacher.goto(`${BASE_URL}/account/sampah`, { waitUntil: 'domcontentloaded' });
-    await teacher.getByRole('group', { name: /Saring jenis item/i }).waitFor({ timeout: 20000 });
-    await teacher.waitForTimeout(1500);
-    const rows = await teacher.locator('[data-testid="bin-item"]').all();
+  async function binItems(page = teacher) {
+    await page.goto(`${BASE_URL}/account/sampah`, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('group', { name: /Saring jenis item/i }).waitFor({ timeout: 20000 });
+    await page.waitForTimeout(1500);
+    const rows = await page.locator('[data-testid="bin-item"]').all();
     const out = [];
     for (const row of rows) out.push({ kind: await row.getAttribute('data-kind'), text: (await row.innerText()).replace(/\s+/g, ' ') });
     return out;
@@ -160,11 +198,13 @@ async function run() {
 
   try {
     // ---------- Setup ----------
+    // Workspace SEKOLAH (bukan individu): ada pemilik (OWNER) dan guru biasa (TEACHER) untuk uji izin.
     await teacher.goto(`${BASE_URL}/signup`, { waitUntil: 'domcontentloaded' });
+    await teacher.getByRole('button', { name: /^Sekolah$/i }).click();
     await teacher.fill('input[type="email"]', TEACHER_EMAIL);
     await teacher.fill('input[placeholder="Minimal 6 karakter"]', TEACHER_PASSWORD);
     await teacher.fill('input[placeholder="Ulangi kata sandi"]', TEACHER_PASSWORD);
-    await teacher.fill('input[placeholder*="Kelas Pak"]', 'Workspace Uji Sampah');
+    await teacher.fill('input[placeholder*="SMA Negeri"], input[placeholder*="Kelas Pak"]', 'Sekolah Uji Sampah');
     await teacher.click('button[type="submit"]');
     await teacher.waitForURL(`${BASE_URL}/`, { timeout: 30000 });
 
@@ -279,7 +319,92 @@ async function run() {
       fail('Batas paket pada pemulihan', 'siswa Dina tidak ada di Sampah');
     }
 
-    // ---------- 7. Tanpa galat JavaScript ----------
+    // ---------- 7. Guru biasa (TEACHER): tidak ada akses hapus permanen ----------
+    await teacher.goto(`${BASE_URL}/account`, { waitUntil: 'domcontentloaded' });
+    await teacher.getByTitle('Salin kode undangan').waitFor({ timeout: 20000 });
+    const inviteCode = (await teacher.getByTitle('Salin kode undangan').locator('xpath=preceding-sibling::span[1]').innerText()).trim();
+    await bumpSeatLimit(inviteCode, 5); // sekolah baru hanya 1 kursi sampai membeli (tidak tersedia di emulator)
+
+    await joiner.goto(`${BASE_URL}/signup`, { waitUntil: 'domcontentloaded' });
+    await joiner.getByRole('button', { name: /^Gabung$/i }).click();
+    await joiner.fill('input[type="email"]', JOINER_EMAIL);
+    await joiner.fill('input[placeholder="Minimal 6 karakter"]', TEACHER_PASSWORD);
+    await joiner.fill('input[placeholder="Ulangi kata sandi"]', TEACHER_PASSWORD);
+    await joiner.fill('input[placeholder*="AB3D9F"]', inviteCode);
+    await joiner.click('button[type="submit"]');
+    await joiner.waitForURL(`${BASE_URL}/`, { timeout: 30000 });
+
+    await addStudent(GURU2_SISWA, '5001', CLASS_A, joiner); // kelas yang sudah ada (batas kelas tidak terpakai)
+    await openClass(CLASS_A, joiner);
+    await joiner.getByLabel(`Hapus Siswa ${GURU2_SISWA}`).click();
+    await confirmDeletion(joiner);
+    const guru2Rows = await binItems(joiner);
+    const onlyOwn = guru2Rows.length === 1 && guru2Rows[0].text.includes(GURU2_SISWA); // sampah pemilik (Dina) tidak terlihat
+    const joinerPage = await joiner.locator('body').innerText();
+    const noPurgeUi = !/Hapus Permanen/i.test(joinerPage) && !/Kosongkan Sampah/i.test(joinerPage);
+    const hasRestore = await joiner.getByRole('button', { name: `Pulihkan ${GURU2_SISWA}` }).count();
+    if (onlyOwn && noPurgeUi && hasRestore > 0) pass('Guru biasa: hanya melihat sampah miliknya, bisa memulihkan, TANPA tombol Hapus Permanen / Kosongkan Sampah');
+    else await failWithEvidence(joiner, 'Guru biasa: tampilan Sampah', `hanyaMilikSendiri=${onlyOwn} tanpaTombolPurge=${noPurgeUi} pulihkan=${hasRestore > 0} baris=${JSON.stringify(guru2Rows)}`);
+
+    // API juga menolak (tidak hanya UI disembunyikan): panggilan langsung dengan token guru biasa.
+    const guru2Doc = (await findByField('students', 'name', GURU2_SISWA))[0];
+    const joinerToken = await idTokenFor(JOINER_EMAIL, TEACHER_PASSWORD);
+    const direct = await fetch(`${BASE_URL}/api/trash/purge`, {
+      method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${joinerToken}` },
+      body: JSON.stringify({ kind: 'student', id: guru2Doc.id }),
+    });
+    const directAll = await fetch(`${BASE_URL}/api/trash/purge`, {
+      method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${joinerToken}` }, body: JSON.stringify({ all: true }),
+    });
+    const stillThere = await docExists(`students/${guru2Doc.id}`);
+    if (direct.status === 403 && directAll.status === 403 && stillThere) pass('API hapus permanen menolak guru biasa (403 untuk satu item dan untuk kosongkan Sampah); data utuh');
+    else fail('API hapus permanen menolak guru biasa', `item=${direct.status} semua=${directAll.status} dataUtuh=${stillThere}`);
+
+    // ---------- 8. OWNER: Hapus Permanen satu item (data fisik hilang beserta turunannya) ----------
+    items = await binItems();
+    const sawBoth = items.some((i) => i.text.includes(DINA)) && items.some((i) => i.text.includes(GURU2_SISWA));
+    const purgeButtons = await teacher.getByRole('button', { name: /^Hapus permanen /i }).count();
+    const emptyButton = await teacher.getByRole('button', { name: /Kosongkan Sampah/i }).count();
+    if (sawBoth && purgeButtons === items.length && emptyButton === 1) pass('OWNER: melihat sampah semua guru dan tombol Hapus Permanen di tiap item + Kosongkan Sampah');
+    else await failWithEvidence(teacher, 'OWNER: tampilan Sampah', `lihatKeduanya=${sawBoth} tombolPurge=${purgeButtons}/${items.length} kosongkan=${emptyButton}`);
+
+    const dina = (await findByField('students', 'name', DINA))[0];
+    const dinaCodeBefore = dina?.accessCode ? await docExists(`student_login_codes/${dina.accessCode}`) : false;
+
+    await teacher.getByRole('button', { name: `Hapus permanen ${DINA}` }).click();
+    const dialogTitle = await teacher.getByText('Hapus Permanen?', { exact: true }).count();
+    const dialogScope = await teacher.getByText(/dihapus SELAMANYA/i).count();
+    await confirmDeletion();
+    const dinaNotice = await teacher.getByText(`${DINA} dihapus permanen.`).count();
+    const dinaDocGone = !(await docExists(`students/${dina.id}`));
+    const dinaCodeGone = dina?.accessCode ? !(await docExists(`student_login_codes/${dina.accessCode}`)) : false;
+    items = await binItems();
+    const dinaOutOfBin = !items.some((i) => i.text.includes(DINA));
+    const guru2Untouched = await docExists(`students/${guru2Doc.id}`);
+    if (dialogTitle > 0 && dialogScope > 0 && dinaNotice > 0 && dinaDocGone && dinaCodeBefore && dinaCodeGone && dinaOutOfBin && guru2Untouched) {
+      pass('OWNER: Hapus Permanen — dialog menjelaskan cakupan; dokumen siswa dan kode aksesnya HILANG dari Firestore; item lain utuh');
+    } else {
+      await failWithEvidence(teacher, 'OWNER: Hapus Permanen satu item', `judul=${dialogTitle > 0} cakupan=${dialogScope > 0} notice=${dinaNotice > 0} docHilang=${dinaDocGone} kodeAda=${dinaCodeBefore} kodeHilang=${dinaCodeGone} keluarDariSampah=${dinaOutOfBin} itemLainUtuh=${guru2Untouched}`);
+    }
+
+    // Tangkapan layar tampilan OWNER (tombol Hapus Permanen + Kosongkan Sampah) untuk tinjauan visual.
+    await teacher.setViewportSize({ width: 390, height: 800 });
+    await teacher.waitForTimeout(400);
+    await teacher.screenshot({ path: '/tmp/e2e-sampah-owner-ponsel.png', fullPage: true });
+    await teacher.setViewportSize({ width: 1280, height: 720 });
+
+    // ---------- 9. OWNER: Kosongkan Sampah ----------
+    await teacher.getByRole('button', { name: /Kosongkan Sampah/i }).click();
+    const emptyDialog = await teacher.getByText('Kosongkan Sampah?', { exact: true }).count();
+    await confirmDeletion();
+    items = await binItems();
+    const binEmpty = items.length === 0 && (await teacher.getByText('Sampah kosong').count()) > 0;
+    const guru2Gone = (await findByField('students', 'name', GURU2_SISWA)).length === 0;
+    const activeKept = (await Promise.all([ANI, BUDI, CITRA].map((n) => findByField('students', 'name', n)))).every((r) => r.length === 1);
+    if (emptyDialog > 0 && binEmpty && guru2Gone && activeKept) pass('OWNER: Kosongkan Sampah — Sampah kosong, item terhapus hilang dari Firestore, siswa aktif tetap ada');
+    else await failWithEvidence(teacher, 'OWNER: Kosongkan Sampah', `dialog=${emptyDialog > 0} sampahKosong=${binEmpty} guru2Hilang=${guru2Gone} siswaAktifUtuh=${activeKept}`);
+
+    // ---------- 10. Tanpa galat JavaScript ----------
     if (jsErrors.length === 0) pass('Tidak ada pageerror JavaScript selama alur Sampah');
     else fail('Tidak ada pageerror JavaScript', jsErrors.join(' | ').slice(0, 300));
   } catch (error) {

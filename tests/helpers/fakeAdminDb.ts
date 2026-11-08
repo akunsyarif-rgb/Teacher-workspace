@@ -21,6 +21,11 @@ export function createFakeAdminDb() {
   });
 
   function apply(op: string, path: string, data?: Doc, merge = false) {
+    if (op === 'delete') {
+      writes.push({ op, path });
+      delete store[path];
+      return;
+    }
     if (op === 'create' && path in store) throw Object.assign(new Error('ALREADY_EXISTS'), { code: 6 });
     if (op === 'update' && !(path in store)) throw Object.assign(new Error('NOT_FOUND'), { code: 5 });
     writes.push({ op, path, data });
@@ -39,33 +44,36 @@ export function createFakeAdminDb() {
     set: async (data: Doc, opts?: { merge?: boolean }) => apply('set', `${c}/${id}`, data, !!opts?.merge),
     create: async (data: Doc) => apply('create', `${c}/${id}`, data),
     update: async (data: Doc) => apply('update', `${c}/${id}`, data),
+    delete: async () => apply('delete', `${c}/${id}`),
   });
 
   type Query = {
     _query: true;
     c: string;
-    filters: [string, unknown][];
+    filters: [string, string, unknown][];
     max: number;
     select: (...f: string[]) => Query;
     where: (f: string, op: string, v: unknown) => Query;
     limit: (n: number) => Query;
     get: () => Promise<ReturnType<typeof runQuery>>;
   };
-  const runQuery = (c: string, filters: [string, unknown][], max = Infinity) => {
+  const matches = (v: Doc, [f, op, val]: [string, string, unknown]) =>
+      op === 'in' ? (val as unknown[]).includes(v[f]) : v[f] === val;
+  const runQuery = (c: string, filters: [string, string, unknown][], max = Infinity) => {
     const docs = Object.keys(store)
-      .filter((k) => k.startsWith(`${c}/`) && filters.every(([f, v]) => store[k][f] === v))
+      .filter((k) => k.startsWith(`${c}/`) && filters.every((flt) => matches(store[k], flt)))
       .slice(0, max)
       .map((k) => snap(k));
     return { docs, size: docs.length, empty: docs.length === 0 };
   };
-  const query = (c: string, filters: [string, unknown][], max = Infinity): Query => {
+  const query = (c: string, filters: [string, string, unknown][], max = Infinity): Query => {
     const q: Query = {
       _query: true,
       c,
       filters,
       max,
       select: () => q,
-      where: (f, _op, v) => query(c, [...filters, [f, v]], max),
+      where: (f, op, v) => query(c, [...filters, [f, op, v]], max),
       limit: (n) => query(c, filters, n),
       get: async () => runQuery(c, filters, max),
     };
@@ -75,13 +83,14 @@ export function createFakeAdminDb() {
   const db = {
     collection: (c: string) => ({
       doc: (id?: string) => docRef(c, id ?? `auto${++idSeq}`),
-      where: (f: string, _op: string, v: unknown) => query(c, [[f, v]]),
+      where: (f: string, op: string, v: unknown) => query(c, [[f, op, v]]),
       get: async () => runQuery(c, []),
     }),
     batch: () => {
       const ops: (() => void)[] = [];
       return {
         update: (ref: { path: string }, data: Doc) => void ops.push(() => apply('update', ref.path, data)),
+        delete: (ref: { path: string }) => void ops.push(() => apply('delete', ref.path)),
         set: (ref: { path: string }, data: Doc, opts?: { merge?: boolean }) => void ops.push(() => apply('set', ref.path, data, !!opts?.merge)),
         commit: async () => {
           hooks.commits++;

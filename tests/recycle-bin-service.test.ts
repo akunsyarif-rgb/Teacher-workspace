@@ -20,11 +20,13 @@ vi.mock('../lib/repositories/gradeColumnRepository', () => ({
   getDeletedColumns: (...a: unknown[]) => getDeletedColumns(...a),
   restoreColumn: (id: string) => restoreColumn(id),
 }));
+const purgeOnServer = vi.fn();
+vi.mock('../lib/repositories/trashRepository', () => ({ purgeOnServer: (b: unknown) => purgeOnServer(b) }));
 const clearAllCached = vi.fn();
 vi.mock('../lib/utils/sessionCache', () => ({ clearAllCached: () => clearAllCached() }));
 
-import { buildRecycleBin, canRestoreItem, loadRecycleBin, restoreBinItem } from '../lib/services/recycleBinService';
-import { restoreItem } from '../lib/controllers/recycleBinController';
+import { buildRecycleBin, canPurge, canRestoreItem, describePurgeScope, emptyBin, loadRecycleBin, purgeBinItem, restoreBinItem } from '../lib/services/recycleBinService';
+import { restoreItem, purgeItem, emptyBin as emptyBinController } from '../lib/controllers/recycleBinController';
 
 const ts = (sec: number) => ({ seconds: sec });
 const student = (id: string, o: Record<string, unknown> = {}) => ({ id, workspaceId: 'w1', name: id, className: '7A', createdBy: 'guru1', deletedAt: ts(100), deletedBy: 'guru1', ...o });
@@ -36,6 +38,7 @@ const OTHER = { uid: 'guru2', role: 'TEACHER' };
 const OWNER = { uid: 'owner1', role: 'OWNER' };
 
 beforeEach(() => {
+  purgeOnServer.mockReset();
   [getDeletedStudents, getDeletedAssignments, getDeletedColumns, restoreStudent, restoreClassOnServer, restoreAssignment, restoreColumn, clearAllCached].forEach((m) => m.mockClear());
 });
 
@@ -158,5 +161,76 @@ describe('restoreBinItem / restoreItem', () => {
     const limit = await restoreItem({ ...item, kind: 'student' }, GURU).catch((e) => e);
     expect(limit.message).toBe('Paket Anda dibatasi maksimal 3 kelas.');
     expect(clearAllCached).toHaveBeenCalledTimes(1); // gagal -> cache tidak dikosongkan
+  });
+});
+
+// ---------- Hapus permanen ----------
+const zero = { students: 0, assignments: 0, columns: 0, grades: 0, submissions: 0, achievements: 0, notes: 0, profiles: 0, loginCodes: 0, files: 0 };
+const part = (o: Partial<typeof zero>) => ({ ...zero, ...o });
+const ADMIN = { uid: 'admin1', role: 'ADMIN' };
+
+describe('hapus permanen — izin di sisi klien', () => {
+  it('canPurge: hanya OWNER/ADMIN', () => {
+    expect(canPurge(OWNER)).toBe(true);
+    expect(canPurge(ADMIN)).toBe(true);
+    expect(canPurge(GURU)).toBe(false);
+    expect(canPurge({ uid: 'x', role: null })).toBe(false);
+  });
+
+  it('guru biasa: purge item dan kosongkan Sampah ditolak TANPA memanggil server', async () => {
+    await expect(purgeBinItem({ kind: 'student', id: 's1', className: '7A' }, GURU)).rejects.toThrow(/pemilik atau admin/);
+    await expect(emptyBin(GURU)).rejects.toThrow(/pemilik atau admin/);
+    await expect(purgeItem({ key: 'k', kind: 'student', id: 's1', title: 'x', detail: '', className: '7A', deletedAt: 1, deletedBy: null, createdBy: 'guru1' }, GURU)).rejects.toThrow();
+    await expect(emptyBinController(GURU)).rejects.toThrow();
+    expect(purgeOnServer).not.toHaveBeenCalled();
+    expect(clearAllCached).not.toHaveBeenCalled();
+  });
+});
+
+describe('hapus permanen — OWNER/ADMIN', () => {
+  it('mengirim jenis + id; untuk kelas id = NAMA kelas', async () => {
+    purgeOnServer.mockResolvedValue({ done: true, counts: part({ students: 1 }) });
+    await purgeBinItem({ kind: 'student', id: 's1', className: '7A' }, OWNER);
+    await purgeBinItem({ kind: 'class', id: '8C', className: '8C' }, ADMIN);
+    expect(purgeOnServer.mock.calls.map((c) => c[0])).toEqual([{ kind: 'student', id: 's1' }, { kind: 'class', id: '8C' }]);
+  });
+
+  it('server melapor done:false -> dipanggil ulang sampai tuntas; jumlah dijumlahkan', async () => {
+    purgeOnServer
+      .mockResolvedValueOnce({ done: false, counts: part({ students: 30, grades: 60 }) })
+      .mockResolvedValueOnce({ done: false, counts: part({ students: 30, grades: 60 }) })
+      .mockResolvedValueOnce({ done: true, counts: part({ students: 10, grades: 20 }) });
+    const res = await purgeBinItem({ kind: 'class', id: '9Z', className: '9Z' }, OWNER);
+    expect(purgeOnServer).toHaveBeenCalledTimes(3);
+    expect(res).toMatchObject({ rounds: 3, counts: { students: 70, grades: 140 } });
+  });
+
+  it('tidak berputar tanpa akhir: berhenti dengan pesan yang bisa ditindaklanjuti', async () => {
+    purgeOnServer.mockResolvedValue({ done: false, counts: part({}) });
+    await expect(emptyBin(OWNER)).rejects.toThrow(/belum selesai.*aman diulang/);
+    expect(purgeOnServer).toHaveBeenCalledTimes(30);
+  });
+
+  it('kosongkan Sampah mengirim {all:true}; controller mengosongkan cache setelah sukses', async () => {
+    purgeOnServer.mockResolvedValue({ done: true, counts: part({ students: 2, assignments: 1 }) });
+    const res = await emptyBinController(OWNER);
+    expect(purgeOnServer).toHaveBeenCalledWith({ all: true });
+    expect(res.counts).toMatchObject({ students: 2, assignments: 1 });
+    expect(clearAllCached).toHaveBeenCalledTimes(1);
+  });
+
+  it('galat server (mis. lampiran gagal dihapus) diteruskan apa adanya dan cache tidak dikosongkan', async () => {
+    purgeOnServer.mockRejectedValue(new Error('Lampiran siswa belum bisa dihapus dari penyimpanan.'));
+    await expect(purgeItem({ key: 'k', kind: 'student', id: 's1', title: 'x', detail: '', className: '7A', deletedAt: 1, deletedBy: null, createdBy: 'u' }, OWNER)).rejects.toThrow(/Lampiran siswa/);
+    expect(clearAllCached).not.toHaveBeenCalled();
+  });
+});
+
+describe('describePurgeScope (isi dialog konfirmasi)', () => {
+  it('menyebut apa yang ikut terhapus dan apa yang TIDAK, per jenis', () => {
+    expect(describePurgeScope({ kind: 'student' })).toMatch(/kode akses.*nilai.*pengumpulan.*lampiran.*catatan wali kelas.*SELAMANYA.*rekap presensi/);
+    expect(describePurgeScope({ kind: 'assignment' })).toMatch(/pengumpulan siswa.*SELAMANYA.*Kolom nilai.*tidak ikut/);
+    expect(describePurgeScope({ kind: 'column' })).toMatch(/seluruh nilai.*SELAMANYA/);
+    expect(describePurgeScope({ kind: 'class', count: 3 })).toMatch(/^3 siswa.*SELAMANYA.*Jurnal, presensi, dan jadwal kelas tidak ikut/);
   });
 });

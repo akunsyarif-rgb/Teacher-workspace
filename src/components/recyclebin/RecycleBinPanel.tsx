@@ -1,29 +1,11 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { RotateCcw, Users, GraduationCap, ClipboardList, Table2, Trash2, CheckCircle2 } from 'lucide-react';
-import Card from '../ui/Card';
-import InlineAlert from '../ui/InlineAlert';
-import LoadingSpinner from '../ui/LoadingSpinner';
+import ConfirmDeleteModal from '../ui/ConfirmDeleteModal';
+import RecycleBinView, { type Filter } from './RecycleBinView';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import * as recycleBinController from '@/lib/controllers/recycleBinController';
-import type { BinItem, BinKind, RecycleBinData } from '@/lib/controllers/recycleBinController';
-
-type Filter = 'all' | BinKind;
-
-const KIND_META: Record<BinKind, { label: string; plural: string; icon: React.ComponentType<{ className?: string }>; tone: string }> = {
-  class: { label: 'Kelas', plural: 'Kelas', icon: GraduationCap, tone: 'bg-emerald-600' },
-  student: { label: 'Siswa', plural: 'Siswa', icon: Users, tone: 'bg-nb-green' },
-  assignment: { label: 'Tugas', plural: 'Tugas', icon: ClipboardList, tone: 'bg-amber-600' },
-  column: { label: 'Kolom nilai', plural: 'Kolom nilai', icon: Table2, tone: 'bg-sky-700' },
-};
-
-const FILTER_ORDER: Filter[] = ['all', 'class', 'student', 'assignment', 'column'];
-
-function formatDeleted(ms: number | null): string {
-  if (ms === null) return 'Tanggal tidak diketahui';
-  return new Date(ms).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
-}
+import type { BinItem, RecycleBinData } from '@/lib/controllers/recycleBinController';
 
 export default function RecycleBinPanel() {
   const { workspaceId, role, user } = useWorkspace();
@@ -34,8 +16,11 @@ export default function RecycleBinPanel() {
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [purgeTarget, setPurgeTarget] = useState<BinItem | null>(null);
+  const [emptying, setEmptying] = useState(false);
 
   const viewer = useMemo(() => ({ uid, role: role ?? null }), [uid, role]);
+  const canPurge = recycleBinController.canPurge(viewer);
 
   // Muat awal / saat peran berganti. State hanya diubah SETELAH data tiba (bukan sinkron di dalam
   // efek), dan dibatalkan bila komponen sudah tidak dipakai.
@@ -61,7 +46,7 @@ export default function RecycleBinPanel() {
     };
   }, [workspaceId, uid, viewer]);
 
-  // Muat ulang daftar setelah pemulihan (tanpa kembali ke layar "memuat").
+  // Muat ulang daftar setelah pemulihan/penghapusan (tanpa kembali ke layar "memuat").
   const refresh = useCallback(async () => {
     if (!workspaceId || !uid) return;
     setData(await recycleBinController.fetchRecycleBin(workspaceId, viewer));
@@ -82,6 +67,39 @@ export default function RecycleBinPanel() {
     }
   }
 
+  // Dipanggil ConfirmDeleteModal. Bila melempar, modal tetap terbuka... karena itu galat ditampilkan
+  // di halaman dan modal ditutup lewat state sebelum melempar ulang (pola yang sama dengan ClassDetail).
+  async function confirmPurge() {
+    const item = purgeTarget;
+    if (!item) return;
+    setError('');
+    setNotice('');
+    try {
+      await recycleBinController.purgeItem(item, viewer);
+      setNotice(`${item.title} dihapus permanen.`);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Gagal menghapus permanen. Coba lagi.');
+      setPurgeTarget(null);
+      throw e;
+    }
+  }
+
+  async function confirmEmpty() {
+    setError('');
+    setNotice('');
+    try {
+      const { counts } = await recycleBinController.emptyBin(viewer);
+      setNotice(`Sampah dikosongkan (${counts.students} siswa, ${counts.assignments} tugas, ${counts.columns} kolom nilai dihapus permanen).`);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Gagal mengosongkan Sampah. Coba lagi.');
+      setEmptying(false);
+      await refresh().catch(() => {}); // sebagian mungkin sudah terhapus
+      throw e;
+    }
+  }
+
   const items: BinItem[] = useMemo(() => {
     if (!data) return [];
     const all = [...data.classes, ...data.students, ...data.assignments, ...data.columns];
@@ -98,92 +116,48 @@ export default function RecycleBinPanel() {
   };
 
   return (
-    <div className="space-y-4">
-      <Card className="space-y-1">
-        <p className="text-xs text-nb-ink-muted">
-          Siswa, tugas, kolom nilai, dan kelas yang Anda hapus disimpan di sini dan bisa dipulihkan beserta isinya.
-          Guru biasa hanya melihat item yang ia buat sendiri; pemilik dan admin melihat semuanya.
-        </p>
-      </Card>
+    <>
+      <RecycleBinView
+        items={items}
+        counts={counts}
+        filter={filter}
+        loading={loading && !data}
+        uid={uid}
+        busyKey={busyKey}
+        canPurge={canPurge}
+        notice={notice}
+        error={error}
+        onFilter={setFilter}
+        onDismissError={() => setError('')}
+        onRestore={handleRestore}
+        onPurge={(item) => setPurgeTarget(item)}
+        onEmpty={() => setEmptying(true)}
+      />
 
-      <div role="status" aria-live="polite" className="space-y-2">
-        {notice && (
-          <div className="p-3.5 bg-[#EDF3E8] border border-[#D9DED5] rounded-2xl text-xs font-bold text-[#24563F] flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span className="flex-1">{notice}</span>
-          </div>
-        )}
-      </div>
-      <InlineAlert message={error} onDismiss={() => setError('')} />
-
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Saring jenis item">
-        {FILTER_ORDER.map((f) => {
-          const label = f === 'all' ? 'Semua' : KIND_META[f].plural;
-          const active = filter === f;
-          return (
-            <button
-              key={f}
-              type="button"
-              aria-pressed={active}
-              onClick={() => setFilter(f)}
-              className={`min-h-9 px-3.5 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                active ? 'bg-nb-green text-white border-nb-green' : 'bg-nb-paper text-nb-ink border-nb-rule hover:border-nb-green'
-              }`}
-            >
-              {label} <span className={active ? 'opacity-90' : 'text-nb-ink-muted'}>({counts[f]})</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {loading && !data ? (
-        <LoadingSpinner text="Memuat Sampah..." />
-      ) : items.length === 0 ? (
-        <Card className="text-center space-y-2 py-10">
-          <div className="w-14 h-14 mx-auto rounded-full bg-nb-workspace flex items-center justify-center">
-            <Trash2 className="w-6 h-6 text-nb-ink-muted" />
-          </div>
-          <h3 className="text-sm font-extrabold text-nb-ink">
-            {filter === 'all' ? 'Sampah kosong' : `Tidak ada ${KIND_META[filter as BinKind].plural.toLowerCase()} terhapus`}
-          </h3>
-          <p className="text-xs text-nb-ink-muted max-w-xs mx-auto">Yang Anda hapus akan muncul di sini dan bisa dipulihkan kapan saja.</p>
-        </Card>
-      ) : (
-        <ul className="bg-nb-paper rounded-3xl shadow-sm border border-nb-rule divide-y divide-gray-100 overflow-hidden" aria-label="Item terhapus">
-          {items.map((item) => {
-            const meta = KIND_META[item.kind];
-            const Icon = meta.icon;
-            const busy = busyKey === item.key;
-            return (
-              <li key={item.key} data-testid="bin-item" data-kind={item.kind} className="flex items-center gap-3 p-4">
-                <div className={`w-10 h-10 rounded-2xl ${meta.tone} text-white flex items-center justify-center shrink-0`}>
-                  <Icon className="w-5 h-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-extrabold text-nb-ink truncate">{item.title}</p>
-                  <p className="text-xs text-nb-ink-muted truncate">
-                    {item.kind === 'class' ? `Kelas · ${item.detail}` : item.detail}
-                  </p>
-                  <p className="text-[11px] text-nb-ink-muted">
-                    Dihapus {formatDeleted(item.deletedAt)}
-                    {item.deletedBy && item.deletedBy === uid ? ' oleh Anda' : ''}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleRestore(item)}
-                  disabled={busyKey !== null}
-                  aria-label={`Pulihkan ${item.title}`}
-                  className="shrink-0 min-h-11 inline-flex items-center gap-1.5 px-3.5 rounded-2xl bg-nb-green hover:bg-nb-green-strong disabled:bg-[#DDE3D8] disabled:text-[#5D665E] text-white text-xs font-bold transition-colors active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nb-green"
-                >
-                  <RotateCcw className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} />
-                  {busy ? 'Memulihkan…' : 'Pulihkan'}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+      {canPurge && (
+        <>
+          <ConfirmDeleteModal
+            isOpen={!!purgeTarget}
+            onClose={() => setPurgeTarget(null)}
+            onConfirm={confirmPurge}
+            title="Hapus Permanen?"
+            itemName={purgeTarget?.title ?? ''}
+            itemDetail={purgeTarget ? recycleBinController.describePurgeScope(purgeTarget) : undefined}
+            requireTyping
+            type="danger"
+          />
+          <ConfirmDeleteModal
+            isOpen={emptying}
+            onClose={() => setEmptying(false)}
+            onConfirm={confirmEmpty}
+            title="Kosongkan Sampah?"
+            itemName={`Seluruh isi Sampah (${counts.all} item)`}
+            itemDetail="Semua kelas, siswa, tugas, dan kolom nilai di Sampah beserta data turunannya (nilai, pengumpulan tugas dan lampiran, prestasi, catatan, kode akses) dihapus SELAMANYA."
+            requireTyping
+            type="danger"
+          />
+        </>
       )}
-    </div>
+    </>
   );
 }

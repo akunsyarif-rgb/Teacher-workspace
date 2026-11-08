@@ -3,7 +3,8 @@ import { clearAllCached } from '../utils/sessionCache';
 import type { BinItem, BinViewer, RecycleBinData } from '../services/recycleBinService';
 
 export type { BinItem, BinKind, BinViewer, RecycleBinData } from '../services/recycleBinService';
-export { canRestoreItem } from '../services/recycleBinService';
+export { canRestoreItem, canPurge, describePurgeScope } from '../services/recycleBinService';
+export type { PurgeSummary } from '../services/recycleBinService';
 
 export async function fetchRecycleBin(workspaceId: string, viewer: BinViewer): Promise<RecycleBinData> {
   return recycleBinService.loadRecycleBin(workspaceId, viewer);
@@ -27,4 +28,18 @@ export async function restoreItem(item: BinItem, viewer: BinViewer) {
   } catch (error) {
     throw friendlyRestoreError(error);
   }
+}
+
+// Hapus permanen (OWNER/ADMIN). Pesan dari server (izin, penyimpanan lampiran gagal, dst.) sudah berbahasa
+// Indonesia dan dipertahankan apa adanya.
+export async function purgeItem(item: BinItem, viewer: BinViewer) {
+  const summary = await recycleBinService.purgeBinItem(item, viewer);
+  clearAllCached();
+  return summary;
+}
+
+export async function emptyBin(viewer: BinViewer) {
+  const summary = await recycleBinService.emptyBin(viewer);
+  clearAllCached();
+  return summary;
 }

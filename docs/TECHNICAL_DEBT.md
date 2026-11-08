@@ -2,7 +2,7 @@
 
 ## TD-001: Soft Delete Architecture
 
-**Status:** Sebagian selesai (8 Nov 2026) — inti soft delete + pemulihan di lapisan data; UI Recycle Bin dan Audit Log belum.
+**Status:** Sebagian besar selesai — soft delete, pemulihan, Recycle Bin UI, dan hapus permanen manual; hapus terjadwal dan Audit Log belum.
 
 **Yang sudah ada**
 - `deletedAt` / `deletedBy` (+ `deletedBatchId` untuk hapus-kelas) pada `students`, `assignments`, `grade_columns`.
@@ -16,10 +16,20 @@
   menghapus permanen. Hapus permanen `students`/`assignments`/`grade_columns`/`submissions`/`student_login_codes`/`academic_years`
   hanya OWNER/ADMIN. Dokumen lama tanpa `createdBy` hanya bisa dihapus OWNER/ADMIN.
 
+**Recycle Bin (9 Nov 2026)**
+- Halaman Akun › Sampah (`/account/sampah`): daftar item terhapus (kelas, siswa, tugas, kolom nilai), pulihkan, saring per jenis.
+- Pemulihan siswa lewat server (`POST /api/students/restore`) karena bisa menghidupkan kelas dan harus lolos batas paket.
+- **Hapus permanen manual** (khusus OWNER/ADMIN): `POST /api/trash/purge` — satu item atau "Kosongkan Sampah". Hanya item yang
+  sudah di Sampah. Cascade: siswa → kode akses, sesi login, nilai, pengumpulan + lampiran, prestasi, catatan wali kelas;
+  tugas → pengumpulan + lampiran + materi; kolom nilai → nilainya; kelas → siswa yang terhapus bersamanya. Anak dihapus dulu,
+  induk terakhir (aman diulang bila terputus); lampiran fisik dihapus SEBELUM dokumen path-nya (gagal → dibatalkan, tidak yatim).
+  Tidak tercakup: nama siswa yang tersalin di rekap presensi per pertemuan, data ujian Ulangan (Supabase), jurnal/presensi/jadwal kelas.
+
 **Belum dikerjakan**
-- UI Recycle Bin (daftar + tombol pulihkan) — fungsinya sudah ada, belum ada layar.
-- Audit Log; jurnal, presensi, jadwal, pengumuman masih hard delete (dibatasi pembuat/OWNER/ADMIN, tapi tidak bisa dipulihkan).
-- Penghapusan permanen terjadwal (mis. 30 hari) untuk data terhapus.
+- Hapus permanen terjadwal (retensi 30 hari) — rencana: Cloud Function terjadwal yang memanggil logika `trashPurgeService`
+  (sudah idempoten dan berbatas waktu) untuk item dengan `deletedAt` lebih lama dari 30 hari.
+- Audit Log (siapa menghapus permanen apa) — saat ini hanya tercatat di log server (`trash.purged`).
+- Jurnal, presensi, jadwal, pengumuman masih hard delete (dibatasi pembuat/OWNER/ADMIN, tidak bisa dipulihkan).
 - Sel nilai yang dikosongkan masih dihapus permanen (hanya pembuat kolom / OWNER/ADMIN).
 
 ## Rename kelas
