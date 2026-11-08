@@ -11,7 +11,8 @@ vi.mock('@/lib/server/firebaseAdmin', () => ({ getAdminDb: () => fake.db, getAdm
 
 import { POST as deleteRoute } from '../app/api/classes/delete/route';
 import { POST as restoreRoute } from '../app/api/classes/restore/route';
-import { deleteClassServer, restoreClassServer } from '../lib/server/classLifecycleService';
+import { deleteClassServer, restoreClassServer, restoreStudentServer } from '../lib/server/classLifecycleService';
+import { POST as restoreStudentRoute } from '../app/api/students/restore/route';
 
 const db = () => fake.db as never;
 const req = (url: string, body: unknown, token: string | null = 'tok') =>
@@ -125,5 +126,73 @@ describe('pulihkan kelas', () => {
     const res = await restoreRoute(req('/api/classes/restore', { className: '7A' }));
     expect(res.status).toBe(200);
     expect((await res.json()).restoredCount).toBe(2);
+  });
+});
+
+
+describe('pulihkan satu siswa (lewat server)', () => {
+  const gone = (id: string, extra: Record<string, unknown> = {}) => {
+    fake.store[`students/${id}`] = { workspaceId: 'w1', className: '7A', name: id, createdBy: 'guru1', deletedAt: { seconds: 5 }, deletedBy: 'guru1', ...extra };
+  };
+  beforeEach(() => {
+    fake.store['workspaces/w1'] = { plan: 'individual_lifetime', classLimit: 1 };
+    seedStudents('w1', '7A', 2); // kelas 7A aktif
+  });
+
+  it('pembuat memulihkan siswanya; OWNER/ADMIN memulihkan siswa siapa pun', async () => {
+    gone('s1');
+    gone('s2', { createdBy: 'orang-lain' });
+    expect(await restoreStudentServer('guru1', 's1', db())).toMatchObject({ restoredId: 's1', className: '7A' });
+    expect(fake.store['students/s1']).toMatchObject({ deletedAt: null, deletedBy: null, deletedBatchId: null });
+    await restoreStudentServer('admin1', 's2', db());
+    expect(fake.store['students/s2'].deletedAt).toBeNull();
+  });
+
+  it('guru lain (bukan pembuat) ditolak 403; data tidak berubah', async () => {
+    gone('s3', { createdBy: 'orang-lain' });
+    await expect(restoreStudentServer('guru1', 's3', db())).rejects.toMatchObject({ status: 403 });
+    expect(fake.store['students/s3'].deletedAt).toEqual({ seconds: 5 });
+  });
+
+  it('data lama tanpa createdBy: hanya OWNER/ADMIN', async () => {
+    gone('lama', { createdBy: undefined });
+    await expect(restoreStudentServer('guru1', 'lama', db())).rejects.toMatchObject({ status: 403 });
+    await expect(restoreStudentServer('owner1', 'lama', db())).resolves.toBeTruthy();
+  });
+
+  it('BATAS KELAS: menghidupkan kembali kelas mati saat kuota penuh ditolak (celah hapus-lalu-buat-lalu-pulihkan)', async () => {
+    gone('d1', { className: '7D', createdBy: 'guru1' }); // satu-satunya siswa kelas 7D
+    // kuota 1 kelas sudah dipakai 7A -> memulihkan 7D akan menjadi kelas ke-2
+    await expect(restoreStudentServer('guru1', 'd1', db())).rejects.toMatchObject({ status: 403 });
+    expect(fake.store['students/d1'].deletedAt).toEqual({ seconds: 5 });
+  });
+
+  it('memulihkan ke kelas yang sudah aktif tidak kena batas', async () => {
+    gone('s4'); // kelas 7A masih aktif
+    await expect(restoreStudentServer('guru1', 's4', db())).resolves.toBeTruthy();
+  });
+
+  it('siswa yang terhapus bersama kelasnya harus dipulihkan lewat kelas (409)', async () => {
+    gone('b1', { deletedBatchId: 'batch-1' });
+    await expect(restoreStudentServer('owner1', 'b1', db())).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('tidak ditemukan: siswa aktif, tidak ada, atau milik workspace lain -> 404 yang sama', async () => {
+    await expect(restoreStudentServer('owner1', 'w1-7A-0', db())).rejects.toMatchObject({ status: 404 }); // aktif
+    await expect(restoreStudentServer('owner1', 'tidak-ada', db())).rejects.toMatchObject({ status: 404 });
+    fake.store['students/asing'] = { workspaceId: 'w2', className: 'X', deletedAt: { seconds: 1 }, createdBy: 'owner1' };
+    await expect(restoreStudentServer('owner1', 'asing', db())).rejects.toMatchObject({ status: 404 });
+    await expect(restoreStudentServer('owner1', '  ', db())).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('route: 401 tanpa token; 200 untuk pembuat; pesan galat aman', async () => {
+    gone('r1');
+    expect((await restoreStudentRoute(req('/api/students/restore', { studentId: 'r1' }, null))).status).toBe(401);
+    verifyIdToken.mockResolvedValue({ uid: 'guru1' });
+    const ok = await restoreStudentRoute(req('/api/students/restore', { studentId: 'r1' }));
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toMatchObject({ restoredId: 'r1' });
+    expect((await restoreStudentRoute(req('/api/students/restore', {}))).status).toBe(400);
+    expect(verifyIdToken).toHaveBeenCalledWith('tok', true);
   });
 });

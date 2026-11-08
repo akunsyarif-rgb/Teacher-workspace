@@ -375,7 +375,7 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
         onConfirm={confirmDeleteColumn}
         title="Hapus Kolom Nilai?"
         itemName={deleteColumnTarget?.title || ''}
-        itemDetail={`Seluruh nilai siswa di kolom ini akan ikut terhapus — Kelas ${className}`}
+        itemDetail={`Kolom dan nilainya disembunyikan (bukan dihapus permanen) dan kembali utuh saat dipulihkan dari Akun › Sampah — Kelas ${className}`}
         requireTyping={false}
         type="warning"
       />

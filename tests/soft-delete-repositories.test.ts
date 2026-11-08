@@ -22,7 +22,8 @@ vi.mock('../lib/adapters/firestoreAdapter', () => ({
   restoreDocument: (...a: unknown[]) => restoreDocument(...(a as [])),
   deleteDocument: (...a: unknown[]) => deleteDocument(...a),
 }));
-vi.mock('../lib/adapters/serverApiAdapter', () => ({ postToServer: vi.fn() }));
+const postToServer = vi.fn(async (_path: string, _body: unknown) => ({}));
+vi.mock('../lib/adapters/serverApiAdapter', () => ({ postToServer: (...a: unknown[]) => postToServer(...(a as [string, unknown])) }));
 
 import * as studentRepo from '../lib/repositories/studentRepository';
 import * as assignmentRepo from '../lib/repositories/assignmentRepository';
@@ -37,6 +38,7 @@ const gone = (id: string, extra = {}) => ({ id, name: id, deletedAt: { seconds: 
 beforeEach(() => {
   getDocuments.mockReset();
   softDeleteDocument.mockClear();
+  postToServer.mockClear();
   restoreDocument.mockClear();
   deleteDocument.mockClear();
 });
@@ -94,10 +96,23 @@ describe('hapus = soft delete, bukan hapus permanen', () => {
     expect(deleteDocument).not.toHaveBeenCalled();
     expect(batchWrite).not.toHaveBeenCalled();
   });
-  it('pemulihan memanggil restoreDocument', async () => {
+  it('pemulihan: tugas & kolom lewat restoreDocument; SISWA lewat server (cek batas kelas + izin)', async () => {
     await studentRepo.restoreStudent('s1');
     await assignmentRepo.restoreAssignment('a1');
     await columnRepo.restoreColumn('c1');
-    expect(restoreDocument.mock.calls).toEqual([['students', 's1'], ['assignments', 'a1'], ['grade_columns', 'c1']]);
+    expect(restoreDocument.mock.calls).toEqual([['assignments', 'a1'], ['grade_columns', 'c1']]);
+    expect(postToServer).toHaveBeenCalledWith('/api/students/restore', { studentId: 's1' });
+  });
+});
+
+describe('daftar terhapus se-workspace (Sampah)', () => {
+  it('tugas dan kolom terhapus: hanya yang bertanda deletedAt, dari seluruh workspace (tanpa filter kelas)', async () => {
+    getDocuments.mockResolvedValue([live('a1'), gone('a2'), gone('a3')]);
+    expect((await assignmentRepo.getDeletedAssignments('w1')).map((d: any) => d.id)).toEqual(['a2', 'a3']);
+    expect((await columnRepo.getDeletedColumns('w1')).map((d: any) => d.id)).toEqual(['a2', 'a3']);
+    for (const [, filters] of getDocuments.mock.calls) expect(JSON.stringify(filters)).toBe('[["workspaceId","==","w1"]]');
+    getDocuments.mockClear();
+    expect(await assignmentRepo.getDeletedAssignments('')).toEqual([]);
+    expect(getDocuments).not.toHaveBeenCalled();
   });
 });

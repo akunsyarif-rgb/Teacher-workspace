@@ -14,6 +14,7 @@
     "emulators": "npx firebase-tools emulators:start --project demo-teacher-workspace --only auth,firestore,storage",
     "test:e2e": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only auth,firestore,storage \"node tests/e2e/smoke.mjs\"",
     "test:e2e:onboarding": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only auth,firestore,storage \"node tests/e2e/onboarding.mjs\"",
+    "test:e2e:recycle-bin": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only auth,firestore,storage \"node tests/e2e/recycle-bin.mjs\"",
     "test:e2e:rename-class": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only auth,firestore,storage \"node tests/e2e/rename-class.mjs\"",
     "test:e2e:grade-lock": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only auth,firestore,storage \"node tests/e2e/grade-lock.mjs\"",
     "test:e2e:submission": "npx firebase-tools emulators:exec --project demo-teacher-workspace --only auth,firestore,storage \"node tests/e2e/submission.mjs\"",

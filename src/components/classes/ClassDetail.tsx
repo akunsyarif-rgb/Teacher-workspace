@@ -325,7 +325,7 @@ export default function ClassDetail({
         onConfirm={() => handleDelete(deleteTarget!.id)}
         title="Hapus Siswa?"
         itemName={deleteTarget?.name || ""}
-        itemDetail={`Kelas ${className} • NIS: ${deleteTarget?.nis || "-"}`}
+        itemDetail={`Kelas ${className} • NIS: ${deleteTarget?.nis || "-"} • Dipindahkan ke Sampah, bisa dipulihkan dari Akun › Sampah.`}
         requireTyping={true}
         type="danger"
       />
@@ -363,7 +363,7 @@ export default function ClassDetail({
         }}
         title="Hapus Seluruh Kelas Ini?"
         itemName={`Kelas ${className}`}
-        itemDetail={`${students.length} siswa di kelas ini akan ikut terhapus semua, termasuk data presensi/nilai yang mereferensikan mereka tidak bisa dipulihkan.`}
+        itemDetail={`${students.length} siswa di kelas ini dipindahkan ke Sampah. Data presensi, jurnal, dan nilai tidak ikut dihapus. Pemilik atau admin bisa memulihkan kelas dari Akun › Sampah.`}
         requireTyping={true}
         type="danger"
       />

@@ -1,4 +1,4 @@
-import { getDocuments, addDocument, updateDocument, softDeleteDocument, restoreDocument } from '../adapters/firestoreAdapter';
+import { getDocuments, getAllDocumentsPaged, addDocument, updateDocument, softDeleteDocument, restoreDocument } from '../adapters/firestoreAdapter';
 import { activeOnly, deletedOnly } from '../utils/softDelete';
 import type { Doc } from '../adapters/firestoreAdapter';
 import type { GradeColumnData } from '../types/models';
@@ -9,6 +9,12 @@ async function fetchColumns(workspaceId: string, className: string): Promise<Doc
     ['workspaceId', '==', workspaceId],
     ['className', '==', className],
   ]);
+}
+
+// Seluruh kolom nilai terhapus di workspace (Sampah).
+export async function getDeletedColumns(workspaceId: string): Promise<Doc<GradeColumnData>[]> {
+  if (!workspaceId) return [];
+  return deletedOnly(await getAllDocumentsPaged<GradeColumnData>(COLLECTIONS.GRADE_COLUMNS, [['workspaceId', '==', workspaceId]]));
 }
 
 export async function getDeletedColumnsByClass(workspaceId: string, className: string): Promise<Doc<GradeColumnData>[]> {

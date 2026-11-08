@@ -1,4 +1,4 @@
-import { getDocuments, getAllDocumentsPaged, getDocumentsPage, batchWrite, BatchOperation, softDeleteDocument, restoreDocument } from '../adapters/firestoreAdapter';
+import { getDocuments, getAllDocumentsPaged, getDocumentsPage, batchWrite, BatchOperation, softDeleteDocument } from '../adapters/firestoreAdapter';
 import type { Doc, DocumentsPage } from '../adapters/firestoreAdapter';
 import type { StudentData } from '../types/models';
 import { activeOnly, deletedOnly } from '../utils/softDelete';
@@ -142,8 +142,11 @@ export async function deleteStudent(id: string) {
   return softDeleteDocument(COLLECTIONS.STUDENTS, id);
 }
 
+// Pemulihan lewat server (bukan update client): bisa menghidupkan kembali sebuah kelas, jadi harus
+// lolos batas paket + cek izin (firestore.rules menolak pemulihan siswa dari client).
 export async function restoreStudent(id: string) {
-  return restoreDocument(COLLECTIONS.STUDENTS, id);
+  await postToServer<{ restoredId: string }>('/api/students/restore', { studentId: id });
+  return true;
 }
 
 // Hapus / pulihkan satu KELAS penuh: lewat server (Admin SDK), khusus OWNER/ADMIN —

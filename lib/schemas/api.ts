@@ -45,6 +45,11 @@ export const ClassNameBodySchema = z.object({
 });
 export type ClassNameBody = z.infer<typeof ClassNameBodySchema>;
 
+export const StudentIdBodySchema = z.object({
+  studentId: z.string({ error: 'Siswa tidak valid.' }).trim().min(1, 'Siswa tidak valid.').max(200, 'Siswa tidak valid.'),
+});
+export type StudentIdBody = z.infer<typeof StudentIdBodySchema>;
+
 export const JoinWorkspaceBodySchema = z.object({
   inviteCode: z.string({ error: 'Kode undangan diperlukan.' }).trim().min(1, 'Kode undangan diperlukan.').max(64, 'Kode undangan diperlukan.'),
 });

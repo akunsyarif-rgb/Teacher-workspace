@@ -1,4 +1,4 @@
-import { getDocuments, addDocument, updateDocument, softDeleteDocument, restoreDocument } from '../adapters/firestoreAdapter';
+import { getDocuments, getAllDocumentsPaged, addDocument, updateDocument, softDeleteDocument, restoreDocument } from '../adapters/firestoreAdapter';
 import { activeOnly, deletedOnly } from '../utils/softDelete';
 import type { Doc } from '../adapters/firestoreAdapter';
 import type { AssignmentData } from '../types/models';
@@ -15,6 +15,12 @@ async function fetchAssignmentsByClass(workspaceId: string, className: string): 
 export async function getAssignmentsByClass(workspaceId: string, className: string): Promise<Doc<AssignmentData>[]> {
   if (!workspaceId || !className) return [];
   return activeOnly(await fetchAssignmentsByClass(workspaceId, className));
+}
+
+// Seluruh tugas terhapus di workspace (Sampah).
+export async function getDeletedAssignments(workspaceId: string): Promise<Doc<AssignmentData>[]> {
+  if (!workspaceId) return [];
+  return deletedOnly(await getAllDocumentsPaged<AssignmentData>(COLLECTIONS.ASSIGNMENTS, [['workspaceId', '==', workspaceId]]));
 }
 
 export async function getDeletedAssignmentsByClass(workspaceId: string, className: string): Promise<Doc<AssignmentData>[]> {

@@ -109,6 +109,12 @@ service cloud.firestore {
         request.resource.data.get('deletedBatchId', null) == resource.data.get('deletedBatchId', null);
     }
 
+    // Dari "aktif" menjadi "terhapus" (bukan sebaliknya).
+    function marksDeleted() {
+      return resource.data.get('deletedAt', null) == null &&
+        request.resource.data.get('deletedAt', null) != null;
+    }
+
     // Nilai: hapus sel nilai oleh pembuat KOLOM-nya atau OWNER/ADMIN.
     function ownsGradeColumn() {
       return exists(/databases/$(database)/documents/grade_columns/$(resource.data.get('columnId', 'none'))) &&
@@ -346,6 +352,9 @@ service cloud.firestore {
       // tidak bisa dihitung di rules (tidak ada query/hitung distinct kelas),
       // jadi create langsung dari client ditutup total. Kalau tidak, batas
       // paket cukup dilewati dengan menulis ke Firestore memakai SDK biasa.
+      // Memulihkan siswa dari Sampah (deletedAt -> null) juga HANYA lewat server
+      // (POST /api/students/restore): pemulihan bisa menghidupkan kembali sebuah kelas
+      // dan harus lolos batas paket lagi. Client hanya boleh menandai terhapus.
       // className juga tidak boleh diubah dari client (rename kelas lewat
       // /api/classes/rename) — kalau boleh, siswa bisa dipindah ke kelas
       // "baru" tanpa kena batas.
@@ -354,7 +363,7 @@ service cloud.firestore {
       allow update: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
         keepsTenantImmutables() &&
-        (lifecycleUnchanged() || canDestroy()) &&
+        (lifecycleUnchanged() || (marksDeleted() && canDestroy())) &&
         request.resource.data.className == resource.data.className;
 
       allow delete: if isAuthenticated() &&

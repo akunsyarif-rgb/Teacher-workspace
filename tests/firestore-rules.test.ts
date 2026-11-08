@@ -1647,10 +1647,21 @@ describe.each(SOFT_DELETE_COLLECTIONS)('%s — soft delete dibatasi pembuat atau
     return ctx;
   }
 
-  it('pembuat boleh soft delete dan memulihkan data miliknya', async () => {
+  it('pembuat boleh soft delete data miliknya; memulihkan dari client hanya untuk tugas/kolom (siswa lewat server)', async () => {
     const ctx = await setup();
     await assertSucceeds(updateDoc(doc(ctx('teacherA'), `${c}/d1`), softDelete));
-    await assertSucceeds(updateDoc(doc(ctx('teacherA'), `${c}/d1`), { deletedAt: null, deletedBy: null, deletedBatchId: null }));
+    const restore = updateDoc(doc(ctx('teacherA'), `${c}/d1`), { deletedAt: null, deletedBy: null, deletedBatchId: null });
+    // Memulihkan siswa bisa menghidupkan kembali kelas -> wajib lewat /api/students/restore (cek batas paket).
+    if (c === 'students') await assertFails(restore);
+    else await assertSucceeds(restore);
+  });
+
+  it('memulihkan dari client: OWNER/ADMIN pun ditolak untuk siswa, diizinkan untuk tugas/kolom', async () => {
+    const ctx = await setup();
+    await seed((db) => setDoc(doc(db, `${c}/gone`), { ...doc1, ...softDelete }));
+    const restore = updateDoc(doc(ctx('ownerD'), `${c}/gone`), { deletedAt: null, deletedBy: null });
+    if (c === 'students') await assertFails(restore);
+    else await assertSucceeds(restore);
   });
 
   it('guru lain (bukan pembuat) TIDAK boleh soft delete data guru lain', async () => {
@@ -1672,7 +1683,7 @@ describe.each(SOFT_DELETE_COLLECTIONS)('%s — soft delete dibatasi pembuat atau
   it('OWNER dan ADMIN workspace boleh soft delete data guru mana pun', async () => {
     const ctx = await setup();
     await assertSucceeds(updateDoc(doc(ctx('adminC'), `${c}/d1`), softDelete));
-    await assertSucceeds(updateDoc(doc(ctx('ownerD'), `${c}/d1`), { deletedAt: null, deletedBy: null }));
+    if (c !== 'students') await assertSucceeds(updateDoc(doc(ctx('ownerD'), `${c}/d1`), { deletedAt: null, deletedBy: null }));
   });
 
   it('OWNER workspace LAIN tidak punya hak apa pun di sini', async () => {

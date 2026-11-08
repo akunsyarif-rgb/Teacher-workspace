@@ -8,7 +8,7 @@ import { auth } from "@/src/config/firebase";
 import { useWorkspace } from "@/src/context/WorkspaceContext";
 import WorkspaceGuard from "@/src/components/ui/WorkspaceGuard";
 import InviteCodeCard from "@/src/components/workspace/InviteCodeCard";
-import { User, ChevronRight, LogOut, BarChart3, Wallet, Database, ShieldCheck, HardDriveDownload } from "lucide-react";
+import { User, ChevronRight, LogOut, BarChart3, Wallet, Database, ShieldCheck, HardDriveDownload, Trash2 } from "lucide-react";
 
 export default function AccountPage() {
   const router = useRouter();
@@ -93,6 +93,16 @@ export default function AccountPage() {
               <span className="flex items-center gap-2 text-xs font-bold text-nb-ink">
                 <Database className="w-4 h-4 text-nb-ink-muted" />
                 Data & Arsip
+              </span>
+              <ChevronRight className="w-4 h-4 text-gray-300" />
+            </Link>
+            <Link
+              href="/account/sampah"
+              className="flex items-center justify-between gap-3 p-4 hover:bg-nb-workspace transition-colors"
+            >
+              <span className="flex items-center gap-2 text-xs font-bold text-nb-ink">
+                <Trash2 className="w-4 h-4 text-nb-ink-muted" />
+                Sampah (Pulihkan Data)
               </span>
               <ChevronRight className="w-4 h-4 text-gray-300" />
             </Link>
