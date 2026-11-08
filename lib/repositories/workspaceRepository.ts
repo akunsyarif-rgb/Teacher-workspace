@@ -21,9 +21,10 @@ export type WorkspaceDoc = {
   seatLimit?: number | null; // khusus school_annual — batas jumlah guru (termasuk owner). null/tidak ada = tak terbatas.
   planExpiresAt?: number | null; // epoch ms — khusus paket berlangganan (individual_monthly, school_annual). null/tidak ada = tidak pernah kedaluwarsa.
   inviteCode?: string;
-  inviteCodeExpiresAt?: number; // epoch ms
-  createdAt?: any;
-  updatedAt?: any;
+  inviteCodeExpiresAt?: number; // epoch ms — perkiraan untuk tampilan (jam perangkat)
+  inviteCodeIssuedAt?: unknown; // serverTimestamp saat kode dibuat; dasar penegakan kedaluwarsa di server
+  createdAt?: unknown;
+  updatedAt?: unknown;
 };
 
 // Jembatan kode undangan -> workspaceId (audit T2). Dipisah dari dokumen
@@ -42,6 +43,7 @@ export async function createWorkspaceDoc(data: WorkspaceDoc) {
   const id = generateId(WORKSPACES_COLLECTION);
   await setDocument(WORKSPACES_COLLECTION, id, {
     ...data,
+    ...(data.inviteCode ? { inviteCodeIssuedAt: serverTimestamp() } : {}),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -71,6 +73,7 @@ export async function updateWorkspaceInviteCode(
   await updateDocument(WORKSPACES_COLLECTION, workspaceId, {
     inviteCode,
     inviteCodeExpiresAt,
+    inviteCodeIssuedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
   await writeInviteBridge(workspaceId, inviteCode, inviteCodeExpiresAt);

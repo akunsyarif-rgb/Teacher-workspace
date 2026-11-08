@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/server/requireAuth';
 import { errorResponse } from '@/lib/server/apiErrors';
 import { ClaimError, claimStudentAccessCodeServer } from '@/lib/server/studentClaimService';
 import { checkRateLimits, clientIp, recordFailures, type RateRule } from '@/lib/server/rateLimit';
+import { logger } from '@/lib/utils/logger';
 
 export const runtime = 'nodejs';
 
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ profile });
     } catch (error) {
       if (error instanceof ClaimError) {
-        if (error.countsAsFailure) await recordFailures(db, rules).catch((e) => console.error('rate limit record gagal:', e));
+        if (error.countsAsFailure) await recordFailures(db, rules).catch((e) => logger.error('rate_limit.record_failed', { scope: 'student-claim', err: e }));
         return NextResponse.json({ error: error.message }, { status: error.status });
       }
       throw error;

@@ -5,6 +5,7 @@ import { ulanganRpc, UlanganDbError } from '@/lib/server/ulanganSupabase';
 import { isUlanganEnabled } from '@/lib/config/ulangan';
 import { AuthError, type IdentitySources } from '@/lib/server/ulanganAuth';
 import { BadRequest, isAction, needsStudentIdentity, needsTeacher, runAction } from '@/lib/server/ulanganActions';
+import { logger } from '@/lib/utils/logger';
 
 export const runtime = 'nodejs';
 
@@ -38,7 +39,7 @@ const rpc = (name: string, args: Record<string, unknown>) => ulanganRpc(name, ar
 // Kode galat basis data (raise exception ... errcode) → status HTTP; pesan = kode yang dipetakan klien ke bahasa pengguna.
 function dbError(e: UlanganDbError) {
   if (e.kind === 'config') {
-    console.error('ulangan: konfigurasi Supabase server belum lengkap/tidak valid');
+    logger.error('ulangan.config_supabase_invalid');
     return NextResponse.json({ error: e.message }, { status: 503 });
   }
   const code = e.code ?? '';
@@ -49,7 +50,7 @@ function dbError(e: UlanganDbError) {
     if (code.startsWith('22')) return NextResponse.json({ error: 'invalid_request' }, { status: 400 }); // data tak valid (tanggal/angka/uuid/argumen)
     if (code.startsWith('23')) return NextResponse.json({ error: 'conflict' }, { status: 409 }); // pelanggaran constraint
   }
-  console.error('ulangan rpc gagal:', e.kind, e.status, code, e.hint ?? ''); // tanpa pesan (hindari bocor URL/host/input); hint = label konstan
+  logger.error('ulangan.rpc_failed', { kind: e.kind, upstreamStatus: e.status, code, hint: e.hint ?? '' }); // tanpa pesan (hindari bocor URL/host/input); hint = label konstan
   // Petunjuk diagnosa tanpa data sensitif: jenis, status HTTP hulu, kode PostgREST/Postgres (alfanumerik saja).
   const tag = [e.kind, e.status, code, e.hint].filter((x) => x !== '' && x !== undefined).join('_').replace(/[^a-z0-9_]/gi, '').slice(0, 40);
   return NextResponse.json({ error: `server_error_${tag}` }, { status: 502 });
@@ -81,7 +82,7 @@ export async function POST(request: NextRequest) {
   } catch (e) {
     if (e instanceof AuthFailure) {
       if (e.code === 'server_config') {
-        console.error('ulangan: konfigurasi Firebase Admin server belum lengkap/tidak valid');
+        logger.error('ulangan.config_firebase_invalid');
         return NextResponse.json({ error: 'server_config_firebase' }, { status: 503 });
       }
       if (e.code === 'no_token') return NextResponse.json({ error: 'Token otentikasi diperlukan.' }, { status: 401 });
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest) {
     if (e instanceof AuthError) return NextResponse.json({ error: e.code }, { status: e.status });
     if (e instanceof BadRequest) return NextResponse.json({ error: e.message }, { status: 400 });
     if (e instanceof UlanganDbError) return dbError(e);
-    console.error('ulangan gagal:', e instanceof Error ? e.name : typeof e); // tanpa pesan: bisa memuat URL/kredensial
+    logger.error('ulangan.failed', { errorName: e instanceof Error ? e.name : typeof e }); // tanpa pesan: bisa memuat URL/kredensial
     const errCode = (e as { code?: unknown } | null)?.code;
     const tag = [e instanceof Error ? e.name : typeof e, typeof errCode === 'string' ? errCode : ''].filter(Boolean).join('_').replace(/[^a-z0-9_]/gi, '').slice(0, 40);
     return NextResponse.json({ error: `server_error_${tag}` }, { status: 500 });

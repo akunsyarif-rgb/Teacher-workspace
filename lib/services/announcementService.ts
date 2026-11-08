@@ -3,8 +3,8 @@ import { getWitaDateString } from '../utils/witaDate';
 
 // Pengumuman selalu diurutkan terbaru di atas — baik untuk guru maupun
 // siswa yang paling butuh melihat yang barusan diumumkan.
-function sortNewestFirst(announcements: any[]) {
-  return announcements.sort((a: any, b: any) => (b.date || '').localeCompare(a.date || ''));
+function sortNewestFirst<T extends { date?: string }>(announcements: T[]) {
+  return announcements.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 }
 
 export async function listAnnouncements(workspaceId: string, className: string) {

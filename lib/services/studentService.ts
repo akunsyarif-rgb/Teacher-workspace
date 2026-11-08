@@ -12,7 +12,7 @@ async function assertCanAddToClass(workspaceId: string, className: string) {
   ]);
   if (!workspace) return;
   const existingClasses = new Set(
-    students.map((s: any) => s.className?.trim().toUpperCase()).filter(Boolean)
+    students.map((s) => s.className?.trim().toUpperCase()).filter(Boolean)
   );
   if (existingClasses.has(className)) return;
   assertClassLimitNotReached(workspace, existingClasses.size);
@@ -23,7 +23,7 @@ export async function listClassSummaries(workspaceId: string) {
   const students = await studentRepository.getAllStudents(workspaceId);
 
   const counts: Record<string, number> = {};
-  students.forEach((s: any) => {
+  students.forEach((s) => {
     const cls = s.className?.trim();
     if (!cls) return;
     counts[cls] = (counts[cls] || 0) + 1;
@@ -116,5 +116,5 @@ export async function restoreClass(workspaceId: string, className: string) {
 export async function generateMissingAccessCodes(workspaceId: string, className: string) {
   if (!workspaceId || !className) throw new Error('Kelas tidak valid.');
   const students = await studentRepository.getStudentsByClass(workspaceId, className);
-  return studentRepository.backfillAccessCodes(students as any, workspaceId);
+  return studentRepository.backfillAccessCodes(students, workspaceId);
 }

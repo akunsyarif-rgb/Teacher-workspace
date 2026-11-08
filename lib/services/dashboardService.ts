@@ -5,6 +5,8 @@ import {
   getAttendancesInRange,
   getJournalCount,
 } from '../repositories/dashboardRepository';
+import type { Doc } from '../adapters/firestoreAdapter';
+import type { ScheduleData } from '../types/models';
 import { measure } from '../utils/perf';
 import { getByDate as getSkipReasonsByDate } from '../repositories/sessionSkipReasonRepository';
 import { sortSchedulesChronologically, classifySessionState, SessionState } from '../utils/scheduleTime';
@@ -46,7 +48,7 @@ export type TodayClassStatus = {
 export type DashboardSummary = {
   uniqueClasses: string[];
   totalJournals: number;
-  todaySchedules: any[];
+  todaySchedules: Doc<ScheduleData>[];
   currentDayName: string;
   todayProgress: {
     total: number;
@@ -103,30 +105,30 @@ export async function loadDashboardSummary(workspaceId: string): Promise<Dashboa
   ]);
 
   const uniqueClasses = Array.from(
-    new Set(students.map((s: any) => s.className?.trim()).filter(Boolean))
+    new Set(students.map((s) => s.className?.trim()).filter(Boolean))
   ) as string[];
 
   // Jadwal hari ini, diurutkan berdasarkan jam mulai
   const todaySchedules = sortSchedulesChronologically(
-    schedules.filter((s: any) => String(s.day ?? '').toLowerCase() === currentDayName.toLowerCase())
+    schedules.filter((s) => String(s.day ?? '').toLowerCase() === currentDayName.toLowerCase())
   );
 
-  const journalsToday = journals.filter((j: any) => j.date === todayDate);
-  const attendancesToday = attendances.filter((a: any) => a.date === todayDate);
+  const journalsToday = journals.filter((j) => j.date === todayDate);
+  const attendancesToday = attendances.filter((a) => a.date === todayDate);
 
   // Status per slot jadwal (bukan per nama kelas) — supaya kelas dengan dua
   // slot jadwal berbeda di hari yang sama tidak saling tertukar status
   // selesainya. Record baru dicocokkan lewat scheduleId; record lama tanpa
   // scheduleId jatuh ke pencocokan className seperti sebelumnya.
-  const todayClassStatuses: TodayClassStatus[] = todaySchedules.map((s: any) => {
-    const hasJournal = journalsToday.some((j: any) =>
+  const todayClassStatuses: TodayClassStatus[] = todaySchedules.map((s) => {
+    const hasJournal = journalsToday.some((j) =>
       j.scheduleId ? j.scheduleId === s.id : j.className?.trim() === s.className?.trim()
     );
-    const hasAttendance = attendancesToday.some((a: any) =>
+    const hasAttendance = attendancesToday.some((a) =>
       a.scheduleId ? a.scheduleId === s.id : a.className?.trim() === s.className?.trim()
     );
     const isDone = hasJournal && hasAttendance;
-    const skip = (skipReasonsToday as any[]).find((r) => r.scheduleId === s.id);
+    const skip = skipReasonsToday.find((r) => r.scheduleId === s.id);
     const isSkipped = !!skip && !isDone;
     return {
       scheduleId: s.id,
@@ -138,7 +140,7 @@ export async function loadDashboardSummary(workspaceId: string): Promise<Dashboa
       isDone,
       isSkipped,
       sessionState: classifySessionState(s.timeSlot || '', isDone, undefined, isSkipped),
-      skipReason: skip ? { reason: skip.reason, note: skip.note || '' } : null,
+      skipReason: skip ? { reason: skip.reason ?? '', note: skip.note || '' } : null,
     };
   });
 
@@ -165,8 +167,8 @@ export async function loadDashboardSummary(workspaceId: string): Promise<Dashboa
     const dayName = getDayNameFromDateString(dateStr);
 
     // Jumlah jurnal pada hari itu
-    const journalCount = journals.filter((j: any) => j.date === dateStr).length;
-    const attendanceCount = attendances.filter((a: any) => a.date === dateStr).length;
+    const journalCount = journals.filter((j) => j.date === dateStr).length;
+    const attendanceCount = attendances.filter((a) => a.date === dateStr).length;
 
     weeklyDays.push(dayName.substring(0, 3)); // Sen, Sel, Rab, ...
     weeklyJournalCounts.push(journalCount);

@@ -1,6 +1,7 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { ApiError } from './apiErrors';
 import { getAdminDb } from './firebaseAdmin';
+import { logger } from '../utils/logger';
 
 const WORKSPACES_COLLECTION = 'workspaces';
 const TEACHER_PROFILES_COLLECTION = 'teacher_profiles';
@@ -102,5 +103,5 @@ export async function updateWorkspaceForOwnerServer(uid: string, workspaceId: un
   const snap = await ref.get();
   if (!snap.exists) throw new OwnerPanelError('Workspace tidak ditemukan.', 404);
   await ref.update({ ...update, updatedAt: FieldValue.serverTimestamp() });
-  console.info('[owner-panel] workspace diubah', workspaceId, Object.keys(update).join(','));
+  logger.info('owner_panel.workspace_updated', { workspaceId, fields: Object.keys(update) });
 }

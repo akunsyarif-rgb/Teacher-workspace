@@ -14,6 +14,7 @@ import {
   isSeatLimitReached,
   assertSeatLimitNotReached,
   getEffectiveClassLimit,
+  INVITE_CODE_VALID_MS,
 } from '../config/plans';
 import { randomCode } from '../utils/secureRandomCode';
 
@@ -32,7 +33,6 @@ export {
   assertSeatLimitNotReached,
 };
 
-const INVITE_CODE_VALID_MS = 7 * 24 * 60 * 60 * 1000; // 7 hari
 
 // Penjaga aturan "satu akun = satu Workspace". Dipanggil di setiap jalur
 // yang bisa membuat guru punya workspace (buat baru ATAU gabung pakai kode)
@@ -75,6 +75,8 @@ export async function createSchoolWorkspace(uid: string, schoolName: string) {
   await assertNoExistingWorkspace(uid);
 
   const inviteCode = generateInviteCode();
+  // Hanya untuk tampilan (perkiraan dari jam perangkat). Penegakan di server memakai
+  // inviteCodeIssuedAt (serverTimestamp) + INVITE_CODE_VALID_MS.
   const inviteCodeExpiresAt = Date.now() + INVITE_CODE_VALID_MS;
 
   // Workspace sekolah dibuat dulu dengan batas GRATIS (sama seperti
@@ -109,6 +111,8 @@ export async function createSchoolWorkspace(uid: string, schoolName: string) {
 
 export async function regenerateInviteCode(workspaceId: string) {
   const inviteCode = generateInviteCode();
+  // Hanya untuk tampilan (perkiraan dari jam perangkat). Penegakan di server memakai
+  // inviteCodeIssuedAt (serverTimestamp) + INVITE_CODE_VALID_MS.
   const inviteCodeExpiresAt = Date.now() + INVITE_CODE_VALID_MS;
   await updateWorkspaceInviteCode(workspaceId, inviteCode, inviteCodeExpiresAt);
   return { inviteCode, inviteCodeExpiresAt };

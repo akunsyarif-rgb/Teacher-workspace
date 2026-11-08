@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/server/requireAuth';
+import { logger } from '@/lib/utils/logger';
 import {
   WorkspaceAdminError,
   listWorkspaceMembersServer,
@@ -18,7 +19,7 @@ function failure(error: unknown, fallback: string) {
   if (error instanceof WorkspaceAdminError) {
     return NextResponse.json({ error: error.message }, { status: error.status });
   }
-  console.error('workspace members error:', error);
+  logger.error('workspace_members.failed', { err: error });
   return NextResponse.json({ error: fallback }, { status: 500 });
 }
 

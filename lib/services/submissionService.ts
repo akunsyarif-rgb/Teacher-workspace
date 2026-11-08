@@ -37,12 +37,12 @@ export async function getSubmissionsForAssignment(
     submissionRepository.getSubmissionsByAssignment(workspaceId, assignmentId),
   ]);
   const byStudentId: Record<string, any> = {};
-  submissions.forEach((sub: any) => {
+  submissions.forEach((sub) => {
     byStudentId[sub.studentId] = sub;
   });
   // studentName/studentNis dipaksa dari data siswa (bukan submission doc,
   // yang tidak menyimpan nama) supaya UI tidak perlu join terpisah.
-  return students.map((student: any) => {
+  return students.map((student) => {
     const submission = byStudentId[student.id];
     return {
       ...(submission || {}),
@@ -125,7 +125,8 @@ export async function submitAssignment(
   // salinan di layar siswa: layar bisa basi (gurunya baru saja menilai)
   // dan tenggat bisa terlewat sementara formnya dibiarkan terbuka.
   const existing = await submissionRepository.getSubmission(assignmentId, studentId);
-  const gate = canStudentSubmit(existing, dueDate);
+  // SubmissionLike menerima dokumen berbentuk lepas (Record); SubmissionData punya index signature yang sama.
+  const gate = canStudentSubmit(existing as Record<string, unknown> | null, dueDate);
   if (!gate.allowed) throw userError(gate.reason, 'app/submission-closed');
 
   return withTimeout(

@@ -1,18 +1,30 @@
-import { getDocuments, addDocument, deleteDocument } from '../adapters/firestoreAdapter';
+import { getDocuments, getAllDocumentsPaged, getDocumentsPage, addDocument, deleteDocument } from '../adapters/firestoreAdapter';
+import type { Doc, DocumentsPage } from '../adapters/firestoreAdapter';
+import type { ScheduleData } from '../types/models';
 import { COLLECTIONS } from '../config/constants';
 
-export async function getAllSchedules(workspaceId: string) {
+// Jadwal bersifat mingguan dan berulang (bukan riwayat), tapi tetap diambil bertahap
+// supaya satu workspace besar (banyak guru x banyak kelas) tidak jadi satu respons raksasa.
+export async function getAllSchedules(workspaceId: string): Promise<Doc<ScheduleData>[]> {
   if (!workspaceId) return [];
-  return getDocuments(COLLECTIONS.SCHEDULES, [['workspaceId', '==', workspaceId]]);
+  return getAllDocumentsPaged<ScheduleData>(COLLECTIONS.SCHEDULES, [['workspaceId', '==', workspaceId]]);
+}
+
+export async function getSchedulesPage(
+  workspaceId: string,
+  options: { pageSize?: number; cursor?: string | null } = {}
+): Promise<DocumentsPage<ScheduleData>> {
+  if (!workspaceId) return { docs: [], nextCursor: null };
+  return getDocumentsPage<ScheduleData>(COLLECTIONS.SCHEDULES, [['workspaceId', '==', workspaceId]], options);
 }
 
 // Dipakai Student Companion. Filter className bukan cuma demi efisiensi:
 // rules siswa mensyaratkan workspaceId + className cocok dengan profilnya,
 // dan query list baru diizinkan Firestore kalau filternya menjamin itu —
 // getAllSchedules (workspaceId saja) akan ditolak untuk siswa.
-export async function getSchedulesByClass(workspaceId: string, className: string) {
+export async function getSchedulesByClass(workspaceId: string, className: string): Promise<Doc<ScheduleData>[]> {
   if (!workspaceId || !className) return [];
-  return getDocuments(COLLECTIONS.SCHEDULES, [
+  return getDocuments<ScheduleData>(COLLECTIONS.SCHEDULES, [
     ['workspaceId', '==', workspaceId],
     ['className', '==', className],
   ]);

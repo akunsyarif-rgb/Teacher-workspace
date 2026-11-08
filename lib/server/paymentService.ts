@@ -1,5 +1,5 @@
 import midtransClient from 'midtrans-client';
-import crypto from 'node:crypto';
+import crypto, { randomBytes } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from './firebaseAdmin';
 import { ApiError } from './apiErrors';
@@ -71,7 +71,10 @@ export async function createPaymentTransaction(input: CreateTransactionInput) {
     grossAmount = PLAN_PRICES[plan];
   }
 
-  const orderId = `ws-${workspaceId}-${plan}-${Date.now()}`;
+  // order_id Midtrans maksimal 50 karakter. Format lama `ws-<workspaceId 20 char>-<plan>-<epoch>`
+  // = 51-56 karakter (ditolak Midtrans). Id baru pendek dan acak; hubungan ke workspace/paket
+  // ada di dokumen payments/{orderId} (webhook mencari lewat dokumen itu, tidak mem-parse id).
+  const orderId = `TW-${Date.now().toString(36).toUpperCase()}-${randomBytes(5).toString('hex').toUpperCase()}`;
   const adminDb = getAdminDb();
 
   // Catat transaksi PENDING dulu — jadi sumber kebenaran untuk idempotensi
@@ -88,15 +91,16 @@ export async function createPaymentTransaction(input: CreateTransactionInput) {
       seatCount,
       grossAmount,
       status: 'pending',
-      createdAt: Date.now(),
+      // Jam server Firestore, bukan jam instance Vercel (anti clock-skew).
+      createdAt: FieldValue.serverTimestamp(),
     });
 
   const snap = getSnapClient();
   // @types/midtrans-client (community) cuma mendeklarasikan
   // transaction_details — customer_details & item_details di bawah ini
   // valid & didukung Midtrans (lihat dokumentasi Snap API resminya),
-  // cuma belum dideklarasikan di package types-nya. Cast ke `any` di
-  // sini murni menyiasati itu, bukan longgar terhadap tipe data kita
+  // cuma belum dideklarasikan di package types-nya. Cast ke tipe parameter
+  // aslinya (lewat unknown) di sini murni menyiasati itu, bukan longgar terhadap tipe data kita
   // sendiri (semua field di atas tetap dihitung/divalidasi dengan tipe
   // yang ketat sebelum sampai sini).
   const transaction = await snap.createTransaction({
@@ -116,7 +120,7 @@ export async function createPaymentTransaction(input: CreateTransactionInput) {
         name: describePlan(plan, seatCount ?? undefined),
       },
     ],
-  } as any);
+  } as unknown as Parameters<typeof snap.createTransaction>[0]);
 
   return { token: transaction.token as string, redirectUrl: transaction.redirect_url as string, orderId };
 }
@@ -246,10 +250,14 @@ export async function handleMidtransNotification(payload: MidtransNotificationPa
 
     const plan = payment.plan;
     const durationMs = PLAN_DURATION_MS[plan];
+    // Dasar waktu masa berlaku = jam SERVER FIRESTORE saat transaksi membaca dokumen
+    // (readTime), bukan Date.now() instance Vercel yang bisa melenceng. Berupa epoch ms
+    // karena planExpiresAt dibandingkan sebagai angka di rules/UI/getEffectiveClassLimit.
+    const serverNowMs = workspaceSnap.readTime?.toMillis?.() ?? Date.now();
     const workspaceUpdate: Record<string, unknown> = {
       plan,
       classLimit: PLAN_CLASS_LIMITS[plan],
-      planExpiresAt: durationMs ? Date.now() + durationMs : null,
+      planExpiresAt: durationMs ? serverNowMs + durationMs : null,
       updatedAt: FieldValue.serverTimestamp(),
     };
     if (plan === 'school_annual') {

@@ -3,7 +3,9 @@ import { getAdminDb } from '@/lib/server/firebaseAdmin';
 import { joinWorkspaceByCodeServer } from '@/lib/server/workspaceAdminService';
 import { checkRateLimits, clientIp, recordFailures, type RateRule } from '@/lib/server/rateLimit';
 import { requireAuth } from '@/lib/server/requireAuth';
-import { ApiError, errorResponse } from '@/lib/server/apiErrors';
+import { ApiError, errorResponse, parseBody } from '@/lib/server/apiErrors';
+import { JoinWorkspaceBodySchema } from '@/lib/schemas/api';
+import { logger } from '@/lib/utils/logger';
 
 export const runtime = 'nodejs';
 
@@ -35,11 +37,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json().catch(() => ({}));
-    const { inviteCode } = body ?? {};
-    if (!inviteCode || typeof inviteCode !== 'string') {
-      return NextResponse.json({ error: 'Kode undangan diperlukan.' }, { status: 400 });
-    }
+    const { inviteCode } = parseBody(JoinWorkspaceBodySchema, await request.json().catch(() => ({})));
 
     try {
       const workspace = await joinWorkspaceByCodeServer(uid, inviteCode);
@@ -47,7 +45,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       // Hanya penolakan yang disengaja (kode salah, kedaluwarsa, penuh) yang dihitung tebakan.
       if (error instanceof ApiError) {
-        await recordFailures(db, rules).catch((e) => console.error('rate limit record gagal:', e));
+        await recordFailures(db, rules).catch((e) => logger.error('rate_limit.record_failed', { scope: 'workspace-join', err: e }));
       }
       throw error;
     }

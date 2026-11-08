@@ -2,6 +2,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from './firebaseAdmin';
 import { ApiError } from './apiErrors';
 import { normalizeClassName, validateClassName } from '../utils/classNameValidation';
+import { logger } from '../utils/logger';
 
 // Semua koleksi yang punya field className langsung, TERMASUK
 // student_profiles — satu-satunya alasan operasi ini harus lewat Admin
@@ -163,7 +164,7 @@ export async function renameClassServer(
 
   const release = async (patch: Record<string, unknown>) => {
     await jobRef.update({ ...patch, leaseUntil: 0, updatedAt: FieldValue.serverTimestamp() }).catch((e: unknown) => {
-      console.error('class rename: gagal melepas kunci job:', e);
+      logger.error('class_rename.release_failed', { workspaceId, err: e });
     });
   };
 
@@ -237,7 +238,7 @@ export async function renameClassServer(
   } catch (error) {
     if (error instanceof ApiError) throw error;
     // Penyebab asli (pesan Firestore) hanya ke log server — tidak ke client.
-    console.error('class rename berhenti di tengah jalan:', error);
+    logger.error('class_rename.interrupted', { workspaceId, err: error });
     const progress = ((await jobRef.get().catch(() => null))?.data() ?? {}) as Partial<RenameJob>;
     await release({ lastError: 'batch_failed' });
     throw new ApiError(

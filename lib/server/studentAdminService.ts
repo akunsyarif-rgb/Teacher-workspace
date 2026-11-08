@@ -1,14 +1,15 @@
 import { FieldValue } from 'firebase-admin/firestore';
-import { ApiError } from './apiErrors';
+import { ApiError, parseBody } from './apiErrors';
+import { CreateStudentsBodySchema } from '../schemas/api';
+import type { NewStudent } from '../schemas/api';
 import { getAdminDb } from './firebaseAdmin';
 import { generateAccessCode } from '../utils/accessCode';
 import { getEffectiveClassLimit } from '../config/plans';
 
-const MAX_STUDENTS_PER_REQUEST = 200; // 2 tulis/siswa, batas transaksi Firestore 500
 
 export class StudentAdminError extends ApiError {}
 
-export type NewStudentInput = { name: string; nis?: string; className: string };
+export type NewStudentInput = Pick<NewStudent, 'name' | 'className'> & { nis?: string };
 export type CreatedStudent = { id: string; name: string; nis: string; className: string; accessCode: string };
 
 type AdminDbLike = ReturnType<typeof getAdminDb>;
@@ -30,23 +31,8 @@ export async function createStudentsServer(
 ): Promise<CreatedStudent[]> {
   const adminDb = db ?? getAdminDb();
 
-  if (!Array.isArray(inputs) || inputs.length === 0) {
-    throw new StudentAdminError('Data siswa wajib diisi.', 400);
-  }
-  if (inputs.length > MAX_STUDENTS_PER_REQUEST) {
-    throw new StudentAdminError(`Maksimal ${MAX_STUDENTS_PER_REQUEST} siswa per permintaan.`, 400);
-  }
-
-  const cleaned = inputs.map((raw) => {
-    const r = (raw ?? {}) as Record<string, unknown>;
-    const name = typeof r.name === 'string' ? r.name.trim() : '';
-    const nis = typeof r.nis === 'string' && r.nis.trim() ? r.nis.trim() : '-';
-    const className = normalizeClass(r.className);
-    if (!name || name.length > 120) throw new StudentAdminError('Nama siswa wajib diisi (maks 120 karakter).', 400);
-    if (nis.length > 40) throw new StudentAdminError('NIS maksimal 40 karakter.', 400);
-    if (!className || className.length > 100) throw new StudentAdminError('Nama kelas wajib diisi (maks 100 karakter).', 400);
-    return { name, nis, className };
-  });
+  // Bentuk + batas input divalidasi skema Zod (lib/schemas/api.ts); nama kelas dinormalkan (huruf besar, spasi).
+  const { students: cleaned } = parseBody(CreateStudentsBodySchema, { students: inputs });
 
   const profileSnap = await adminDb.collection('teacher_profiles').doc(uid).get();
   const workspaceId = (profileSnap.data() as { workspaceId?: string } | undefined)?.workspaceId;

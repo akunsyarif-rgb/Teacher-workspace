@@ -2,9 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/server/firebaseAdmin';
 import { requireAuth } from '@/lib/server/requireAuth';
+import { ApiError, parseBody } from '@/lib/server/apiErrors';
+import { UploadSignBodySchema } from '@/lib/schemas/api';
 import { limitRequests } from '@/lib/server/rateLimit';
 import { canStudentSubmit } from '@/lib/utils/submissionRules';
 import { MAX_ATTACHMENTS_PER_SUBMISSION, validateUploadRequest } from '@/lib/utils/uploadRules';
+import { logger } from '@/lib/utils/logger';
 
 export const runtime = 'nodejs';
 
@@ -55,16 +58,11 @@ export async function POST(request: NextRequest) {
   const { uid } = auth;
 
   try {
-    const body = await request.json();
-    const { workspaceId, assignmentId, fileName, contentType, fileSize } = body ?? {};
-    if (
-      typeof workspaceId !== 'string' || !workspaceId ||
-      typeof assignmentId !== 'string' || !assignmentId ||
-      typeof fileName !== 'string' || !fileName ||
-      typeof fileSize !== 'number' || !Number.isInteger(fileSize)
-    ) {
-      return NextResponse.json({ error: 'Data tugas atau file tidak valid.' }, { status: 400 });
-    }
+    const { workspaceId, assignmentId, fileName, contentType, fileSize } = parseBody(
+      UploadSignBodySchema,
+      await request.json().catch(() => ({})),
+      'Data tugas atau file tidak valid.'
+    );
     const upload = validateUploadRequest({ fileName, contentType, fileSize });
     if (!upload.ok) {
       return NextResponse.json({ error: upload.error }, { status: upload.status });
@@ -134,7 +132,7 @@ export async function POST(request: NextRequest) {
     if (!response.ok) {
       // Detail dari Supabase hanya ke log server; client menerima kode status saja.
       const detail = await response.text().catch(() => '');
-      console.error('Supabase signed upload URL failed:', response.status, detail);
+      logger.error('submission_upload.supabase_failed', { upstreamStatus: response.status, detail });
       return NextResponse.json(
         {
           error: `Upload belum bisa disiapkan (penyimpanan menolak: ${response.status}). Coba lagi nanti.`,
@@ -159,11 +157,15 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ signedUrl, token, path, fileName });
   } catch (error) {
+    // Validasi body (parseBody) dan penolakan disengaja: pesan aman + status-nya.
+    if (error instanceof ApiError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof SupabaseConfigError) {
-      console.error('Env Supabase (URL / SECRET_KEY) tidak tersedia saat runtime.');
+      logger.error('submission_upload.config_missing');
       return NextResponse.json({ error: 'Penyimpanan lampiran belum dikonfigurasi. Hubungi gurumu.', code: 'server_config' }, { status: 503 });
     }
-    console.error('Submission upload authorization error:', error);
+    logger.error('submission_upload.failed', { err: error });
     return NextResponse.json({ error: 'Upload belum bisa disiapkan. Periksa koneksi dan coba lagi.' }, { status: 500 });
   }
 }

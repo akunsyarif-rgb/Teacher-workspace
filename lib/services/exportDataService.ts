@@ -21,10 +21,19 @@ async function listStudentsForScope(workspaceId: string, scope: ExportScope) {
 // saat presensi disimpan, lihat attendanceService.buildAttendancePayload) —
 // diratakan jadi satu baris per (sesi, siswa) di sini supaya siap
 // CSV/PDF tanpa join tambahan.
-function flattenAttendances(sessions: any[]) {
-  const rows: any[] = [];
+type AttendanceSessionRow = {
+  date?: string;
+  className?: string;
+  subject?: string;
+  details?: { name?: string; nis?: string; status?: string; note?: string; [extra: string]: unknown }[];
+  [extra: string]: unknown;
+};
+type ExportRow = Record<string, unknown>;
+
+function flattenAttendances(sessions: AttendanceSessionRow[]) {
+  const rows: ExportRow[] = [];
   sessions.forEach((session) => {
-    (session.details || []).forEach((d: any) => {
+    (session.details || []).forEach((d) => {
       rows.push({
         date: session.date,
         className: session.className,
@@ -45,9 +54,9 @@ async function enrichSubmissions(workspaceId: string, submissions: any[], scope:
   if (submissions.length === 0) return [];
   const students = await listStudentsForScope(workspaceId, scope);
   const studentById: Record<string, any> = {};
-  students.forEach((s: any) => (studentById[s.id] = s));
+  students.forEach((s) => (studentById[s.id] = s));
 
-  return submissions.map((sub: any) => ({
+  return submissions.map((sub) => ({
     date: (sub.submittedAt || '').split('T')[0] || '-',
     className: sub.className || '-',
     studentName: studentById[sub.studentId]?.name || sub.studentId,
@@ -122,7 +131,7 @@ async function gatherSchedules(workspaceId: string, scope: ExportScope) {
       ? await scheduleRepository.getSchedulesByClass(workspaceId, scope.className)
       : await scheduleRepository.getAllSchedules(workspaceId);
 
-  return schedules.map((s: any) => ({
+  return schedules.map((s) => ({
     day: s.day || '-',
     timeSlot: s.timeSlot || '-',
     className: s.className || '-',
@@ -159,12 +168,12 @@ async function gatherActivityRecap(workspaceId: string, range: DateRange, classN
     byDate[date][field] += 1;
   }
 
-  journals.forEach((j: any) => bump(j.date, 'journalCount'));
-  attendances.forEach((a: any) => bump(a.date, 'attendanceCount'));
-  announcements.forEach((a: any) => bump(a.date, 'announcementCount'));
-  assignments.forEach((a: any) => bump(a.dueDate, 'assignmentCount'));
+  journals.forEach((j) => bump(j.date, 'journalCount'));
+  attendances.forEach((a) => bump(a.date, 'attendanceCount'));
+  announcements.forEach((a) => bump(a.date, 'announcementCount'));
+  assignments.forEach((a) => bump(a.dueDate, 'assignmentCount'));
 
-  return Object.values(byDate).sort((a: any, b: any) => a.date.localeCompare(b.date));
+  return Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
 }
 
 // Nilai TIDAK difilter periode (lihat dataLifecycleCollections.ts) — hasil
@@ -175,7 +184,7 @@ async function gatherGrades(workspaceId: string, scope: ExportScope) {
   const classNames =
     scope.type === 'class'
       ? [scope.className]
-      : (await studentService.listClassSummaries(workspaceId)).map((s: any) => s.className);
+      : (await studentService.listClassSummaries(workspaceId)).map((s) => s.className);
 
   const rows: any[] = [];
   for (const className of classNames) {
@@ -184,9 +193,9 @@ async function gatherGrades(workspaceId: string, scope: ExportScope) {
       studentService.getStudentsInClass(workspaceId, className),
     ]);
     const columnById: Record<string, any> = {};
-    columns.forEach((c: any) => (columnById[c.id] = c));
+    columns.forEach((c) => (columnById[c.id] = c));
 
-    students.forEach((student: any) => {
+    students.forEach((student) => {
       const studentGrades = grades[student.id] || {};
       Object.keys(studentGrades).forEach((columnId) => {
         const score = studentGrades[columnId];

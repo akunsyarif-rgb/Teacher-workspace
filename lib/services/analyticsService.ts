@@ -27,13 +27,18 @@ export async function loadInsights(workspaceId: string) {
   const startDate = daysAgoISO(ANALYSIS_WINDOW_DAYS - 1);
   const endDate = todayISO();
 
-  const [students, attendances, journals, assignments, submissions] = await Promise.all([
+  // Tugas yang tenggatnya jatuh di jendela analisis (bukan seluruh riwayat), lalu hanya
+  // pengumpulan milik tugas-tugas itu.
+  const [students, attendances, journals, assignments] = await Promise.all([
     getAllStudentsForSummary(workspaceId),
     getAttendancesInRange(workspaceId, startDate, endDate),
     getJournalsInRange(workspaceId, startDate, endDate),
-    analyticsRepository.getAssignmentsInWorkspace(workspaceId),
-    analyticsRepository.getSubmissionsInWorkspace(workspaceId),
+    analyticsRepository.getAssignmentsDueInRange(workspaceId, startDate, endDate),
   ]);
+  const submissions = await analyticsRepository.getSubmissionsForAssignments(
+    workspaceId,
+    assignments.map((a) => a.id)
+  );
 
   return {
     insights: buildInsights({ students, attendances, journals, assignments, submissions, today: endDate }),

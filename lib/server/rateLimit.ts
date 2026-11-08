@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { FieldValue, Timestamp, type Firestore } from 'firebase-admin/firestore';
+import { logger } from '../utils/logger';
 
 // Pembatas percobaan gagal (anti brute-force) yang bertahan lintas instance
 // serverless — state di Firestore koleksi `rate_limits` (hanya Admin SDK;
@@ -84,6 +85,6 @@ export async function limitRequests(
       message: `Terlalu banyak permintaan. Coba lagi dalam ${Math.max(1, Math.ceil(check.retryAfterSeconds / 60))} menit.`,
     };
   }
-  await recordFailures(db, rules).catch((e) => console.error('rate limit record gagal:', e));
+  await recordFailures(db, rules).catch((e) => logger.error('rate_limit.record_failed', { scope, err: e }));
   return null;
 }

@@ -9,6 +9,7 @@ import { claimExportSlot, DEFAULT_COOLDOWN_SECONDS } from '@/lib/server/backup/c
 import { countExportDocs, exportZip } from '@/lib/server/backup/exportWorkspace';
 import { exportRateLimits, resolveMaxDocs } from '@/lib/server/backup/limits';
 import { firestoreIdentity, makeUlanganCollector } from '@/lib/server/backup/ulanganExport';
+import { logger } from '@/lib/utils/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
         ? fail(503, 'server_config', 'Server belum dikonfigurasi untuk backup. Hubungi admin.')
         : fail(error.status, error.code, error.code === 'no_token' ? 'Token otentikasi diperlukan.' : 'Sesi tidak valid. Masuk kembali lalu coba lagi.');
     }
-    console.error('backup: konfigurasi Firebase Admin server belum lengkap/tidak valid');
+    logger.error('backup_export.config_invalid');
     return fail(503, 'server_config', 'Server belum dikonfigurasi untuk backup. Hubungi admin.');
   }
 
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
     release = slot.release;
 
     const { value: maxDocs, source } = resolveMaxDocs();
-    if (source === 'clamped' || source === 'invalid') console.warn(`backup: BACKUP_MAX_DOCS diabaikan (${source}); memakai batas aman`);
+    if (source === 'clamped' || source === 'invalid') logger.warn('backup_export.max_docs_ignored', { source });
     const total = await countExportDocs(db, actor);
     if (total > maxDocs) { await release(); return fail(413, 'too_large', `Data terlalu besar untuk satu unduhan (±${total} dokumen, batas ${maxDocs}). Hubungi admin.`); }
 
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
     const rel = release;
     async function* guarded() {
       try { yield* exportZip(actor, { db, now, ulangan: collector }); }
-      catch (e) { await rel().catch(() => {}); console.error('backup stream gagal:', e instanceof Error ? e.name : typeof e); throw e; }
+      catch (e) { await rel().catch(() => {}); logger.error('backup_export.stream_failed', { errorName: e instanceof Error ? e.name : typeof e }); throw e; }
     }
     const body = Readable.toWeb(Readable.from(guarded())) as ReadableStream;
     return new Response(body, {
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
   } catch (e) {
     if (release) await release().catch(() => {});
     if (e instanceof BackupAuthError) return fail(403, 'not_a_teacher', 'Akun ini bukan akun guru aktif di sebuah workspace.');
-    console.error('backup export gagal:', e instanceof Error ? e.name : typeof e); // tanpa pesan: bisa memuat data/kredensial
+    logger.error('backup_export.failed', { errorName: e instanceof Error ? e.name : typeof e }); // tanpa pesan: bisa memuat data/kredensial
     return fail(500, 'export_failed', 'Backup gagal dibuat. Coba lagi beberapa saat lagi.');
   }
 }

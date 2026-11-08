@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { renameClassServer } from '@/lib/server/classAdminService';
 import { requireAuth } from '@/lib/server/requireAuth';
-import { errorResponse } from '@/lib/server/apiErrors';
+import { errorResponse, parseBody } from '@/lib/server/apiErrors';
+import { RenameClassBodySchema } from '@/lib/schemas/api';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60; // rename besar diproses bertahap; lihat renameClassServer
@@ -17,12 +18,7 @@ export async function POST(request: NextRequest) {
   if (auth instanceof NextResponse) return auth;
 
   try {
-    const body = await request.json().catch(() => ({}));
-    const { oldName, newName } = body ?? {};
-    if (!oldName || typeof oldName !== 'string' || !newName || typeof newName !== 'string') {
-      return NextResponse.json({ error: 'Nama kelas lama dan baru diperlukan.' }, { status: 400 });
-    }
-
+    const { oldName, newName } = parseBody(RenameClassBodySchema, await request.json().catch(() => ({})));
     const result = await renameClassServer(auth.uid, oldName, newName);
     return NextResponse.json(result);
   } catch (error) {

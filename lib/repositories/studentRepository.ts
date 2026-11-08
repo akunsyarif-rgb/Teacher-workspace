@@ -1,32 +1,51 @@
-import { getDocuments, batchWrite, BatchOperation, softDeleteDocument, restoreDocument } from '../adapters/firestoreAdapter';
+import { getDocuments, getAllDocumentsPaged, getDocumentsPage, batchWrite, BatchOperation, softDeleteDocument, restoreDocument } from '../adapters/firestoreAdapter';
+import type { Doc, DocumentsPage } from '../adapters/firestoreAdapter';
+import type { StudentData } from '../types/models';
 import { activeOnly, deletedOnly } from '../utils/softDelete';
 import { COLLECTIONS } from '../config/constants';
 import { generateAccessCode } from '../utils/accessCode';
 import { postToServer } from '../adapters/serverApiAdapter';
 
 // Semua pembacaan siswa menyaring yang di-soft-delete (lib/utils/softDelete.ts).
-async function fetchAllStudents(workspaceId: string) {
-  return getDocuments(COLLECTIONS.STUDENTS, [['workspaceId', '==', workspaceId]]);
+// Seluruh roster workspace diambil BERTAHAP (halaman 500), bukan satu respons raksasa.
+// Hanya untuk agregat yang memang butuh semuanya (hitung siswa per kelas, batas paket).
+// Untuk tampilan daftar yang bisa panjang pakai getStudentsPage.
+async function fetchAllStudents(workspaceId: string): Promise<Doc<StudentData>[]> {
+  return getAllDocumentsPaged<StudentData>(COLLECTIONS.STUDENTS, [['workspaceId', '==', workspaceId]]);
 }
 
-export async function getAllStudents(workspaceId: string) {
+export async function getAllStudents(workspaceId: string): Promise<Doc<StudentData>[]> {
   if (!workspaceId) return [];
   return activeOnly(await fetchAllStudents(workspaceId));
 }
 
+// Satu halaman siswa (limit + startAfter). Halaman bisa memuat siswa terhapus
+// (disaring di sini), jadi jumlah docs bisa < pageSize walau masih ada halaman berikutnya —
+// andalkan nextCursor, bukan panjang docs.
+export async function getStudentsPage(
+  workspaceId: string,
+  options: { pageSize?: number; cursor?: string | null; className?: string } = {}
+): Promise<DocumentsPage<StudentData>> {
+  if (!workspaceId) return { docs: [], nextCursor: null };
+  const filters: [string, string, string][] = [['workspaceId', '==', workspaceId]];
+  if (options.className) filters.push(['className', '==', options.className]);
+  const page = await getDocumentsPage<StudentData>(COLLECTIONS.STUDENTS, filters, options);
+  return { docs: activeOnly(page.docs), nextCursor: page.nextCursor };
+}
+
 // Untuk Recycle Bin / pemulihan.
-export async function getDeletedStudents(workspaceId: string) {
+export async function getDeletedStudents(workspaceId: string): Promise<Doc<StudentData>[]> {
   if (!workspaceId) return [];
   return deletedOnly(await fetchAllStudents(workspaceId));
 }
 
-export async function getStudentsByClass(workspaceId: string, className: string) {
+export async function getStudentsByClass(workspaceId: string, className: string): Promise<Doc<StudentData>[]> {
   if (!workspaceId || !className) return [];
-  const students = await getDocuments(COLLECTIONS.STUDENTS, [
+  const students = await getDocuments<StudentData>(COLLECTIONS.STUDENTS, [
     ['workspaceId', '==', workspaceId],
     ['className', '==', className],
   ]);
-  return activeOnly(students).sort((a: any, b: any) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
+  return activeOnly(students).sort((a, b) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
 }
 
 // Dokumen kode akses memuat SALINAN identitas siswa (nama, kelas, NIS),

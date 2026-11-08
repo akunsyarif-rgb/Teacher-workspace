@@ -1,15 +1,17 @@
 import { getDocuments, addDocument, deleteDocument } from '../adapters/firestoreAdapter';
+import type { Doc } from '../adapters/firestoreAdapter';
+import type { AnnouncementData } from '../types/models';
 import { COLLECTIONS } from '../config/constants';
 
-export async function getAnnouncementsByClass(workspaceId: string, className: string) {
+export async function getAnnouncementsByClass(workspaceId: string, className: string): Promise<Doc<AnnouncementData>[]> {
   if (!workspaceId || !className) return [];
-  return getDocuments(COLLECTIONS.ANNOUNCEMENTS, [
+  return getDocuments<AnnouncementData>(COLLECTIONS.ANNOUNCEMENTS, [
     ['workspaceId', '==', workspaceId],
     ['className', '==', className],
   ]);
 }
 
-export async function createAnnouncement(data: Record<string, any>) {
+export async function createAnnouncement(data: Record<string, unknown>) {
   return addDocument(COLLECTIONS.ANNOUNCEMENTS, data);
 }
 

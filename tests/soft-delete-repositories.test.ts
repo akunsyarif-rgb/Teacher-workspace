@@ -10,6 +10,9 @@ const deleteDocument = vi.fn();
 const batchWrite = vi.fn();
 vi.mock('../lib/adapters/firestoreAdapter', () => ({
   getDocuments: (...a: unknown[]) => getDocuments(...a),
+  getAllDocumentsPaged: (...a: unknown[]) => getDocuments(...a),
+  getDocumentsPage: vi.fn(),
+  getDocumentsWhereIn: vi.fn(),
   getDocument: vi.fn(),
   addDocument: vi.fn(),
   updateDocument: vi.fn(),
@@ -72,7 +75,7 @@ describe('query menyaring yang di-soft-delete', () => {
   it('beranda & analitik tidak menghitung siswa/tugas terhapus', async () => {
     getDocuments.mockResolvedValue([live('a'), gone('b')]);
     expect((await dashboardRepo.getAllStudentsForSummary('w1')).map((s: any) => s.id)).toEqual(['a']);
-    expect((await analyticsRepo.getAssignmentsInWorkspace('w1')).map((s: any) => s.id)).toEqual(['a']);
+    expect((await analyticsRepo.getAssignmentsDueInRange('w1', '2026-01-01', '2026-02-01')).map((s: any) => s.id)).toEqual(['a']);
   });
   it('query tidak memakai where(deletedAt==null) (akan menyembunyikan data lama)', async () => {
     getDocuments.mockResolvedValue([]);

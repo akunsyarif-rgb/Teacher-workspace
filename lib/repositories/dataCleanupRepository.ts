@@ -19,7 +19,7 @@ export async function deleteLifecycleData(
   const docs = await listLifecycleData(collectionKey, workspaceId, range, className);
   if (docs.length === 0) return 0;
 
-  const operations: BatchOperation[] = docs.map((doc: any) => ({
+  const operations: BatchOperation[] = docs.map((doc) => ({
     type: 'delete',
     collectionName: config.collectionName,
     id: doc.id,

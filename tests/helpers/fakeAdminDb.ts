@@ -7,13 +7,15 @@ export function createFakeAdminDb() {
   const store: Record<string, Doc> = {};
   let idSeq = 0;
   let queue: Promise<unknown> = Promise.resolve();
-  const hooks = { commits: 0, failCommitNumber: 0, batchSizes: [] as number[] };
+  const hooks = { commits: 0, failCommitNumber: 0, batchSizes: [] as number[], serverNowMs: undefined as number | undefined };
   const writes: { op: string; path: string; data?: Doc }[] = [];
 
   const snap = (path: string): any => ({
     id: path.split('/')[1],
     ref: docRef(path.split('/')[0], path.split('/')[1]),
     exists: path in store,
+    // Jam server Firestore saat dibaca (DocumentSnapshot.readTime); dapat diatur lewat hooks.serverNowMs.
+    readTime: { toMillis: () => hooks.serverNowMs ?? Date.now() },
     data: () => (path in store ? { ...store[path] } : undefined),
     get: (f: string) => store[path]?.[f],
   });
@@ -121,6 +123,7 @@ export function createFakeAdminDb() {
       hooks.commits = 0;
       hooks.failCommitNumber = 0;
       hooks.batchSizes = [];
+      hooks.serverNowMs = undefined;
     },
   };
 }

@@ -1,5 +1,7 @@
-import { getDocument, getDocuments, batchWrite, BatchOperation } from '../adapters/firestoreAdapter';
+import { getDocument, getDocuments, batchWrite, BatchOperation, serverTimestamp } from '../adapters/firestoreAdapter';
 import { COLLECTIONS } from '../config/constants';
+import type { Doc } from '../adapters/firestoreAdapter';
+import type { SubmissionData } from '../types/models';
 
 // Satu dokumen per (assignment, siswa) — bukan satu dokumen per assignment
 // berisi array semua siswa (seperti attendances). Submission nantinya akan
@@ -9,9 +11,9 @@ function submissionId(assignmentId: string, studentId: string) {
   return `${assignmentId}_${studentId}`;
 }
 
-export async function getSubmissionsByAssignment(workspaceId: string, assignmentId: string) {
+export async function getSubmissionsByAssignment(workspaceId: string, assignmentId: string): Promise<Doc<SubmissionData>[]> {
   if (!workspaceId || !assignmentId) return [];
-  return getDocuments(COLLECTIONS.SUBMISSIONS, [
+  return getDocuments<SubmissionData>(COLLECTIONS.SUBMISSIONS, [
     ['workspaceId', '==', workspaceId],
     ['assignmentId', '==', assignmentId],
   ]);
@@ -23,14 +25,14 @@ export async function getSubmissionsByAssignment(workspaceId: string, assignment
  * membuat pengumpulan berulang selalu MENIMPA dokumen yang sama, bukan
  * membuat submission baru tiap kali tombol kirim ditekan.
  */
-export async function getSubmission(assignmentId: string, studentId: string) {
+export async function getSubmission(assignmentId: string, studentId: string): Promise<Doc<SubmissionData> | null> {
   if (!assignmentId || !studentId) return null;
-  return getDocument(COLLECTIONS.SUBMISSIONS, submissionId(assignmentId, studentId));
+  return getDocument<SubmissionData>(COLLECTIONS.SUBMISSIONS, submissionId(assignmentId, studentId));
 }
 
-export async function getSubmissionsByStudent(workspaceId: string, studentId: string) {
+export async function getSubmissionsByStudent(workspaceId: string, studentId: string): Promise<Doc<SubmissionData>[]> {
   if (!workspaceId || !studentId) return [];
-  return getDocuments(COLLECTIONS.SUBMISSIONS, [
+  return getDocuments<SubmissionData>(COLLECTIONS.SUBMISSIONS, [
     ['workspaceId', '==', workspaceId],
     ['studentId', '==', studentId],
   ]);
@@ -39,14 +41,14 @@ export async function getSubmissionsByStudent(workspaceId: string, studentId: st
 export async function upsertSubmission(
   assignmentId: string,
   studentId: string,
-  data: Record<string, any>
+  data: Record<string, unknown>
 ) {
   const operations: BatchOperation[] = [
     {
       type: 'set',
       collectionName: COLLECTIONS.SUBMISSIONS,
       id: submissionId(assignmentId, studentId),
-      data: { ...data, assignmentId, studentId, updatedAt: new Date().toISOString() },
+      data: { ...data, assignmentId, studentId, updatedAt: serverTimestamp() },
     },
   ];
   await batchWrite(operations);

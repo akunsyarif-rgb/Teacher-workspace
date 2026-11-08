@@ -359,7 +359,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
         const submittedAtLabel = formatSubmittedAt(assignment.submittedAt);
 
         return (
-          <div key={assignment.id} className="bg-nb-paper p-4 rounded-2xl border border-nb-rule shadow-sm space-y-3">
+          <div key={assignment.id} data-testid="assignment-card" className="bg-nb-paper p-4 rounded-2xl border border-nb-rule shadow-sm space-y-3">
             {justSubmittedId === assignment.id && (
               <div className="flex items-center gap-1.5 p-2.5 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold">
                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />

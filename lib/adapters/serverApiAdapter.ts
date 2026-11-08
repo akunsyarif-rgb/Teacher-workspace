@@ -14,13 +14,14 @@ export async function postToServer<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
 
-  let data: any;
+  let data: unknown;
   try {
     data = (res.headers.get('content-type') || '').includes('application/json') ? await res.json() : undefined;
   } catch {
     data = undefined;
   }
-  if (!res.ok) throw new Error(data?.error || `Server menolak permintaan (HTTP ${res.status}).`);
+  const serverError = (data as { error?: unknown } | undefined)?.error;
+  if (!res.ok) throw new Error(typeof serverError === 'string' && serverError ? serverError : `Server menolak permintaan (HTTP ${res.status}).`);
   if (data === undefined) throw new Error('Server membalas dalam format yang tidak dikenali. Muat ulang halaman.');
   return data as T;
 }

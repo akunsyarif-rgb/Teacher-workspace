@@ -9,7 +9,7 @@ export async function loadGradeData(workspaceId: string, className: string) {
   }
   const gradeDocs = await gradeRepository.getGradesByClass(workspaceId, className);
   const grades: Record<string, Record<string, string>> = {};
-  gradeDocs.forEach((doc: any) => {
+  gradeDocs.forEach((doc) => {
     if (!grades[doc.studentId]) grades[doc.studentId] = {};
     grades[doc.studentId][doc.columnId] = doc.score;
   });

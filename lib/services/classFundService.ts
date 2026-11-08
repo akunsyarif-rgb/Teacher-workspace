@@ -1,17 +1,19 @@
 import * as classFundRepository from '../repositories/classFundRepository';
 import { getWitaDateString } from '../utils/witaDate';
+import type { Doc } from '../adapters/firestoreAdapter';
+import type { ClassFundTransactionData } from '../types/models';
 
 export type ClassFundTransactionType = 'masuk' | 'keluar';
 
 export async function loadClassFundData(workspaceId: string, className: string) {
-  if (!workspaceId || !className) return { transactions: [] as any[], balance: 0 };
+  if (!workspaceId || !className) return { transactions: [] as Doc<ClassFundTransactionData>[], balance: 0 };
 
   const transactions = (await classFundRepository.getTransactions(workspaceId, className)).sort(
-    (a: any, b: any) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)
+    (a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)
   );
 
   const balance = transactions.reduce(
-    (sum: number, t: any) => sum + (t.type === 'masuk' ? t.amount : -t.amount),
+    (sum: number, t) => sum + (t.type === 'masuk' ? t.amount : -t.amount),
     0
   );
 

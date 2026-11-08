@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleMidtransNotification, PaymentNotificationError } from '@/lib/server/paymentService';
+import { logger } from '@/lib/utils/logger';
 
 export const runtime = 'nodejs';
 
@@ -27,10 +28,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof PaymentNotificationError) {
       // Dicatat sebagai peringatan: bisa jadi indikasi percobaan penyalahgunaan atau salah konfigurasi.
-      console.error(`midtrans webhook ditolak (${error.status}):`, error.message);
+      logger.warn('midtrans_webhook.rejected', { status: error.status, reason: error.message });
       return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
     }
-    console.error('midtrans webhook error:', error);
+    logger.error('midtrans_webhook.failed', { err: error });
     return NextResponse.json({ ok: false, error: 'Gagal memproses notifikasi.' }, { status: 500 });
   }
 }

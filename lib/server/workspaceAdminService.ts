@@ -1,7 +1,8 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { ApiError } from './apiErrors';
 import { getAdminAuth, getAdminDb } from './firebaseAdmin';
-import { isSeatLimitReached } from '../config/plans';
+import { INVITE_CODE_VALID_MS, isSeatLimitReached } from '../config/plans';
+import { logger } from '../utils/logger';
 
 const WORKSPACES_COLLECTION = 'workspaces';
 const WORKSPACE_INVITES_COLLECTION = 'workspace_invites';
@@ -81,7 +82,13 @@ export async function joinWorkspaceByCodeServer(uid: string, inviteCode: string)
     if (workspace.inviteCode !== trimmedCode) {
       throw new ApiError('Kode undangan tidak ditemukan.', 404);
     }
-    if (workspace.inviteCodeExpiresAt && workspace.inviteCodeExpiresAt < Date.now()) {
+    // Kedaluwarsa dinilai dengan JAM SERVER FIRESTORE (readTime transaksi), dari saat kode dibuat
+    // (inviteCodeIssuedAt, serverTimestamp) — bukan jam perangkat pembuat kode maupun jam instance.
+    // Kode lama tanpa inviteCodeIssuedAt memakai inviteCodeExpiresAt seperti sebelumnya.
+    const serverNowMs = workspaceSnap.readTime?.toMillis?.() ?? Date.now();
+    const issuedAtMs = (workspace as { inviteCodeIssuedAt?: { toMillis?: () => number } }).inviteCodeIssuedAt?.toMillis?.();
+    const expiresAtMs = issuedAtMs !== undefined ? issuedAtMs + INVITE_CODE_VALID_MS : workspace.inviteCodeExpiresAt;
+    if (expiresAtMs && expiresAtMs < serverNowMs) {
       throw new ApiError('Kode undangan sudah kedaluwarsa. Minta admin sekolah membuat kode baru.', 410);
     }
 
@@ -145,7 +152,7 @@ export async function listWorkspaceMembersServer(uid: string) {
         if (u.email) emailByUid.set(u.uid, u.email);
       });
     } catch (error) {
-      console.error('Gagal memuat email anggota:', error instanceof Error ? error.message : error);
+      logger.error('workspace_members.load_emails_failed', { err: error });
     }
   }
 

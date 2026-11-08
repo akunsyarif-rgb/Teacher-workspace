@@ -38,7 +38,7 @@ function buildAttendancePayload(
   const summary: Record<string, number> = { hadir: 0, sakit: 0, izin: 0, dispensasi: 0, alpa: 0, terlambat: 0 };
   const details = students.map((student) => {
     const entry = statusMap[student.id];
-    const status = (ATTENDANCE_STATUS_OPTIONS as readonly string[]).includes(entry?.status as any)
+    const status = (ATTENDANCE_STATUS_OPTIONS as readonly string[]).includes(String(entry?.status))
       ? entry.status
       : 'Hadir';
     const late = status === 'Hadir' && !!entry?.late;

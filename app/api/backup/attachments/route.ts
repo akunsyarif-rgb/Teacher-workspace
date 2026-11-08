@@ -9,6 +9,7 @@ import { BackupAuthError, resolveBackupActor } from '@/lib/server/backup/actor';
 import { claimExportSlot } from '@/lib/server/backup/cooldown';
 import { AttachmentLimitError, partEntries, PathError, planAttachments, probePart, validatePaths } from '@/lib/server/backup/attachments';
 import { attachmentsRateLimits, planCooldownSeconds } from '@/lib/server/backup/limits';
+import { logger } from '@/lib/utils/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
   } catch (e) {
     if (e instanceof BackupAuthError) return fail(403, 'not_a_teacher', 'Akun ini bukan akun guru aktif di sebuah workspace.');
     if (e instanceof PathError) return fail(400, e.message, 'Permintaan lampiran tidak valid.');
-    console.error('backup lampiran gagal:', e instanceof Error ? e.name : typeof e);
+    logger.error('backup_attachments.failed', { errorName: e instanceof Error ? e.name : typeof e });
     return fail(500, 'attachments_failed', 'Lampiran gagal diproses. Coba lagi.');
   }
 }

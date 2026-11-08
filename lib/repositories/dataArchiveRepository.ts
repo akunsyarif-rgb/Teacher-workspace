@@ -20,7 +20,7 @@ async function fetchLifecycleDocs(collectionKey: string, workspaceId: string, ra
   ];
   const docs = await getDocuments(config.collectionName, filters);
   if (!className) return docs;
-  return docs.filter((d: any) => d.className === className);
+  return docs.filter((d) => d.className === className);
 }
 
 export async function countLifecycleData(

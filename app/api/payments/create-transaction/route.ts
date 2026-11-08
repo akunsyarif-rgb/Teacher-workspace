@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/server/firebaseAdmin';
 import { createPaymentTransaction } from '@/lib/server/paymentService';
-import { isPaidPlan } from '@/lib/config/plans';
 import { requireAuth } from '@/lib/server/requireAuth';
-import { errorResponse } from '@/lib/server/apiErrors';
+import { errorResponse, parseBody } from '@/lib/server/apiErrors';
+import { CreateTransactionBodySchema } from '@/lib/schemas/api';
 
 export const runtime = 'nodejs';
 
@@ -13,12 +13,11 @@ export async function POST(request: NextRequest) {
   const { uid, token } = auth;
 
   try {
-    const body = await request.json().catch(() => ({}));
-    const { workspaceId, plan, seatCount } = body ?? {};
-
-    if (!workspaceId || typeof workspaceId !== 'string' || !isPaidPlan(plan)) {
-      return NextResponse.json({ error: 'workspaceId dan plan yang valid diperlukan.' }, { status: 400 });
-    }
+    const { workspaceId, plan, seatCount } = parseBody(
+      CreateTransactionBodySchema,
+      await request.json().catch(() => ({})),
+      'workspaceId dan plan yang valid diperlukan.'
+    );
 
     const adminDb = getAdminDb();
     const workspaceSnap = await adminDb.collection('workspaces').doc(workspaceId).get();

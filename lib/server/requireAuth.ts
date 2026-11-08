@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import { getAdminAuth } from './firebaseAdmin';
+import { logger } from '../utils/logger';
 
 // Satu-satunya tempat token Bearer Firebase diverifikasi untuk route /api.
 // Sebelumnya logika ini disalin di 11 route dan tidak seragam (hanya backup
@@ -47,7 +48,7 @@ export async function authenticate(request: Request, options: AuthOptions = {}):
     auth = getAdminAuth();
   } catch (error) {
     // Detail (mis. env service account kosong) hanya ke log, tidak ke client.
-    console.error('Firebase Admin tidak dapat diinisialisasi:', error instanceof Error ? error.message : error);
+    logger.error('auth.admin_init_failed', { err: error });
     throw new AuthFailure('server_config');
   }
 
