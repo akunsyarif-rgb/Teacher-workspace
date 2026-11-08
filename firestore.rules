@@ -64,6 +64,19 @@ service cloud.firestore {
           get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerUid == request.auth.uid);
     }
 
+    // Field tenant yang TIDAK BOLEH berubah setelah dokumen dibuat (AGENTS.md:
+    // workspaceId, createdBy, createdAt). Tanpa ini, `allow update` yang hanya
+    // memeriksa resource.data (dokumen LAMA) membiarkan guru menulis ulang
+    // workspaceId ke workspace lain dan "menanam" data di tenant orang
+    // lain (tenant escape). Dipanggil di setiap allow update koleksi tenant.
+    // .get(key, null) dipakai untuk createdBy/createdAt karena tidak semua
+    // dokumen lama memilikinya.
+    function keepsTenantImmutables() {
+      return request.resource.data.workspaceId == resource.data.workspaceId &&
+        request.resource.data.get('createdBy', null) == resource.data.get('createdBy', null) &&
+        request.resource.data.get('createdAt', null) == resource.data.get('createdAt', null);
+    }
+
     // --- Siswa (Student Companion) ---
     // Siswa tidak punya teacher_profiles, jadi getWorkspaceId(uid) di atas
     // akan gagal (get() pada dokumen yang tidak ada = deny, bukan error) —
@@ -224,7 +237,7 @@ service cloud.firestore {
       allow update: if isAuthenticated() &&
         resource.data.ownerUid == request.auth.uid &&
         !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['plan', 'classLimit', 'seatLimit', 'planExpiresAt']);
+          .hasAny(['plan', 'classLimit', 'seatLimit', 'planExpiresAt', 'ownerUid', 'createdAt', 'createdBy']);
 
       // 🔴 DILARANG: Tidak boleh menghapus workspace
       allow delete: if false;
@@ -255,7 +268,11 @@ service cloud.firestore {
       allow create: if isAuthenticated() &&
         get(/databases/$(database)/documents/workspaces/$(request.resource.data.workspaceId)).data.ownerUid == request.auth.uid;
 
-      allow update, delete: if isAuthenticated() &&
+      allow update: if isAuthenticated() &&
+        get(/databases/$(database)/documents/workspaces/$(resource.data.workspaceId)).data.ownerUid == request.auth.uid &&
+        request.resource.data.workspaceId == resource.data.workspaceId;
+
+      allow delete: if isAuthenticated() &&
         get(/databases/$(database)/documents/workspaces/$(resource.data.workspaceId)).data.ownerUid == request.auth.uid;
     }
 
@@ -280,11 +297,20 @@ service cloud.firestore {
       allow read: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
 
-      allow create: if isAuthenticated() &&
-        request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
+      // Siswa BARU hanya dibuat lewat POST /api/students/create (Admin SDK):
+      // batas kelas paket (classLimit) dan masa berlaku paket (planExpiresAt)
+      // tidak bisa dihitung di rules (tidak ada query/hitung distinct kelas),
+      // jadi create langsung dari client ditutup total. Kalau tidak, batas
+      // paket cukup dilewati dengan menulis ke Firestore memakai SDK biasa.
+      // className juga tidak boleh diubah dari client (rename kelas lewat
+      // /api/classes/rename) — kalau boleh, siswa bisa dipindah ke kelas
+      // "baru" tanpa kena batas.
+      allow create: if false;
 
       allow update: if isAuthenticated() &&
-        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        keepsTenantImmutables() &&
+        request.resource.data.className == resource.data.className;
 
       allow delete: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
@@ -304,7 +330,8 @@ service cloud.firestore {
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
 
       allow update: if isAuthenticated() &&
-        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        keepsTenantImmutables();
 
       allow delete: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
@@ -321,7 +348,8 @@ service cloud.firestore {
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
 
       allow update: if isAuthenticated() &&
-        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        keepsTenantImmutables();
 
       allow delete: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
@@ -340,7 +368,8 @@ service cloud.firestore {
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
 
       allow update: if isAuthenticated() &&
-        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        keepsTenantImmutables();
 
       allow delete: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
@@ -358,7 +387,8 @@ service cloud.firestore {
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
 
       allow update: if isAuthenticated() &&
-        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        keepsTenantImmutables();
 
       allow delete: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
@@ -383,7 +413,8 @@ service cloud.firestore {
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
 
       allow update: if isAuthenticated() &&
-        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        keepsTenantImmutables();
 
       allow delete: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
@@ -420,7 +451,8 @@ service cloud.firestore {
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
 
       allow update: if isAuthenticated() &&
-        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        keepsTenantImmutables();
 
       allow delete: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
@@ -441,7 +473,8 @@ service cloud.firestore {
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
 
       allow update: if isAuthenticated() &&
-        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        keepsTenantImmutables();
 
       allow delete: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
@@ -461,7 +494,8 @@ service cloud.firestore {
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
 
       allow update: if isAuthenticated() &&
-        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        keepsTenantImmutables();
 
       allow delete: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
@@ -483,7 +517,8 @@ service cloud.firestore {
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
 
       allow update: if isAuthenticated() &&
-        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        keepsTenantImmutables();
 
       allow delete: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
@@ -564,7 +599,8 @@ service cloud.firestore {
         isValidExternalLink(request.resource.data.get('externalLink', null));
 
       allow update: if isAuthenticated() &&
-        hasSameWorkspace(getWorkspaceId(request.auth.uid));
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        keepsTenantImmutables();
 
       // Siswa boleh memperbaiki pengumpulannya selama belum dinilai.
       //
@@ -577,6 +613,7 @@ service cloud.firestore {
       // dikirim DAN sudah dinilai gurunya.
       allow update: if isOwnStudentData(resource.data.workspaceId, resource.data.studentId) &&
         isOwnStudentData(request.resource.data.workspaceId, request.resource.data.studentId) &&
+        keepsTenantImmutables() &&
         request.resource.data.status == 'menunggu_penilaian' &&
         (resource.data.status != 'dinilai' || !hasStudentWork(resource.data)) &&
         keepsTeacherFeedback() &&
@@ -603,7 +640,11 @@ service cloud.firestore {
       allow create: if isAuthenticated() &&
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
 
-      allow update, delete: if isAuthenticated() &&
+      allow update: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        keepsTenantImmutables();
+
+      allow delete: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid));
     }
 
@@ -656,7 +697,12 @@ service cloud.firestore {
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid) &&
         isHomeroomOf(request.resource.data.className);
 
-      allow update, delete: if isAuthenticated() &&
+      allow update: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        isHomeroomOf(resource.data.className) &&
+        keepsTenantImmutables();
+
+      allow delete: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
         isHomeroomOf(resource.data.className);
     }
@@ -676,7 +722,12 @@ service cloud.firestore {
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid) &&
         isHomeroomOf(request.resource.data.className);
 
-      allow update, delete: if isAuthenticated() &&
+      allow update: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        isHomeroomOf(resource.data.className) &&
+        keepsTenantImmutables();
+
+      allow delete: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
         isHomeroomOf(resource.data.className);
     }
@@ -703,7 +754,12 @@ service cloud.firestore {
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid) &&
         isHomeroomOf(request.resource.data.className);
 
-      allow update, delete: if isAuthenticated() &&
+      allow update: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        isHomeroomOf(resource.data.className) &&
+        keepsTenantImmutables();
+
+      allow delete: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
         isHomeroomOf(resource.data.className);
     }
@@ -739,7 +795,12 @@ service cloud.firestore {
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid) &&
         isHomeroomOf(request.resource.data.className);
 
-      allow update, delete: if isAuthenticated() &&
+      allow update: if isAuthenticated() &&
+        hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
+        isHomeroomOf(resource.data.className) &&
+        keepsTenantImmutables();
+
+      allow delete: if isAuthenticated() &&
         hasSameWorkspace(getWorkspaceId(request.auth.uid)) &&
         isHomeroomOf(resource.data.className);
     }

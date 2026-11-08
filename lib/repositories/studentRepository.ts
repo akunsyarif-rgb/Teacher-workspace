@@ -1,6 +1,7 @@
-import { getDocument, getDocuments, deleteDocument, batchWrite, generateId, BatchOperation } from '../adapters/firestoreAdapter';
+import { getDocument, getDocuments, deleteDocument, batchWrite, BatchOperation } from '../adapters/firestoreAdapter';
 import { COLLECTIONS } from '../config/constants';
 import { generateAccessCode } from '../utils/accessCode';
+import { postToServer } from '../adapters/serverApiAdapter';
 
 export async function getAllStudents(workspaceId: string) {
   if (!workspaceId) return [];
@@ -36,33 +37,20 @@ function buildLoginCodeDoc(
   };
 }
 
-// Setiap siswa dapat accessCode unik untuk login ke Student Companion —
-// disimpan juga sebagai dokumen terpisah di student_login_codes (id
-// dokumen = kode itu sendiri) supaya alur klaim akun bisa mencari
-// berdasarkan kode tanpa perlu query koleksi students yang lebih sensitif.
+// Pembuatan siswa (dokumen siswa + dokumen kode akses di student_login_codes)
+// dilakukan SERVER (POST /api/students/create, Admin SDK), bukan batch
+// Firestore dari client: batas kelas paket dan masa berlaku paket tidak bisa
+// ditegakkan firestore.rules, jadi rules menutup create langsung ke students.
+// Server juga yang membuat accessCode dan mengisi createdBy/createdAt.
+type CreatedStudentResponse = { students: { id: string; name: string; nis: string; className: string; accessCode: string }[] };
+
 export async function createStudent(
   workspaceId: string,
   data: { name: string; nis: string; className: string }
 ) {
   if (!workspaceId) throw new Error('workspaceId diperlukan');
-  const id = generateId(COLLECTIONS.STUDENTS);
-  const accessCode = generateAccessCode();
-  const operations: BatchOperation[] = [
-    {
-      type: 'set',
-      collectionName: COLLECTIONS.STUDENTS,
-      id,
-      data: { ...data, workspaceId, accessCode, createdAt: new Date().toISOString() },
-    },
-    {
-      type: 'set',
-      collectionName: COLLECTIONS.STUDENT_LOGIN_CODES,
-      id: accessCode,
-      data: buildLoginCodeDoc(id, workspaceId, data),
-    },
-  ];
-  await batchWrite(operations);
-  return { id, ...data, workspaceId, accessCode };
+  const { students } = await postToServer<CreatedStudentResponse>('/api/students/create', { students: [data] });
+  return { ...students[0], workspaceId };
 }
 
 export async function createStudentsBatch(
@@ -70,26 +58,15 @@ export async function createStudentsBatch(
   students: { name: string; nis: string; className: string }[]
 ) {
   if (!workspaceId) throw new Error('workspaceId diperlukan');
-  const operations: BatchOperation[] = [];
-  students.forEach((student) => {
-    const id = generateId(COLLECTIONS.STUDENTS);
-    const accessCode = generateAccessCode();
-    operations.push({
-      type: 'set',
-      collectionName: COLLECTIONS.STUDENTS,
-      id,
-      data: { ...student, workspaceId, accessCode, createdAt: new Date().toISOString() },
+  const SERVER_CHUNK = 200; // sama dengan batas per permintaan di server
+  let saved = 0;
+  for (let i = 0; i < students.length; i += SERVER_CHUNK) {
+    const res = await postToServer<CreatedStudentResponse>('/api/students/create', {
+      students: students.slice(i, i + SERVER_CHUNK),
     });
-    operations.push({
-      type: 'set',
-      collectionName: COLLECTIONS.STUDENT_LOGIN_CODES,
-      id: accessCode,
-      data: buildLoginCodeDoc(id, workspaceId, student),
-    });
-  });
-
-  await batchWrite(operations);
-  return students.length;
+    saved += res.students.length;
+  }
+  return saved;
 }
 
 // Siswa yang dibuat sebelum fitur Student Companion ada belum punya

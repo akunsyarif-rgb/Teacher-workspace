@@ -67,3 +67,21 @@ export function assertSeatLimitNotReached(workspace: { seatLimit?: number | null
     );
   }
 }
+
+// Paket berlangganan yang sudah lewat planExpiresAt turun ke batas gratis
+// untuk MEMBUAT kelas baru. Data/kelas yang sudah ada tetap utuh dan bisa
+// dibuka (tidak ada data yang disembunyikan atau dihapus); yang tertutup
+// hanya penambahan kelas baru sampai paket diperpanjang. Satu-satunya
+// sumber aturan ini — dipakai server (enforcement) dan UI (pesan).
+export function isPlanExpired(workspace: { planExpiresAt?: number | null }, now: number = Date.now()) {
+  return typeof workspace.planExpiresAt === 'number' && workspace.planExpiresAt < now;
+}
+
+export function getEffectiveClassLimit(
+  workspace: { classLimit?: number | null; planExpiresAt?: number | null },
+  now: number = Date.now()
+): number | null {
+  const limit = workspace.classLimit ?? null;
+  if (!isPlanExpired(workspace, now)) return limit;
+  return limit === null ? FREE_CLASS_LIMIT : Math.min(limit, FREE_CLASS_LIMIT);
+}

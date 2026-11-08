@@ -13,6 +13,7 @@ import {
   PLAN_DURATION_MS,
   isSeatLimitReached,
   assertSeatLimitNotReached,
+  getEffectiveClassLimit,
 } from '../config/plans';
 
 // Re-export supaya kode lain (controller/UI) yang sudah mengimpor
@@ -120,8 +121,9 @@ export async function loadWorkspace(workspaceId: string) {
 // Fungsi murni (tidak query apapun) — dipanggil dengan jumlah kelas yang
 // sudah dihitung di tempat lain (mis. dari daftar kelas unik siswa).
 export function isClassLimitReached(workspace: WorkspaceDoc, currentClassCount: number) {
-  if (workspace.classLimit === null || workspace.classLimit === undefined) return false;
-  return currentClassCount >= workspace.classLimit;
+  const limit = getEffectiveClassLimit(workspace);
+  if (limit === null) return false;
+  return currentClassCount >= limit;
 }
 
 // Versi yang langsung menolak (throw) — dipanggil dari studentService
@@ -129,7 +131,7 @@ export function isClassLimitReached(workspace: WorkspaceDoc, currentClassCount: 
 export function assertClassLimitNotReached(workspace: WorkspaceDoc, currentClassCount: number) {
   if (isClassLimitReached(workspace, currentClassCount)) {
     throw new Error(
-      `Paket Anda dibatasi maksimal ${workspace.classLimit} kelas. Hubungi admin untuk upgrade paket.`
+      `Paket Anda dibatasi maksimal ${getEffectiveClassLimit(workspace)} kelas. Hubungi admin untuk upgrade paket.`
     );
   }
 }
