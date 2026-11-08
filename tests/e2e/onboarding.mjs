@@ -395,7 +395,19 @@ async function run() {
       );
     }
   } catch (error) {
-    fail('Alur uji berhenti karena error tak terduga', error.message);
+    // Sertakan bukti dari halaman yang sedang dipakai (bukan hanya pesan timeout): layar + teks + URL.
+    let evidence = error.message;
+    for (const [label, page] of [['owner', owner], ['joiner', joiner]]) {
+      try {
+        const file = `/tmp/e2e-onboarding-error-${label}.png`;
+        await page.screenshot({ path: file, fullPage: true });
+        const text = (await page.locator('body').innerText()).replace(/\s+/g, ' ').slice(0, 300);
+        evidence += ` | ${label}: url=${page.url()} layar=${file} teks="${text}"`;
+      } catch {
+        // halaman mungkin sudah tertutup
+      }
+    }
+    fail('Alur uji berhenti karena error tak terduga', evidence);
   } finally {
     await browser.close();
     stopServer(server);
