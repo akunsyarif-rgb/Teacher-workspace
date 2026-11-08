@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { handleMidtransNotification } from '@/lib/server/paymentService';
+import { handleMidtransNotification, PaymentNotificationError } from '@/lib/server/paymentService';
 
 export const runtime = 'nodejs';
 
@@ -7,6 +7,12 @@ export const runtime = 'nodejs';
 // Midtrans Dashboard (Settings → Configuration). Tidak ada auth header
 // dari Midtrans — keasliannya diverifikasi lewat signature_key di dalam
 // payload itu sendiri (lihat handleMidtransNotification).
+//
+// Status HTTP: 200 HANYA bila notifikasi benar-benar diproses (atau sudah
+// pernah diproses — idempoten). Signature salah (401), nominal tak cocok /
+// payload cacat (400), order tak dikenal (404), dan kegagalan sementara
+// (500) semuanya non-2xx supaya Midtrans tahu notifikasinya tidak diterima
+// dan kita punya jejak untuk dicek — bukan ditelan dengan 200.
 export async function POST(request: NextRequest) {
   let payload: unknown;
   try {
@@ -16,19 +22,15 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Bentuk payload divalidasi secara implisit lewat verifySignature di
-    // dalam handleMidtransNotification — field yang tidak lengkap/salah
-    // bentuk akan gagal di situ, bukan di sini.
     const result = await handleMidtransNotification(payload as Parameters<typeof handleMidtransNotification>[0]);
     return NextResponse.json({ ok: true, ...result });
-  } catch (error: any) {
+  } catch (error) {
+    if (error instanceof PaymentNotificationError) {
+      // Dicatat sebagai peringatan: bisa jadi indikasi percobaan penyalahgunaan atau salah konfigurasi.
+      console.error(`midtrans webhook ditolak (${error.status}):`, error.message);
+      return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
+    }
     console.error('midtrans webhook error:', error);
-    const isPermanentRejection = /signature|tidak ditemukan/i.test(String(error.message || ''));
-    // Signature tidak valid / order_id tak dikenal: retry oleh Midtrans
-    // tidak akan pernah berhasil, jadi balas 200 supaya tidak di-retry
-    // terus, tapi tetap dicatat di log server untuk investigasi (bisa
-    // jadi indikasi percobaan penyalahgunaan). Error lain (mis. Firestore
-    // sempat gagal) dibalas 500 supaya Midtrans retry otomatis.
-    return NextResponse.json({ ok: false, error: error.message }, { status: isPermanentRejection ? 200 : 500 });
+    return NextResponse.json({ ok: false, error: 'Gagal memproses notifikasi.' }, { status: 500 });
   }
 }

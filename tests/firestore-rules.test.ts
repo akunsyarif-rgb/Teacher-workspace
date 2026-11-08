@@ -190,7 +190,7 @@ describe('workspaces', () => {
     await assertFails(getDoc(doc(db, 'workspaces/ws1')));
   });
 
-  it('lets an authenticated stranger get a single workspace that currently has an invite code open (needed to preview before joining)', async () => {
+  it('denies an authenticated stranger getting a workspace even if it has an invite code open (join goes through /api/workspace/join, no client preview)', async () => {
     await seed((db) =>
       setDoc(doc(db, 'workspaces/ws1'), {
         ownerUid: 'ownerX',
@@ -200,7 +200,7 @@ describe('workspaces', () => {
       })
     );
     const db = testEnv.authenticatedContext('strangerNoWorkspace').firestore();
-    await assertSucceeds(getDoc(doc(db, 'workspaces/ws1')));
+    await assertFails(getDoc(doc(db, 'workspaces/ws1')));
   });
 
   it('never allows listing/querying the workspaces collection at all (no enumeration, even for open-invite workspaces)', async () => {
@@ -314,10 +314,16 @@ describe('audit T1 — privilege escalation via teacher_profiles self-write', ()
 // sungguhan di titik teacher_profiles.allow create.
 // ============================================================
 describe('audit T2 — join workspace via invite code', () => {
-  it('a brand new teacher (no workspace yet) can get the invite bridge doc by code', async () => {
-    await seed((db) => setDoc(doc(db, 'workspace_invites/ABC123'), { workspaceId: 'ws1', expiresAt: Date.now() + 100000 }));
-    const db = testEnv.authenticatedContext('newTeacher').firestore();
-    await assertSucceeds(getDoc(doc(db, 'workspace_invites/ABC123')));
+  // Kode undangan hanya diverifikasi server (/api/workspace/join, rate limited).
+  // Baca dari client dibuka = kode bisa ditebak massal tanpa pembatas.
+  it('NO client (new teacher, owner, anonymous) can get an invite bridge doc, even by exact code', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'workspaces/ws1'), { ownerUid: 'realOwner', plan: 'individual_lifetime', classLimit: 3 });
+      await setDoc(doc(db, 'workspace_invites/ABC123'), { workspaceId: 'ws1', expiresAt: Date.now() + 100000 });
+    });
+    await assertFails(getDoc(doc(testEnv.authenticatedContext('newTeacher').firestore(), 'workspace_invites/ABC123')));
+    await assertFails(getDoc(doc(testEnv.authenticatedContext('realOwner').firestore(), 'workspace_invites/ABC123')));
+    await assertFails(getDoc(doc(testEnv.unauthenticatedContext().firestore(), 'workspace_invites/ABC123')));
   });
 
   it('workspace_invites is never listable (no enumerating all active invite codes)', async () => {
@@ -338,7 +344,7 @@ describe('audit T2 — join workspace via invite code', () => {
   // Celah G3: sebelumnya klaim TEACHER mandiri lolos selama undangan aktif — tanpa kode dan tanpa
   // cek kuota kursi (juga membuat guru yang dikeluarkan bisa masuk lagi). Gabung kini hanya lewat
   // /api/workspace/join (Admin SDK), jadi klien tidak boleh menulis role TEACHER sendiri.
-  it('new teacher can PREVIEW a workspace by invite code but can NOT self-claim TEACHER from the client', async () => {
+  it('new teacher can NOT read the workspace by id (no preview/leak) and can NOT self-claim TEACHER from the client', async () => {
     await seed((db) =>
       setDoc(doc(db, 'workspaces/ws1'), {
         ownerUid: 'ownerX',
@@ -352,9 +358,8 @@ describe('audit T2 — join workspace via invite code', () => {
     await seedProfile('newTeacher', null, 'TEACHER'); // profil awal kosong, workspaceId belum ada
 
     const db = testEnv.authenticatedContext('newTeacher').firestore();
-    const bridge = await getDoc(doc(db, 'workspace_invites/ABC123'));
-    expect(bridge.exists()).toBe(true);
-    await assertSucceeds(getDoc(doc(db, 'workspaces/ws1')));
+    await assertFails(getDoc(doc(db, 'workspace_invites/ABC123')));
+    await assertFails(getDoc(doc(db, 'workspaces/ws1')));
     await assertFails(updateDoc(doc(db, 'teacher_profiles/newTeacher'), { workspaceId: 'ws1', role: 'TEACHER' }));
   });
 
@@ -400,8 +405,7 @@ describe('audit T2 — join workspace via invite code', () => {
 
   it('denies an invalid/unknown invite code from resolving to anything', async () => {
     const db = testEnv.authenticatedContext('newTeacher').firestore();
-    const bridge = await getDoc(doc(db, 'workspace_invites/DOESNOTEXIST'));
-    expect(bridge.exists()).toBe(false);
+    await assertFails(getDoc(doc(db, 'workspace_invites/DOESNOTEXIST')));
   });
 
   it('a teacher already in another workspace cannot use this mechanism to bypass tenancy isolation (workspaceId already locked)', async () => {
@@ -556,10 +560,16 @@ async function seedStudentProfile(uid: string, studentId: string, workspaceId: s
 }
 
 describe('student_login_codes — klaim akun Student Companion', () => {
-  it('lets any authenticated user get a code by its exact id (needed before a student has any profile)', async () => {
+  // Klaim lewat /api/student/claim (Admin SDK, rate limited). Akun anonim bebas
+  // dibuat, jadi `get` terbuka = kode bisa ditebak massal tanpa pembatas.
+  it('denies ANY client reading a code, even by exact id (anonymous account, other teacher, same-workspace teacher)', async () => {
+    await seedProfile('teacherA', 'ws1');
+    await seedProfile('teacherB', 'ws2');
     await seed((db) => setDoc(doc(db, 'student_login_codes/ABC123'), { studentId: 's1', workspaceId: 'ws1' }));
-    const db = testEnv.authenticatedContext('studentA').firestore();
-    await assertSucceeds(getDoc(doc(db, 'student_login_codes/ABC123')));
+    await assertFails(getDoc(doc(testEnv.authenticatedContext('anonStudent').firestore(), 'student_login_codes/ABC123')));
+    await assertFails(getDoc(doc(testEnv.authenticatedContext('teacherA').firestore(), 'student_login_codes/ABC123')));
+    await assertFails(getDoc(doc(testEnv.authenticatedContext('teacherB').firestore(), 'student_login_codes/ABC123')));
+    await assertFails(getDocs(collection(testEnv.authenticatedContext('anonStudent').firestore(), 'student_login_codes')));
   });
 
   it('denies unauthenticated access', async () => {
@@ -586,15 +596,15 @@ describe('student_profiles — identitas akun siswa', () => {
   const seedCode = () =>
     seed((db) => setDoc(doc(db, 'student_login_codes/ABC123'), { studentId: 's1', workspaceId: 'ws1', className: 'XI-A', name: 'Budi' }));
 
-  it('lets a student create their own profile (claiming a VALID access code)', async () => {
+  // Profil dibuat HANYA oleh server (/api/student/claim) setelah kode terverifikasi
+  // + rate limit. Client tidak boleh membuat profil sendiri, bahkan dengan kode valid.
+  it('denies a client creating a profile at all, even with a VALID access code', async () => {
     await seedCode();
     const db = testEnv.authenticatedContext('studentUidA').firestore();
-    await assertSucceeds(setDoc(doc(db, 'student_profiles/studentUidA'), profile));
+    await assertFails(setDoc(doc(db, 'student_profiles/studentUidA'), profile));
   });
 
-  // Celah G2: sebelumnya create hanya memeriksa uid — profil palsu untuk workspace/kelas mana pun lolos,
-  // lalu isStudentInClass() membuka data kelas itu.
-  it('denies a forged profile: no access code, unknown code, or fields that do not match the code', async () => {
+  it('denies forged profiles (no code, unknown code, other class/workspace/student)', async () => {
     await seedCode();
     const db = testEnv.authenticatedContext('studentUidA').firestore();
     const { accessCode, ...noCode } = profile;
@@ -1096,24 +1106,18 @@ describe('Student Companion — query (list) harus lolos rules, bukan cuma get',
   });
 });
 
-// Alur klaim kode akses (studentAuthService.claimAccessCode) berjalan
-// sebagai siswa yang BELUM punya student_profiles. Test ini memastikan
-// setiap baca yang dilakukan alur itu memang diizinkan rules — kalau ada
-// satu saja yang ditolak, siswa tidak akan pernah bisa masuk.
-describe('alur klaim kode akses — semua baca yang dibutuhkan harus lolos', () => {
-  it('lets a not-yet-claimed user read the login code document', async () => {
-    await seed((db) =>
-      setDoc(doc(db, 'student_login_codes/ABC123'), { studentId: 's1', workspaceId: 'ws1' })
-    );
+// Klaim kode akses kini dikerjakan server (/api/student/claim, Admin SDK) — lihat
+// tests/student-claim.test.ts. Yang dijaga di sini: client tidak lagi bisa
+// membaca kode atau menulis profil sendiri, dan profil yang dibuat server
+// langsung membuka data kelasnya (jalur baca siswa tidak berubah).
+describe('alur klaim kode akses — sisi rules', () => {
+  it('a not-yet-claimed user can NOT read the login code document', async () => {
+    await seed((db) => setDoc(doc(db, 'student_login_codes/ABC123'), { studentId: 's1', workspaceId: 'ws1' }));
     const db = testEnv.authenticatedContext('freshAnon').firestore();
-    await assertSucceeds(getDoc(doc(db, 'student_login_codes/ABC123')));
+    await assertFails(getDoc(doc(db, 'student_login_codes/ABC123')));
   });
 
-  // Justru karena baca ini SELALU ditolak, dokumen kode akses harus
-  // memuat sendiri identitas siswa — bukan sekadar studentId. Test ini
-  // mengunci alasan itu supaya tidak ada yang "menyederhanakan" kembali
-  // ke pola baca students dan diam-diam mematikan login siswa.
-  it('CANNOT read the students document during claim (no teacher profile, no student profile yet)', async () => {
+  it('CANNOT read the students document before having a profile', async () => {
     await seed((db) =>
       setDoc(doc(db, 'students/s1'), { workspaceId: 'ws1', className: 'XI-A', name: 'Budi', nis: '123' })
     );
@@ -1121,36 +1125,16 @@ describe('alur klaim kode akses — semua baca yang dibutuhkan harus lolos', () 
     await assertFails(getDoc(doc(db, 'students/s1')));
   });
 
-  it('completes the whole claim flow using only the login code document', async () => {
-    await seed((db) =>
-      setDoc(doc(db, 'student_login_codes/ABC123'), {
-        studentId: 's1',
-        workspaceId: 'ws1',
-        name: 'Budi',
-        className: 'XI-A',
-        nis: '123',
-      })
-    );
+  it('a profile written by the server (Admin) immediately unlocks the class data and the own profile read', async () => {
+    await seed(async (d) => {
+      // seed memakai rules-disabled = setara tulisan Admin SDK dari server.
+      await setDoc(doc(d, 'student_profiles/freshAnon'), {
+        studentId: 's1', workspaceId: 'ws1', className: 'XI-A', name: 'Budi', nis: '123', accessCode: 'ABC123',
+      });
+      await setDoc(doc(d, 'schedules/sc1'), { workspaceId: 'ws1', className: 'XI-A' });
+    });
     const db = testEnv.authenticatedContext('freshAnon').firestore();
-
-    const codeSnap = await getDoc(doc(db, 'student_login_codes/ABC123'));
-    const code = codeSnap.data()!;
-    expect(code.className).toBe('XI-A');
-    expect(code.name).toBe('Budi');
-
-    await assertSucceeds(
-      setDoc(doc(db, 'student_profiles/freshAnon'), {
-        studentId: code.studentId,
-        workspaceId: code.workspaceId,
-        className: code.className,
-        name: code.name,
-        nis: code.nis,
-        accessCode: 'ABC123', // dicocokkan rules dengan dokumen kode login
-      })
-    );
-
-    // Dan setelah klaim, data akademiknya langsung terbaca.
-    await seed((d) => setDoc(doc(d, 'schedules/sc1'), { workspaceId: 'ws1', className: 'XI-A' }));
+    await assertSucceeds(getDoc(doc(db, 'student_profiles/freshAnon')));
     await assertSucceeds(getDoc(doc(db, 'schedules/sc1')));
   });
 });

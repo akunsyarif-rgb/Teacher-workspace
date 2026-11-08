@@ -59,24 +59,9 @@ export async function getWorkspaceById(workspaceId: string) {
   return getDocument(WORKSPACES_COLLECTION, workspaceId) as Promise<(WorkspaceDoc & { id: string }) | null>;
 }
 
-// Guru baru (belum tergabung workspace mana pun) tidak boleh query
-// collection workspaces langsung — itu akar masalah audit T2. Alih-alih,
-// tempuh jembatan workspace_invites (get by ID, bukan query), lalu ambil
-// dokumen workspace-nya (diizinkan lewat allow get bersyarat di
-// firestore.rules). Kode yang sudah diganti (regenerateInviteCode) tetap
-// ditolak lewat pengecekan `workspace.inviteCode !== inviteCode` — bekas
-// jembatan lama boleh tetap ada, tapi tidak lagi cocok dengan kode aktif
-// workspace-nya.
-export async function findWorkspaceByInviteCode(inviteCode: string) {
-  const bridge = (await getDocument(WORKSPACE_INVITES_COLLECTION, inviteCode)) as
-    | { workspaceId?: string }
-    | null;
-  if (!bridge?.workspaceId) return null;
-
-  const workspace = await getWorkspaceById(bridge.workspaceId);
-  if (!workspace || workspace.inviteCode !== inviteCode) return null;
-  return workspace;
-}
+// Pencarian workspace berdasarkan kode undangan SENGAJA tidak ada di client:
+// kode diverifikasi hanya di server (/api/workspace/join, Admin SDK, rate
+// limited) — rules menutup baca workspace_invites dari client.
 
 export async function updateWorkspaceInviteCode(
   workspaceId: string,

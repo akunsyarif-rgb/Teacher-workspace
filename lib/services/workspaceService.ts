@@ -15,6 +15,7 @@ import {
   assertSeatLimitNotReached,
   getEffectiveClassLimit,
 } from '../config/plans';
+import { randomCode } from '../utils/secureRandomCode';
 
 // Re-export supaya kode lain (controller/UI) yang sudah mengimpor
 // konstanta ini dari workspaceService tidak perlu berubah — sumber
@@ -45,13 +46,12 @@ async function assertNoExistingWorkspace(uid: string) {
   }
 }
 
+// Alfabet tanpa 0/O/1/I biar tidak salah baca. CSPRNG (bukan Math.random);
+// penebakan dibatasi rate limit di /api/workspace/join + kedaluwarsa kode.
+const INVITE_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
 function generateInviteCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // tanpa 0/O/1/I biar tidak salah baca
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return code;
+  return randomCode(INVITE_CODE_ALPHABET, 6);
 }
 
 export async function createIndividualWorkspace(

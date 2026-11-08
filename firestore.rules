@@ -226,7 +226,10 @@ service cloud.firestore {
       // Keabsahan SUNGGUHAN (kode belum berubah & belum kedaluwarsa)
       // ditegakkan di titik yang benar-benar menulis akses: allow create
       // di teacher_profiles (lihat komentar role=='TEACHER' di atas).
-      allow get: if isAuthenticated() && resource.data.inviteCode != null;
+      // (Dulu ada `allow get` bersyarat inviteCode != null untuk pratinjau
+      // workspace oleh guru baru. DIHAPUS: gabung kini sepenuhnya lewat
+      // /api/workspace/join (Admin SDK, rate limited); baca langsung dari
+      // client hanya membuka workspaceId yang bocor + penebakan massal.)
 
       // Owner bisa mengupdate workspace-nya — TAPI field plan/classLimit/
       // seatLimit/planExpiresAt DIKUNCI dari client sama sekali. Field-
@@ -258,8 +261,11 @@ service cloud.firestore {
     // workspace scoping (guru baru memang belum punya workspaceId).
     // ============================================================
     match /workspace_invites/{code} {
-      allow get: if isAuthenticated();
-      allow list: if false;
+      // TIDAK ADA baca dari client sama sekali: kode undangan hanya
+      // diverifikasi server (Admin SDK) di /api/workspace/join dengan rate
+      // limit. Membuka `get` untuk semua akun login = kode bisa ditebak
+      // massal tanpa pembatas.
+      allow read: if false;
 
       // Cuma owner workspace terkait yang boleh membuat/mengganti
       // jembatan kode — dicek ke dokumen workspaces sungguhan, bukan
@@ -634,8 +640,11 @@ service cloud.firestore {
     // karena saat klaim siswa belum py profil apa pun.
     // ============================================================
     match /student_login_codes/{code} {
-      allow get: if isAuthenticated();
-      allow list: if false;
+      // TIDAK ADA baca dari client: klaim kode akses lewat
+      // /api/student/claim (Admin SDK, rate limited). Dulu `allow get` untuk
+      // semua akun login — termasuk akun anonim yang bebas dibuat — sehingga
+      // kode 8 karakter bisa ditebak massal tanpa pembatas.
+      allow read: if false;
 
       allow create: if isAuthenticated() &&
         request.resource.data.workspaceId == getWorkspaceId(request.auth.uid);
@@ -667,16 +676,11 @@ service cloud.firestore {
       // `accessCode` (workspaceId, studentId, className). Tanpa ini, siapa pun
       // bisa membuat profil siswa palsu untuk workspace/kelas mana pun lalu
       // membaca data kelas itu lewat isStudentInClass().
-      function matchesLoginCode(d) {
-        return d.get('accessCode', null) is string &&
-          exists(/databases/$(database)/documents/student_login_codes/$(d.accessCode)) &&
-          get(/databases/$(database)/documents/student_login_codes/$(d.accessCode)).data.workspaceId == d.workspaceId &&
-          get(/databases/$(database)/documents/student_login_codes/$(d.accessCode)).data.studentId == d.studentId &&
-          get(/databases/$(database)/documents/student_login_codes/$(d.accessCode)).data.className == d.className;
-      }
-
-      allow create: if isAuthenticated() && request.auth.uid == authUid &&
-        matchesLoginCode(request.resource.data);
+      // Dibuat HANYA oleh server (/api/student/claim, Admin SDK) setelah kode
+      // akses terverifikasi + rate limit. Create dari client ditutup total —
+      // sebelumnya dicocokkan ke student_login_codes lewat rules, yang
+      // mensyaratkan kode itu bisa dibaca semua akun login.
+      allow create: if false;
       allow update, delete: if false;
     }
 

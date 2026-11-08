@@ -1,5 +1,6 @@
 import midtransClient from 'midtrans-client';
 import crypto from 'node:crypto';
+import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from './firebaseAdmin';
 import { PLAN_PRICES, PLAN_CLASS_LIMITS, PLAN_DURATION_MS, isPaidPlan, type PaidPlan } from '../config/plans';
 
@@ -124,74 +125,143 @@ type MidtransNotificationPayload = {
   fraud_status?: string;
 };
 
-function verifySignature(payload: MidtransNotificationPayload, serverKey: string) {
-  const expected = crypto
-    .createHash('sha512')
-    .update(`${payload.order_id}${payload.status_code}${payload.gross_amount}${serverKey}`)
-    .digest('hex');
-  return expected === payload.signature_key;
+// Error yang dipetakan route webhook ke status HTTP. SEMUA kegagalan validasi
+// dibalas non-2xx: Midtrans menganggap non-2xx sebagai gagal kirim (mencoba
+// ulang / menandai di dashboard), dan kita ikut punya jejak log untuk
+// investigasi percobaan penyalahgunaan — bukan 200 yang menelan masalahnya.
+export class PaymentNotificationError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
 }
+
+// Perbandingan waktu-konstan (timingSafeEqual) agar signature tidak bisa
+// ditebak karakter demi karakter lewat selisih waktu respons. Panjang
+// harus sama (sha512 hex = 128 karakter) — timingSafeEqual melempar bila beda.
+export function verifySignature(payload: MidtransNotificationPayload, serverKey: string) {
+  if (
+    typeof payload?.order_id !== 'string' ||
+    typeof payload.status_code !== 'string' ||
+    typeof payload.gross_amount !== 'string' ||
+    typeof payload.signature_key !== 'string'
+  ) {
+    return false;
+  }
+  const expected = Buffer.from(
+    crypto
+      .createHash('sha512')
+      .update(`${payload.order_id}${payload.status_code}${payload.gross_amount}${serverKey}`)
+      .digest('hex'),
+    'utf8'
+  );
+  const received = Buffer.from(payload.signature_key, 'utf8');
+  if (expected.length !== received.length) return false;
+  return crypto.timingSafeEqual(expected, received);
+}
+
+// Midtrans mengirim gross_amount sebagai string desimal ("149000.00").
+function parseGrossAmount(value: string): number | null {
+  if (!/^\d+(\.\d+)?$/.test(value)) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+// Status akhir yang TIDAK boleh ditimpa event 'pending' yang datang telat.
+const FINAL_FAILED_STATUSES = new Set(['expire', 'cancel', 'deny', 'failure']);
 
 // Dipanggil dari route /api/payments/webhook — satu-satunya jalur yang
 // boleh mengubah plan/classLimit/seatLimit/planExpiresAt workspace,
 // karena field itu dikunci dari client di firestore.rules. Admin SDK di
-// sini bypass rules sepenuhnya, jadi verifikasi signature di bawah ini
-// adalah satu-satunya penjaga — tanpa itu siapa pun bisa memanggil
-// endpoint webhook dan meng-upgrade workspace mana pun secara gratis.
+// sini bypass rules sepenuhnya, jadi verifikasi signature + nominal di bawah
+// ini adalah penjaga utamanya.
+//
+// Pembacaan status pembayaran, penerapan plan ke workspace, dan penandaan
+// 'settled' terjadi dalam SATU transaksi Firestore: dua notifikasi bersamaan
+// (retry Midtrans) tidak bisa sama-sama menerapkan plan — yang kedua membaca
+// status 'settled' dan berhenti.
 export async function handleMidtransNotification(payload: MidtransNotificationPayload) {
   const serverKey = process.env.MIDTRANS_SERVER_KEY;
   if (!serverKey) {
     throw new Error('MIDTRANS_SERVER_KEY belum di-set di environment variable.');
   }
   if (!verifySignature(payload, serverKey)) {
-    throw new Error('Signature Midtrans tidak valid — notifikasi ditolak.');
+    throw new PaymentNotificationError('Signature Midtrans tidak valid — notifikasi ditolak.', 401);
+  }
+  const paidAmount = parseGrossAmount(payload.gross_amount);
+  if (paidAmount === null || typeof payload.transaction_status !== 'string') {
+    throw new PaymentNotificationError('Payload notifikasi tidak lengkap atau salah bentuk.', 400);
   }
 
   const adminDb = getAdminDb();
   const paymentRef = adminDb.collection(PAYMENTS_COLLECTION).doc(payload.order_id);
-  const paymentSnap = await paymentRef.get();
-  if (!paymentSnap.exists) {
-    throw new Error(`Payment record untuk order_id ${payload.order_id} tidak ditemukan.`);
-  }
-  const payment = paymentSnap.data() as {
-    workspaceId: string;
-    plan: PaidPlan;
-    seatCount: number | null;
-    status: string;
-  };
 
-  // Idempoten — Midtrans bisa mengirim notifikasi yang sama lebih dari
-  // sekali (mis. retry jaringan); jangan terapkan dua kali.
-  if (payment.status === 'settled') {
-    return { alreadyProcessed: true, applied: false };
-  }
+  return adminDb.runTransaction(async (tx) => {
+    const paymentSnap = await tx.get(paymentRef);
+    if (!paymentSnap.exists) {
+      throw new PaymentNotificationError(`Payment record untuk order_id ${payload.order_id} tidak ditemukan.`, 404);
+    }
+    const payment = paymentSnap.data() as {
+      workspaceId: string;
+      plan: PaidPlan;
+      seatCount: number | null;
+      grossAmount: number;
+      status: string;
+    };
 
-  const isSuccess =
-    payload.transaction_status === 'settlement' ||
-    (payload.transaction_status === 'capture' && payload.fraud_status === 'accept');
+    // Nominal yang dibayar HARUS sama dengan yang kita catat saat membuat
+    // transaksi. Signature menjamin payload asli dari Midtrans, tapi bukan
+    // bahwa nominalnya sesuai paket yang akan dibuka.
+    if (paidAmount !== payment.grossAmount) {
+      throw new PaymentNotificationError(
+        `Nominal notifikasi (${paidAmount}) tidak sama dengan nominal order (${payment.grossAmount}).`,
+        400
+      );
+    }
 
-  if (!isSuccess) {
-    await paymentRef.update({ status: payload.transaction_status, updatedAt: Date.now() });
-    return { alreadyProcessed: false, applied: false };
-  }
+    // Idempoten + anti-regresi: begitu 'settled', event apa pun (settlement
+    // ulang, pending/expire/cancel yang datang telat) diabaikan.
+    if (payment.status === 'settled') {
+      return { alreadyProcessed: true, applied: false };
+    }
 
-  const plan = payment.plan;
-  const durationMs = PLAN_DURATION_MS[plan];
-  const workspaceUpdate: Record<string, unknown> = {
-    plan,
-    classLimit: PLAN_CLASS_LIMITS[plan],
-    planExpiresAt: durationMs ? Date.now() + durationMs : null,
-    updatedAt: Date.now(),
-  };
-  if (plan === 'school_annual') {
-    // Menimpa (bukan menambah) seatLimit dengan jumlah kursi yang baru
-    // dibeli — cukup untuk versi pertama; beli tambahan kursi berarti
-    // owner memasukkan total kursi yang diinginkan, bukan tambahannya.
-    workspaceUpdate.seatLimit = payment.seatCount;
-  }
+    const isSuccess =
+      payload.transaction_status === 'settlement' ||
+      (payload.transaction_status === 'capture' && payload.fraud_status === 'accept');
 
-  await adminDb.collection(WORKSPACES_COLLECTION).doc(payment.workspaceId).update(workspaceUpdate);
-  await paymentRef.update({ status: 'settled', settledAt: Date.now() });
+    if (!isSuccess) {
+      // 'pending' telat tidak boleh menimpa status akhir gagal (expire/cancel/deny).
+      if (payload.transaction_status === 'pending' && FINAL_FAILED_STATUSES.has(payment.status)) {
+        return { alreadyProcessed: false, applied: false };
+      }
+      tx.update(paymentRef, { status: payload.transaction_status, updatedAt: FieldValue.serverTimestamp() });
+      return { alreadyProcessed: false, applied: false };
+    }
 
-  return { alreadyProcessed: false, applied: true };
+    const workspaceRef = adminDb.collection(WORKSPACES_COLLECTION).doc(payment.workspaceId);
+    const workspaceSnap = await tx.get(workspaceRef);
+    if (!workspaceSnap.exists) {
+      throw new PaymentNotificationError(`Workspace ${payment.workspaceId} untuk order ini tidak ditemukan.`, 404);
+    }
+
+    const plan = payment.plan;
+    const durationMs = PLAN_DURATION_MS[plan];
+    const workspaceUpdate: Record<string, unknown> = {
+      plan,
+      classLimit: PLAN_CLASS_LIMITS[plan],
+      planExpiresAt: durationMs ? Date.now() + durationMs : null,
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    if (plan === 'school_annual') {
+      // Menimpa (bukan menambah) seatLimit dengan jumlah kursi yang baru
+      // dibeli — cukup untuk versi pertama; beli tambahan kursi berarti
+      // owner memasukkan total kursi yang diinginkan, bukan tambahannya.
+      workspaceUpdate.seatLimit = payment.seatCount;
+    }
+
+    tx.update(workspaceRef, workspaceUpdate);
+    tx.update(paymentRef, { status: 'settled', settledAt: FieldValue.serverTimestamp() });
+    return { alreadyProcessed: false, applied: true };
+  });
 }
