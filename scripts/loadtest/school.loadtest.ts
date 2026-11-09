@@ -65,13 +65,14 @@ const SCALE = Number(process.env.LOADTEST_SCALE ?? '1');
 const RUNS = 3;
 const num = (name: string, fallback: number) => (process.env[name] ? Number(process.env[name]) : fallback);
 
+const memStore = (): Storage => { const m = new Map<string, string>(); return { get length() { return m.size; }, key: (i: number) => Array.from(m.keys())[i] ?? null, getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k), clear: () => m.clear() } as Storage; };
 let testEnv: RulesTestEnvironment;
 let seed: SeedResult;
 const size = scaled(LARGE_SCHOOL, SCALE);
 
 beforeAll(async () => {
   // Node tidak punya localStorage: pakai penyimpanan memori supaya cache perangkat (Beranda/presensi siswa) ikut teruji.
-  { const m = new Map<string, string>(); setPersistentStorageForTests({ get length() { return m.size; }, key: (i: number) => Array.from(m.keys())[i] ?? null, getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k), clear: () => m.clear() } as Storage); }
+  setPersistentStorageForTests(memStore());
   testEnv = await initializeTestEnvironment({
     projectId: PROJECT,
     firestore: {
@@ -114,11 +115,11 @@ describe('sekolah besar', () => {
     const results: ScenarioResult[] = [];
     for (const sc of scenarios) {
       const times: number[] = [];
-      if (sc.fresh) { const m = new Map<string, string>(); setPersistentStorageForTests({ get length() { return m.size; }, key: (i: number) => Array.from(m.keys())[i] ?? null, getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k), clear: () => m.clear() } as Storage); }
+      setPersistentStorageForTests(memStore()); // tiap skenario mulai dari perangkat kosong
       if (sc.prime) await sc.prime();
       let first = { reads: 0, docs: 0, bytes: 0, queries: 0 };
       for (let i = 0; i < RUNS; i++) {
-        if (sc.fresh && i > 0) setPersistentStorageForTests({ get length() { return 0; }, key: () => null, getItem: () => null, setItem: () => {}, removeItem: () => {}, clear: () => {} } as unknown as Storage);
+        if (sc.fresh && i > 0) setPersistentStorageForTests(memStore());
         hoisted.t = { reads: 0, docs: 0, bytes: 0, queries: 0 };
         const t0 = performance.now();
         await sc.run();
