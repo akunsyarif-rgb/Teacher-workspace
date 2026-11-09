@@ -100,7 +100,7 @@ function stopServer(server) {
 
 async function run() {
   const server = await startAppServer();
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+  const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   const teacher = await (await browser.newContext()).newPage();
 
   const consoleErrors = [];

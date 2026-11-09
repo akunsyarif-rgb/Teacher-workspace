@@ -161,7 +161,7 @@ async function run() {
   const pgrst = await startPostgrest(db.url);
   const q = (sql) => psql(db.url, ['-c', sql]).trim();
   const server = await startApp();
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+  const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   const teacher = await (await browser.newContext()).newPage();
   const student = await (await browser.newContext()).newPage();
   const student2 = await (await browser.newContext()).newPage(); // perangkat/sesi anonim baru untuk siswa yang sama

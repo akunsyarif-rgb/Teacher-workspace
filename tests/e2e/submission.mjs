@@ -222,7 +222,7 @@ async function openTeacherAssignment(teacher, className, title) {
 
 async function run() {
   const server = await startAppServer();
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+  const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   const teacherContext = await browser.newContext();
   const studentContext = await browser.newContext();
   const teacher = await teacherContext.newPage();

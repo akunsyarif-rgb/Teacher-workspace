@@ -1,3 +1,4 @@
+import Link from "next/link";
 import ErrorScreen, { primaryActionClass } from "@/src/components/ui/ErrorScreen";
 
 export default function NotFound() {
@@ -6,9 +7,9 @@ export default function NotFound() {
       title="Halaman tidak ditemukan"
       message="Alamat yang Anda buka tidak ada atau sudah dipindahkan."
     >
-      <a href="/" className={primaryActionClass}>
+      <Link href="/" className={primaryActionClass}>
         Ke beranda
-      </a>
+      </Link>
     </ErrorScreen>
   );
 }

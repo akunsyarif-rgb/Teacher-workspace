@@ -208,7 +208,7 @@ async function signup(page, { email, mode, workspaceName, inviteCode }) {
 
 async function run() {
   const server = await startAppServer();
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+  const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
 
   // Tiga persona, tiga konteks browser terpisah — mewakili tiga perangkat
   // berbeda, sama seperti pemisahan guru/siswa di smoke.mjs.

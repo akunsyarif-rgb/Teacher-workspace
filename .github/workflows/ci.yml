@@ -1,0 +1,174 @@
+name: CI
+
+# Berjalan di setiap pull request dan setiap push ke main: lint + typecheck, build, seluruh tes unit/rules/DB,
+# dan seluruh suite E2E browser (paralel per suite). Workflow tes lama (test-firestore-rules.yml, ulangan-db-tests.yml)
+# kini tercakup job "unit" di sini.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NODE_VERSION: "24"
+  POSTGREST_VERSION: v12.2.3
+  POSTGREST_SHA256: 9f71269e61ac3a940281e93ff415760f5957e430e475ba4c3889f3ede7d5527c
+  # Env build tanpa kredensial nyata (mode emulator), sama dengan yang dipakai skrip E2E.
+  NEXT_PUBLIC_USE_FIREBASE_EMULATOR: "true"
+  NEXT_PUBLIC_FIREBASE_API_KEY: demo-key
+  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: demo-teacher-workspace.firebaseapp.com
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID: demo-teacher-workspace
+  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: demo-teacher-workspace.appspot.com
+  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "000000000000"
+  NEXT_PUBLIC_FIREBASE_APP_ID: 1:000000000000:web:demo
+
+jobs:
+  static:
+    name: Lint + typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      # Peringatan lint dibatasi (--max-warnings di package.json): jumlahnya tidak boleh naik. Turunkan angkanya saat merapikan.
+      - name: Lint
+        run: npm run lint:ci
+      - name: Typecheck
+        run: npm run typecheck
+
+  build:
+    name: Build produksi
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+  unit:
+    name: Tes unit + rules + DB (emulator, Postgres, PostgREST)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: pw
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      RLS_TEST_ADMIN_URL: postgresql://postgres:pw@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      # Firestore & Storage Emulator butuh JDK 21+.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npm ci
+      - name: Pasang klien PostgreSQL dan PostgREST
+        run: |
+          sudo apt-get update && sudo apt-get install -y postgresql-client
+          curl -fsSL -o "$RUNNER_TEMP/pgrst.tar.xz" "https://github.com/PostgREST/postgrest/releases/download/${POSTGREST_VERSION}/postgrest-${POSTGREST_VERSION}-linux-static-x64.tar.xz"
+          echo "${POSTGREST_SHA256}  $RUNNER_TEMP/pgrst.tar.xz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/pgrst" && tar -xJf "$RUNNER_TEMP/pgrst.tar.xz" -C "$RUNNER_TEMP/pgrst"
+          echo "POSTGREST_BIN=$RUNNER_TEMP/pgrst/postgrest" >> "$GITHUB_ENV"
+      - name: Seluruh tes (vitest di atas emulator)
+        run: npm run test:rules
+
+  e2e:
+    name: E2E ${{ matrix.script }}
+    # Hanya dijalankan bila pemeriksaan dasar lolos (menghemat menit runner).
+    needs: [static, unit]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        script:
+          - test:e2e
+          - test:e2e:onboarding
+          - test:e2e:rename-class
+          - test:e2e:grade-lock
+          - test:e2e:submission
+          - test:e2e:submission-drive-link
+          - test:e2e:attendance-complete-confirm
+          - test:e2e:backup
+          - test:e2e:class-tabs
+          - test:e2e:recycle-bin
+          - test:e2e:ulangan
+          - test:e2e:visual
+    # Pemeriksaan visual bergantung pada rendering font/OS runner: dilaporkan tetapi tidak memblokir sampai terbukti stabil.
+    continue-on-error: ${{ matrix.script == 'test:e2e:visual' }}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: pw
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      RLS_TEST_ADMIN_URL: postgresql://postgres:pw@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npm ci
+      - name: Pasang Chromium untuk Playwright
+        run: |
+          npx playwright install --with-deps chromium
+          echo "PLAYWRIGHT_CHROMIUM_PATH=$(node -e "console.log(require('playwright').chromium.executablePath())")" >> "$GITHUB_ENV"
+      - name: Pasang PostgREST (hanya suite Ulangan)
+        if: matrix.script == 'test:e2e:ulangan'
+        run: |
+          sudo apt-get update && sudo apt-get install -y postgresql-client
+          curl -fsSL -o "$RUNNER_TEMP/pgrst.tar.xz" "https://github.com/PostgREST/postgrest/releases/download/${POSTGREST_VERSION}/postgrest-${POSTGREST_VERSION}-linux-static-x64.tar.xz"
+          echo "${POSTGREST_SHA256}  $RUNNER_TEMP/pgrst.tar.xz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/pgrst" && tar -xJf "$RUNNER_TEMP/pgrst.tar.xz" -C "$RUNNER_TEMP/pgrst"
+          echo "POSTGREST_BIN=$RUNNER_TEMP/pgrst/postgrest" >> "$GITHUB_ENV"
+      - name: Jalankan suite
+        run: npm run ${{ matrix.script }}
+      - name: Unggah bukti kegagalan (tangkapan layar)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-bukti-${{ strategy.job-index }}
+          path: /tmp/e2e-*.png
+          if-no-files-found: ignore
