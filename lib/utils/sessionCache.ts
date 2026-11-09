@@ -7,6 +7,8 @@
  * supaya tidak pernah menampilkan data basi setelah guru menyimpan sesuatu.
  */
 
+import { derivedCache } from './persistentCache';
+
 type CacheEntry<T> = { data: T; timestamp: number };
 
 const cache = new Map<string, CacheEntry<unknown>>();
@@ -34,6 +36,8 @@ export function setCached<T>(key: string, data: T): void {
  */
 export function clearAllCached(): void {
   cache.clear();
+  // Cache persisten turunan (mis. daftar kelas Beranda) juga basi setelah guru mengubah data di perangkat ini.
+  derivedCache.clear();
 }
 
 // Monitoring PALING sederhana yang mungkin: hampir semua fetch data di

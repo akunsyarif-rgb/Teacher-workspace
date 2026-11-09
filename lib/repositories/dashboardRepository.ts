@@ -45,3 +45,31 @@ export async function getJournalCount(workspaceId: string) {
   if (!workspaceId) return 0;
   return countDocuments(COLLECTIONS.JOURNALS, [['workspaceId', '==', workspaceId]]);
 }
+
+// Beranda hanya butuh dokumen HARI INI untuk status per jadwal; hari-hari
+// sebelumnya cukup angkanya (aggregation, 1 baca per 1000 entri indeks).
+export async function getJournalsOnDate(workspaceId: string, date: string): Promise<Doc<JournalData>[]> {
+  if (!workspaceId) return [];
+  return getDocuments<JournalData>(COLLECTIONS.JOURNALS, [
+    ['workspaceId', '==', workspaceId],
+    ['date', '==', date],
+  ]);
+}
+
+export async function getAttendancesOnDate(workspaceId: string, date: string): Promise<Doc<AttendanceData>[]> {
+  if (!workspaceId) return [];
+  return getDocuments<AttendanceData>(COLLECTIONS.ATTENDANCES, [
+    ['workspaceId', '==', workspaceId],
+    ['date', '==', date],
+  ]);
+}
+
+export async function getJournalCountOnDate(workspaceId: string, date: string) {
+  if (!workspaceId) return 0;
+  return countDocuments(COLLECTIONS.JOURNALS, [['workspaceId', '==', workspaceId], ['date', '==', date]]);
+}
+
+export async function getAttendanceCountOnDate(workspaceId: string, date: string) {
+  if (!workspaceId) return 0;
+  return countDocuments(COLLECTIONS.ATTENDANCES, [['workspaceId', '==', workspaceId], ['date', '==', date]]);
+}

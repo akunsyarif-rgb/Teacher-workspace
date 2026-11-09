@@ -58,6 +58,7 @@ import { getSubmissionsForAssignment } from '../../lib/services/submissionServic
 import { loadInsights } from '../../lib/services/analyticsService';
 import { loadSchedules } from '../../lib/services/scheduleService';
 import * as portal from '../../lib/services/studentPortalService';
+import { setPersistentStorageForTests } from '../../lib/utils/persistentCache';
 
 const PROJECT = 'demo-loadtest';
 const SCALE = Number(process.env.LOADTEST_SCALE ?? '1');
@@ -69,6 +70,8 @@ let seed: SeedResult;
 const size = scaled(LARGE_SCHOOL, SCALE);
 
 beforeAll(async () => {
+  // Node tidak punya localStorage: pakai penyimpanan memori supaya cache perangkat (Beranda/presensi siswa) ikut teruji.
+  { const m = new Map<string, string>(); setPersistentStorageForTests({ get length() { return m.size; }, key: (i: number) => Array.from(m.keys())[i] ?? null, getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k), clear: () => m.clear() } as Storage); }
   testEnv = await initializeTestEnvironment({
     projectId: PROJECT,
     firestore: {
@@ -89,8 +92,9 @@ describe('sekolah besar', () => {
     const cls = seed.sampleClass;
     const scope = { workspaceId: ws, className: cls, studentId: seed.sampleStudentId };
 
-    const scenarios: { name: string; actor: 'guru' | 'siswa'; label: string; run: () => Promise<unknown> }[] = [
-      { name: 'beranda', actor: 'guru', label: 'Guru: Beranda (ringkasan hari ini)', run: () => loadDashboardSummary(ws) },
+    const scenarios: { name: string; actor: 'guru' | 'siswa'; label: string; run: () => Promise<unknown>; prime?: () => Promise<unknown>; fresh?: boolean }[] = [
+      { name: 'beranda', actor: 'guru', label: 'Guru: Beranda — buka pertama (cache perangkat kosong)', run: () => loadDashboardSummary(ws), fresh: true },
+      { name: 'beranda-hangat', actor: 'guru', label: 'Guru: Beranda — buka berikutnya (cache perangkat terisi)', run: () => loadDashboardSummary(ws), prime: () => loadDashboardSummary(ws) },
       { name: 'daftar-kelas', actor: 'guru', label: 'Guru: daftar kelas', run: () => listClassSummaries(ws) },
       { name: 'detail-kelas', actor: 'guru', label: 'Guru: detail kelas (siswa)', run: () => getStudentsInClass(ws, cls) },
       { name: 'riwayat-presensi', actor: 'guru', label: 'Guru: riwayat presensi satu kelas', run: () => listAttendanceHistory(ws, cls) },
@@ -99,17 +103,22 @@ describe('sekolah besar', () => {
       { name: 'pengumpulan', actor: 'guru', label: 'Guru: pengumpulan satu tugas', run: () => getSubmissionsForAssignment(ws, cls, seed.sampleAssignmentId) },
       { name: 'analitik', actor: 'guru', label: 'Guru: Analitik', run: () => loadInsights(ws) },
       { name: 'jadwal', actor: 'guru', label: 'Guru: Jadwal', run: () => loadSchedules(ws) },
-      {
-        name: 'portal-siswa', actor: 'siswa', label: 'Siswa: buka Student Companion',
-        run: () => Promise.all([portal.getAnnouncements(scope), portal.getSchedule(scope), portal.getAssignments(scope), portal.getGrades(scope), portal.getAttendance(scope), portal.getAchievements(scope)]),
-      },
+      { name: 'siswa-beranda', actor: 'siswa', label: 'Siswa: Beranda (pengumuman)', run: () => portal.getAnnouncements(scope) },
+      { name: 'siswa-jadwal', actor: 'siswa', label: 'Siswa: Jadwal', run: () => portal.getSchedule(scope) },
+      { name: 'siswa-tugas', actor: 'siswa', label: 'Siswa: Tugas', run: () => portal.getAssignments(scope) },
+      { name: 'siswa-nilai', actor: 'siswa', label: 'Siswa: Nilai', run: () => portal.getGrades(scope) },
+      { name: 'siswa-presensi', actor: 'siswa', label: 'Siswa: Kehadiran — buka pertama (sinkron penuh)', run: () => portal.getAttendance(scope), fresh: true },
+      { name: 'siswa-presensi-hangat', actor: 'siswa', label: 'Siswa: Kehadiran — buka berikutnya (sinkron jendela 7 hari)', run: () => portal.getAttendance(scope), prime: () => portal.getAttendance(scope) },
     ];
 
     const results: ScenarioResult[] = [];
     for (const sc of scenarios) {
       const times: number[] = [];
+      if (sc.fresh) { const m = new Map<string, string>(); setPersistentStorageForTests({ get length() { return m.size; }, key: (i: number) => Array.from(m.keys())[i] ?? null, getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k), clear: () => m.clear() } as Storage); }
+      if (sc.prime) await sc.prime();
       let first = { reads: 0, docs: 0, bytes: 0, queries: 0 };
       for (let i = 0; i < RUNS; i++) {
+        if (sc.fresh && i > 0) setPersistentStorageForTests({ get length() { return 0; }, key: () => null, getItem: () => null, setItem: () => {}, removeItem: () => {}, clear: () => {} } as unknown as Storage);
         hoisted.t = { reads: 0, docs: 0, bytes: 0, queries: 0 };
         const t0 = performance.now();
         await sc.run();
@@ -124,8 +133,8 @@ describe('sekolah besar', () => {
     // Profil pemakaian harian (dapat diubah): sekolah besar 60 guru, 1.296 siswa.
     const usage: UsageProfile = {
       teachers: size.teachers, students: size.classes * size.studentsPerClass, schoolDaysPerMonth: 22, studentActiveRate: num('LOADTEST_STUDENT_ACTIVE', 0.6),
-      teacherOpensPerDay: { beranda: 8, 'daftar-kelas': 3, 'detail-kelas': 6, 'riwayat-presensi': 4, 'riwayat-jurnal': 3, nilai: 3, pengumpulan: 2, analitik: 0.5, jadwal: 2 },
-      studentOpensPerDay: { 'portal-siswa': 2 },
+      teacherOpensPerDay: { beranda: 1, 'beranda-hangat': 7, 'daftar-kelas': 3, 'detail-kelas': 6, 'riwayat-presensi': 4, 'riwayat-jurnal': 3, nilai: 3, pengumpulan: 2, analitik: 0.5, jadwal: 2 },
+      studentOpensPerDay: { 'siswa-beranda': 2, 'siswa-jadwal': 0.5, 'siswa-tugas': 1, 'siswa-nilai': 0.5, 'siswa-presensi': 0.05, 'siswa-presensi-hangat': 0.25 },
       teacherWritesPerDay: 20, studentWritesPerDay: 0.3,
     };
     const prices: Prices = { ...DEFAULT_PRICES, readPer100k: num('LOADTEST_PRICE_READ_PER_100K', DEFAULT_PRICES.readPer100k), writePer100k: num('LOADTEST_PRICE_WRITE_PER_100K', DEFAULT_PRICES.writePer100k), usdIdr: num('LOADTEST_USD_IDR', DEFAULT_PRICES.usdIdr) };
