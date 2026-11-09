@@ -8,6 +8,7 @@ import { auth } from "@/src/config/firebase";
 import { useWorkspace } from "@/src/context/WorkspaceContext";
 import WorkspaceGuard from "@/src/components/ui/WorkspaceGuard";
 import InviteCodeCard from "@/src/components/workspace/InviteCodeCard";
+import LegalLinks from "@/src/components/legal/LegalLinks";
 import { User, ChevronRight, LogOut, BarChart3, Wallet, Database, ShieldCheck, HardDriveDownload, Trash2 } from "lucide-react";
 
 export default function AccountPage() {
@@ -136,6 +137,8 @@ export default function AccountPage() {
             Keluar
           </button>
         </WorkspaceGuard>
+
+        <LegalLinks className="pt-2" />
       </div>
     </div>
   );

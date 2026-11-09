@@ -40,7 +40,7 @@ export default function BottomNav() {
     }
   }
 
-  if (pathname === "/login" || pathname.startsWith("/student")) return null;
+  if (pathname === "/login" || pathname === "/privasi" || pathname === "/syarat" || pathname.startsWith("/student")) return null;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#D9DED5] bg-[#FFFEF9]/95 shadow-[0_-2px_10px_rgba(36,41,35,0.05)] backdrop-blur supports-[backdrop-filter]:bg-[#FFFEF9]/90 xl:bottom-0 xl:left-0 xl:right-auto xl:top-0 xl:w-56 xl:border-r xl:border-t-0 xl:shadow-[2px_0_10px_rgba(36,41,35,0.04)]">

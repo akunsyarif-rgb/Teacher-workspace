@@ -54,6 +54,7 @@ async function signupWithStudent(page, email, studentName, className) {
   await page.fill('input[placeholder="Minimal 6 karakter"]', PASS);
   await page.fill('input[placeholder="Ulangi kata sandi"]', PASS);
   await page.fill('input[placeholder*="Kelas Pak"]', `WS ${studentName}`);
+  await page.check('input[name="consent"]'); // persetujuan Kebijakan Privasi + Syarat (wajib saat daftar)
   await page.click('button[type="submit"]');
   await page.waitForURL(`${BASE_URL}/`, { timeout: 30000 });
   await page.goto(`${BASE_URL}/classes`, { waitUntil: 'domcontentloaded' });

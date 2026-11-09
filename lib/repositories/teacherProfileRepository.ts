@@ -1,4 +1,4 @@
-import { getDocument, getDocumentFromCache, setDocument, updateDocument } from '../adapters/firestoreAdapter';
+import { getDocument, getDocumentFromCache, setDocument, updateDocument, serverTimestamp } from '../adapters/firestoreAdapter';
 
 const TEACHER_PROFILES_COLLECTION = 'teacher_profiles';
 
@@ -12,6 +12,8 @@ export type TeacherProfile = {
   isActive?: boolean;
   quickNote?: string; // <-- TAMBAH
   homeroomClassName?: string | null; // kelas yang diwalikan guru ini, null = bukan wali kelas
+  legalConsentAt?: unknown; // serverTimestamp saat menyetujui Kebijakan Privasi + Syarat
+  legalConsentVersion?: string; // versi dokumen yang disetujui (lib/config/legal.ts)
 };
 
 export async function getTeacherProfile(uid: string): Promise<TeacherProfile | null> {
@@ -51,3 +53,8 @@ export async function updateTeacherQuickNote(uid: string, quickNote: string) {
 // yang memindahkan seat-limit check ke app/api/workspace/join/route.ts).
 // Kalau butuh hitung anggota workspace lagi nanti, lakukan lewat Admin SDK
 // di server (lib/server/workspaceAdminService.ts), bukan di sini.
+
+// Bukti persetujuan Kebijakan Privasi + Syarat dan Ketentuan saat mendaftar: waktu DARI SERVER dan versi dokumen.
+export async function saveLegalConsent(uid: string, version: string) {
+  await updateDocument(TEACHER_PROFILES_COLLECTION, uid, { legalConsentAt: serverTimestamp(), legalConsentVersion: version });
+}

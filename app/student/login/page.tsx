@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { signInAnonymously } from "firebase/auth";
+import LegalLinks from "@/src/components/legal/LegalLinks";
 import { auth } from "@/src/config/firebase";
 import { useRouter } from "next/navigation";
 import { GraduationCap, KeyRound, ArrowRight, ArrowLeft } from "lucide-react";
@@ -129,6 +130,7 @@ export default function StudentLoginPage() {
         <p className="text-center text-xs text-nb-ink-muted">
           Belum punya kode akses? Minta ke gurumu di kelas.
         </p>
+        <LegalLinks />
       </div>
     </div>
   );

@@ -1779,3 +1779,23 @@ describe('workspaces — tidak bisa dihapus siapa pun', () => {
     await assertFails(deleteDoc(doc(testEnv.authenticatedContext('ownerD').firestore(), 'workspaces/ws1')));
   });
 });
+
+
+describe('teacher_profiles — bukti persetujuan hukum', () => {
+  it('guru boleh menulis legalConsentAt/Version ke profilnya sendiri (tanpa mengubah workspace/role)', async () => {
+    await seedProfile('teacherA', 'ws1', 'TEACHER');
+    const db = testEnv.authenticatedContext('teacherA').firestore();
+    await assertSucceeds(updateDoc(doc(db, 'teacher_profiles/teacherA'), { legalConsentAt: 1, legalConsentVersion: '2026-11-09' }));
+  });
+  it('tidak boleh menulis ke profil guru lain', async () => {
+    await seedProfile('teacherA', 'ws1', 'TEACHER');
+    await seedProfile('teacherB', 'ws1', 'TEACHER');
+    const db = testEnv.authenticatedContext('teacherB').firestore();
+    await assertFails(updateDoc(doc(db, 'teacher_profiles/teacherA'), { legalConsentVersion: 'palsu' }));
+  });
+  it('menulis persetujuan tidak bisa dipakai untuk menaikkan role/workspace', async () => {
+    await seedProfile('teacherA', 'ws1', 'TEACHER');
+    const db = testEnv.authenticatedContext('teacherA').firestore();
+    await assertFails(updateDoc(doc(db, 'teacher_profiles/teacherA'), { legalConsentVersion: 'x', role: 'OWNER' }));
+  });
+});

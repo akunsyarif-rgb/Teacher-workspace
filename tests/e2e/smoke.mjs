@@ -203,6 +203,7 @@ async function run() {
     await teacher.fill('input[placeholder="Minimal 6 karakter"]', TEACHER_PASSWORD);
     await teacher.fill('input[placeholder="Ulangi kata sandi"]', TEACHER_PASSWORD);
     await teacher.fill('input[placeholder*="Kelas Pak"]', 'Workspace Uji');
+    await teacher.check('input[name="consent"]'); // persetujuan Kebijakan Privasi + Syarat (wajib saat daftar)
     await teacher.click('button[type="submit"]');
     await teacher.waitForURL(`${BASE_URL}/`, { timeout: 30000 });
     pass('Guru mendaftar dan workspace terbuat');

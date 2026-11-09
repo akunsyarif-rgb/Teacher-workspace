@@ -1,8 +1,10 @@
+import { LEGAL_VERSION } from '../config/legal';
 import {
   getTeacherProfile,
   saveTeacherProfile,
   setTeacherWorkspace,
   updateTeacherQuickNote,
+  saveLegalConsent,
   TeacherProfile,
   TeacherRole,
 } from '../repositories/teacherProfileRepository';
@@ -43,4 +45,10 @@ export async function assignTeacherToWorkspace(
   role: TeacherRole
 ) {
   return setTeacherWorkspace(uid, workspaceId, role);
+}
+
+// Mencatat persetujuan hukum saat daftar. Dipanggil SETELAH profil/workspace terbentuk.
+export async function recordLegalConsent(uid: string) {
+  if (!uid) throw new Error('Akun tidak valid.');
+  return saveLegalConsent(uid, LEGAL_VERSION);
 }

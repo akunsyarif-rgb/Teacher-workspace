@@ -4,6 +4,7 @@ import {
   updateTeacherSubject,
   updateTeacherHomeroomClass,
   updateTeacherQuickNoteService,
+  recordLegalConsent as recordLegalConsentService,
 } from '../services/teacherProfileService';
 
 export async function fetchTeacherProfile(uid: string) {
@@ -25,4 +26,8 @@ export async function saveTeacherHomeroomClass(uid: string, className: string | 
 // Fungsi baru: update quickNote
 export async function saveTeacherQuickNote(uid: string, quickNote: string) {
   return updateTeacherQuickNoteService(uid, quickNote);
+}
+
+export async function recordLegalConsent(uid: string) {
+  return recordLegalConsentService(uid);
 }

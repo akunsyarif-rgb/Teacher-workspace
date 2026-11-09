@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import LegalLinks from "@/src/components/legal/LegalLinks";
 import { signInWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "@/src/config/firebase";
 import { useRouter } from "next/navigation";
@@ -213,6 +214,7 @@ export default function LoginPage() {
             Belum punya akun guru?{" "}
             <a href="/signup" className="font-bold text-nb-green hover:underline">Buat akun Teacher Workspace</a>
           </p>
+          <LegalLinks className="mt-3" />
         </footer>
       </section>
     </main>
