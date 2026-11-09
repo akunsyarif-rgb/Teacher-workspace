@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { captureClientError } from "@/lib/utils/sentryReporter";
 import ErrorScreen, { primaryActionClass, secondaryActionClass } from "@/src/components/ui/ErrorScreen";
 
 // Menangkap galat saat render di segmen mana pun di bawah layout root, supaya
@@ -15,6 +16,7 @@ export default function Error({
 }) {
   useEffect(() => {
     console.error("Kesalahan tampilan:", error.digest ?? "tanpa-digest");
+    captureClientError(error, { boundary: 'app/error' });
   }, [error]);
 
   return (
@@ -26,6 +28,8 @@ export default function Error({
       <button type="button" onClick={() => reset()} className={primaryActionClass}>
         Coba lagi
       </button>
+      {/* Navigasi keras (bukan <Link>) disengaja: saat terjadi galat, router klien bisa saja rusak. */}
+      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
       <a href="/" className={secondaryActionClass}>
         Ke beranda
       </a>

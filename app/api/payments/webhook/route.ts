@@ -28,7 +28,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof PaymentNotificationError) {
       // Dicatat sebagai peringatan: bisa jadi indikasi percobaan penyalahgunaan atau salah konfigurasi.
-      logger.warn('midtrans_webhook.rejected', { status: error.status, reason: error.message });
+      // Signature salah (401) / nominal tak cocok atau payload cacat (400) = indikasi penyalahgunaan atau salah konfigurasi:
+      // naik ke level error DENGAN err supaya sampai ke pemantauan (Sentry). 404 (order tak dikenal, mis. tes Midtrans) cukup warn.
+      if (error.status === 404) logger.warn('midtrans_webhook.rejected', { status: error.status, reason: error.message });
+      else logger.error('midtrans_webhook.rejected', { status: error.status, err: error });
       return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
     }
     logger.error('midtrans_webhook.failed', { err: error });

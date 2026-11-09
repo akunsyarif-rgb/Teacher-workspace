@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { captureClientError } from "@/lib/utils/sentryReporter";
 
 // Dipakai HANYA bila layout root sendiri yang crash — menggantikan seluruh <html>,
 // jadi tidak bisa bergantung pada CSS/komponen aplikasi (globals.css tidak termuat):
@@ -14,6 +15,7 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error("Kesalahan fatal tampilan:", error.digest ?? "tanpa-digest");
+    captureClientError(error, { boundary: 'app/global-error' });
   }, [error]);
 
   const button = {
@@ -58,6 +60,8 @@ export default function GlobalError({
           <button type="button" style={button} onClick={() => reset()}>
             Coba lagi
           </button>
+          {/* Navigasi keras disengaja: layout/router bisa rusak saat global-error. */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href="/" style={{ ...button, background: "transparent", color: "#1f2937", border: "1px solid #d1d5db", textDecoration: "none" }}>
             Ke beranda
           </a>

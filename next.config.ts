@@ -1,10 +1,12 @@
 import type { NextConfig } from "next";
 import { buildSecurityHeaders, originOf } from "./lib/config/securityHeaders";
+import { dsnOrigin } from "./lib/utils/sentryReporter";
 
 const securityHeaders = buildSecurityHeaders({
   isProduction: process.env.NODE_ENV === "production",
   useEmulator: process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === "true",
   supabaseOrigin: originOf(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL),
+  sentryOrigin: dsnOrigin(process.env.NEXT_PUBLIC_SENTRY_DSN) ?? undefined,
 });
 
 const nextConfig: NextConfig = {

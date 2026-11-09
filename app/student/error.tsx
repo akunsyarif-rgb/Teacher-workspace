@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { captureClientError } from "@/lib/utils/sentryReporter";
 import ErrorScreen, { primaryActionClass, secondaryActionClass } from "@/src/components/ui/ErrorScreen";
 
 // Sama seperti app/error.tsx, tetapi tautan pulangnya ke beranda siswa.
@@ -13,6 +14,7 @@ export default function StudentError({
 }) {
   useEffect(() => {
     console.error("Kesalahan tampilan (siswa):", error.digest ?? "tanpa-digest");
+    captureClientError(error, { boundary: 'app/student/error' });
   }, [error]);
 
   return (

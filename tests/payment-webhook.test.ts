@@ -11,6 +11,7 @@ vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () =
 vi.mock('@/lib/server/firebaseAdmin', () => ({ getAdminDb: () => fake.db }));
 
 import { POST } from '../app/api/payments/webhook/route';
+import { setErrorReporter, setLogSink } from '../lib/utils/logger';
 import { handleMidtransNotification, verifySignature, PaymentNotificationError } from '../lib/server/paymentService';
 
 const SERVER_KEY = 'SB-Mid-server-test-key';
@@ -177,5 +178,25 @@ describe('POST /api/payments/webhook — status HTTP', () => {
     const res = await POST(webhookReq(notification()));
     expect(res.status).toBe(500);
     expect(JSON.stringify(await res.json())).not.toMatch(/MIDTRANS_SERVER_KEY/);
+  });
+});
+
+describe('peringatan ke pemantauan (Sentry)', () => {
+  it('signature salah (401) dan nominal tak cocok (400) dilaporkan sebagai error; order tak dikenal (404) tidak', async () => {
+    const reporter = vi.fn();
+    setErrorReporter(reporter);
+    setLogSink(() => undefined);
+    try {
+      await POST(webhookReq(notification({ signature_key: 'x' })));
+      await POST(webhookReq(notification({ gross_amount: '1.00' })));
+      expect(reporter).toHaveBeenCalledTimes(2);
+      expect(reporter.mock.calls[0][1]).toMatchObject({ event: 'midtrans_webhook.rejected', status: 401 });
+      expect(reporter.mock.calls[1][1]).toMatchObject({ event: 'midtrans_webhook.rejected', status: 400 });
+      await POST(webhookReq(notification({ order_id: 'tak-dikenal' })));
+      expect(reporter).toHaveBeenCalledTimes(2);
+    } finally {
+      setErrorReporter(null);
+      setLogSink(null);
+    }
   });
 });

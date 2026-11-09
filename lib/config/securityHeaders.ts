@@ -14,6 +14,8 @@ export type SecurityHeaderEnv = {
   useEmulator: boolean;
   /** Origin Supabase dari env (SUPABASE_URL / NEXT_PUBLIC_SUPABASE_URL), bila ada. */
   supabaseOrigin?: string;
+  /** Origin ingest Sentry dari NEXT_PUBLIC_SENTRY_DSN (agar browser boleh mengirim laporan galat), bila diaktifkan. */
+  sentryOrigin?: string;
 };
 
 const MIDTRANS_HOSTS = [
@@ -42,6 +44,7 @@ export function originOf(raw: string | undefined): string | undefined {
 
 export function buildCsp(env: SecurityHeaderEnv): string {
   const supabase = ['https://*.supabase.co', ...(env.supabaseOrigin ? [env.supabaseOrigin] : [])];
+  const sentry = env.sentryOrigin ? [env.sentryOrigin] : [];
   const local = env.useEmulator ? ['http://127.0.0.1:*', 'http://localhost:*', 'ws://127.0.0.1:*', 'ws://localhost:*'] : [];
 
   const directives: Record<string, string[]> = {
@@ -50,7 +53,7 @@ export function buildCsp(env: SecurityHeaderEnv): string {
     'style-src': ["'self'", "'unsafe-inline'"],
     'img-src': ["'self'", 'data:', 'blob:', 'https:', ...local],
     'font-src': ["'self'", 'data:'],
-    'connect-src': ["'self'", ...FIREBASE_CONNECT, ...supabase, ...MIDTRANS_HOSTS, ...local],
+    'connect-src': ["'self'", ...FIREBASE_CONNECT, ...supabase, ...MIDTRANS_HOSTS, ...sentry, ...local],
     'frame-src': ["'self'", ...supabase, ...MIDTRANS_HOSTS, ...local],
     'worker-src': ["'self'", 'blob:'],
     'manifest-src': ["'self'"],
