@@ -24,16 +24,22 @@ Dihasilkan otomatis oleh `npm run loadtest` pada 2026-11-09 (skala 1).
 
 | Alur | Pengguna | Bacaan | Query | Data (KB) | Waktu emulator (ms) | Perkiraan unduh @1500 kbps (dtk) | Catatan |
 |---|---|---:|---:|---:|---:|---:|---|
-| Guru: Beranda (ringkasan hari ini) | guru | 3.483 | 9 | 2970 | 1301 | 16.2 | sangat berat |
-| Guru: daftar kelas | guru | 1.296 | 3 | 172 | 177 | 0.9 | berat |
-| Guru: detail kelas (siswa) | guru | 36 | 1 | 4.7 | 33 | 0.0 |  |
-| Guru: riwayat presensi satu kelas | guru | 720 | 1 | 2410 | 528 | 13.2 | berat |
-| Guru: riwayat jurnal satu kelas | guru | 720 | 1 | 252 | 337 | 1.4 | berat |
-| Guru: tabel nilai kelas | guru | 444 | 2 | 51.8 | 207 | 0.3 |  |
-| Guru: pengumpulan satu tugas | guru | 66 | 2 | 22.5 | 262 | 0.1 |  |
-| Guru: Analitik | guru | 10.692 | 10 | 13479 | 24766 | 73.6 | sangat berat |
-| Guru: Jadwal | guru | 720 | 2 | 96.2 | 113 | 0.5 | berat |
-| Siswa: buka Student Companion | siswa | 821 | 8 | 2435 | 1137 | 13.3 | berat |
+| Guru: Beranda — buka pertama (cache perangkat kosong) | guru | 2.343 | 21 | 809 | 2811 | 4.4 | sangat berat |
+| Guru: Beranda — buka berikutnya (cache perangkat terisi) | guru | 315 | 4 | 540 | 765 | 3.0 |  |
+| Guru: daftar kelas | guru | 1.296 | 3 | 172 | 207 | 0.9 | berat |
+| Guru: detail kelas (siswa) | guru | 36 | 1 | 4.7 | 37 | 0.0 |  |
+| Guru: riwayat presensi satu kelas | guru | 720 | 1 | 2410 | 622 | 13.2 | berat |
+| Guru: riwayat jurnal satu kelas | guru | 720 | 1 | 252 | 346 | 1.4 | berat |
+| Guru: tabel nilai kelas | guru | 444 | 2 | 51.8 | 209 | 0.3 |  |
+| Guru: pengumpulan satu tugas | guru | 66 | 2 | 22.5 | 298 | 0.1 |  |
+| Guru: Analitik | guru | 10.692 | 10 | 13479 | 24580 | 73.6 | sangat berat |
+| Guru: Jadwal | guru | 720 | 2 | 96.2 | 141 | 0.5 | berat |
+| Siswa: Beranda (pengumuman) | siswa | 10 | 1 | 1.4 | 32 | 0.0 |  |
+| Siswa: Jadwal | siswa | 20 | 1 | 2.6 | 39 | 0.0 |  |
+| Siswa: Tugas | siswa | 46 | 2 | 18.1 | 351 | 0.1 |  |
+| Siswa: Nilai | siswa | 24 | 2 | 2.6 | 163 | 0.0 |  |
+| Siswa: Kehadiran — buka pertama (sinkron penuh) | siswa | 720 | 1 | 2410 | 636 | 13.2 | berat |
+| Siswa: Kehadiran — buka berikutnya (sinkron jendela 7 hari) | siswa | 24 | 1 | 80.3 | 279 | 0.4 |  |
 
 ## Estimasi bulanan untuk satu sekolah
 
@@ -41,34 +47,40 @@ Asumsi: 60 guru, 1296 siswa (60% aktif per hari sekolah), 22 hari sekolah/bulan.
 
 | Alur | Pelaku | Bacaan/hari | Porsi |
 |---|---|---:|---:|
-| Guru: Beranda (ringkasan hari ini) | guru | 1.671.840 | 42% |
-| Siswa: buka Student Companion | siswa | 1.276.819 | 32% |
-| Guru: Analitik | guru | 320.760 | 8% |
-| Guru: daftar kelas | guru | 233.280 | 6% |
-| Guru: riwayat presensi satu kelas | guru | 172.800 | 4% |
-| Guru: riwayat jurnal satu kelas | guru | 129.600 | 3% |
-| Guru: Jadwal | guru | 86.400 | 2% |
-| Guru: tabel nilai kelas | guru | 79.920 | 2% |
-| Guru: detail kelas (siswa) | guru | 12.960 | 0% |
-| Guru: pengumpulan satu tugas | guru | 7.920 | 0% |
+| Guru: Analitik | guru | 320.760 | 23% |
+| Guru: daftar kelas | guru | 233.280 | 16% |
+| Guru: riwayat presensi satu kelas | guru | 172.800 | 12% |
+| Guru: Beranda — buka pertama (cache perangkat kosong) | guru | 140.580 | 10% |
+| Guru: Beranda — buka berikutnya (cache perangkat terisi) | guru | 132.300 | 9% |
+| Guru: riwayat jurnal satu kelas | guru | 129.600 | 9% |
+| Guru: Jadwal | guru | 86.400 | 6% |
+| Guru: tabel nilai kelas | guru | 79.920 | 6% |
+| Siswa: Tugas | siswa | 35.770 | 3% |
+| Siswa: Kehadiran — buka pertama (sinkron penuh) | siswa | 27.994 | 2% |
+| Siswa: Beranda (pengumuman) | siswa | 15.552 | 1% |
+| Guru: detail kelas (siswa) | guru | 12.960 | 1% |
+| Siswa: Nilai | siswa | 9.331 | 1% |
+| Guru: pengumpulan satu tugas | guru | 7.920 | 1% |
+| Siswa: Jadwal | siswa | 7.776 | 1% |
+| Siswa: Kehadiran — buka berikutnya (sinkron jendela 7 hari) | siswa | 4.666 | 0% |
 
 | | Per hari | Per bulan |
 |---|---:|---:|
-| Bacaan | 3.992.299 | 87.830.582 |
+| Bacaan | 1.417.608 | 31.187.376 |
 | Tulisan | 1.433 | 31.532 |
-| Biaya bacaan (USD) | | 52.70 |
+| Biaya bacaan (USD) | | 18.71 |
 | Biaya tulisan (USD) | | 0.06 |
-| **Total Firestore** | | **US$ 52.76 ≈ Rp 844.082** |
+| **Total Firestore** | | **US$ 18.77 ≈ Rp 300.307** |
 
 Harga yang dipakai: bacaan US$ 0.06/100 ribu, tulisan US$ 0.18/100 ribu, kurs Rp 16.000/US$. Kuota gratis (50.000 bacaan/hari per project) berlaku untuk seluruh project, bukan per sekolah — satu sekolah sebesar ini sudah melampauinya.
 
 ## Temuan (alur berat)
 
-- **Guru: Beranda (ringkasan hari ini)**: 3.483 bacaan, 2970 KB (sangat berat).
+- **Guru: Beranda — buka pertama (cache perangkat kosong)**: 2.343 bacaan, 809 KB (sangat berat).
 - **Guru: daftar kelas**: 1.296 bacaan, 172 KB (berat).
 - **Guru: riwayat presensi satu kelas**: 720 bacaan, 2410 KB (berat).
 - **Guru: riwayat jurnal satu kelas**: 720 bacaan, 252 KB (berat).
 - **Guru: Analitik**: 10.692 bacaan, 13479 KB (sangat berat).
 - **Guru: Jadwal**: 720 bacaan, 96.2 KB (berat).
-- **Siswa: buka Student Companion**: 821 bacaan, 2435 KB (berat).
+- **Siswa: Kehadiran — buka pertama (sinkron penuh)**: 720 bacaan, 2410 KB (berat).
 
