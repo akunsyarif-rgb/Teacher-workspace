@@ -46,34 +46,25 @@ function todayISO() {
  * pengambilan data supaya logikanya bisa diuji tanpa Firestore sama
  * sekali (lihat tests/analytics.test.ts).
  */
-export function buildInsights(input: {
-  students: any[];
-  attendances: any[];
-  journals: any[];
-  assignments: any[];
-  submissions: any[];
-  today?: string;
-}): Insight[] {
-  const { students, attendances, journals, assignments, submissions } = input;
-  const today = input.today || todayISO();
-  const insights: Insight[] = [];
+export type AttendanceLike = {
+  id?: string; date?: string; className?: string;
+  details?: { studentId?: string; name?: string; status?: string }[];
+};
+export type JournalLike = { className?: string; date?: string; [k: string]: unknown };
+export type StudentLike = { className?: string };
+export type AssignmentLike = { id: string; className?: string; title?: string; dueDate?: string };
+export type SubmissionLike = { assignmentId?: string; [k: string]: unknown };
+export type StudentAgg = { name: string; className: string; hadir: number; alpa: number; total: number };
+export type MissingJournal = { id: string; className: string; date: string };
 
-  // ===== 1. Siswa yang perlu perhatian (kehadiran) =====
-  // Satu dokumen presensi memuat seluruh kelas, jadi rekap per siswa
-  // dihitung dengan membongkar details[] tiap pertemuan.
-  const perStudent: Record<string, { name: string; className: string; hadir: number; alpa: number; total: number }> = {};
-
-  attendances.forEach((record: any) => {
-    (record.details || []).forEach((detail: any) => {
+/** Rekap per siswa dari dokumen presensi mentah (urutan kemunculan pertama dipertahankan). */
+export function aggregateAttendance(attendances: AttendanceLike[]): Record<string, StudentAgg> {
+  const perStudent: Record<string, StudentAgg> = {};
+  attendances.forEach((record) => {
+    (record.details || []).forEach((detail) => {
       if (!detail?.studentId) return;
       if (!perStudent[detail.studentId]) {
-        perStudent[detail.studentId] = {
-          name: detail.name || 'Siswa',
-          className: record.className || '-',
-          hadir: 0,
-          alpa: 0,
-          total: 0,
-        };
+        perStudent[detail.studentId] = { name: detail.name || 'Siswa', className: record.className || '-', hadir: 0, alpa: 0, total: 0 };
       }
       const entry = perStudent[detail.studentId];
       entry.total += 1;
@@ -81,7 +72,71 @@ export function buildInsights(input: {
       if (detail.status === 'Alpa') entry.alpa += 1;
     });
   });
+  return perStudent;
+}
 
+/** Sesi presensi yang jurnalnya (kelas+tanggal sama) belum ada. */
+export function findMissingJournals(attendances: AttendanceLike[], journals: JournalLike[]): MissingJournal[] {
+  const journalKeys = new Set(journals.map((j) => `${j.className?.trim()}__${j.date}`));
+  const out: MissingJournal[] = [];
+  attendances.forEach((record) => {
+    if (journalKeys.has(`${record.className?.trim()}__${record.date}`)) return;
+    out.push({ id: record.id as string, className: record.className as string, date: record.date as string });
+  });
+  return out;
+}
+
+export function countStudentsPerClass(students: StudentLike[]): Record<string, number> {
+  const studentsPerClass: Record<string, number> = {};
+  students.forEach((student) => {
+    const cls = student.className?.trim();
+    if (!cls) return;
+    studentsPerClass[cls] = (studentsPerClass[cls] || 0) + 1;
+  });
+  return studentsPerClass;
+}
+
+export function countSubmissionsPerAssignment(submissions: SubmissionLike[]): Record<string, number> {
+  const submissionCount: Record<string, number> = {};
+  submissions.forEach((sub) => {
+    if (!sub?.assignmentId) return;
+    submissionCount[sub.assignmentId] = (submissionCount[sub.assignmentId] || 0) + 1;
+  });
+  return submissionCount;
+}
+
+/** Versi dari data mentah (dipakai tes & jalur lama); mengagregasi lalu memanggil buildInsightsFromAggregates. */
+export function buildInsights(input: {
+  students: StudentLike[];
+  attendances: AttendanceLike[];
+  journals: JournalLike[];
+  assignments: AssignmentLike[];
+  submissions: SubmissionLike[];
+  today?: string;
+}): Insight[] {
+  return buildInsightsFromAggregates({
+    perStudent: aggregateAttendance(input.attendances),
+    missingJournals: findMissingJournals(input.attendances, input.journals),
+    studentsPerClass: countStudentsPerClass(input.students),
+    submissionCount: countSubmissionsPerAssignment(input.submissions),
+    assignments: input.assignments,
+    today: input.today,
+  });
+}
+
+export function buildInsightsFromAggregates(input: {
+  perStudent: Record<string, StudentAgg>;
+  missingJournals: MissingJournal[];
+  studentsPerClass: Record<string, number>;
+  submissionCount: Record<string, number>;
+  assignments: AssignmentLike[];
+  today?: string;
+}): Insight[] {
+  const { perStudent, missingJournals, studentsPerClass, submissionCount, assignments } = input;
+  const today = input.today || todayISO();
+  const insights: Insight[] = [];
+
+  // ===== 1. Siswa yang perlu perhatian (kehadiran) =====
   Object.keys(perStudent).forEach((studentId) => {
     const s = perStudent[studentId];
     const rate = s.total > 0 ? Math.round((s.hadir / s.total) * 100) : 100;
@@ -108,22 +163,9 @@ export function buildInsights(input: {
   });
 
   // ===== 2. Tugas lewat tenggat dengan pengumpulan rendah =====
-  const studentsPerClass: Record<string, number> = {};
-  students.forEach((student: any) => {
-    const cls = student.className?.trim();
-    if (!cls) return;
-    studentsPerClass[cls] = (studentsPerClass[cls] || 0) + 1;
-  });
-
-  const submissionCount: Record<string, number> = {};
-  submissions.forEach((sub: any) => {
-    if (!sub?.assignmentId) return;
-    submissionCount[sub.assignmentId] = (submissionCount[sub.assignmentId] || 0) + 1;
-  });
-
-  assignments.forEach((assignment: any) => {
+  assignments.forEach((assignment) => {
     if (!assignment.dueDate || assignment.dueDate >= today) return; // belum lewat tenggat
-    const classSize = studentsPerClass[assignment.className?.trim()] || 0;
+    const classSize = studentsPerClass[assignment.className?.trim() as string] || 0;
     if (classSize === 0) return;
 
     const submitted = submissionCount[assignment.id] || 0;
@@ -138,20 +180,14 @@ export function buildInsights(input: {
       detail: `Baru ${submitted} dari ${classSize} siswa kelas ${assignment.className} mengumpulkan, padahal tenggatnya ${assignment.dueDate}.`,
       recommendation:
         'Periksa apakah instruksinya jelas, lalu ingatkan lewat Pengumuman ke kelas itu.',
-      href: `/attendance?class=${encodeURIComponent(assignment.className)}&tab=pengumuman`,
+      href: `/attendance?class=${encodeURIComponent(assignment.className as string)}&tab=pengumuman`,
     });
   });
 
   // ===== 3. Presensi sudah diisi tapi jurnalnya belum =====
   // Dipasangkan per (kelas, tanggal): kalau presensi ada tapi jurnal
   // tidak, berarti pertemuannya terjadi tapi administrasinya tertinggal.
-  const journalKeys = new Set(
-    journals.map((j: any) => `${j.className?.trim()}__${j.date}`)
-  );
-
-  attendances.forEach((record: any) => {
-    const key = `${record.className?.trim()}__${record.date}`;
-    if (journalKeys.has(key)) return;
+  missingJournals.forEach((record) => {
     insights.push({
       id: `jurnal-${record.id}`,
       severity: 'sedang',

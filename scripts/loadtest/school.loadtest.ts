@@ -58,7 +58,7 @@ import { getSubmissionsForAssignment } from '../../lib/services/submissionServic
 import { loadInsights } from '../../lib/services/analyticsService';
 import { loadSchedules } from '../../lib/services/scheduleService';
 import * as portal from '../../lib/services/studentPortalService';
-import { setPersistentStorageForTests } from '../../lib/utils/persistentCache';
+import { setPersistentStorageForTests, derivedCache } from '../../lib/utils/persistentCache';
 
 const PROJECT = 'demo-loadtest';
 const SCALE = Number(process.env.LOADTEST_SCALE ?? '1');
@@ -104,6 +104,7 @@ describe('sekolah besar', () => {
       { name: 'nilai', actor: 'guru', label: 'Guru: tabel nilai kelas', run: () => loadGradeData(ws, cls) },
       { name: 'pengumpulan', actor: 'guru', label: 'Guru: pengumpulan satu tugas', run: () => getSubmissionsForAssignment(ws, cls, seed.sampleAssignmentId) },
       { name: 'analitik', actor: 'guru', label: 'Guru: Analitik — buka pertama', run: () => loadInsights(ws), fresh: true },
+      { name: 'analitik-sinkron', actor: 'guru', label: 'Guru: Analitik — buka setelah cache hasil kedaluwarsa (sinkron 3 hari)', run: () => loadInsights(ws), prime: async () => { await loadInsights(ws); derivedCache.clear(); } },
       { name: 'analitik-hangat', actor: 'guru', label: 'Guru: Analitik — buka berikutnya', run: () => loadInsights(ws), prime: () => loadInsights(ws) },
       { name: 'jadwal', actor: 'guru', label: 'Guru: Jadwal', run: () => loadSchedules(ws) },
       { name: 'siswa-beranda', actor: 'siswa', label: 'Siswa: Beranda (pengumuman)', run: () => portal.getAnnouncements(scope) },
@@ -136,7 +137,7 @@ describe('sekolah besar', () => {
     // Profil pemakaian harian (dapat diubah): sekolah besar 60 guru, 1.296 siswa.
     const usage: UsageProfile = {
       teachers: size.teachers, students: size.classes * size.studentsPerClass, schoolDaysPerMonth: 22, studentActiveRate: num('LOADTEST_STUDENT_ACTIVE', 0.6),
-      teacherOpensPerDay: { beranda: 1, 'beranda-hangat': 7, 'daftar-kelas': 1, 'daftar-kelas-hangat': 2, 'detail-kelas': 6, 'riwayat-presensi': 4, 'riwayat-jurnal': 3, nilai: 3, pengumpulan: 2, analitik: 0.25, 'analitik-hangat': 0.25, jadwal: 2 },
+      teacherOpensPerDay: { beranda: 1, 'beranda-hangat': 7, 'daftar-kelas': 1, 'daftar-kelas-hangat': 2, 'detail-kelas': 6, 'riwayat-presensi': 4, 'riwayat-jurnal': 3, nilai: 3, pengumpulan: 2, analitik: 0.1, 'analitik-sinkron': 0.3, 'analitik-hangat': 0.1, jadwal: 2 },
       studentOpensPerDay: { 'siswa-beranda': 2, 'siswa-jadwal': 0.5, 'siswa-tugas': 1, 'siswa-nilai': 0.5, 'siswa-presensi': 0.05, 'siswa-presensi-hangat': 0.25 },
       teacherWritesPerDay: 20, studentWritesPerDay: 0.3,
     };

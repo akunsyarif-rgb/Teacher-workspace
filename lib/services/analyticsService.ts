@@ -1,12 +1,13 @@
 import * as analyticsRepository from '../repositories/analyticsRepository';
 import {
-  getAllStudentsForSummary,
   getJournalsInRange,
   getAttendancesInRange,
 } from '../repositories/dashboardRepository';
-import { withPersistentCache } from '../utils/persistentCache';
-import { buildInsights, ANALYSIS_WINDOW_DAYS } from '../utils/insights';
-import { getWitaDateString, getWitaDaysAgo } from '../utils/witaDate';
+import { listClassSummaries } from './studentService';
+import { syncStore, withPersistentCache } from '../utils/persistentCache';
+import { buildInsightsFromAggregates, ANALYSIS_WINDOW_DAYS } from '../utils/insights';
+import { planInsightSync, applyInsightFetch, rollupDays, mergeDays, type InsightSyncState } from '../utils/insightSync';
+import { getWitaDateString, getWitaDaysAgo, shiftWitaDateString } from '../utils/witaDate';
 
 // Logika penarikan kesimpulannya ada di lib/utils/insights.ts — murni,
 // tanpa sentuhan Firestore, supaya bisa diuji apa adanya (lihat
@@ -33,25 +34,37 @@ export async function loadInsights(workspaceId: string) {
 }
 
 async function computeInsights(workspaceId: string) {
-
-  const startDate = daysAgoISO(ANALYSIS_WINDOW_DAYS - 1);
   const endDate = todayISO();
+  const windowStart = daysAgoISO(ANALYSIS_WINDOW_DAYS - 1);
 
-  // Tugas yang tenggatnya jatuh di jendela analisis (bukan seluruh riwayat), lalu hanya
-  // pengumpulan milik tugas-tugas itu.
-  const [students, attendances, journals, assignments] = await Promise.all([
-    getAllStudentsForSummary(workspaceId),
-    getAttendancesInRange(workspaceId, startDate, endDate),
-    getJournalsInRange(workspaceId, startDate, endDate),
-    analyticsRepository.getAssignmentsDueInRange(workspaceId, startDate, endDate),
+  // Presensi + jurnal 30 hari: hanya hari-hari terbaru yang diunduh (sisanya dari rekap di perangkat).
+  const key = `insights-days:${workspaceId}`;
+  const state = syncStore.get<InsightSyncState>(key);
+  const plan = planInsightSync(state, endDate, windowStart, shiftWitaDateString);
+  const from = plan.kind === 'full' ? windowStart : plan.from;
+  const full = plan.kind === 'full';
+
+  // Tugas yang tenggatnya jatuh di jendela analisis (bukan seluruh riwayat); jumlah pengumpulan lewat count.
+  const [classSummaries, attendances, journals, assignments] = await Promise.all([
+    listClassSummaries(workspaceId), // jumlah siswa aktif per kelas (cache perangkat 10 menit)
+    getAttendancesInRange(workspaceId, from, endDate),
+    getJournalsInRange(workspaceId, from, endDate),
+    analyticsRepository.getAssignmentsDueInRange(workspaceId, windowStart, endDate),
   ]);
-  const submissions = await analyticsRepository.getSubmissionsForAssignments(
+  const submissionCount = await analyticsRepository.getSubmissionCountsForAssignments(
     workspaceId,
     assignments.map((a) => a.id)
   );
 
+  const next = applyInsightFetch(state, from, windowStart, endDate, rollupDays(attendances, journals), full);
+  syncStore.set(key, next);
+  const { perStudent, missingJournals } = mergeDays(next.days);
+
+  const studentsPerClass: Record<string, number> = {};
+  classSummaries.forEach((c) => (studentsPerClass[c.className] = c.count));
+
   return {
-    insights: buildInsights({ students, attendances, journals, assignments, submissions, today: endDate }),
+    insights: buildInsightsFromAggregates({ perStudent, missingJournals, studentsPerClass, submissionCount, assignments, today: endDate }),
     windowDays: ANALYSIS_WINDOW_DAYS,
   };
 }

@@ -1,5 +1,5 @@
 import { activeOnly } from '../utils/softDelete';
-import { getDocuments, getDocumentsWhereIn } from '../adapters/firestoreAdapter';
+import { getDocuments, getDocumentsWhereIn, countDocuments } from '../adapters/firestoreAdapter';
 import type { Doc } from '../adapters/firestoreAdapter';
 import { COLLECTIONS } from '../config/constants';
 import type { AssignmentData, SubmissionData } from '../types/models';
@@ -33,4 +33,27 @@ export async function getSubmissionsForAssignments(
     'assignmentId',
     assignmentIds
   );
+}
+
+// Jumlah pengumpulan per tugas lewat aggregation (1 baca per 1000 entri) — Analitik hanya butuh angkanya,
+// bukan isi ribuan dokumen. Jumlahnya sama dengan menghitung dokumen dari getSubmissionsForAssignments.
+export async function getSubmissionCountsForAssignments(
+  workspaceId: string,
+  assignmentIds: string[]
+): Promise<Record<string, number>> {
+  const counts: Record<string, number> = {};
+  if (!workspaceId) return counts;
+  const CONCURRENCY = 10;
+  for (let i = 0; i < assignmentIds.length; i += CONCURRENCY) {
+    const chunk = assignmentIds.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(
+      chunk.map((id) =>
+        countDocuments(COLLECTIONS.SUBMISSIONS, [['workspaceId', '==', workspaceId], ['assignmentId', '==', id]])
+      )
+    );
+    chunk.forEach((id, k) => {
+      if (results[k] > 0) counts[id] = results[k];
+    });
+  }
+  return counts;
 }

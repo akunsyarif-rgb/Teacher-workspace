@@ -4,11 +4,13 @@ Data mentah: [`LOAD-TEST.md`](./LOAD-TEST.md) (dihasilkan `npm run loadtest`, 97
 
 ## Temuan utama (setelah optimasi Beranda & Student Companion)
 - **Bacaan Firestore tetap biaya utama, tapi turun jauh.** Profil standar: ≈ **31 juta bacaan/bulan** ≈ **US$ 18,8 ≈ Rp 300 ribu/bulan** (harga perkiraan US$ 0,06/100 ribu bacaan — verifikasi untuk region Anda). Sebelumnya ≈ 88 juta/bulan ≈ Rp 844 ribu.
-- **Dibanding pendapatan:** paket sekolah tahunan Rp 240 ribu per kursi × 60 guru ≈ Rp 1,2 juta/bulan → Firestore ≈ **20% dari pendapatan** (sebelumnya ≈ 70%).
+- **Dibanding pendapatan:** paket sekolah tahunan Rp 240 ribu per kursi × 60 guru ≈ Rp 1,2 juta/bulan → Firestore ≈ **18% dari pendapatan** (sebelumnya ≈ 70%).
 - **Koreksi angka lama (jujur):** skenario Student Companion versi lama membuka *semua halaman siswa sekaligus* setiap kali, sehingga biaya siswa **dilebih-lebihkan**. Sekarang tiap halaman diukur sendiri dengan frekuensi buka masing-masing. Sebagian "penurunan" di tabel ini berasal dari koreksi tersebut, bukan dari optimasi.
 - **Yang dioptimasi (terukur):** Beranda guru buka berikutnya 2.343 → **315 bacaan** (−87%); Kehadiran siswa buka berikutnya 720 → **24 bacaan** (−97%). Buka *pertama* di perangkat baru tetap penuh (2.343 / 720).
-- **Alur terbesar yang tersisa:** Analitik buka pertama (≈12.060 bacaan; buka berikutnya 0 selama ≤30 menit), lalu Beranda, riwayat presensi/jurnal per kelas (720).
-- **Daftar kelas & Analitik:** hasil jadinya disimpan di perangkat (daftar kelas 10 menit, Analitik 30 menit; dibuang saat guru menyimpan perubahan di perangkat itu). Buka berikutnya = 0 bacaan. **Bacaan buka pertama Analitik TIDAK turun** — itu butuh ringkasan terjadwal di server atau pembatasan per guru (perubahan perilaku/arsitektur, menunggu persetujuan). Jurnal yang disimpan tidak membuang cache ini, jadi temuan bisa tertinggal ≤30 menit.
+- **Analitik (sinkron bertahap):** hari lampau diringkas jadi rekap kecil per siswa di perangkat; hanya 3 hari terakhir dibaca ulang, jumlah pengumpulan tugas lewat agregat, jumlah siswa per kelas dari cache daftar kelas. Buka pertama 12.060 → **7.920** bacaan; buka setelah cache hasil kedaluwarsa → **2.160**; buka berikutnya (≤30 menit) → **0**. Temuan identik dengan perhitungan penuh (`tests/insight-sync.test.ts`).
+- **Daftar kelas:** buka berikutnya 0 bacaan (cache perangkat 10 menit); buka pertama masih 1.296.
+- **Batas kebasian Analitik:** presensi/jurnal hari yang lebih tua dari 3 hari yang diubah belakangan baru terlihat pada sinkron penuh (tiap 7 hari) atau setelah keluar-masuk akun; jurnal yang disimpan tidak membuang cache hasil (≤30 menit).
+- **Yang tersisa:** buka *pertama* di perangkat baru (Analitik 7.920, Beranda 2.343, presensi siswa 720) dan Analitik/Beranda masih seluruh workspace, bukan per guru (mengubah tampilan, menunggu persetujuan).
 - **Privasi perangkat:** cache di perangkat dihapus saat keluar akun.
 
 ## Yang dikerjakan & batasnya
@@ -21,7 +23,7 @@ Data mentah: [`LOAD-TEST.md`](./LOAD-TEST.md) (dihasilkan `npm run loadtest`, 97
 |---|---|---|---|---|
 | 1 | **Beranda** membaca siswa, jadwal, jurnal dan presensi 7 hari seluruh sekolah | 2.343 → 315 (buka berikutnya) | Hari ini saja + agregat + cache perangkat | ✅ sebagian (per-guru belum) |
 | 2 | **Student Companion** membaca seluruh riwayat presensi kelas | 720 → 24 (buka berikutnya) | Sinkron bertahap | ✅ |
-| 3 | **Analitik** (buka pertama; buka berikutnya sudah 0 lewat cache) membaca presensi + jurnal 30 hari seluruh sekolah | 10.692 / 13,5 MB, 74 dtk @1,5 Mbps | Hitung di server/terjadwal dan simpan ringkasannya; atau batasi per guru | ~90% |
+| 3 | **Analitik** membaca presensi + jurnal 30 hari seluruh sekolah | 12.060 → 7.920 (pertama) → 2.160 (sinkron) → 0 (cache) | Sinkron bertahap + agregat ✅; per guru bila disetujui | ✅ sebagian |
 | 4 | **Daftar kelas** membaca semua siswa hanya untuk menghitung jumlah per kelas | 1.296 → 0 (buka berikutnya) | Cache perangkat ✅; buka pertama masih 1.296 — dokumen ringkasan kelas bila perlu | ✅ sebagian |
 | 5 | **Riwayat presensi/jurnal** satu kelas memuat satu tahun penuh | 720 / 2,4 MB | Tampilkan bulan berjalan dulu, "muat lebih lama" bila perlu (paginasi) | ~85% |
 | 6 | **Jadwal** membaca jadwal seluruh sekolah | 720 | Hanya jadwal milik guru | ~90% |
