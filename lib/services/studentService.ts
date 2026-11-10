@@ -1,3 +1,4 @@
+import { withPersistentCache } from '../utils/persistentCache';
 import * as studentRepository from '../repositories/studentRepository';
 import { getWorkspaceById } from '../repositories/workspaceRepository';
 import { assertClassLimitNotReached } from './workspaceService';
@@ -18,8 +19,16 @@ async function assertCanAddToClass(workspaceId: string, className: string) {
   assertClassLimitNotReached(workspace, existingClasses.size);
 }
 
+// Dihitung dari seluruh siswa, jadi hasilnya disimpan di perangkat (TTL 10 menit; dibuang oleh clearAllCached()
+// saat guru menambah/menghapus siswa di perangkat ini). Perubahan dari perangkat lain terlihat ≤10 menit.
+export const CLASS_SUMMARIES_TTL_MS = 10 * 60_000;
+
 export async function listClassSummaries(workspaceId: string) {
   if (!workspaceId) return [];
+  return withPersistentCache(`classes:${workspaceId}`, CLASS_SUMMARIES_TTL_MS, () => computeClassSummaries(workspaceId));
+}
+
+async function computeClassSummaries(workspaceId: string) {
   const students = await studentRepository.getAllStudents(workspaceId);
 
   const counts: Record<string, number> = {};

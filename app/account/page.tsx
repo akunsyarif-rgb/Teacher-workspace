@@ -10,6 +10,7 @@ import WorkspaceGuard from "@/src/components/ui/WorkspaceGuard";
 import InviteCodeCard from "@/src/components/workspace/InviteCodeCard";
 import LegalLinks from "@/src/components/legal/LegalLinks";
 import { User, ChevronRight, LogOut, BarChart3, Wallet, Database, ShieldCheck, HardDriveDownload, Trash2 } from "lucide-react";
+import { clearPersistentData } from "@/lib/utils/persistentCache";
 
 export default function AccountPage() {
   const router = useRouter();
@@ -17,6 +18,7 @@ export default function AccountPage() {
   async function handleLogout() {
     try {
       await signOut(auth);
+      clearPersistentData();
       router.push("/login");
     } catch (error) {
       console.error("Gagal keluar:", error);

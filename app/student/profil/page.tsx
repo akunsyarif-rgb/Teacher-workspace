@@ -10,6 +10,7 @@ import { SkeletonCard } from "@/src/components/ui/Skeleton";
 import * as studentPortalController from "@/lib/controllers/studentPortalController";
 import type { StudentProfile } from "@/src/context/StudentAuthContext";
 import { useAttachmentViewer } from "@/src/components/assignments/AttachmentViewer";
+import { clearPersistentData } from "@/lib/utils/persistentCache";
 
 function ProfileContent({ profile }: { profile: StudentProfile }) {
   const { open: openAttachment, viewer } = useAttachmentViewer();
@@ -42,6 +43,7 @@ function ProfileContent({ profile }: { profile: StudentProfile }) {
 
   async function handleLogout() {
     await signOut(auth);
+    clearPersistentData();
     router.push("/student/login");
   }
 

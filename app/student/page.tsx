@@ -11,6 +11,7 @@ import { SkeletonCard } from "@/src/components/ui/Skeleton";
 import * as studentPortalController from "@/lib/controllers/studentPortalController";
 import { isUlanganEnabled } from "@/lib/config/ulangan";
 import type { StudentProfile } from "@/src/context/StudentAuthContext";
+import { clearPersistentData } from "@/lib/utils/persistentCache";
 
 
 const MENU_ITEMS = [
@@ -45,6 +46,7 @@ function HomeContent({ profile }: { profile: StudentProfile }) {
 
   async function handleLogout() {
     await signOut(auth);
+    clearPersistentData();
     router.push("/student/login");
   }
 

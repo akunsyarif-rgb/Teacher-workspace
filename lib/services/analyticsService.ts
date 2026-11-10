@@ -4,6 +4,7 @@ import {
   getJournalsInRange,
   getAttendancesInRange,
 } from '../repositories/dashboardRepository';
+import { withPersistentCache } from '../utils/persistentCache';
 import { buildInsights, ANALYSIS_WINDOW_DAYS } from '../utils/insights';
 import { getWitaDateString, getWitaDaysAgo } from '../utils/witaDate';
 
@@ -21,8 +22,17 @@ function todayISO() {
   return getWitaDateString();
 }
 
+// Temuan analitik berasal dari ±10 ribu dokumen (jendela 30 hari seluruh workspace) tetapi hasilnya kecil, jadi
+// hasil jadinya disimpan di perangkat (TTL 30 menit, kunci per tanggal; dibuang oleh clearAllCached() saat guru
+// menyimpan perubahan di perangkat ini). Insight 30 hari tidak butuh ketepatan menit-per-menit.
+export const INSIGHTS_TTL_MS = 30 * 60_000;
+
 export async function loadInsights(workspaceId: string) {
   if (!workspaceId) return { insights: [], windowDays: ANALYSIS_WINDOW_DAYS };
+  return withPersistentCache(`insights:${workspaceId}:${todayISO()}`, INSIGHTS_TTL_MS, () => computeInsights(workspaceId));
+}
+
+async function computeInsights(workspaceId: string) {
 
   const startDate = daysAgoISO(ANALYSIS_WINDOW_DAYS - 1);
   const endDate = todayISO();

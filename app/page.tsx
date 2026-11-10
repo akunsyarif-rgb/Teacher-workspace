@@ -37,6 +37,7 @@ import {
   ListChecks,
   School,
 } from "lucide-react";
+import { clearPersistentData } from "@/lib/utils/persistentCache";
 
 function getGreeting(date: Date = new Date()) {
   const hour = date.getHours();
@@ -225,6 +226,7 @@ export default function DashboardPage() {
   async function handleLogout() {
     try {
       await signOut(auth);
+      clearPersistentData();
       router.push("/login");
     } catch (error) {
       console.error("Gagal keluar:", error);

@@ -87,3 +87,9 @@ export async function withPersistentCache<T>(key: string, ttlMs: number, fetcher
   derivedCache.set(key, data);
   return data;
 }
+
+/** Hapus SEMUA data cache/sinkron di perangkat — dipanggil saat keluar akun supaya perangkat bersama tidak menyimpan data sekolah. */
+export function clearPersistentData() {
+  derivedCache.clear();
+  syncStore.clear();
+}

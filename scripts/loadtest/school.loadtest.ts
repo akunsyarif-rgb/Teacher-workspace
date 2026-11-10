@@ -96,13 +96,15 @@ describe('sekolah besar', () => {
     const scenarios: { name: string; actor: 'guru' | 'siswa'; label: string; run: () => Promise<unknown>; prime?: () => Promise<unknown>; fresh?: boolean }[] = [
       { name: 'beranda', actor: 'guru', label: 'Guru: Beranda — buka pertama (cache perangkat kosong)', run: () => loadDashboardSummary(ws), fresh: true },
       { name: 'beranda-hangat', actor: 'guru', label: 'Guru: Beranda — buka berikutnya (cache perangkat terisi)', run: () => loadDashboardSummary(ws), prime: () => loadDashboardSummary(ws) },
-      { name: 'daftar-kelas', actor: 'guru', label: 'Guru: daftar kelas', run: () => listClassSummaries(ws) },
+      { name: 'daftar-kelas', actor: 'guru', label: 'Guru: daftar kelas — buka pertama', run: () => listClassSummaries(ws), fresh: true },
+      { name: 'daftar-kelas-hangat', actor: 'guru', label: 'Guru: daftar kelas — buka berikutnya', run: () => listClassSummaries(ws), prime: () => listClassSummaries(ws) },
       { name: 'detail-kelas', actor: 'guru', label: 'Guru: detail kelas (siswa)', run: () => getStudentsInClass(ws, cls) },
       { name: 'riwayat-presensi', actor: 'guru', label: 'Guru: riwayat presensi satu kelas', run: () => listAttendanceHistory(ws, cls) },
       { name: 'riwayat-jurnal', actor: 'guru', label: 'Guru: riwayat jurnal satu kelas', run: () => listJournalEntries(ws, cls) },
       { name: 'nilai', actor: 'guru', label: 'Guru: tabel nilai kelas', run: () => loadGradeData(ws, cls) },
       { name: 'pengumpulan', actor: 'guru', label: 'Guru: pengumpulan satu tugas', run: () => getSubmissionsForAssignment(ws, cls, seed.sampleAssignmentId) },
-      { name: 'analitik', actor: 'guru', label: 'Guru: Analitik', run: () => loadInsights(ws) },
+      { name: 'analitik', actor: 'guru', label: 'Guru: Analitik — buka pertama', run: () => loadInsights(ws), fresh: true },
+      { name: 'analitik-hangat', actor: 'guru', label: 'Guru: Analitik — buka berikutnya', run: () => loadInsights(ws), prime: () => loadInsights(ws) },
       { name: 'jadwal', actor: 'guru', label: 'Guru: Jadwal', run: () => loadSchedules(ws) },
       { name: 'siswa-beranda', actor: 'siswa', label: 'Siswa: Beranda (pengumuman)', run: () => portal.getAnnouncements(scope) },
       { name: 'siswa-jadwal', actor: 'siswa', label: 'Siswa: Jadwal', run: () => portal.getSchedule(scope) },
@@ -134,7 +136,7 @@ describe('sekolah besar', () => {
     // Profil pemakaian harian (dapat diubah): sekolah besar 60 guru, 1.296 siswa.
     const usage: UsageProfile = {
       teachers: size.teachers, students: size.classes * size.studentsPerClass, schoolDaysPerMonth: 22, studentActiveRate: num('LOADTEST_STUDENT_ACTIVE', 0.6),
-      teacherOpensPerDay: { beranda: 1, 'beranda-hangat': 7, 'daftar-kelas': 3, 'detail-kelas': 6, 'riwayat-presensi': 4, 'riwayat-jurnal': 3, nilai: 3, pengumpulan: 2, analitik: 0.5, jadwal: 2 },
+      teacherOpensPerDay: { beranda: 1, 'beranda-hangat': 7, 'daftar-kelas': 1, 'daftar-kelas-hangat': 2, 'detail-kelas': 6, 'riwayat-presensi': 4, 'riwayat-jurnal': 3, nilai: 3, pengumpulan: 2, analitik: 0.25, 'analitik-hangat': 0.25, jadwal: 2 },
       studentOpensPerDay: { 'siswa-beranda': 2, 'siswa-jadwal': 0.5, 'siswa-tugas': 1, 'siswa-nilai': 0.5, 'siswa-presensi': 0.05, 'siswa-presensi-hangat': 0.25 },
       teacherWritesPerDay: 20, studentWritesPerDay: 0.3,
     };

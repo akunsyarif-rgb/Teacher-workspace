@@ -5,6 +5,7 @@ import {
   withPersistentCache,
   derivedCache,
   syncStore,
+  clearPersistentData,
 } from '@/lib/utils/persistentCache';
 import { clearAllCached } from '@/lib/utils/sessionCache';
 import { planSync, mergeWindow, buildFullState, reduceToStudent } from '@/lib/utils/attendanceSync';
@@ -26,6 +27,13 @@ function memoryStorage(): Storage {
 beforeEach(() => setPersistentStorageForTests(memoryStorage()));
 
 describe('persistentCache', () => {
+  it('clearPersistentData (keluar akun) menghapus cache turunan DAN sinkron', () => {
+    derivedCache.set('a', 1);
+    syncStore.set('b', 2);
+    clearPersistentData();
+    expect(derivedCache.get('a')).toBeUndefined();
+    expect(syncStore.get('b')).toBeUndefined();
+  });
   it('menghormati TTL', () => {
     const s = createPersistentStore('x:');
     s.set('a', { n: 1 }, 1000);
