@@ -24,3 +24,18 @@ export function planCooldownSeconds(env: Record<string, string | undefined> = pr
   const n = Number(raw);
   return Number.isInteger(n) && n >= 0 ? n : DEFAULT_PLAN_COOLDOWN_SECONDS;
 }
+
+// Pembatas laju permintaan backup (lib/server/rateLimit.ts limitRequests), per jam.
+// Dapat diatur lewat env bila sebuah sekolah memang butuh lebih sering (mis. uji pemulihan).
+function envPositiveInt(name: string, fallback: number): number {
+  const n = Number(process.env[name]);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
+export function exportRateLimits() {
+  return { perUid: envPositiveInt('BACKUP_EXPORT_MAX_PER_HOUR', 12), perIp: envPositiveInt('BACKUP_EXPORT_MAX_PER_HOUR_IP', 60), windowSeconds: 3600 };
+}
+
+export function attachmentsRateLimits() {
+  return { perUid: envPositiveInt('BACKUP_ATTACHMENTS_MAX_PER_HOUR', 400), perIp: envPositiveInt('BACKUP_ATTACHMENTS_MAX_PER_HOUR_IP', 1500), windowSeconds: 3600 };
+}

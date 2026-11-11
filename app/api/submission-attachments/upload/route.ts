@@ -1,22 +1,24 @@
 import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminAuth, getAdminDb } from '@/lib/server/firebaseAdmin';
+import { getAdminDb } from '@/lib/server/firebaseAdmin';
+import { requireAuth } from '@/lib/server/requireAuth';
+import { ApiError, parseBody } from '@/lib/server/apiErrors';
+import { UploadSignBodySchema } from '@/lib/schemas/api';
+import { limitRequests } from '@/lib/server/rateLimit';
 import { canStudentSubmit } from '@/lib/utils/submissionRules';
+import { MAX_ATTACHMENTS_PER_SUBMISSION, validateUploadRequest } from '@/lib/utils/uploadRules';
+import { logger } from '@/lib/utils/logger';
 
 export const runtime = 'nodejs';
 
 const BUCKET = 'submission-attachments';
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
-const ALLOWED_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/heic',
-  'image/heif',
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-]);
+
+// Pembatas penandatanganan: tiap permintaan dihitung (bukan hanya yang gagal), supaya akun anonim
+// tidak bisa meminta tiket upload tanpa batas dan menghabiskan kuota Storage. Per-IP longgar
+// karena satu kelas bisa berbagi IP sekolah.
+const SIGN_WINDOW_SECONDS = 10 * 60;
+const SIGN_MAX_PER_UID = 40;
+const SIGN_MAX_PER_IP = 600;
 
 class SupabaseConfigError extends Error {
   constructor() {
@@ -49,48 +51,21 @@ function encodedPath(path: string) {
 }
 
 export async function POST(request: NextRequest) {
-  const authHeader = request.headers.get('authorization') || '';
-  const idToken = authHeader.replace(/^Bearer\s+/i, '').trim();
-  if (!idToken) return NextResponse.json({ error: 'Token otentikasi diperlukan.' }, { status: 401 });
+  const auth = await requireAuth(request, {
+    configErrorMessage: 'Server belum dikonfigurasi untuk unggah lampiran. Hubungi gurumu.',
+  });
+  if (auth instanceof NextResponse) return auth;
+  const { uid } = auth;
 
-  // Inisialisasi Admin SDK dipisah dari verifikasi token: env var service
-  // account yang hilang bukan "sesi tidak valid" milik siswa, jadi tidak
-  // boleh disamarkan sebagai 401.
-  let adminAuth: ReturnType<typeof getAdminAuth>;
   try {
-    adminAuth = getAdminAuth();
-  } catch (error) {
-    console.error('Firebase Admin tidak dapat diinisialisasi:', error instanceof Error ? error.message : error);
-    return NextResponse.json(
-      { error: 'Server belum dikonfigurasi untuk unggah lampiran. Hubungi gurumu.', code: 'server_config' },
-      { status: 503 }
+    const { workspaceId, assignmentId, fileName, contentType, fileSize } = parseBody(
+      UploadSignBodySchema,
+      await request.json().catch(() => ({})),
+      'Data tugas atau file tidak valid.'
     );
-  }
-
-  let uid: string;
-  try {
-    uid = (await adminAuth.verifyIdToken(idToken)).uid;
-  } catch (error) {
-    console.error('Verifikasi token Firebase gagal:', error instanceof Error ? error.message : error);
-    return NextResponse.json({ error: 'Sesi tidak valid. Silakan masuk kembali.', code: 'invalid_token' }, { status: 401 });
-  }
-
-  try {
-    const body = await request.json();
-    const { workspaceId, assignmentId, fileName, contentType, fileSize } = body ?? {};
-    if (
-      typeof workspaceId !== 'string' || !workspaceId ||
-      typeof assignmentId !== 'string' || !assignmentId ||
-      typeof fileName !== 'string' || !fileName ||
-      typeof fileSize !== 'number' || !Number.isInteger(fileSize)
-    ) {
-      return NextResponse.json({ error: 'Data tugas atau file tidak valid.' }, { status: 400 });
-    }
-    if (fileSize <= 0 || fileSize >= MAX_FILE_BYTES) {
-      return NextResponse.json({ error: 'Ukuran file harus kurang dari 10 MB.' }, { status: 413 });
-    }
-    if (typeof contentType !== 'string' || !ALLOWED_TYPES.has(contentType)) {
-      return NextResponse.json({ error: 'Format file harus gambar, PDF, atau dokumen Word.' }, { status: 415 });
+    const upload = validateUploadRequest({ fileName, contentType, fileSize });
+    if (!upload.ok) {
+      return NextResponse.json({ error: upload.error }, { status: upload.status });
     }
 
     const db = getAdminDb();
@@ -118,6 +93,20 @@ export async function POST(request: NextRequest) {
     if (!gate.allowed) {
       return NextResponse.json({ error: gate.reason }, { status: 409 });
     }
+    const existingAttachments = existingSubmissionSnap.data()?.attachments;
+    if (Array.isArray(existingAttachments) && existingAttachments.length >= MAX_ATTACHMENTS_PER_SUBMISSION) {
+      return NextResponse.json({ error: `Maksimal ${MAX_ATTACHMENTS_PER_SUBMISSION} lampiran per pengumpulan.` }, { status: 409 });
+    }
+
+    // Terakhir sebelum meminta tiket ke Supabase: hanya permintaan yang lolos semua validasi yang dihitung.
+    const limited = await limitRequests(db, request, uid, 'submission-upload-sign', {
+      perUid: SIGN_MAX_PER_UID,
+      perIp: SIGN_MAX_PER_IP,
+      windowSeconds: SIGN_WINDOW_SECONDS,
+    });
+    if (limited) {
+      return NextResponse.json({ error: limited.message }, { status: 429, headers: { 'Retry-After': String(limited.retryAfterSeconds) } });
+    }
 
     const { url, key } = supabaseConfig();
     const safeFileName = safeName(fileName);
@@ -141,18 +130,12 @@ export async function POST(request: NextRequest) {
     });
 
     if (!response.ok) {
+      // Detail dari Supabase hanya ke log server; client menerima kode status saja.
       const detail = await response.text().catch(() => '');
-      console.error('Supabase signed upload URL failed:', response.status, detail);
-      // Status + pesan error Supabase (mis. "Bucket not found", "Invalid JWT")
-      // aman ditampilkan — tidak memuat key — dan menghilangkan tebak-tebakan.
-      let upstreamMessage = '';
-      try {
-        const parsed = JSON.parse(detail);
-        upstreamMessage = String(parsed?.message || parsed?.error || '').slice(0, 120);
-      } catch {}
+      logger.error('submission_upload.supabase_failed', { upstreamStatus: response.status, detail });
       return NextResponse.json(
         {
-          error: `Upload belum bisa disiapkan (penyimpanan menolak: ${response.status}${upstreamMessage ? ` – ${upstreamMessage}` : ''}).`,
+          error: `Upload belum bisa disiapkan (penyimpanan menolak: ${response.status}). Coba lagi nanti.`,
           code: 'supabase_sign_failed',
           upstreamStatus: response.status,
         },
@@ -174,11 +157,15 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ signedUrl, token, path, fileName });
   } catch (error) {
+    // Validasi body (parseBody) dan penolakan disengaja: pesan aman + status-nya.
+    if (error instanceof ApiError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof SupabaseConfigError) {
-      console.error('Env Supabase (URL / SECRET_KEY) tidak tersedia saat runtime.');
+      logger.error('submission_upload.config_missing');
       return NextResponse.json({ error: 'Penyimpanan lampiran belum dikonfigurasi. Hubungi gurumu.', code: 'server_config' }, { status: 503 });
     }
-    console.error('Submission upload authorization error:', error);
+    logger.error('submission_upload.failed', { err: error });
     return NextResponse.json({ error: 'Upload belum bisa disiapkan. Periksa koneksi dan coba lagi.' }, { status: 500 });
   }
 }

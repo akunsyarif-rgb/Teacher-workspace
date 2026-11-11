@@ -3,8 +3,8 @@ import * as studentNoteRepository from '../repositories/studentNoteRepository';
 import { STUDENT_NOTE_CATEGORIES } from '../config/constants';
 import { getWitaDateString } from '../utils/witaDate';
 
-function sortNewestFirst(items: any[]) {
-  return items.sort((a: any, b: any) => (b.date || '').localeCompare(a.date || ''));
+function sortNewestFirst<T extends { date?: string }>(items: T[]) {
+  return items.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 }
 
 export async function listAchievements(workspaceId: string, className: string) {
@@ -53,8 +53,8 @@ export async function countUnmigratedAchievements(workspaceId: string, className
     studentNoteRepository.getNotes(workspaceId, className, STUDENT_NOTE_CATEGORIES.PRESTASI),
     achievementRepository.getAchievementsByClass(workspaceId, className),
   ]);
-  const existingIds = new Set(achievements.map((item: any) => item.id));
-  return legacyNotes.filter((note: any) => !existingIds.has(note.id)).length;
+  const existingIds = new Set(achievements.map((item) => item.id));
+  return legacyNotes.filter((note) => !existingIds.has(note.id)).length;
 }
 
 export async function migrateLegacyAchievements(workspaceId: string, className: string) {
@@ -63,7 +63,7 @@ export async function migrateLegacyAchievements(workspaceId: string, className: 
     studentNoteRepository.getNotes(workspaceId, className, STUDENT_NOTE_CATEGORIES.PRESTASI),
     achievementRepository.getAchievementsByClass(workspaceId, className),
   ]);
-  const existingIds = new Set(achievements.map((item: any) => item.id));
-  const pending = legacyNotes.filter((note: any) => !existingIds.has(note.id));
-  return achievementRepository.copyFromNotes(pending as any);
+  const existingIds = new Set(achievements.map((item) => item.id));
+  const pending = legacyNotes.filter((note) => !existingIds.has(note.id));
+  return achievementRepository.copyFromNotes(pending);
 }

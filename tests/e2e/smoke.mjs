@@ -173,7 +173,7 @@ function stopServer(server) {
 
 async function run() {
   const server = await startAppServer();
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+  const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
 
   // Guru dan siswa memakai konteks browser terpisah — sesi auth mereka
   // memang harus terpisah, persis seperti perangkat yang berbeda.
@@ -203,6 +203,7 @@ async function run() {
     await teacher.fill('input[placeholder="Minimal 6 karakter"]', TEACHER_PASSWORD);
     await teacher.fill('input[placeholder="Ulangi kata sandi"]', TEACHER_PASSWORD);
     await teacher.fill('input[placeholder*="Kelas Pak"]', 'Workspace Uji');
+    await teacher.check('input[name="consent"]'); // persetujuan Kebijakan Privasi + Syarat (wajib saat daftar)
     await teacher.click('button[type="submit"]');
     await teacher.waitForURL(`${BASE_URL}/`, { timeout: 30000 });
     pass('Guru mendaftar dan workspace terbuat');

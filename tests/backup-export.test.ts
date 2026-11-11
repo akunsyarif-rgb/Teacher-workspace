@@ -104,7 +104,7 @@ beforeAll(async () => {
   ATT = (await import('../app/api/backup/attachments/route')).POST;
 }, 60000);
 afterAll(async () => { await Promise.all([wipe(SRC), wipe(RESTORE)]); });
-beforeEach(() => { process.env.BACKUP_COOLDOWN_SECONDS = '0'; process.env.BACKUP_PLAN_COOLDOWN_SECONDS = '0'; delete process.env.BACKUP_MAX_DOCS; delete process.env.BACKUP_MAX_DOCS_ALLOW_ABOVE_SAFE; });
+beforeEach(() => { process.env.BACKUP_EXPORT_MAX_PER_HOUR = '100000'; process.env.BACKUP_EXPORT_MAX_PER_HOUR_IP = '100000'; process.env.BACKUP_ATTACHMENTS_MAX_PER_HOUR = '100000'; process.env.BACKUP_ATTACHMENTS_MAX_PER_HOUR_IP = '100000'; process.env.BACKUP_COOLDOWN_SECONDS = '0'; process.env.BACKUP_PLAN_COOLDOWN_SECONDS = '0'; delete process.env.BACKUP_MAX_DOCS; delete process.env.BACKUP_MAX_DOCS_ALLOW_ABOVE_SAFE; });
 
 describe('otorisasi server', () => {
   it('tanpa token / token tidak valid / kedaluwarsa / dicabut → 401, tanpa membocorkan detail', async () => {

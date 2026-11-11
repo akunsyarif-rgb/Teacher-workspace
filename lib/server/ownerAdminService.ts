@@ -1,5 +1,7 @@
 import { FieldValue } from 'firebase-admin/firestore';
+import { ApiError } from './apiErrors';
 import { getAdminDb } from './firebaseAdmin';
+import { logger } from '../utils/logger';
 
 const WORKSPACES_COLLECTION = 'workspaces';
 const TEACHER_PROFILES_COLLECTION = 'teacher_profiles';
@@ -7,13 +9,7 @@ const TEACHER_PROFILES_COLLECTION = 'teacher_profiles';
 export const OWNER_PLANS = ['individual_lifetime', 'individual_onetime', 'individual_monthly', 'school_annual'] as const;
 export type OwnerPlan = (typeof OWNER_PLANS)[number];
 
-export class OwnerPanelError extends Error {
-  status: number;
-  constructor(message: string, status: number) {
-    super(message);
-    this.status = status;
-  }
-}
+export class OwnerPanelError extends ApiError {}
 
 // Panel pemilik APLIKASI (bukan pemilik workspace): hanya uid yang tercantum
 // di env APP_OWNER_UIDS (dipisah koma) yang boleh masuk. Env kosong/tidak ada
@@ -107,5 +103,5 @@ export async function updateWorkspaceForOwnerServer(uid: string, workspaceId: un
   const snap = await ref.get();
   if (!snap.exists) throw new OwnerPanelError('Workspace tidak ditemukan.', 404);
   await ref.update({ ...update, updatedAt: FieldValue.serverTimestamp() });
-  console.info('[owner-panel] workspace diubah', workspaceId, Object.keys(update).join(','));
+  logger.info('owner_panel.workspace_updated', { workspaceId, fields: Object.keys(update) });
 }

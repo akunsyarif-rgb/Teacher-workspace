@@ -12,7 +12,7 @@ export async function getActive(workspaceId: string) {
     ['workspaceId', '==', workspaceId],
     ['isActive', '==', true],
   ]);
-  return (docs[0] as any) ?? null;
+  return docs[0] ?? null;
 }
 
 export async function create(data: Record<string, any>) {

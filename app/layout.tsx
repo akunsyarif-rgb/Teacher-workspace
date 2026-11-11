@@ -4,6 +4,7 @@ import "./globals.css";
 import BottomNav from "@/src/components/BottomNav";
 import OfflineBanner from "@/src/components/ui/OfflineBanner";
 import PerfOverlay from "@/src/components/ui/PerfOverlay";
+import ClientMonitoring from "@/src/components/ui/ClientMonitoring";
 import { WorkspaceProvider } from "@/src/context/WorkspaceContext"; // <-- IMPOR INI
 
 const geistSans = Geist({
@@ -46,6 +47,7 @@ export default function RootLayout({
           <div className="flex-1 pb-20 xl:pl-56 xl:pb-0">{children}</div>
           <BottomNav />
           <PerfOverlay />
+          <ClientMonitoring />
         </WorkspaceProvider>
       </body>
     </html>

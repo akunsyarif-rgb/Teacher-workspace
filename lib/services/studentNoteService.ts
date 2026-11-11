@@ -4,7 +4,7 @@ import { getWitaDateString } from '../utils/witaDate';
 export async function loadNotes(workspaceId: string, className: string, category: string) {
   if (!workspaceId || !className || !category) return [];
   const notes = await studentNoteRepository.getNotes(workspaceId, className, category);
-  return notes.sort((a: any, b: any) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  return notes.sort((a, b) => ((a.date ?? '') < (b.date ?? '') ? 1 : (a.date ?? '') > (b.date ?? '') ? -1 : 0));
 }
 
 export async function addNote(

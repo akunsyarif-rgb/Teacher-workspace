@@ -9,13 +9,21 @@ const docs: Record<string, Record<string, unknown>> = {};
 const getAdminAuth = vi.fn(() => ({ verifyIdToken }));
 vi.mock('@/lib/server/firebaseAdmin', () => ({
   getAdminAuth: () => getAdminAuth(),
-  getAdminDb: () => ({
-    collection: (c: string) => ({
-      doc: (id: string) => ({
-        get: async () => ({ exists: docs[`${c}/${id}`] !== undefined, data: () => docs[`${c}/${id}`] }),
-      }),
-    }),
-  }),
+  getAdminDb: () => {
+    const ref = (c: string, id: string) => ({
+      path: `${c}/${id}`,
+      get: async () => ({ exists: docs[`${c}/${id}`] !== undefined, data: () => docs[`${c}/${id}`] }),
+    });
+    return {
+      collection: (c: string) => ({ doc: (id: string) => ref(c, id) }),
+      // Untuk pembatas laju (lib/server/rateLimit.ts): transaksi sederhana di atas `docs`.
+      runTransaction: async (fn: (tx: unknown) => Promise<unknown>) =>
+        fn({
+          get: async (r: { path: string }) => ({ exists: docs[r.path] !== undefined, data: () => docs[r.path] }),
+          set: (r: { path: string }, data: Record<string, unknown>) => void (docs[r.path] = data),
+        }),
+    };
+  },
 }));
 
 import { POST as upload } from '../app/api/submission-attachments/upload/route';
@@ -57,11 +65,51 @@ describe('POST /upload', () => {
     getAdminAuth.mockImplementationOnce(() => { throw new Error('FIREBASE_ADMIN_SERVICE_ACCOUNT belum di-set'); });
     const res = await upload(req('/u', body));
     expect(res.status).toBe(503);
-    expect((await res.json()).code).toBe('server_config');
+    const j = await res.json();
+    expect(j.code).toBe('server_config');
+    expect(JSON.stringify(j)).not.toMatch(/FIREBASE_ADMIN_SERVICE_ACCOUNT/);
   });
   it('413 file terlalu besar, 415 tipe tidak valid', async () => {
     expect((await upload(req('/u', { ...body, fileSize: 10 * 1024 * 1024 }))).status).toBe(413);
     expect((await upload(req('/u', { ...body, contentType: 'text/html' }))).status).toBe(415);
+  });
+  it('validasi server ketat: ukuran bukan bilangan bulat positif / MIME berparameter / ekstensi tidak cocok / nama berlebihan', async () => {
+    for (const fileSize of [0, -5, 1.5, NaN, '1000']) {
+      expect([400, 413]).toContain((await upload(req('/u', { ...body, fileSize }))).status);
+    }
+    expect((await upload(req('/u', { ...body, contentType: 'image/png; charset=utf-8' }))).status).toBe(415);
+    expect((await upload(req('/u', { ...body, contentType: '__proto__' }))).status).toBe(415);
+    // Content-Type tampak sah tapi ekstensinya HTML/skrip -> ditolak
+    expect((await upload(req('/u', { ...body, fileName: 'x.html', contentType: 'image/png' }))).status).toBe(415);
+    expect((await upload(req('/u', { ...body, fileName: 'tanpa-ekstensi', contentType: 'image/png' }))).status).toBe(415);
+    expect((await upload(req('/u', { ...body, fileName: 'a.png.exe', contentType: 'image/png' }))).status).toBe(415);
+    expect((await upload(req('/u', { ...body, fileName: `${'a'.repeat(250)}.png` }))).status).toBe(415);
+    expect(fetchMock).not.toHaveBeenCalled(); // tidak ada tiket yang diminta ke Supabase
+  });
+  it('MIME dan ekstensi yang cocok diterima (pdf, docx, jpeg .JPG)', async () => {
+    fetchMock.mockImplementation(async () => Response.json({ url: '/object/upload/sign/b/p?token=T' }));
+    expect((await upload(req('/u', { ...body, fileName: 'Tugas.PDF', contentType: 'application/pdf' }))).status).toBe(200);
+    expect((await upload(req('/u', { ...body, fileName: 'a.docx', contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }))).status).toBe(200);
+    expect((await upload(req('/u', { ...body, fileName: 'foto.JPG', contentType: 'image/jpeg' }))).status).toBe(200);
+  });
+  it('409 bila lampiran pengumpulan sudah mencapai batas', async () => {
+    docs['submissions/a1_s1'] = { attachments: Array.from({ length: 10 }, (_, i) => ({ filePath: `p${i}` })) };
+    const res = await upload(req('/u', body));
+    expect(res.status).toBe(409);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('429 setelah 40 tiket dalam jendela waktu (anti penyalahgunaan Storage), tanpa memanggil Supabase', async () => {
+    fetchMock.mockImplementation(async () => Response.json({ url: '/object/upload/sign/b/p?token=T' }));
+    for (let i = 0; i < 40; i++) expect((await upload(req('/u', body))).status).toBe(200);
+    const res = await upload(req('/u', body));
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get('Retry-After'))).toBeGreaterThan(0);
+    expect(fetchMock).toHaveBeenCalledTimes(40);
+  });
+  it('permintaan yang ditolak validasi TIDAK menghabiskan jatah tiket', async () => {
+    for (let i = 0; i < 60; i++) await upload(req('/u', { ...body, contentType: 'text/html' }));
+    fetchMock.mockImplementation(async () => Response.json({ url: '/object/upload/sign/b/p?token=T' }));
+    expect((await upload(req('/u', body))).status).toBe(200);
   });
   it('403 bukan siswa / kelas beda', async () => {
     delete docs['student_profiles/u1'];
@@ -79,6 +127,12 @@ describe('POST /upload', () => {
     const res = await upload(req('/u', body));
     expect(res.status).toBe(502);
     expect((await res.json()).error).toContain('500');
+  });
+  it('502 tidak membocorkan pesan mentah dari Supabase ke client', async () => {
+    fetchMock.mockResolvedValue(Response.json({ message: 'bucket "submission-attachments" row-level security policy at db.internal' }, { status: 400 }));
+    const res = await upload(req('/u', body));
+    expect(res.status).toBe(502);
+    expect(JSON.stringify(await res.json())).not.toMatch(/bucket|row-level|internal/);
   });
   it('key sb_secret_ dikirim hanya via apikey; JWT lama juga via Bearer', async () => {
     fetchMock.mockImplementation(async () => Response.json({ url: '/object/upload/sign/b/p?token=T' }));

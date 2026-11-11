@@ -13,7 +13,10 @@ import {
   PLAN_DURATION_MS,
   isSeatLimitReached,
   assertSeatLimitNotReached,
+  getEffectiveClassLimit,
+  INVITE_CODE_VALID_MS,
 } from '../config/plans';
+import { randomCode } from '../utils/secureRandomCode';
 
 // Re-export supaya kode lain (controller/UI) yang sudah mengimpor
 // konstanta ini dari workspaceService tidak perlu berubah — sumber
@@ -30,7 +33,6 @@ export {
   assertSeatLimitNotReached,
 };
 
-const INVITE_CODE_VALID_MS = 7 * 24 * 60 * 60 * 1000; // 7 hari
 
 // Penjaga aturan "satu akun = satu Workspace". Dipanggil di setiap jalur
 // yang bisa membuat guru punya workspace (buat baru ATAU gabung pakai kode)
@@ -44,13 +46,12 @@ async function assertNoExistingWorkspace(uid: string) {
   }
 }
 
+// Alfabet tanpa 0/O/1/I biar tidak salah baca. CSPRNG (bukan Math.random);
+// penebakan dibatasi rate limit di /api/workspace/join + kedaluwarsa kode.
+const INVITE_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
 function generateInviteCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // tanpa 0/O/1/I biar tidak salah baca
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return code;
+  return randomCode(INVITE_CODE_ALPHABET, 6);
 }
 
 export async function createIndividualWorkspace(
@@ -74,6 +75,8 @@ export async function createSchoolWorkspace(uid: string, schoolName: string) {
   await assertNoExistingWorkspace(uid);
 
   const inviteCode = generateInviteCode();
+  // Hanya untuk tampilan (perkiraan dari jam perangkat). Penegakan di server memakai
+  // inviteCodeIssuedAt (serverTimestamp) + INVITE_CODE_VALID_MS.
   const inviteCodeExpiresAt = Date.now() + INVITE_CODE_VALID_MS;
 
   // Workspace sekolah dibuat dulu dengan batas GRATIS (sama seperti
@@ -108,6 +111,8 @@ export async function createSchoolWorkspace(uid: string, schoolName: string) {
 
 export async function regenerateInviteCode(workspaceId: string) {
   const inviteCode = generateInviteCode();
+  // Hanya untuk tampilan (perkiraan dari jam perangkat). Penegakan di server memakai
+  // inviteCodeIssuedAt (serverTimestamp) + INVITE_CODE_VALID_MS.
   const inviteCodeExpiresAt = Date.now() + INVITE_CODE_VALID_MS;
   await updateWorkspaceInviteCode(workspaceId, inviteCode, inviteCodeExpiresAt);
   return { inviteCode, inviteCodeExpiresAt };
@@ -120,8 +125,9 @@ export async function loadWorkspace(workspaceId: string) {
 // Fungsi murni (tidak query apapun) — dipanggil dengan jumlah kelas yang
 // sudah dihitung di tempat lain (mis. dari daftar kelas unik siswa).
 export function isClassLimitReached(workspace: WorkspaceDoc, currentClassCount: number) {
-  if (workspace.classLimit === null || workspace.classLimit === undefined) return false;
-  return currentClassCount >= workspace.classLimit;
+  const limit = getEffectiveClassLimit(workspace);
+  if (limit === null) return false;
+  return currentClassCount >= limit;
 }
 
 // Versi yang langsung menolak (throw) — dipanggil dari studentService
@@ -129,7 +135,7 @@ export function isClassLimitReached(workspace: WorkspaceDoc, currentClassCount: 
 export function assertClassLimitNotReached(workspace: WorkspaceDoc, currentClassCount: number) {
   if (isClassLimitReached(workspace, currentClassCount)) {
     throw new Error(
-      `Paket Anda dibatasi maksimal ${workspace.classLimit} kelas. Hubungi admin untuk upgrade paket.`
+      `Paket Anda dibatasi maksimal ${getEffectiveClassLimit(workspace)} kelas. Hubungi admin untuk upgrade paket.`
     );
   }
 }

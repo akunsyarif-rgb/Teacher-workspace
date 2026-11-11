@@ -1,4 +1,4 @@
-import { db } from '@/src/config/firebase';
+import { auth, db } from '@/src/config/firebase';
 import {
   collection,
   doc,
@@ -12,6 +12,10 @@ import {
   deleteDoc,
   query,
   where,
+  orderBy,
+  limit,
+  startAfter,
+  documentId,
   writeBatch,
   serverTimestamp,
   QueryConstraint,
@@ -29,14 +33,84 @@ function buildQuery(collectionName: string, filters: [string, any, any][]) {
     : collection(db, collectionName);
 }
 
-export async function getDocuments(collectionName: string, filters: [string, any, any][] = []) {
+// Dokumen Firestore + id. Pemanggil boleh menyebut bentuk datanya (lib/types/models.ts);
+// tanpa itu bentuknya longgar (Record<string, any>) seperti sebelumnya.
+export type DocData = Record<string, any>;
+export type Doc<T extends object = DocData> = T & { id: string };
+export type Filter = [string, any, any];
+
+export async function getDocuments<T extends object = DocData>(collectionName: string, filters: Filter[] = []): Promise<Doc<T>[]> {
   const snapshot = await getDocs(buildQuery(collectionName, filters));
-  return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+  return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }) as Doc<T>);
 }
 
-export async function getDocument(collectionName: string, id: string) {
+export type DocumentsPage<T extends object = DocData> = { docs: Doc<T>[]; nextCursor: string | null };
+
+/**
+ * Satu halaman dokumen (limit + startAfter), urut id dokumen. `cursor` = nextCursor halaman
+ * sebelumnya (null/undefined = halaman pertama). nextCursor null = tidak ada halaman berikutnya.
+ * Hanya filter kesetaraan ('==') — urutan id tidak butuh indeks komposit. Untuk daftar yang
+ * bisa tumbuh besar (UI "muat lebih banyak"), bukan untuk rentang tanggal.
+ */
+export async function getDocumentsPage<T extends object = DocData>(
+  collectionName: string,
+  filters: Filter[] = [],
+  options: { pageSize?: number; cursor?: string | null } = {}
+): Promise<DocumentsPage<T>> {
+  const pageSize = Math.min(Math.max(options.pageSize ?? 200, 1), 1000);
+  const constraints: QueryConstraint[] = [
+    ...filters.map(([field, op, value]) => where(field, op, value)),
+    orderBy(documentId()),
+    ...(options.cursor ? [startAfter(options.cursor)] : []),
+    limit(pageSize),
+  ];
+  const snapshot = await getDocs(query(collection(db, collectionName), ...constraints));
+  const docs = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }) as Doc<T>);
+  return { docs, nextCursor: docs.length === pageSize ? docs[docs.length - 1].id : null };
+}
+
+/**
+ * Semua dokumen yang cocok, DIAMBIL BERTAHAP (halaman 500) — bukan satu respons raksasa.
+ * Total bacaan tetap sebanyak dokumennya; keuntungannya memori/latensi per permintaan
+ * terbatas dan tidak ada satu panggilan yang bisa menggantung pada koleksi besar.
+ * Hanya untuk agregat yang memang butuh seluruh set (mis. hitung siswa per kelas).
+ */
+export async function getAllDocumentsPaged<T extends object = DocData>(
+  collectionName: string,
+  filters: Filter[] = [],
+  options: { pageSize?: number } = {}
+): Promise<Doc<T>[]> {
+  const all: Doc<T>[] = [];
+  let cursor: string | null = null;
+  do {
+    const page: DocumentsPage<T> = await getDocumentsPage<T>(collectionName, filters, { pageSize: options.pageSize ?? 500, cursor });
+    all.push(...page.docs);
+    cursor = page.nextCursor;
+  } while (cursor);
+  return all;
+}
+
+// Firestore membatasi operator `in` (30 nilai per query). Memecah nilai ke beberapa query
+// dan menggabungkan hasilnya — dipakai untuk "submission milik tugas-tugas ini" tanpa
+// mengunduh seluruh riwayat.
+export const FIRESTORE_IN_LIMIT = 30;
+
+export async function getDocumentsWhereIn<T extends object = DocData>(
+  collectionName: string,
+  baseFilters: Filter[],
+  field: string,
+  values: string[]
+): Promise<Doc<T>[]> {
+  const unique = [...new Set(values)];
+  const chunks: string[][] = [];
+  for (let i = 0; i < unique.length; i += FIRESTORE_IN_LIMIT) chunks.push(unique.slice(i, i + FIRESTORE_IN_LIMIT));
+  const results = await Promise.all(chunks.map((chunk) => getDocuments<T>(collectionName, [...baseFilters, [field, 'in', chunk]])));
+  return results.flat();
+}
+
+export async function getDocument<T extends object = DocData>(collectionName: string, id: string): Promise<Doc<T> | null> {
   const snap = await getDoc(doc(db, collectionName, id));
-  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+  return snap.exists() ? ({ id: snap.id, ...snap.data() } as Doc<T>) : null;
 }
 
 // Baca dari cache lokal Firestore saja (tanpa menunggu jaringan). null kalau
@@ -61,11 +135,33 @@ export async function countDocuments(collectionName: string, filters: [string, a
 }
 
 export async function addDocument(collectionName: string, data: Record<string, any>) {
+  // createdBy = uid pembuat (dari sesi, bukan dari pemanggil): dasar aturan
+  // "hanya pembuat atau OWNER/ADMIN yang boleh menghapus" di firestore.rules.
+  // Immutable setelah dibuat.
+  const createdBy = auth.currentUser?.uid;
   const docRef = await addDoc(collection(db, collectionName), {
     ...data,
+    ...(createdBy ? { createdBy } : {}),
     createdAt: serverTimestamp(),
   });
   return { id: docRef.id, ...data };
+}
+
+// Soft delete: dokumen TIDAK dihapus, hanya ditandai (deletedAt/deletedBy) dan
+// disaring dari semua query repository (lib/utils/softDelete.ts). Pemulihan
+// mengosongkan tanda itu. Siapa yang boleh menandai/memulihkan dijaga
+// firestore.rules (pembuat dokumen atau OWNER/ADMIN).
+export async function softDeleteDocument(collectionName: string, id: string) {
+  await updateDoc(doc(db, collectionName, id), {
+    deletedAt: serverTimestamp(),
+    deletedBy: auth.currentUser?.uid ?? null,
+  });
+  return true;
+}
+
+export async function restoreDocument(collectionName: string, id: string) {
+  await updateDoc(doc(db, collectionName, id), { deletedAt: null, deletedBy: null, deletedBatchId: null });
+  return true;
 }
 
 // Beda dari updateDocument: berhasil walau dokumennya belum ada sama

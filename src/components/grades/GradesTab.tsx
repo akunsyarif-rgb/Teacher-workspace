@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback, MutableRefObject } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, MutableRefObject } from 'react';
 import { CheckCircle2, CloudOff, Table, Plus, Save, Circle, Lock } from 'lucide-react';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
@@ -14,6 +14,7 @@ import InlineAlert from '@/src/components/ui/InlineAlert';
 import * as gradeController from '@/lib/controllers/gradeController';
 import * as studentController from '@/lib/controllers/classController';
 import { getCached } from '@/lib/utils/sessionCache';
+import { buildDraft, restoreDraft, loadGradeDraft, saveGradeDraft } from '@/lib/utils/gradeDraft';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import { useOnlineStatus } from '@/src/hooks/useOnlineStatus';
 import { SkeletonTable, SkeletonText } from '../ui/Skeleton';
@@ -48,6 +49,12 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
   // konfirmasi di GradesReviewModal — tidak pernah oleh onChange/onBlur.
   const [grades, setGrades] = useState<Record<string, Record<string, string>>>({});
   const [savedGrades, setSavedGrades] = useState<Record<string, Record<string, string>>>({});
+  // Draf yang dipulihkan dari perangkat (nilai diketik tapi belum disimpan saat halaman tertutup/dimuat ulang).
+  const [draftNotice, setDraftNotice] = useState<{ restored: number; conflicts: number } | null>(null);
+  // Autosave draf baru boleh jalan setelah data kelas ini selesai dimuat & draf lama dipulihkan — kalau tidak,
+  // state kosong saat loading akan menimpa/menghapus draf yang tersimpan.
+  const draftReady = useRef(false);
+  const studentsRef = useRef<any[]>([]);
   const [unlockedCells, setUnlockedCells] = useState<Set<string>>(new Set());
   const [students, setStudents] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
@@ -72,6 +79,7 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
   } | null>(null);
 
   useEffect(() => {
+    draftReady.current = false;
     if (className && workspaceId) {
       loadAllData();
     }
@@ -87,31 +95,58 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
     if (!alreadyWarm) {
       setLoadingData(true);
     }
-    await Promise.all([loadData(), loadStudents()]);
+    const [data, list] = await Promise.all([fetchData(), fetchStudents()]);
+    if (data) {
+      studentsRef.current = list;
+      applyGradeData(data, list);
+    }
+    setStudents(list);
+    studentsRef.current = list;
     setLoadingData(false);
   }
 
-  async function loadData() {
-    if (!className || !workspaceId) return;
-    try {
-      const data = await gradeController.fetchGradeData(workspaceId, className);
-      setColumns(data.columns);
+  // Pasang data dari server, lalu pulihkan draf dari perangkat (hanya sel yang nilai tersimpannya belum berubah).
+  function applyGradeData(data: { columns: any[]; grades: Record<string, Record<string, string>> }, studentList: any[]) {
+    setColumns(data.columns);
+    setSavedGrades(data.grades);
+    const firstLoad = !draftReady.current;
+    const draft = workspaceId ? loadGradeDraft(workspaceId, className) : undefined;
+    if (draft) {
+      const r = restoreDraft(draft, data.grades, new Set(studentList.map((s) => s.id)), new Set(data.columns.map((c: any) => c.id)));
+      setGrades(r.grades);
+      setUnlockedCells(new Set(r.unlock.map((u) => cellKey(u.studentId, u.columnId))));
+      if (firstLoad) setDraftNotice(r.restored > 0 || r.conflicts > 0 ? { restored: r.restored, conflicts: r.conflicts } : null);
+    } else {
       setGrades(data.grades);
-      setSavedGrades(data.grades);
       setUnlockedCells(new Set());
+      if (firstLoad) setDraftNotice(null);
+    }
+    draftReady.current = true;
+  }
+
+  async function fetchData() {
+    if (!className || !workspaceId) return null;
+    try {
+      return await gradeController.fetchGradeData(workspaceId, className);
     } catch (error) {
       console.error('Gagal memuat data nilai:', error);
+      return null;
     }
   }
 
-  async function loadStudents() {
-    if (!workspaceId || !className) return;
+  async function fetchStudents(): Promise<any[]> {
+    if (!workspaceId || !className) return [];
     try {
-      const list = await studentController.fetchStudentsInClass(workspaceId, className);
-      setStudents(list);
+      return await studentController.fetchStudentsInClass(workspaceId, className);
     } catch (error) {
       console.error('Gagal memuat siswa:', error);
+      return [];
     }
+  }
+
+  async function loadData() {
+    const data = await fetchData();
+    if (data) applyGradeData(data, studentsRef.current);
   }
 
   // useCallback dengan deps kosong: fungsi ini murni functional update
@@ -170,6 +205,19 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
     return changes;
   }, [students, columns, grades, savedGrades]);
 
+  // Simpan draf ke perangkat setiap kali nilai berubah (sinkron, tanpa biaya Firestore); hapus bila tak ada perubahan.
+  useEffect(() => {
+    if (!draftReady.current || !workspaceId || !className) return;
+    saveGradeDraft(workspaceId, className, buildDraft(grades, savedGrades));
+  }, [grades, savedGrades, workspaceId, className]);
+
+  function discardDraft() {
+    setGrades(savedGrades);
+    setUnlockedCells(new Set());
+    if (workspaceId) saveGradeDraft(workspaceId, className, null);
+    setDraftNotice(null);
+  }
+
   useEffect(() => {
     onDraftChange?.(pendingChanges.length);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -198,6 +246,8 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
       await gradeController.saveGrades(workspaceId, className, grades);
       setSavedGrades(grades);
       setUnlockedCells(new Set());
+      saveGradeDraft(workspaceId, className, null);
+      setDraftNotice(null);
       setSuccess(true);
       setReviewOpen(false);
       onSavedSuccessfully?.();
@@ -289,6 +339,27 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
 
       <InlineAlert message={errorMsg} onDismiss={() => setErrorMsg('')} />
 
+      {draftNotice && (
+        <div role="status" data-testid="grade-draft-notice" className="p-4 bg-amber-50 text-amber-800 rounded-2xl text-xs font-medium flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+          <span>
+            {draftNotice.restored > 0 && (
+              <>
+                <b>{draftNotice.restored} nilai belum disimpan</b> dipulihkan dari perangkat ini (warna Draft). Tekan Review &amp; Simpan untuk menyimpannya.{' '}
+              </>
+            )}
+            {draftNotice.conflicts > 0 && (
+              <>{draftNotice.conflicts} sel tidak dipulihkan karena nilainya sudah berubah di server.</>
+            )}
+          </span>
+          <span className="flex gap-2 shrink-0">
+            {draftNotice.restored > 0 && (
+              <Button variant="secondary" onClick={discardDraft}>Buang draf</Button>
+            )}
+            <Button variant="secondary" onClick={() => setDraftNotice(null)}>Tutup</Button>
+          </span>
+        </div>
+      )}
+
       {success && (
         <div className="p-4 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center gap-2 text-xs font-medium">
           {isOnline ? (
@@ -375,7 +446,7 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
         onConfirm={confirmDeleteColumn}
         title="Hapus Kolom Nilai?"
         itemName={deleteColumnTarget?.title || ''}
-        itemDetail={`Seluruh nilai siswa di kolom ini akan ikut terhapus — Kelas ${className}`}
+        itemDetail={`Kolom dan nilainya disembunyikan (bukan dihapus permanen) dan kembali utuh saat dipulihkan dari Akun › Sampah — Kelas ${className}`}
         requireTyping={false}
         type="warning"
       />

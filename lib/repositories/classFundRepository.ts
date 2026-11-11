@@ -1,15 +1,17 @@
 import { getDocuments, addDocument, deleteDocument } from '../adapters/firestoreAdapter';
+import type { Doc } from '../adapters/firestoreAdapter';
+import type { ClassFundTransactionData } from '../types/models';
 import { COLLECTIONS } from '../config/constants';
 
-export async function getTransactions(workspaceId: string, className: string) {
+export async function getTransactions(workspaceId: string, className: string): Promise<Doc<ClassFundTransactionData>[]> {
   if (!workspaceId || !className) return [];
-  return getDocuments(COLLECTIONS.CLASS_FUND, [
+  return getDocuments<ClassFundTransactionData>(COLLECTIONS.CLASS_FUND, [
     ['workspaceId', '==', workspaceId],
     ['className', '==', className],
   ]);
 }
 
-export async function createTransaction(data: Record<string, any>) {
+export async function createTransaction(data: Record<string, unknown>) {
   return addDocument(COLLECTIONS.CLASS_FUND, data);
 }
 

@@ -1,3 +1,4 @@
+import { withPersistentCache } from '../utils/persistentCache';
 import * as studentRepository from '../repositories/studentRepository';
 import { getWorkspaceById } from '../repositories/workspaceRepository';
 import { assertClassLimitNotReached } from './workspaceService';
@@ -12,18 +13,26 @@ async function assertCanAddToClass(workspaceId: string, className: string) {
   ]);
   if (!workspace) return;
   const existingClasses = new Set(
-    students.map((s: any) => s.className?.trim().toUpperCase()).filter(Boolean)
+    students.map((s) => s.className?.trim().toUpperCase()).filter(Boolean)
   );
   if (existingClasses.has(className)) return;
   assertClassLimitNotReached(workspace, existingClasses.size);
 }
 
+// Dihitung dari seluruh siswa, jadi hasilnya disimpan di perangkat (TTL 10 menit; dibuang oleh clearAllCached()
+// saat guru menambah/menghapus siswa di perangkat ini). Perubahan dari perangkat lain terlihat ≤10 menit.
+export const CLASS_SUMMARIES_TTL_MS = 10 * 60_000;
+
 export async function listClassSummaries(workspaceId: string) {
   if (!workspaceId) return [];
+  return withPersistentCache(`classes:${workspaceId}`, CLASS_SUMMARIES_TTL_MS, () => computeClassSummaries(workspaceId));
+}
+
+async function computeClassSummaries(workspaceId: string) {
   const students = await studentRepository.getAllStudents(workspaceId);
 
   const counts: Record<string, number> = {};
-  students.forEach((s: any) => {
+  students.forEach((s) => {
     const cls = s.className?.trim();
     if (!cls) return;
     counts[cls] = (counts[cls] || 0) + 1;
@@ -93,14 +102,28 @@ export async function removeStudent(id: string) {
   return studentRepository.deleteStudent(id);
 }
 
+export async function restoreStudent(id: string) {
+  return studentRepository.restoreStudent(id);
+}
+
+export async function listDeletedStudents(workspaceId: string) {
+  return studentRepository.getDeletedStudents(workspaceId);
+}
+
 export async function removeClass(workspaceId: string, className: string) {
   if (!workspaceId) throw new Error('workspaceId diperlukan');
   if (!className) throw new Error('Kelas tidak valid.');
-  return studentRepository.deleteStudentsByClass(workspaceId, className);
+  return studentRepository.deleteClassOnServer(className);
+}
+
+export async function restoreClass(workspaceId: string, className: string) {
+  if (!workspaceId) throw new Error('workspaceId diperlukan');
+  if (!className) throw new Error('Kelas tidak valid.');
+  return studentRepository.restoreClassOnServer(className);
 }
 
 export async function generateMissingAccessCodes(workspaceId: string, className: string) {
   if (!workspaceId || !className) throw new Error('Kelas tidak valid.');
   const students = await studentRepository.getStudentsByClass(workspaceId, className);
-  return studentRepository.backfillAccessCodes(students as any, workspaceId);
+  return studentRepository.backfillAccessCodes(students, workspaceId);
 }

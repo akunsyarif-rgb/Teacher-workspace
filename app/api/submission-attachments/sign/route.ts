@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminAuth, getAdminDb } from '@/lib/server/firebaseAdmin';
+import { getAdminDb } from '@/lib/server/firebaseAdmin';
+import { requireAuth } from '@/lib/server/requireAuth';
+import { ApiError, parseBody } from '@/lib/server/apiErrors';
+import { SignDownloadBodySchema } from '@/lib/schemas/api';
+import { logger } from '@/lib/utils/logger';
 
 export const runtime = 'nodejs';
 
@@ -33,38 +37,14 @@ function encodedPath(path: string) {
 }
 
 export async function POST(request: NextRequest) {
-  const authHeader = request.headers.get('authorization') || '';
-  const idToken = authHeader.replace(/^Bearer\s+/i, '').trim();
-  if (!idToken) return NextResponse.json({ error: 'Token otentikasi diperlukan.' }, { status: 401 });
-
-  // Inisialisasi Admin SDK dipisah dari verifikasi token: env var service
-  // account yang hilang bukan "sesi tidak valid" milik siswa, jadi tidak
-  // boleh disamarkan sebagai 401.
-  let adminAuth: ReturnType<typeof getAdminAuth>;
-  try {
-    adminAuth = getAdminAuth();
-  } catch (error) {
-    console.error('Firebase Admin tidak dapat diinisialisasi:', error instanceof Error ? error.message : error);
-    return NextResponse.json(
-      { error: 'Server belum dikonfigurasi untuk unggah lampiran. Hubungi gurumu.', code: 'server_config' },
-      { status: 503 }
-    );
-  }
-
-  let uid: string;
-  try {
-    uid = (await adminAuth.verifyIdToken(idToken)).uid;
-  } catch (error) {
-    console.error('Verifikasi token Firebase gagal:', error instanceof Error ? error.message : error);
-    return NextResponse.json({ error: 'Sesi tidak valid. Silakan masuk kembali.', code: 'invalid_token' }, { status: 401 });
-  }
+  const auth = await requireAuth(request, {
+    configErrorMessage: 'Server belum dikonfigurasi untuk unggah lampiran. Hubungi gurumu.',
+  });
+  if (auth instanceof NextResponse) return auth;
+  const { uid } = auth;
 
   try {
-    const body = await request.json();
-    const path = body?.filePath;
-    if (typeof path !== 'string') {
-      return NextResponse.json({ error: 'Path lampiran tidak valid.' }, { status: 400 });
-    }
+    const { filePath: path } = parseBody(SignDownloadBodySchema, await request.json().catch(() => ({})), 'Path lampiran tidak valid.');
 
     const parts = path.split('/');
     // submissions/{workspaceId}/{assignmentId}/{studentUid}/{filename}
@@ -129,7 +109,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (!response.ok) {
-      console.error('Supabase signed URL failed:', response.status, await response.text().catch(() => ''));
+      logger.error('submission_sign.supabase_failed', { upstreamStatus: response.status, detail: await response.text().catch(() => '') });
       return NextResponse.json({ error: 'Lampiran belum bisa dibuka. Coba lagi.' }, { status: 502 });
     }
 
@@ -144,11 +124,15 @@ export async function POST(request: NextRequest) {
       : `${url}/storage/v1${signedURL.startsWith('/') ? signedURL : `/${signedURL}`}`;
     return NextResponse.json({ signedUrl: absoluteURL, expiresIn: SIGNED_URL_TTL_SECONDS });
   } catch (error) {
+    // Validasi body (parseBody) dan penolakan disengaja: pesan aman + status-nya.
+    if (error instanceof ApiError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof SupabaseConfigError) {
-      console.error('Env Supabase (URL / SECRET_KEY) tidak tersedia saat runtime.');
+      logger.error('submission_sign.config_missing');
       return NextResponse.json({ error: 'Penyimpanan lampiran belum dikonfigurasi. Hubungi gurumu.', code: 'server_config' }, { status: 503 });
     }
-    console.error('Submission signed URL error:', error);
+    logger.error('submission_sign.failed', { err: error });
     return NextResponse.json({ error: 'Lampiran belum bisa dibuka. Coba lagi.' }, { status: 500 });
   }
 }

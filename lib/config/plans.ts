@@ -16,6 +16,10 @@ export type PaidPlan = 'individual_onetime' | 'individual_monthly' | 'school_ann
 // titik awal workspace sekolah sebelum owner-nya benar-benar membayar.
 // 3 kelas sengaja dibuat pas-pasan (bukan besar) supaya guru dengan
 // beban mengajar normal tetap punya alasan upgrade ke paket berbayar.
+// Masa berlaku kode undangan guru. Dihitung dari inviteCodeIssuedAt (jam server Firestore)
+// di sisi server, bukan dari jam perangkat yang membuat kodenya.
+export const INVITE_CODE_VALID_MS = 7 * 24 * 60 * 60 * 1000; // 7 hari
+
 export const FREE_CLASS_LIMIT = 3;
 export const FREE_SEAT_LIMIT = 1; // cuma pemilik, sampai beli kursi guru tambahan
 
@@ -66,4 +70,22 @@ export function assertSeatLimitNotReached(workspace: { seatLimit?: number | null
       `Kuota guru workspace ini sudah penuh (maks ${workspace.seatLimit} guru). Admin sekolah perlu membeli kursi tambahan lewat halaman upgrade.`
     );
   }
+}
+
+// Paket berlangganan yang sudah lewat planExpiresAt turun ke batas gratis
+// untuk MEMBUAT kelas baru. Data/kelas yang sudah ada tetap utuh dan bisa
+// dibuka (tidak ada data yang disembunyikan atau dihapus); yang tertutup
+// hanya penambahan kelas baru sampai paket diperpanjang. Satu-satunya
+// sumber aturan ini — dipakai server (enforcement) dan UI (pesan).
+export function isPlanExpired(workspace: { planExpiresAt?: number | null }, now: number = Date.now()) {
+  return typeof workspace.planExpiresAt === 'number' && workspace.planExpiresAt < now;
+}
+
+export function getEffectiveClassLimit(
+  workspace: { classLimit?: number | null; planExpiresAt?: number | null },
+  now: number = Date.now()
+): number | null {
+  const limit = workspace.classLimit ?? null;
+  if (!isPlanExpired(workspace, now)) return limit;
+  return limit === null ? FREE_CLASS_LIMIT : Math.min(limit, FREE_CLASS_LIMIT);
 }

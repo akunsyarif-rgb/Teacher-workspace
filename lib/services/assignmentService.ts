@@ -19,7 +19,7 @@ export async function createAssignment(
   // Setiap tugas otomatis punya kolom nilai sendiri di gradebook, supaya
   // saat guru menilai submission, nilainya langsung muncul di rekap nilai
   // tanpa guru harus bikin kolom manual (lihat gradeColumnRepository).
-  const gradeColumn: any = await gradeColumnRepository.createColumn({
+  const gradeColumn = await gradeColumnRepository.createColumn({
     workspaceId,
     className,
     title: data.title.trim(),

@@ -42,3 +42,19 @@ Pastikan status Ulangan Harian yang sebenarnya (sudah diterapkan di Supabase ata
 
 ---
 Perbarui file ini di akhir tiap sesi kerja: tanggal, apa yang selesai, apa yang terbuka.
+
+
+## Pembaruan 8 Nov 2026 — siklus audit kesiapan produksi
+Selesai (branch `claude/sleepy-brown-6tsnvn`, belum di-merge):
+- **Keamanan:** field tenant immutable di rules; batas kelas + kedaluwarsa paket ditegakkan server (`/api/students/create`); webhook Midtrans transaksional, cek nominal, signature waktu-konstan, status non-2xx; kode akses/undangan dibuat CSPRNG dan diverifikasi server dengan rate limit; `requireAuth` terpusat (cek pencabutan sesi); error API disanitasi; kuota kursi join atomik; unggah lampiran divalidasi ketat + rate limit; header keamanan (CSP, HSTS, dst).
+- **Keandalan:** soft delete (siswa, tugas, kolom nilai, kelas) + pemulihan di lapisan data; hapus berbasis peran (pembuat atau OWNER/ADMIN); rename kelas tahan-gagal dan dapat dilanjutkan; error boundary (`error.tsx`, `global-error.tsx`, `not-found.tsx`).
+- **Performa & perawatan:** query analitik berbatas rentang tanggal; paginasi adapter; timestamp dari jam server; logger terstruktur (`lib/utils/logger.ts`, titik sambung Sentry); skema Zod di batas API; tipe model dokumen; `any` di lapisan data berkurang besar.
+- **Pengujian:** 910 test unit/rules/DB lolos; 11 suite E2E browser lolos (smoke, onboarding, rename-class, grade-lock, submission, submission-drive-link, attendance, backup, class-tabs, visual, ulangan).
+
+Langkah manual yang masih butuh pemilik project (tidak bisa dari repo):
+- Jalankan migrasi `supabase/migrations/20261108000000_harden_submission_bucket.sql` di Supabase.
+- Kebijakan TTL Firestore pada koleksi `rate_limits` (field `expiresAt`).
+- Uji pembayaran Midtrans Snap di sandbox (CSP, order_id baru yang lebih pendek).
+- Deploy rules + indeks (otomatis dari `main`); data lama tanpa `createdBy` hanya bisa dihapus OWNER/ADMIN.
+
+Terbuka: UI Recycle Bin & Audit Log, hapus-terjadwal data terhapus, integrasi Sentry sungguhan, CSP berbasis nonce, `className` → `classId`, pemecahan komponen React besar, `any` tersisa di UI dan `ulanganRepository`.

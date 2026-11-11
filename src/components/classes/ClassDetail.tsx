@@ -32,7 +32,9 @@ export default function ClassDetail({
   backLabel = 'Kembali ke Daftar Kelas',
   onRenamed,
 }: ClassDetailProps) {
-  const { workspaceId } = useWorkspace();
+  const { workspaceId, role } = useWorkspace();
+  // Hapus kelas penuh: khusus OWNER/ADMIN (dicek ulang di server).
+  const canDeleteClass = role === 'OWNER' || role === 'ADMIN';
   const [students, setStudents] = useState<any[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; nis: string } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,7 +83,11 @@ export default function ClassDetail({
       // tanpa alert di sini, kegagalan hapus gagal secara senyap. Re-throw
       // supaya modal tahu untuk tetap terbuka (bukan ikut onClose seolah
       // berhasil), mengikuti pola handleGenerateMissingCodes di file ini.
-      alert(error.message || 'Gagal menghapus siswa.');
+      alert(
+        error?.code === 'permission-denied'
+          ? 'Anda hanya bisa menghapus siswa yang Anda tambahkan sendiri. Minta pemilik atau admin workspace untuk menghapus siswa lain.'
+          : error.message || 'Gagal menghapus siswa.'
+      );
       throw error;
     }
   }
@@ -222,7 +228,7 @@ export default function ClassDetail({
           >
             <Settings className="w-3.5 h-3.5" />
           </button>
-          {students.length > 0 && (
+          {students.length > 0 && canDeleteClass && (
             <button
               onClick={() => setConfirmDeleteClass(true)}
               className="flex items-center gap-1.5 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-bold transition-all active:scale-95"
@@ -319,7 +325,7 @@ export default function ClassDetail({
         onConfirm={() => handleDelete(deleteTarget!.id)}
         title="Hapus Siswa?"
         itemName={deleteTarget?.name || ""}
-        itemDetail={`Kelas ${className} • NIS: ${deleteTarget?.nis || "-"}`}
+        itemDetail={`Kelas ${className} • NIS: ${deleteTarget?.nis || "-"} • Dipindahkan ke Sampah, bisa dipulihkan dari Akun › Sampah.`}
         requireTyping={true}
         type="danger"
       />
@@ -357,7 +363,7 @@ export default function ClassDetail({
         }}
         title="Hapus Seluruh Kelas Ini?"
         itemName={`Kelas ${className}`}
-        itemDetail={`${students.length} siswa di kelas ini akan ikut terhapus semua, termasuk data presensi/nilai yang mereferensikan mereka tidak bisa dipulihkan.`}
+        itemDetail={`${students.length} siswa di kelas ini dipindahkan ke Sampah. Data presensi, jurnal, dan nilai tidak ikut dihapus. Pemilik atau admin bisa memulihkan kelas dari Akun › Sampah.`}
         requireTyping={true}
         type="danger"
       />

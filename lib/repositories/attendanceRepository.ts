@@ -1,5 +1,6 @@
 import { getDocuments, addDocument, updateDocument, deleteDocument } from '../adapters/firestoreAdapter';
 import { COLLECTIONS } from '../config/constants';
+import type { AttendanceData } from '../types/models';
 
 export async function getAttendanceByClass(workspaceId: string, className: string) {
   if (!workspaceId || !className) return [];
@@ -39,15 +40,15 @@ export async function findTodayAttendance(
   date: string
 ) {
   if (!workspaceId || !className) return null;
-  const docs = await getDocuments(COLLECTIONS.ATTENDANCES, [
+  const docs = await getDocuments<AttendanceData>(COLLECTIONS.ATTENDANCES, [
     ['workspaceId', '==', workspaceId],
     ['className', '==', className],
     ['date', '==', date],
   ]);
   if (scheduleId) {
-    return (docs.find((d: any) => d.scheduleId === scheduleId) as any) ?? null;
+    return docs.find((d) => d.scheduleId === scheduleId) ?? null;
   }
-  return (docs.find((d: any) => !d.scheduleId) as any) ?? (docs[0] as any) ?? null;
+  return docs.find((d) => !d.scheduleId) ?? docs[0] ?? null;
 }
 
 export async function createAttendance(data: Record<string, any>) {

@@ -19,7 +19,7 @@ import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 import net from 'node:net';
 import { initializeTestEnvironment } from '@firebase/rules-unit-testing';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, updateDoc, where } from 'firebase/firestore';
 
 const BASE_URL = 'http://127.0.0.1:3100';
 const OWNER_EMAIL = `owner${Date.now()}@sekolah-uji.sch.id`;
@@ -172,6 +172,22 @@ async function bumpSeatLimitForTesting(inviteCode, newSeatLimit) {
   }
 }
 
+
+// Menghitung profil guru yang mencatat persetujuan hukum (versi dokumen) — bukti consent tersimpan di server.
+async function countConsentRecords() {
+  const testEnv = await initializeTestEnvironment({ projectId: 'demo-teacher-workspace', firestore: { host: 'localhost', port: 8080 } });
+  try {
+    let n = 0;
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const snap = await getDocs(query(collection(ctx.firestore(), 'teacher_profiles'), where('legalConsentVersion', '!=', '')));
+      n = snap.docs.filter((d) => d.data().legalConsentAt).length;
+    });
+    return n;
+  } finally {
+    await testEnv.cleanup();
+  }
+}
+
 async function signup(page, { email, mode, workspaceName, inviteCode }) {
   await page.goto(`${BASE_URL}/signup`, { waitUntil: 'domcontentloaded' });
   if (mode !== 'individual') {
@@ -186,12 +202,13 @@ async function signup(page, { email, mode, workspaceName, inviteCode }) {
   } else {
     await page.fill('input[placeholder*="AB3D9F"]', inviteCode);
   }
+  await page.check('input[name="consent"]'); // persetujuan Kebijakan Privasi + Syarat (wajib saat daftar)
   await page.click('button[type="submit"]');
 }
 
 async function run() {
   const server = await startAppServer();
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+  const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
 
   // Tiga persona, tiga konteks browser terpisah — mewakili tiga perangkat
   // berbeda, sama seperti pemisahan guru/siswa di smoke.mjs.
@@ -214,6 +231,38 @@ async function run() {
 
   try {
     // ---------- 1. Create School ----------
+    // ---------- 0. Halaman hukum + persetujuan wajib saat daftar ----------
+    console.log('\n→ Halaman hukum dan persetujuan');
+    {
+      const anon = await (await browser.newContext()).newPage();
+      for (const [path, heading] of [['/privasi', 'Kebijakan Privasi'], ['/syarat', 'Syarat dan Ketentuan']]) {
+        await anon.goto(`${BASE_URL}${path}`, { waitUntil: 'domcontentloaded' });
+        const h1 = await anon.locator('h1').first().innerText().catch(() => '');
+        const draft = await anon.getByTestId('legal-draft-banner').count();
+        const urlStayed = anon.url().endsWith(path); // publik: tidak dialihkan ke /login
+        if (h1.includes(heading) && draft > 0 && urlStayed) pass(`Halaman ${path} publik, memuat "${heading}" dan spanduk draf`);
+        else fail(`Halaman ${path} publik`, `h1="${h1}" draf=${draft} url=${anon.url()}`);
+      }
+      await anon.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
+      const legalNav = anon.getByRole('navigation', { name: /Informasi hukum/i });
+      await legalNav.first().waitFor({ timeout: 15000 }).catch(() => {}); // /login memeriksa sesi dulu
+      const footerLinks = await legalNav.getByRole('link').count();
+      if (footerLinks === 2) pass('Footer /login memuat tautan Kebijakan Privasi dan Syarat');
+      else fail('Footer /login memuat tautan hukum', `jumlah tautan=${footerLinks}`);
+
+      await anon.goto(`${BASE_URL}/signup`, { waitUntil: 'domcontentloaded' });
+      await anon.fill('input[type="email"]', `tanpa${Date.now()}@sekolah-uji.sch.id`);
+      await anon.fill('input[placeholder="Minimal 6 karakter"]', PASSWORD);
+      await anon.fill('input[placeholder="Ulangi kata sandi"]', PASSWORD);
+      await anon.fill('input[placeholder*="Kelas Pak"]', 'Tanpa Persetujuan');
+      const disabledBefore = await anon.locator('button[type="submit"]').isDisabled();
+      await anon.check('input[name="consent"]');
+      const enabledAfter = !(await anon.locator('button[type="submit"]').isDisabled());
+      if (disabledBefore && enabledAfter) pass('Daftar: tombol nonaktif sampai persetujuan dicentang (tidak ada akun dibuat tanpa persetujuan)');
+      else fail('Daftar wajib persetujuan', `nonaktifSebelum=${disabledBefore} aktifSesudah=${enabledAfter}`);
+      await anon.context().close();
+    }
+
     console.log('\n→ Onboarding sekolah');
     await signup(owner, { email: OWNER_EMAIL, mode: 'school', workspaceName: SCHOOL_NAME });
     try {
@@ -332,6 +381,8 @@ async function run() {
 
       // Owner login lagi (sesi sudah di-logout di langkah 3).
       await owner.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
+      // /login kini pemilih peran dulu (redesign); formulir email muncul setelah memilih jalur guru.
+      await owner.getByRole('button', { name: /Masuk sebagai Guru/i }).click();
       await owner.fill('input[type="email"]', OWNER_EMAIL);
       await owner.fill('input[type="password"]', PASSWORD);
       await owner.click('button[type="submit"]');
@@ -394,8 +445,25 @@ async function run() {
         'guru pembanding gagal mendaftar/masuk beranda'
       );
     }
+
+    // ---------- Bukti persetujuan tersimpan ----------
+    const consentCount = await countConsentRecords();
+    if (consentCount >= 3) pass('Persetujuan tersimpan di profil (versi + waktu server) untuk owner, guru yang bergabung, dan guru individu', `${consentCount} profil`);
+    else fail('Persetujuan tersimpan di profil', `hanya ${consentCount} profil memiliki legalConsentVersion`);
   } catch (error) {
-    fail('Alur uji berhenti karena error tak terduga', error.message);
+    // Sertakan bukti dari halaman yang sedang dipakai (bukan hanya pesan timeout): layar + teks + URL.
+    let evidence = error.message;
+    for (const [label, page] of [['owner', owner], ['joiner', joiner]]) {
+      try {
+        const file = `/tmp/e2e-onboarding-error-${label}.png`;
+        await page.screenshot({ path: file, fullPage: true });
+        const text = (await page.locator('body').innerText()).replace(/\s+/g, ' ').slice(0, 300);
+        evidence += ` | ${label}: url=${page.url()} layar=${file} teks="${text}"`;
+      } catch {
+        // halaman mungkin sudah tertutup
+      }
+    }
+    fail('Alur uji berhenti karena error tak terduga', evidence);
   } finally {
     await browser.close();
     stopServer(server);

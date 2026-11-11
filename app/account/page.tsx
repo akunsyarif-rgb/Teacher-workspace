@@ -8,14 +8,19 @@ import { auth } from "@/src/config/firebase";
 import { useWorkspace } from "@/src/context/WorkspaceContext";
 import WorkspaceGuard from "@/src/components/ui/WorkspaceGuard";
 import InviteCodeCard from "@/src/components/workspace/InviteCodeCard";
-import { User, ChevronRight, LogOut, BarChart3, Wallet, Database, ShieldCheck, HardDriveDownload } from "lucide-react";
+import LegalLinks from "@/src/components/legal/LegalLinks";
+import { User, ChevronRight, LogOut, BarChart3, Wallet, Database, ShieldCheck, HardDriveDownload, Trash2 } from "lucide-react";
+import { clearPersistentData } from "@/lib/utils/persistentCache";
+import { countUnsavedDrafts } from "@/lib/utils/formDraft";
 
 export default function AccountPage() {
   const router = useRouter();
   const { user, teacherProfile, workspace, role } = useWorkspace();
   async function handleLogout() {
+    if (countUnsavedDrafts() > 0 && !window.confirm("Ada isian (nilai/jurnal/pengumuman/dll.) yang belum disimpan di perangkat ini. Keluar akun akan menghapusnya. Tetap keluar?")) return;
     try {
       await signOut(auth);
+      clearPersistentData();
       router.push("/login");
     } catch (error) {
       console.error("Gagal keluar:", error);
@@ -97,6 +102,16 @@ export default function AccountPage() {
               <ChevronRight className="w-4 h-4 text-gray-300" />
             </Link>
             <Link
+              href="/account/sampah"
+              className="flex items-center justify-between gap-3 p-4 hover:bg-nb-workspace transition-colors"
+            >
+              <span className="flex items-center gap-2 text-xs font-bold text-nb-ink">
+                <Trash2 className="w-4 h-4 text-nb-ink-muted" />
+                Sampah (Pulihkan Data)
+              </span>
+              <ChevronRight className="w-4 h-4 text-gray-300" />
+            </Link>
+            <Link
               href="/account/backup"
               className="flex items-center justify-between gap-3 p-4 hover:bg-nb-workspace transition-colors"
             >
@@ -126,6 +141,8 @@ export default function AccountPage() {
             Keluar
           </button>
         </WorkspaceGuard>
+
+        <LegalLinks className="pt-2" />
       </div>
     </div>
   );

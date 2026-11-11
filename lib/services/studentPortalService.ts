@@ -4,6 +4,17 @@ import * as submissionRepository from '../repositories/submissionRepository';
 import * as gradeRepository from '../repositories/gradeRepository';
 import * as gradeColumnRepository from '../repositories/gradeColumnRepository';
 import * as attendanceRepository from '../repositories/attendanceRepository';
+import { activeOnly } from '../utils/softDelete';
+import { syncStore } from '../utils/persistentCache';
+import { getWitaDateString, shiftWitaDateString } from '../utils/witaDate';
+import {
+  planSync,
+  buildFullState,
+  mergeWindow,
+  reduceToStudent,
+  type SyncState,
+  type SessionDoc,
+} from '../utils/attendanceSync';
 import * as announcementService from './announcementService';
 import * as achievementService from './achievementService';
 import {
@@ -75,6 +86,19 @@ export async function getGrades({ workspaceId, className, studentId }: StudentSc
 }
 
 export async function getAttendance({ workspaceId, className, studentId }: StudentScope) {
-  const records = await attendanceRepository.getAttendanceByClass(workspaceId, className);
-  return summarizeAttendance(records, studentId);
+  const key = `att:${workspaceId}:${className}:${studentId}`;
+  const today = getWitaDateString();
+  const state = syncStore.get<SyncState>(key);
+  const plan = planSync(state, today, shiftWitaDateString);
+
+  let next: SyncState;
+  if (plan.kind === 'full' || !state) {
+    const all = await attendanceRepository.getAttendanceByClass(workspaceId, className);
+    next = buildFullState(reduceToStudent(activeOnly(all as unknown as SessionDoc[]), studentId), today);
+  } else {
+    const recent = await attendanceRepository.getAttendanceByClassInRange(workspaceId, className, plan.windowStart, today);
+    next = mergeWindow(state, plan.windowStart, reduceToStudent(activeOnly(recent as unknown as SessionDoc[]), studentId), today);
+  }
+  syncStore.set(key, next);
+  return summarizeAttendance(Object.values(next.items), studentId);
 }

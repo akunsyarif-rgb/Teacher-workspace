@@ -1,6 +1,20 @@
 import type { NextConfig } from "next";
+import { buildSecurityHeaders, originOf } from "./lib/config/securityHeaders";
+import { dsnOrigin } from "./lib/utils/sentryReporter";
+
+const securityHeaders = buildSecurityHeaders({
+  isProduction: process.env.NODE_ENV === "production",
+  useEmulator: process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === "true",
+  supabaseOrigin: originOf(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL),
+  sentryOrigin: dsnOrigin(process.env.NEXT_PUBLIC_SENTRY_DSN) ?? undefined,
+});
 
 const nextConfig: NextConfig = {
+  // Header keamanan (CSP, X-Frame-Options, Referrer-Policy, HSTS, dst) untuk semua route.
+  async headers() {
+    return [{ source: "/:path*", headers: securityHeaders }];
+  },
+
   // Fitur wali kelas dipindah ke bawah /wali-kelas/* (Fase 1A: kelompokkan
   // route wali kelas). Redirect ini menjaga link/bookmark lama tetap jalan.
   async redirects() {

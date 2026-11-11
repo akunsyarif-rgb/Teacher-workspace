@@ -182,7 +182,8 @@ async function createAssignment(teacher, className, title, dueDate) {
 
 /** Kartu tugas siswa dicari lewat judulnya, bukan lewat urutan. */
 async function studentCard(student, title) {
-  const cards = await student.locator('div.bg-white.p-4.rounded-2xl').all();
+  // data-testid stabil (bukan kelas Tailwind): redesign sebelumnya mengubah bg-white -> bg-nb-paper dan memutus pencarian kartu.
+  const cards = await student.locator('[data-testid="assignment-card"]').all();
   for (const card of cards) {
     const text = await card.innerText();
     if (text.includes(title)) return card;
@@ -221,7 +222,7 @@ async function openTeacherAssignment(teacher, className, title) {
 
 async function run() {
   const server = await startAppServer();
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+  const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   const teacherContext = await browser.newContext();
   const studentContext = await browser.newContext();
   const teacher = await teacherContext.newPage();
@@ -247,6 +248,7 @@ async function run() {
     await teacher.fill('input[placeholder="Minimal 6 karakter"]', TEACHER_PASSWORD);
     await teacher.fill('input[placeholder="Ulangi kata sandi"]', TEACHER_PASSWORD);
     await teacher.fill('input[placeholder*="Kelas Pak"]', 'Workspace Uji');
+    await teacher.check('input[name="consent"]'); // persetujuan Kebijakan Privasi + Syarat (wajib saat daftar)
     await teacher.click('button[type="submit"]');
     await teacher.waitForURL(`${BASE_URL}/`, { timeout: 30000 });
 
@@ -314,6 +316,19 @@ async function run() {
       await openCard.getByRole('button', { name: /Kerjakan Tugas/i }).first().click();
       await student.waitForTimeout(600);
       await openCard.locator('textarea').fill(STUDENT_ANSWER);
+      // Draf jawaban: muat ulang sebelum Kirim → jawaban teks harus dipulihkan dari perangkat.
+      await student.waitForTimeout(500);
+      await student.reload({ waitUntil: 'domcontentloaded' });
+      await student.waitForTimeout(3000);
+      await openCard.getByRole('button', { name: /Kerjakan Tugas/i }).first().click();
+      await student.waitForTimeout(600);
+      const restoredAnswer = await openCard.locator('textarea').inputValue();
+      if (restoredAnswer === STUDENT_ANSWER && (await student.getByTestId('answer-draft-notice').count()) > 0) {
+        pass('Jawaban siswa yang belum dikumpulkan dipulihkan setelah muat ulang');
+      } else {
+        fail('Jawaban siswa yang belum dikumpulkan dipulihkan setelah muat ulang', `isi="${restoredAnswer}"`);
+        await openCard.locator('textarea').fill(STUDENT_ANSWER);
+      }
       await openCard.locator('input[type="file"]').first().setInputFiles([
         { name: 'foto-jawaban.jpg', mimeType: 'application/octet-stream', buffer: ONE_PIXEL_PNG },
       ]);

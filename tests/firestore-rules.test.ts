@@ -190,7 +190,7 @@ describe('workspaces', () => {
     await assertFails(getDoc(doc(db, 'workspaces/ws1')));
   });
 
-  it('lets an authenticated stranger get a single workspace that currently has an invite code open (needed to preview before joining)', async () => {
+  it('denies an authenticated stranger getting a workspace even if it has an invite code open (join goes through /api/workspace/join, no client preview)', async () => {
     await seed((db) =>
       setDoc(doc(db, 'workspaces/ws1'), {
         ownerUid: 'ownerX',
@@ -200,7 +200,7 @@ describe('workspaces', () => {
       })
     );
     const db = testEnv.authenticatedContext('strangerNoWorkspace').firestore();
-    await assertSucceeds(getDoc(doc(db, 'workspaces/ws1')));
+    await assertFails(getDoc(doc(db, 'workspaces/ws1')));
   });
 
   it('never allows listing/querying the workspaces collection at all (no enumeration, even for open-invite workspaces)', async () => {
@@ -314,10 +314,16 @@ describe('audit T1 — privilege escalation via teacher_profiles self-write', ()
 // sungguhan di titik teacher_profiles.allow create.
 // ============================================================
 describe('audit T2 — join workspace via invite code', () => {
-  it('a brand new teacher (no workspace yet) can get the invite bridge doc by code', async () => {
-    await seed((db) => setDoc(doc(db, 'workspace_invites/ABC123'), { workspaceId: 'ws1', expiresAt: Date.now() + 100000 }));
-    const db = testEnv.authenticatedContext('newTeacher').firestore();
-    await assertSucceeds(getDoc(doc(db, 'workspace_invites/ABC123')));
+  // Kode undangan hanya diverifikasi server (/api/workspace/join, rate limited).
+  // Baca dari client dibuka = kode bisa ditebak massal tanpa pembatas.
+  it('NO client (new teacher, owner, anonymous) can get an invite bridge doc, even by exact code', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'workspaces/ws1'), { ownerUid: 'realOwner', plan: 'individual_lifetime', classLimit: 3 });
+      await setDoc(doc(db, 'workspace_invites/ABC123'), { workspaceId: 'ws1', expiresAt: Date.now() + 100000 });
+    });
+    await assertFails(getDoc(doc(testEnv.authenticatedContext('newTeacher').firestore(), 'workspace_invites/ABC123')));
+    await assertFails(getDoc(doc(testEnv.authenticatedContext('realOwner').firestore(), 'workspace_invites/ABC123')));
+    await assertFails(getDoc(doc(testEnv.unauthenticatedContext().firestore(), 'workspace_invites/ABC123')));
   });
 
   it('workspace_invites is never listable (no enumerating all active invite codes)', async () => {
@@ -338,7 +344,7 @@ describe('audit T2 — join workspace via invite code', () => {
   // Celah G3: sebelumnya klaim TEACHER mandiri lolos selama undangan aktif — tanpa kode dan tanpa
   // cek kuota kursi (juga membuat guru yang dikeluarkan bisa masuk lagi). Gabung kini hanya lewat
   // /api/workspace/join (Admin SDK), jadi klien tidak boleh menulis role TEACHER sendiri.
-  it('new teacher can PREVIEW a workspace by invite code but can NOT self-claim TEACHER from the client', async () => {
+  it('new teacher can NOT read the workspace by id (no preview/leak) and can NOT self-claim TEACHER from the client', async () => {
     await seed((db) =>
       setDoc(doc(db, 'workspaces/ws1'), {
         ownerUid: 'ownerX',
@@ -352,9 +358,8 @@ describe('audit T2 — join workspace via invite code', () => {
     await seedProfile('newTeacher', null, 'TEACHER'); // profil awal kosong, workspaceId belum ada
 
     const db = testEnv.authenticatedContext('newTeacher').firestore();
-    const bridge = await getDoc(doc(db, 'workspace_invites/ABC123'));
-    expect(bridge.exists()).toBe(true);
-    await assertSucceeds(getDoc(doc(db, 'workspaces/ws1')));
+    await assertFails(getDoc(doc(db, 'workspace_invites/ABC123')));
+    await assertFails(getDoc(doc(db, 'workspaces/ws1')));
     await assertFails(updateDoc(doc(db, 'teacher_profiles/newTeacher'), { workspaceId: 'ws1', role: 'TEACHER' }));
   });
 
@@ -400,8 +405,7 @@ describe('audit T2 — join workspace via invite code', () => {
 
   it('denies an invalid/unknown invite code from resolving to anything', async () => {
     const db = testEnv.authenticatedContext('newTeacher').firestore();
-    const bridge = await getDoc(doc(db, 'workspace_invites/DOESNOTEXIST'));
-    expect(bridge.exists()).toBe(false);
+    await assertFails(getDoc(doc(db, 'workspace_invites/DOESNOTEXIST')));
   });
 
   it('a teacher already in another workspace cannot use this mechanism to bypass tenancy isolation (workspaceId already locked)', async () => {
@@ -463,7 +467,13 @@ describe.each(WORKSPACE_SCOPED_COLLECTIONS)('%s — isolasi workspace', (collect
   it('allows creating a document that belongs to your own workspace', async () => {
     await seedProfile('teacherA', 'ws1');
     const db = testEnv.authenticatedContext('teacherA').firestore();
-    await assertSucceeds(setDoc(doc(db, `${collectionName}/doc1`), { workspaceId: 'ws1', name: 'data' }));
+    // Koleksi yang kepemilikannya dijaga (hapus hanya oleh pembuat/OWNER/ADMIN) mewajibkan createdBy = akun sendiri.
+    const owned = ['schedules', 'journals', 'attendances', 'grade_columns', 'assignments', 'announcements'].includes(collectionName);
+    const write = setDoc(doc(db, `${collectionName}/doc1`), { workspaceId: 'ws1', name: 'data', ...(owned ? { createdBy: 'teacherA' } : {}) });
+    // students dibuat HANYA lewat /api/students/create (Admin SDK) supaya
+    // batas kelas paket bisa ditegakkan — create langsung dari client ditolak.
+    if (collectionName === 'students') await assertFails(write);
+    else await assertSucceeds(write);
   });
 
   it('denies creating a document claiming a different workspace than your own', async () => {
@@ -552,10 +562,16 @@ async function seedStudentProfile(uid: string, studentId: string, workspaceId: s
 }
 
 describe('student_login_codes — klaim akun Student Companion', () => {
-  it('lets any authenticated user get a code by its exact id (needed before a student has any profile)', async () => {
+  // Klaim lewat /api/student/claim (Admin SDK, rate limited). Akun anonim bebas
+  // dibuat, jadi `get` terbuka = kode bisa ditebak massal tanpa pembatas.
+  it('denies ANY client reading a code, even by exact id (anonymous account, other teacher, same-workspace teacher)', async () => {
+    await seedProfile('teacherA', 'ws1');
+    await seedProfile('teacherB', 'ws2');
     await seed((db) => setDoc(doc(db, 'student_login_codes/ABC123'), { studentId: 's1', workspaceId: 'ws1' }));
-    const db = testEnv.authenticatedContext('studentA').firestore();
-    await assertSucceeds(getDoc(doc(db, 'student_login_codes/ABC123')));
+    await assertFails(getDoc(doc(testEnv.authenticatedContext('anonStudent').firestore(), 'student_login_codes/ABC123')));
+    await assertFails(getDoc(doc(testEnv.authenticatedContext('teacherA').firestore(), 'student_login_codes/ABC123')));
+    await assertFails(getDoc(doc(testEnv.authenticatedContext('teacherB').firestore(), 'student_login_codes/ABC123')));
+    await assertFails(getDocs(collection(testEnv.authenticatedContext('anonStudent').firestore(), 'student_login_codes')));
   });
 
   it('denies unauthenticated access', async () => {
@@ -582,15 +598,15 @@ describe('student_profiles — identitas akun siswa', () => {
   const seedCode = () =>
     seed((db) => setDoc(doc(db, 'student_login_codes/ABC123'), { studentId: 's1', workspaceId: 'ws1', className: 'XI-A', name: 'Budi' }));
 
-  it('lets a student create their own profile (claiming a VALID access code)', async () => {
+  // Profil dibuat HANYA oleh server (/api/student/claim) setelah kode terverifikasi
+  // + rate limit. Client tidak boleh membuat profil sendiri, bahkan dengan kode valid.
+  it('denies a client creating a profile at all, even with a VALID access code', async () => {
     await seedCode();
     const db = testEnv.authenticatedContext('studentUidA').firestore();
-    await assertSucceeds(setDoc(doc(db, 'student_profiles/studentUidA'), profile));
+    await assertFails(setDoc(doc(db, 'student_profiles/studentUidA'), profile));
   });
 
-  // Celah G2: sebelumnya create hanya memeriksa uid — profil palsu untuk workspace/kelas mana pun lolos,
-  // lalu isStudentInClass() membuka data kelas itu.
-  it('denies a forged profile: no access code, unknown code, or fields that do not match the code', async () => {
+  it('denies forged profiles (no code, unknown code, other class/workspace/student)', async () => {
     await seedCode();
     const db = testEnv.authenticatedContext('studentUidA').firestore();
     const { accessCode, ...noCode } = profile;
@@ -1092,24 +1108,18 @@ describe('Student Companion — query (list) harus lolos rules, bukan cuma get',
   });
 });
 
-// Alur klaim kode akses (studentAuthService.claimAccessCode) berjalan
-// sebagai siswa yang BELUM punya student_profiles. Test ini memastikan
-// setiap baca yang dilakukan alur itu memang diizinkan rules — kalau ada
-// satu saja yang ditolak, siswa tidak akan pernah bisa masuk.
-describe('alur klaim kode akses — semua baca yang dibutuhkan harus lolos', () => {
-  it('lets a not-yet-claimed user read the login code document', async () => {
-    await seed((db) =>
-      setDoc(doc(db, 'student_login_codes/ABC123'), { studentId: 's1', workspaceId: 'ws1' })
-    );
+// Klaim kode akses kini dikerjakan server (/api/student/claim, Admin SDK) — lihat
+// tests/student-claim.test.ts. Yang dijaga di sini: client tidak lagi bisa
+// membaca kode atau menulis profil sendiri, dan profil yang dibuat server
+// langsung membuka data kelasnya (jalur baca siswa tidak berubah).
+describe('alur klaim kode akses — sisi rules', () => {
+  it('a not-yet-claimed user can NOT read the login code document', async () => {
+    await seed((db) => setDoc(doc(db, 'student_login_codes/ABC123'), { studentId: 's1', workspaceId: 'ws1' }));
     const db = testEnv.authenticatedContext('freshAnon').firestore();
-    await assertSucceeds(getDoc(doc(db, 'student_login_codes/ABC123')));
+    await assertFails(getDoc(doc(db, 'student_login_codes/ABC123')));
   });
 
-  // Justru karena baca ini SELALU ditolak, dokumen kode akses harus
-  // memuat sendiri identitas siswa — bukan sekadar studentId. Test ini
-  // mengunci alasan itu supaya tidak ada yang "menyederhanakan" kembali
-  // ke pola baca students dan diam-diam mematikan login siswa.
-  it('CANNOT read the students document during claim (no teacher profile, no student profile yet)', async () => {
+  it('CANNOT read the students document before having a profile', async () => {
     await seed((db) =>
       setDoc(doc(db, 'students/s1'), { workspaceId: 'ws1', className: 'XI-A', name: 'Budi', nis: '123' })
     );
@@ -1117,36 +1127,16 @@ describe('alur klaim kode akses — semua baca yang dibutuhkan harus lolos', () 
     await assertFails(getDoc(doc(db, 'students/s1')));
   });
 
-  it('completes the whole claim flow using only the login code document', async () => {
-    await seed((db) =>
-      setDoc(doc(db, 'student_login_codes/ABC123'), {
-        studentId: 's1',
-        workspaceId: 'ws1',
-        name: 'Budi',
-        className: 'XI-A',
-        nis: '123',
-      })
-    );
+  it('a profile written by the server (Admin) immediately unlocks the class data and the own profile read', async () => {
+    await seed(async (d) => {
+      // seed memakai rules-disabled = setara tulisan Admin SDK dari server.
+      await setDoc(doc(d, 'student_profiles/freshAnon'), {
+        studentId: 's1', workspaceId: 'ws1', className: 'XI-A', name: 'Budi', nis: '123', accessCode: 'ABC123',
+      });
+      await setDoc(doc(d, 'schedules/sc1'), { workspaceId: 'ws1', className: 'XI-A' });
+    });
     const db = testEnv.authenticatedContext('freshAnon').firestore();
-
-    const codeSnap = await getDoc(doc(db, 'student_login_codes/ABC123'));
-    const code = codeSnap.data()!;
-    expect(code.className).toBe('XI-A');
-    expect(code.name).toBe('Budi');
-
-    await assertSucceeds(
-      setDoc(doc(db, 'student_profiles/freshAnon'), {
-        studentId: code.studentId,
-        workspaceId: code.workspaceId,
-        className: code.className,
-        name: code.name,
-        nis: code.nis,
-        accessCode: 'ABC123', // dicocokkan rules dengan dokumen kode login
-      })
-    );
-
-    // Dan setelah klaim, data akademiknya langsung terbaca.
-    await seed((d) => setDoc(doc(d, 'schedules/sc1'), { workspaceId: 'ws1', className: 'XI-A' }));
+    await assertSucceeds(getDoc(doc(db, 'student_profiles/freshAnon')));
     await assertSucceeds(getDoc(doc(db, 'schedules/sc1')));
   });
 });
@@ -1486,5 +1476,326 @@ describe('Analitik — query se-workspace dari sisi guru', () => {
     await seedStudentProfile('studentUidA', 's1', 'ws1', 'XI-A');
     const db = testEnv.authenticatedContext('studentUidA').firestore();
     await assertFails(getDocs(query(collection(db, 'submissions'), where('workspaceId', '==', 'ws1'))));
+  });
+});
+
+
+// ============================================================
+// Tenant escape: field immutable (workspaceId/createdBy/createdAt) dan
+// penutupan jalur create siswa langsung dari client (batas paket).
+// ============================================================
+const IMMUTABLE_COLLECTIONS = [
+  'students',
+  'schedules',
+  'journals',
+  'attendances',
+  'grades',
+  'grade_columns',
+  'assignments',
+  'announcements',
+  'session_skip_reasons',
+  'academic_years',
+  'student_login_codes',
+  'submissions',
+];
+
+describe.each(IMMUTABLE_COLLECTIONS)('%s — field tenant immutable pada update', (c) => {
+  const base = { workspaceId: 'ws1', className: 'XI-A', studentId: 'st1', name: 'x', createdBy: 'teacherA', createdAt: 1000 };
+
+  async function setup() {
+    await seedProfile('teacherA', 'ws1');
+    await seedProfile('teacherB', 'ws2'); // tenant lain: tujuan "tenant escape"
+    await seed((db) => setDoc(doc(db, `${c}/d1`), base));
+    return testEnv.authenticatedContext('teacherA').firestore();
+  }
+
+  it('tetap boleh mengubah field biasa', async () => {
+    const db = await setup();
+    await assertSucceeds(updateDoc(doc(db, `${c}/d1`), { name: 'baru' }));
+  });
+
+  it('menolak memindahkan dokumen ke workspace lain (tenant escape)', async () => {
+    const db = await setup();
+    await assertFails(updateDoc(doc(db, `${c}/d1`), { workspaceId: 'ws2' }));
+  });
+
+  it('menolak setDoc merge yang menimpa workspaceId', async () => {
+    const db = await setup();
+    await assertFails(setDoc(doc(db, `${c}/d1`), { workspaceId: 'ws2' }, { merge: true }));
+  });
+
+  it('menolak mengubah createdBy', async () => {
+    const db = await setup();
+    await assertFails(updateDoc(doc(db, `${c}/d1`), { createdBy: 'teacherB' }));
+  });
+
+  it('menolak mengubah createdAt', async () => {
+    const db = await setup();
+    await assertFails(updateDoc(doc(db, `${c}/d1`), { createdAt: 2000 }));
+  });
+
+  it('menolak menghapus workspaceId', async () => {
+    const db = await setup();
+    await assertFails(setDoc(doc(db, `${c}/d1`), { name: 'x', className: 'XI-A', studentId: 'st1' }));
+  });
+});
+
+describe('koleksi wali kelas — field tenant immutable pada update', () => {
+  it.each(['class_fund_transactions', 'class_inventory', 'student_notes', 'student_achievements'])(
+    '%s: wali kelas tidak bisa memindahkan dokumen ke workspace lain',
+    async (c) => {
+      await seedProfile('teacherA', 'ws1', 'TEACHER', 'XI-A');
+      await seed((db) => setDoc(doc(db, `${c}/d1`), { workspaceId: 'ws1', className: 'XI-A', createdBy: 'teacherA', createdAt: 1 }));
+      const db = testEnv.authenticatedContext('teacherA').firestore();
+      await assertSucceeds(updateDoc(doc(db, `${c}/d1`), { note: 'ok' }));
+      await assertFails(updateDoc(doc(db, `${c}/d1`), { workspaceId: 'ws2' }));
+      await assertFails(updateDoc(doc(db, `${c}/d1`), { createdBy: 'orang-lain' }));
+    }
+  );
+});
+
+describe('students — batas paket tidak bisa dilewati dari client', () => {
+  it('menolak create siswa langsung walau workspaceId benar (kelas baru atau lama)', async () => {
+    await seedProfile('teacherA', 'ws1');
+    await seed((db) => setDoc(doc(db, 'students/ada'), { workspaceId: 'ws1', className: 'XI-A', name: 'A' }));
+    const db = testEnv.authenticatedContext('teacherA').firestore();
+    await assertFails(setDoc(doc(db, 'students/baru1'), { workspaceId: 'ws1', className: 'XI-A', name: 'B' }));
+    await assertFails(setDoc(doc(db, 'students/baru2'), { workspaceId: 'ws1', className: 'KELAS-BARU', name: 'C' }));
+  });
+
+  it('menolak memindahkan siswa ke kelas lain lewat update className', async () => {
+    await seedProfile('teacherA', 'ws1');
+    await seed((db) => setDoc(doc(db, 'students/s1'), { workspaceId: 'ws1', className: 'XI-A', name: 'A' }));
+    const db = testEnv.authenticatedContext('teacherA').firestore();
+    await assertFails(updateDoc(doc(db, 'students/s1'), { className: 'KELAS-BARU' }));
+  });
+
+  it('tetap mengizinkan mengisi accessCode (backfill); hapus permanen kini khusus OWNER/ADMIN', async () => {
+    await seedProfile('teacherA', 'ws1');
+    await seedProfile('ownerA', 'ws1', 'OWNER');
+    await seed((db) => setDoc(doc(db, 'students/s1'), { workspaceId: 'ws1', className: 'XI-A', name: 'A', createdBy: 'teacherA' }));
+    const db = testEnv.authenticatedContext('teacherA').firestore();
+    await assertSucceeds(setDoc(doc(db, 'students/s1'), { accessCode: 'ABCD2345' }, { merge: true }));
+    await assertFails(deleteDoc(doc(db, 'students/s1'))); // bahkan pembuatnya tidak boleh hapus permanen
+    await assertSucceeds(deleteDoc(doc(testEnv.authenticatedContext('ownerA').firestore(), 'students/s1')));
+  });
+});
+
+describe('workspaces — owner tidak bisa menyentuh field terkunci', () => {
+  const ws = { name: 'W', plan: 'individual_lifetime', classLimit: 3, seatLimit: null, ownerUid: 'owner1', createdAt: 1 };
+
+  it('menolak mengubah ownerUid / createdAt / plan / classLimit / planExpiresAt', async () => {
+    await seedProfile('owner1', 'ws1', 'OWNER');
+    await seed((db) => setDoc(doc(db, 'workspaces/ws1'), ws));
+    const db = testEnv.authenticatedContext('owner1').firestore();
+    await assertFails(updateDoc(doc(db, 'workspaces/ws1'), { ownerUid: 'orang-lain' }));
+    await assertFails(updateDoc(doc(db, 'workspaces/ws1'), { createdAt: 99 }));
+    await assertFails(updateDoc(doc(db, 'workspaces/ws1'), { plan: 'school_annual' }));
+    await assertFails(updateDoc(doc(db, 'workspaces/ws1'), { classLimit: 999 }));
+    await assertFails(updateDoc(doc(db, 'workspaces/ws1'), { planExpiresAt: null }));
+    await assertSucceeds(updateDoc(doc(db, 'workspaces/ws1'), { name: 'W2' }));
+  });
+});
+
+describe('workspace_invites — workspaceId immutable', () => {
+  it('owner tidak bisa mengarahkan ulang kode undangan ke workspace lain', async () => {
+    await seedProfile('owner1', 'ws1', 'OWNER');
+    await seed(async (db) => {
+      await setDoc(doc(db, 'workspaces/ws1'), { ownerUid: 'owner1', plan: 'individual_lifetime', classLimit: 3 });
+      await setDoc(doc(db, 'workspace_invites/KODE1'), { workspaceId: 'ws1' });
+    });
+    const db = testEnv.authenticatedContext('owner1').firestore();
+    await assertFails(updateDoc(doc(db, 'workspace_invites/KODE1'), { workspaceId: 'ws2' }));
+  });
+});
+
+describe('submissions — siswa tidak bisa mengubah createdAt/createdBy', () => {
+  it('menolak update siswa yang menimpa createdAt', async () => {
+    await seedStudentProfile('studentUidA', 'st1', 'ws1', 'XI-A');
+    await seed((db) =>
+      setDoc(doc(db, 'submissions/a1_st1'), {
+        workspaceId: 'ws1', assignmentId: 'a1', studentId: 'st1', className: 'XI-A',
+        status: 'menunggu_penilaian', feedback: '', createdAt: 1,
+      })
+    );
+    const db = testEnv.authenticatedContext('studentUidA').firestore();
+    await assertFails(
+      updateDoc(doc(db, 'submissions/a1_st1'), { createdAt: 2, textAnswer: 'x', status: 'menunggu_penilaian' })
+    );
+    await assertSucceeds(updateDoc(doc(db, 'submissions/a1_st1'), { textAnswer: 'x', status: 'menunggu_penilaian' }));
+  });
+});
+
+
+// ============================================================
+// Peran & kepemilikan untuk operasi destruktif (hapus / soft delete / pulihkan).
+// ============================================================
+const SOFT_DELETE_COLLECTIONS = ['students', 'assignments', 'grade_columns'];
+
+describe.each(SOFT_DELETE_COLLECTIONS)('%s — soft delete dibatasi pembuat atau OWNER/ADMIN', (c) => {
+  const doc1 = { workspaceId: 'ws1', className: 'XI-A', name: 'x', createdBy: 'teacherA', createdAt: 1 };
+  const softDelete = { deletedAt: 12345, deletedBy: 'x' };
+
+  async function setup() {
+    await seedProfile('teacherA', 'ws1'); // pembuat
+    await seedProfile('teacherB', 'ws1'); // guru lain, biasa
+    await seedProfile('adminC', 'ws1', 'ADMIN');
+    await seedProfile('ownerD', 'ws1', 'OWNER');
+    await seedProfile('ownerOther', 'ws2', 'OWNER'); // OWNER workspace LAIN
+    await seed((db) => setDoc(doc(db, `${c}/d1`), doc1));
+    const ctx = (uid: string) => testEnv.authenticatedContext(uid).firestore();
+    return ctx;
+  }
+
+  it('pembuat boleh soft delete data miliknya; memulihkan dari client hanya untuk tugas/kolom (siswa lewat server)', async () => {
+    const ctx = await setup();
+    await assertSucceeds(updateDoc(doc(ctx('teacherA'), `${c}/d1`), softDelete));
+    const restore = updateDoc(doc(ctx('teacherA'), `${c}/d1`), { deletedAt: null, deletedBy: null, deletedBatchId: null });
+    // Memulihkan siswa bisa menghidupkan kembali kelas -> wajib lewat /api/students/restore (cek batas paket).
+    if (c === 'students') await assertFails(restore);
+    else await assertSucceeds(restore);
+  });
+
+  it('memulihkan dari client: OWNER/ADMIN pun ditolak untuk siswa, diizinkan untuk tugas/kolom', async () => {
+    const ctx = await setup();
+    await seed((db) => setDoc(doc(db, `${c}/gone`), { ...doc1, ...softDelete }));
+    const restore = updateDoc(doc(ctx('ownerD'), `${c}/gone`), { deletedAt: null, deletedBy: null });
+    if (c === 'students') await assertFails(restore);
+    else await assertSucceeds(restore);
+  });
+
+  it('guru lain (bukan pembuat) TIDAK boleh soft delete data guru lain', async () => {
+    const ctx = await setup();
+    await assertFails(updateDoc(doc(ctx('teacherB'), `${c}/d1`), softDelete));
+  });
+
+  it('guru lain TIDAK boleh memulihkan data yang dihapus pembuatnya', async () => {
+    const ctx = await setup();
+    await seed((db) => setDoc(doc(db, `${c}/d2`), { ...doc1, ...softDelete }));
+    await assertFails(updateDoc(doc(ctx('teacherB'), `${c}/d2`), { deletedAt: null, deletedBy: null }));
+  });
+
+  it('guru lain tetap boleh mengedit field biasa (kolaborasi)', async () => {
+    const ctx = await setup();
+    await assertSucceeds(updateDoc(doc(ctx('teacherB'), `${c}/d1`), { name: 'diedit' }));
+  });
+
+  it('OWNER dan ADMIN workspace boleh soft delete data guru mana pun', async () => {
+    const ctx = await setup();
+    await assertSucceeds(updateDoc(doc(ctx('adminC'), `${c}/d1`), softDelete));
+    if (c !== 'students') await assertSucceeds(updateDoc(doc(ctx('ownerD'), `${c}/d1`), { deletedAt: null, deletedBy: null }));
+  });
+
+  it('OWNER workspace LAIN tidak punya hak apa pun di sini', async () => {
+    const ctx = await setup();
+    await assertFails(updateDoc(doc(ctx('ownerOther'), `${c}/d1`), softDelete));
+    await assertFails(deleteDoc(doc(ctx('ownerOther'), `${c}/d1`)));
+  });
+
+  it('dokumen lama tanpa createdBy: hanya OWNER/ADMIN yang boleh soft delete', async () => {
+    const ctx = await setup();
+    await seed((db) => setDoc(doc(db, `${c}/legacy`), { workspaceId: 'ws1', className: 'XI-A', name: 'lama' }));
+    await assertFails(updateDoc(doc(ctx('teacherA'), `${c}/legacy`), softDelete));
+    await assertSucceeds(updateDoc(doc(ctx('ownerD'), `${c}/legacy`), softDelete));
+  });
+
+  it('hapus PERMANEN ditutup untuk guru (termasuk pembuat) dan admin-only', async () => {
+    const ctx = await setup();
+    await assertFails(deleteDoc(doc(ctx('teacherA'), `${c}/d1`)));
+    await assertFails(deleteDoc(doc(ctx('teacherB'), `${c}/d1`)));
+    await assertSucceeds(deleteDoc(doc(ctx('adminC'), `${c}/d1`)));
+  });
+});
+
+describe.each(['journals', 'attendances', 'announcements', 'schedules'])('%s — hapus hanya oleh pembuat atau OWNER/ADMIN', (c) => {
+  async function setup() {
+    await seedProfile('teacherA', 'ws1');
+    await seedProfile('teacherB', 'ws1');
+    await seedProfile('ownerD', 'ws1', 'OWNER');
+    await seed(async (db) => {
+      await setDoc(doc(db, `${c}/mine`), { workspaceId: 'ws1', createdBy: 'teacherA', className: 'XI-A' });
+      await setDoc(doc(db, `${c}/legacy`), { workspaceId: 'ws1', className: 'XI-A' });
+    });
+    return (uid: string) => testEnv.authenticatedContext(uid).firestore();
+  }
+  it('pembuat boleh menghapus miliknya, guru lain tidak', async () => {
+    const ctx = await setup();
+    await assertFails(deleteDoc(doc(ctx('teacherB'), `${c}/mine`)));
+    await assertSucceeds(deleteDoc(doc(ctx('teacherA'), `${c}/mine`)));
+  });
+  it('OWNER boleh menghapus data siapa pun; dokumen lama tanpa createdBy hanya OWNER/ADMIN', async () => {
+    const ctx = await setup();
+    await assertFails(deleteDoc(doc(ctx('teacherA'), `${c}/legacy`)));
+    await assertSucceeds(deleteDoc(doc(ctx('ownerD'), `${c}/legacy`)));
+  });
+  it('create wajib createdBy = akun sendiri (tidak bisa memalsukan pembuat)', async () => {
+    const ctx = await setup();
+    await assertFails(setDoc(doc(ctx('teacherB'), `${c}/x1`), { workspaceId: 'ws1', createdBy: 'teacherA' }));
+    await assertFails(setDoc(doc(ctx('teacherB'), `${c}/x2`), { workspaceId: 'ws1' }));
+    await assertSucceeds(setDoc(doc(ctx('teacherB'), `${c}/x3`), { workspaceId: 'ws1', createdBy: 'teacherB' }));
+  });
+});
+
+describe('grades — hapus sel nilai oleh pembuat kolom atau OWNER/ADMIN', () => {
+  async function setup() {
+    await seedProfile('teacherA', 'ws1');
+    await seedProfile('teacherB', 'ws1');
+    await seedProfile('ownerD', 'ws1', 'OWNER');
+    await seed(async (db) => {
+      await setDoc(doc(db, 'grade_columns/col1'), { workspaceId: 'ws1', className: 'XI-A', createdBy: 'teacherA' });
+      await setDoc(doc(db, 'grades/s1_col1'), { workspaceId: 'ws1', className: 'XI-A', studentId: 's1', columnId: 'col1', score: '80' });
+    });
+    return (uid: string) => testEnv.authenticatedContext(uid).firestore();
+  }
+  it('pembuat kolom boleh menghapus sel; guru lain tidak; OWNER boleh', async () => {
+    const ctx = await setup();
+    await assertFails(deleteDoc(doc(ctx('teacherB'), 'grades/s1_col1')));
+    await assertSucceeds(deleteDoc(doc(ctx('teacherA'), 'grades/s1_col1')));
+  });
+  it('OWNER boleh menghapus sel nilai mana pun', async () => {
+    const ctx = await setup();
+    await assertSucceeds(deleteDoc(doc(ctx('ownerD'), 'grades/s1_col1')));
+  });
+  it('mengisi / mengubah nilai tetap terbuka untuk guru workspace (hanya HAPUS yang dikunci)', async () => {
+    const ctx = await setup();
+    await assertSucceeds(setDoc(doc(ctx('teacherB'), 'grades/s1_col1'), { score: '90' }, { merge: true }));
+  });
+});
+
+describe('submissions, kode login, tahun ajaran — hapus permanen khusus OWNER/ADMIN', () => {
+  it.each(['submissions', 'student_login_codes', 'academic_years'])('%s', async (c) => {
+    await seedProfile('teacherA', 'ws1');
+    await seedProfile('ownerD', 'ws1', 'OWNER');
+    await seed((db) => setDoc(doc(db, `${c}/d1`), { workspaceId: 'ws1', createdBy: 'teacherA' }));
+    await assertFails(deleteDoc(doc(testEnv.authenticatedContext('teacherA').firestore(), `${c}/d1`)));
+    await assertSucceeds(deleteDoc(doc(testEnv.authenticatedContext('ownerD').firestore(), `${c}/d1`)));
+  });
+});
+
+describe('workspaces — tidak bisa dihapus siapa pun', () => {
+  it('bahkan OWNER ditolak (hapus workspace tidak ada di client)', async () => {
+    await seedProfile('ownerD', 'ws1', 'OWNER');
+    await seed((db) => setDoc(doc(db, 'workspaces/ws1'), { ownerUid: 'ownerD', plan: 'individual_lifetime', classLimit: 3 }));
+    await assertFails(deleteDoc(doc(testEnv.authenticatedContext('ownerD').firestore(), 'workspaces/ws1')));
+  });
+});
+
+
+describe('teacher_profiles — bukti persetujuan hukum', () => {
+  it('guru boleh menulis legalConsentAt/Version ke profilnya sendiri (tanpa mengubah workspace/role)', async () => {
+    await seedProfile('teacherA', 'ws1', 'TEACHER');
+    const db = testEnv.authenticatedContext('teacherA').firestore();
+    await assertSucceeds(updateDoc(doc(db, 'teacher_profiles/teacherA'), { legalConsentAt: 1, legalConsentVersion: '2026-11-09' }));
+  });
+  it('tidak boleh menulis ke profil guru lain', async () => {
+    await seedProfile('teacherA', 'ws1', 'TEACHER');
+    await seedProfile('teacherB', 'ws1', 'TEACHER');
+    const db = testEnv.authenticatedContext('teacherB').firestore();
+    await assertFails(updateDoc(doc(db, 'teacher_profiles/teacherA'), { legalConsentVersion: 'palsu' }));
+  });
+  it('menulis persetujuan tidak bisa dipakai untuk menaikkan role/workspace', async () => {
+    await seedProfile('teacherA', 'ws1', 'TEACHER');
+    const db = testEnv.authenticatedContext('teacherA').firestore();
+    await assertFails(updateDoc(doc(db, 'teacher_profiles/teacherA'), { legalConsentVersion: 'x', role: 'OWNER' }));
   });
 });

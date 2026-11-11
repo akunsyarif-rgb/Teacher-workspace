@@ -1,6 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useFormDraft } from '@/src/hooks/useFormDraft';
+import { formDraftKey } from '@/lib/utils/formDraft';
+import DraftRestoredNotice from '@/src/components/ui/DraftRestoredNotice';
 import { Plus, Trash2, CheckCircle2 } from 'lucide-react';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
@@ -74,6 +77,19 @@ export default function StudentNoteList({
       }
     );
   }
+
+  // Draf catatan (siswa, judul, keterangan) bertahan di perangkat sampai disimpan atau dibuang.
+  const draft = useFormDraft<{ studentId: string; title: string; detail: string }>({
+    key: workspaceId && className ? formDraftKey('catatan', workspaceId, className, category) : null,
+    value: { studentId, title, detail },
+    isDirty: title.trim() !== '' || detail.trim() !== '',
+    enabled: !!workspaceId && !!className && !loading,
+    onRestore: (d) => {
+      if (d.studentId) setStudentId(d.studentId);
+      setTitle(d.title);
+      setDetail(d.detail);
+    },
+  });
 
   useEffect(() => {
     if (workspaceId && className) {
@@ -166,6 +182,18 @@ export default function StudentNoteList({
           <p className="text-xs text-nb-ink-muted py-4 text-center">Belum ada siswa di kelas ini.</p>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-3">
+            {draft.restored && (
+              <DraftRestoredNotice
+                testId="note-draft-notice"
+                message="Draf catatan dipulihkan dari perangkat ini. Tekan Simpan Catatan untuk menyimpannya."
+                onDiscard={() => {
+                  setTitle('');
+                  setDetail('');
+                  draft.dismiss();
+                }}
+                onDismiss={draft.dismiss}
+              />
+            )}
             <div>
               <label className="text-xs font-bold text-nb-ink block mb-1">Siswa</label>
               <select

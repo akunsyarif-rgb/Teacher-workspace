@@ -10,6 +10,7 @@ import SubmissionPanel from './SubmissionPanel';
 import * as assignmentController from '@/lib/controllers/assignmentController';
 import { uploadAssignmentFile } from '@/lib/adapters/storageAdapter';
 import { getCached } from '@/lib/utils/sessionCache';
+import { formDraftKey } from '@/lib/utils/formDraft';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 
 type AssignmentsTabProps = {
@@ -60,8 +61,18 @@ export default function AssignmentsTab({ className, subject }: AssignmentsTabPro
 
   async function handleDelete(id: string, e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm('Hapus tugas ini? Nilai yang sudah masuk gradebook tidak ikut terhapus.')) return;
-    await assignmentController.removeAssignment(id);
+    if (!confirm('Pindahkan tugas ini ke Sampah? Pengumpulan siswa tetap tersimpan dan tugas bisa dipulihkan dari Akun › Sampah. Nilai di gradebook tidak ikut terhapus.')) return;
+    try {
+      await assignmentController.removeAssignment(id);
+    } catch (error) {
+      // Hanya pembuat tugas atau pemilik/admin workspace yang boleh menghapus (firestore.rules).
+      alert(
+        (error as { code?: string })?.code === 'permission-denied'
+          ? 'Anda hanya bisa menghapus tugas yang Anda buat sendiri. Minta pemilik atau admin workspace untuk menghapus tugas guru lain.'
+          : 'Gagal menghapus tugas. Coba lagi.'
+      );
+      return;
+    }
     await loadAssignments();
   }
 
@@ -92,7 +103,12 @@ export default function AssignmentsTab({ className, subject }: AssignmentsTabPro
         </Button>
       </Card>
 
-      <AssignmentFormModal isOpen={showModal} onClose={() => setShowModal(false)} onSubmit={handleCreate} />
+      <AssignmentFormModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        onSubmit={handleCreate}
+        draftKey={workspaceId && className ? formDraftKey('tugas', workspaceId, className) : null}
+      />
 
       {loading ? (
         <div className="space-y-3">

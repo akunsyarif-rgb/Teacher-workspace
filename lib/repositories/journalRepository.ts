@@ -1,5 +1,6 @@
 import { getDocuments, addDocument, updateDocument, deleteDocument } from '../adapters/firestoreAdapter';
 import { COLLECTIONS } from '../config/constants';
+import type { JournalData } from '../types/models';
 
 export async function getJournalsByClass(workspaceId: string, className: string) {
   if (!workspaceId || !className) return [];
@@ -40,15 +41,15 @@ export async function findTodayJournal(
   date: string
 ) {
   if (!workspaceId || !className) return null;
-  const docs = await getDocuments(COLLECTIONS.JOURNALS, [
+  const docs = await getDocuments<JournalData>(COLLECTIONS.JOURNALS, [
     ['workspaceId', '==', workspaceId],
     ['className', '==', className],
     ['date', '==', date],
   ]);
   if (scheduleId) {
-    return (docs.find((d: any) => d.scheduleId === scheduleId) as any) ?? null;
+    return docs.find((d) => d.scheduleId === scheduleId) ?? null;
   }
-  return (docs.find((d: any) => !d.scheduleId) as any) ?? (docs[0] as any) ?? null;
+  return docs.find((d) => !d.scheduleId) ?? docs[0] ?? null;
 }
 
 export async function createJournal(data: Record<string, any>) {

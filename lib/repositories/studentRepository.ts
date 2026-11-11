@@ -1,19 +1,51 @@
-import { getDocument, getDocuments, deleteDocument, batchWrite, generateId, BatchOperation } from '../adapters/firestoreAdapter';
+import { getDocuments, getAllDocumentsPaged, getDocumentsPage, batchWrite, BatchOperation, softDeleteDocument } from '../adapters/firestoreAdapter';
+import type { Doc, DocumentsPage } from '../adapters/firestoreAdapter';
+import type { StudentData } from '../types/models';
+import { activeOnly, deletedOnly } from '../utils/softDelete';
 import { COLLECTIONS } from '../config/constants';
 import { generateAccessCode } from '../utils/accessCode';
+import { postToServer } from '../adapters/serverApiAdapter';
 
-export async function getAllStudents(workspaceId: string) {
-  if (!workspaceId) return [];
-  return getDocuments(COLLECTIONS.STUDENTS, [['workspaceId', '==', workspaceId]]);
+// Semua pembacaan siswa menyaring yang di-soft-delete (lib/utils/softDelete.ts).
+// Seluruh roster workspace diambil BERTAHAP (halaman 500), bukan satu respons raksasa.
+// Hanya untuk agregat yang memang butuh semuanya (hitung siswa per kelas, batas paket).
+// Untuk tampilan daftar yang bisa panjang pakai getStudentsPage.
+async function fetchAllStudents(workspaceId: string): Promise<Doc<StudentData>[]> {
+  return getAllDocumentsPaged<StudentData>(COLLECTIONS.STUDENTS, [['workspaceId', '==', workspaceId]]);
 }
 
-export async function getStudentsByClass(workspaceId: string, className: string) {
+export async function getAllStudents(workspaceId: string): Promise<Doc<StudentData>[]> {
+  if (!workspaceId) return [];
+  return activeOnly(await fetchAllStudents(workspaceId));
+}
+
+// Satu halaman siswa (limit + startAfter). Halaman bisa memuat siswa terhapus
+// (disaring di sini), jadi jumlah docs bisa < pageSize walau masih ada halaman berikutnya —
+// andalkan nextCursor, bukan panjang docs.
+export async function getStudentsPage(
+  workspaceId: string,
+  options: { pageSize?: number; cursor?: string | null; className?: string } = {}
+): Promise<DocumentsPage<StudentData>> {
+  if (!workspaceId) return { docs: [], nextCursor: null };
+  const filters: [string, string, string][] = [['workspaceId', '==', workspaceId]];
+  if (options.className) filters.push(['className', '==', options.className]);
+  const page = await getDocumentsPage<StudentData>(COLLECTIONS.STUDENTS, filters, options);
+  return { docs: activeOnly(page.docs), nextCursor: page.nextCursor };
+}
+
+// Untuk Recycle Bin / pemulihan.
+export async function getDeletedStudents(workspaceId: string): Promise<Doc<StudentData>[]> {
+  if (!workspaceId) return [];
+  return deletedOnly(await fetchAllStudents(workspaceId));
+}
+
+export async function getStudentsByClass(workspaceId: string, className: string): Promise<Doc<StudentData>[]> {
   if (!workspaceId || !className) return [];
-  const students = await getDocuments(COLLECTIONS.STUDENTS, [
+  const students = await getDocuments<StudentData>(COLLECTIONS.STUDENTS, [
     ['workspaceId', '==', workspaceId],
     ['className', '==', className],
   ]);
-  return students.sort((a: any, b: any) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
+  return activeOnly(students).sort((a, b) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
 }
 
 // Dokumen kode akses memuat SALINAN identitas siswa (nama, kelas, NIS),
@@ -36,33 +68,20 @@ function buildLoginCodeDoc(
   };
 }
 
-// Setiap siswa dapat accessCode unik untuk login ke Student Companion —
-// disimpan juga sebagai dokumen terpisah di student_login_codes (id
-// dokumen = kode itu sendiri) supaya alur klaim akun bisa mencari
-// berdasarkan kode tanpa perlu query koleksi students yang lebih sensitif.
+// Pembuatan siswa (dokumen siswa + dokumen kode akses di student_login_codes)
+// dilakukan SERVER (POST /api/students/create, Admin SDK), bukan batch
+// Firestore dari client: batas kelas paket dan masa berlaku paket tidak bisa
+// ditegakkan firestore.rules, jadi rules menutup create langsung ke students.
+// Server juga yang membuat accessCode dan mengisi createdBy/createdAt.
+type CreatedStudentResponse = { students: { id: string; name: string; nis: string; className: string; accessCode: string }[] };
+
 export async function createStudent(
   workspaceId: string,
   data: { name: string; nis: string; className: string }
 ) {
   if (!workspaceId) throw new Error('workspaceId diperlukan');
-  const id = generateId(COLLECTIONS.STUDENTS);
-  const accessCode = generateAccessCode();
-  const operations: BatchOperation[] = [
-    {
-      type: 'set',
-      collectionName: COLLECTIONS.STUDENTS,
-      id,
-      data: { ...data, workspaceId, accessCode, createdAt: new Date().toISOString() },
-    },
-    {
-      type: 'set',
-      collectionName: COLLECTIONS.STUDENT_LOGIN_CODES,
-      id: accessCode,
-      data: buildLoginCodeDoc(id, workspaceId, data),
-    },
-  ];
-  await batchWrite(operations);
-  return { id, ...data, workspaceId, accessCode };
+  const { students } = await postToServer<CreatedStudentResponse>('/api/students/create', { students: [data] });
+  return { ...students[0], workspaceId };
 }
 
 export async function createStudentsBatch(
@@ -70,26 +89,15 @@ export async function createStudentsBatch(
   students: { name: string; nis: string; className: string }[]
 ) {
   if (!workspaceId) throw new Error('workspaceId diperlukan');
-  const operations: BatchOperation[] = [];
-  students.forEach((student) => {
-    const id = generateId(COLLECTIONS.STUDENTS);
-    const accessCode = generateAccessCode();
-    operations.push({
-      type: 'set',
-      collectionName: COLLECTIONS.STUDENTS,
-      id,
-      data: { ...student, workspaceId, accessCode, createdAt: new Date().toISOString() },
+  const SERVER_CHUNK = 200; // sama dengan batas per permintaan di server
+  let saved = 0;
+  for (let i = 0; i < students.length; i += SERVER_CHUNK) {
+    const res = await postToServer<CreatedStudentResponse>('/api/students/create', {
+      students: students.slice(i, i + SERVER_CHUNK),
     });
-    operations.push({
-      type: 'set',
-      collectionName: COLLECTIONS.STUDENT_LOGIN_CODES,
-      id: accessCode,
-      data: buildLoginCodeDoc(id, workspaceId, student),
-    });
-  });
-
-  await batchWrite(operations);
-  return students.length;
+    saved += res.students.length;
+  }
+  return saved;
 }
 
 // Siswa yang dibuat sebelum fitur Student Companion ada belum punya
@@ -124,46 +132,31 @@ export async function backfillAccessCodes(
   return missing.length;
 }
 
-// Menghapus dokumen siswa saja TIDAK cukup: kode aksesnya (student_login_
-// codes, id dokumen = accessCode itu sendiri) tetap valid dan bisa dipakai
-// klaim akun Student Companion baru yang menunjuk ke siswa yang sudah
-// tidak ada — claimAccessCode() di studentAuthService sengaja tidak
-// membaca koleksi students sama sekali (lihat komentarnya), jadi cuma
-// menghapus dokumen kode akses ini yang benar-benar mencegahnya.
-// firestore.rules sengaja melarang `list` pada student_login_codes (supaya
-// kode tidak bisa dienumerasi) — makanya di sini TIDAK query koleksi itu,
-// cukup pakai accessCode yang sudah tersimpan di dokumen siswa sendiri.
+// Soft delete satu siswa: dokumen hanya ditandai deletedAt. Kode aksesnya
+// (student_login_codes) tidak perlu dihapus — klaim kode menolak siswa yang
+// sudah di-soft-delete (lib/server/studentClaimService.ts), dan kodenya tetap
+// berlaku lagi bila siswa dipulihkan. Siapa yang boleh menghapus dijaga rules
+// (pembuat siswa atau OWNER/ADMIN). Hapus satu KELAS penuh lewat server
+// (POST /api/classes/delete, khusus OWNER/ADMIN).
 export async function deleteStudent(id: string) {
-  const student: any = await getDocument(COLLECTIONS.STUDENTS, id);
-  if (!student?.accessCode) {
-    return deleteDocument(COLLECTIONS.STUDENTS, id);
-  }
-  await batchWrite([
-    { type: 'delete', collectionName: COLLECTIONS.STUDENTS, id },
-    { type: 'delete', collectionName: COLLECTIONS.STUDENT_LOGIN_CODES, id: student.accessCode },
-  ]);
+  return softDeleteDocument(COLLECTIONS.STUDENTS, id);
+}
+
+// Pemulihan lewat server (bukan update client): bisa menghidupkan kembali sebuah kelas, jadi harus
+// lolos batas paket + cek izin (firestore.rules menolak pemulihan siswa dari client).
+export async function restoreStudent(id: string) {
+  await postToServer<{ restoredId: string }>('/api/students/restore', { studentId: id });
   return true;
 }
 
-// Hapus seluruh siswa satu kelas sekaligus (mis. kelas percobaan/salah
-// input) — satu batch commit, konsisten dengan pola createStudentsBatch.
-// Kode akses tiap siswa ikut dihapus (lihat catatan di deleteStudent).
-export async function deleteStudentsByClass(workspaceId: string, className: string) {
-  const students = await getStudentsByClass(workspaceId, className);
-  if (students.length === 0) return 0;
+// Hapus / pulihkan satu KELAS penuh: lewat server (Admin SDK), khusus OWNER/ADMIN —
+// rules per-dokumen tidak bisa membatasi operasi massal atas data banyak guru.
+export async function deleteClassOnServer(className: string) {
+  const { deletedCount } = await postToServer<{ deletedCount: number }>('/api/classes/delete', { className });
+  return deletedCount;
+}
 
-  const operations: BatchOperation[] = [];
-  students.forEach((student: any) => {
-    operations.push({ type: 'delete', collectionName: COLLECTIONS.STUDENTS, id: student.id });
-    if (student.accessCode) {
-      operations.push({
-        type: 'delete',
-        collectionName: COLLECTIONS.STUDENT_LOGIN_CODES,
-        id: student.accessCode,
-      });
-    }
-  });
-
-  await batchWrite(operations);
-  return students.length;
+export async function restoreClassOnServer(className: string) {
+  const { restoredCount } = await postToServer<{ restoredCount: number }>('/api/classes/restore', { className });
+  return restoredCount;
 }

@@ -10,6 +10,8 @@ import { SkeletonCard } from "@/src/components/ui/Skeleton";
 import * as studentPortalController from "@/lib/controllers/studentPortalController";
 import type { StudentProfile } from "@/src/context/StudentAuthContext";
 import { useAttachmentViewer } from "@/src/components/assignments/AttachmentViewer";
+import { clearPersistentData } from "@/lib/utils/persistentCache";
+import { countUnsavedDrafts } from "@/lib/utils/formDraft";
 
 function ProfileContent({ profile }: { profile: StudentProfile }) {
   const { open: openAttachment, viewer } = useAttachmentViewer();
@@ -41,7 +43,9 @@ function ProfileContent({ profile }: { profile: StudentProfile }) {
   }, [profile.workspaceId, profile.className, profile.studentId]);
 
   async function handleLogout() {
+    if (countUnsavedDrafts() > 0 && !window.confirm("Ada jawaban yang belum dikumpulkan di perangkat ini. Keluar akun akan menghapusnya. Tetap keluar?")) return;
     await signOut(auth);
+    clearPersistentData();
     router.push("/student/login");
   }
 

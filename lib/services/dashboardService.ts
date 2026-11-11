@@ -1,17 +1,21 @@
 import {
   getAllStudentsForSummary,
-  getJournalsInRange,
   getAllSchedulesForSummary,
-  getAttendancesInRange,
   getJournalCount,
+  getJournalsOnDate,
+  getAttendancesOnDate,
+  getJournalCountOnDate,
+  getAttendanceCountOnDate,
 } from '../repositories/dashboardRepository';
+import type { Doc } from '../adapters/firestoreAdapter';
+import type { ScheduleData } from '../types/models';
 import { measure } from '../utils/perf';
+import { withPersistentCache } from '../utils/persistentCache';
 import { getByDate as getSkipReasonsByDate } from '../repositories/sessionSkipReasonRepository';
 import { sortSchedulesChronologically, classifySessionState, SessionState } from '../utils/scheduleTime';
 import {
   getWitaDateString,
   getWitaDayName,
-  getWitaDaysAgo,
   getDayNameFromDateString,
   shiftWitaDateString,
 } from '../utils/witaDate';
@@ -46,7 +50,7 @@ export type TodayClassStatus = {
 export type DashboardSummary = {
   uniqueClasses: string[];
   totalJournals: number;
-  todaySchedules: any[];
+  todaySchedules: Doc<ScheduleData>[];
   currentDayName: string;
   todayProgress: {
     total: number;
@@ -71,9 +75,9 @@ function getTodayDate(): string {
   return getWitaDateString();
 }
 
-function getDaysAgo(days: number): string {
-  return getWitaDaysAgo(days);
-}
+// Data yang jarang berubah (daftar siswa/jadwal, angka hari lampau) disimpan di perangkat sebentar supaya
+// reload/berpindah menu tidak mengunduh ulang; dibuang otomatis oleh clearAllCached() saat guru mengubah data.
+export const DASHBOARD_STATIC_TTL_MS = 10 * 60_000;
 
 export async function loadDashboardSummary(workspaceId: string): Promise<DashboardSummary> {
   if (!workspaceId) {
@@ -91,42 +95,56 @@ export async function loadDashboardSummary(workspaceId: string): Promise<Dashboa
 
   const currentDayName = getCurrentDayName();
   const todayDate = getTodayDate();
-  const sevenDaysAgo = getDaysAgo(6); // 6 hari lalu s/d hari ini = 7 hari
+  
+  const pastDates = Array.from({ length: 6 }, (_, k) => shiftWitaDateString(todayDate, -(6 - k)));
+  const ttl = DASHBOARD_STATIC_TTL_MS;
+  const ws = workspaceId;
 
-  const [students, journals, schedules, attendances, totalJournalsCount, skipReasonsToday] = await Promise.all([
-    measure('ringkasan: siswa', () => getAllStudentsForSummary(workspaceId)),
-    measure('ringkasan: jurnal 7 hari', () => getJournalsInRange(workspaceId, sevenDaysAgo, todayDate)),
-    measure('ringkasan: jadwal', () => getAllSchedulesForSummary(workspaceId)),
-    measure('ringkasan: presensi 7 hari', () => getAttendancesInRange(workspaceId, sevenDaysAgo, todayDate)),
-    measure('ringkasan: hitung jurnal', () => getJournalCount(workspaceId)),
-    measure('ringkasan: alasan skip', () => getSkipReasonsByDate(workspaceId, todayDate)),
-  ]);
-
-  const uniqueClasses = Array.from(
-    new Set(students.map((s: any) => s.className?.trim()).filter(Boolean))
-  ) as string[];
+  const [uniqueClasses, journalsToday, schedules, attendancesToday, totalJournalsCount, skipReasonsToday, pastCounts] =
+    await Promise.all([
+      measure('ringkasan: siswa', () =>
+        withPersistentCache(`dash:classes:${ws}`, ttl, async () =>
+          Array.from(
+            new Set((await getAllStudentsForSummary(ws)).map((s) => s.className?.trim()).filter(Boolean))
+          ) as string[]
+        )
+      ),
+      measure('ringkasan: jurnal hari ini', () => getJournalsOnDate(ws, todayDate)),
+      measure('ringkasan: jadwal', () =>
+        withPersistentCache(`dash:schedules:${ws}`, ttl, () => getAllSchedulesForSummary(ws))
+      ),
+      measure('ringkasan: presensi hari ini', () => getAttendancesOnDate(ws, todayDate)),
+      measure('ringkasan: hitung jurnal', () => getJournalCount(ws)),
+      measure('ringkasan: alasan skip', () => getSkipReasonsByDate(ws, todayDate)),
+      measure('ringkasan: angka 6 hari lalu', () =>
+        withPersistentCache(`dash:past:${ws}:${todayDate}`, ttl, async () => {
+          const [j, a] = await Promise.all([
+            Promise.all(pastDates.map((d) => getJournalCountOnDate(ws, d))),
+            Promise.all(pastDates.map((d) => getAttendanceCountOnDate(ws, d))),
+          ]);
+          return { j, a };
+        })
+      ),
+    ]);
 
   // Jadwal hari ini, diurutkan berdasarkan jam mulai
   const todaySchedules = sortSchedulesChronologically(
-    schedules.filter((s: any) => String(s.day ?? '').toLowerCase() === currentDayName.toLowerCase())
+    schedules.filter((s) => String(s.day ?? '').toLowerCase() === currentDayName.toLowerCase())
   );
-
-  const journalsToday = journals.filter((j: any) => j.date === todayDate);
-  const attendancesToday = attendances.filter((a: any) => a.date === todayDate);
 
   // Status per slot jadwal (bukan per nama kelas) — supaya kelas dengan dua
   // slot jadwal berbeda di hari yang sama tidak saling tertukar status
   // selesainya. Record baru dicocokkan lewat scheduleId; record lama tanpa
   // scheduleId jatuh ke pencocokan className seperti sebelumnya.
-  const todayClassStatuses: TodayClassStatus[] = todaySchedules.map((s: any) => {
-    const hasJournal = journalsToday.some((j: any) =>
+  const todayClassStatuses: TodayClassStatus[] = todaySchedules.map((s) => {
+    const hasJournal = journalsToday.some((j) =>
       j.scheduleId ? j.scheduleId === s.id : j.className?.trim() === s.className?.trim()
     );
-    const hasAttendance = attendancesToday.some((a: any) =>
+    const hasAttendance = attendancesToday.some((a) =>
       a.scheduleId ? a.scheduleId === s.id : a.className?.trim() === s.className?.trim()
     );
     const isDone = hasJournal && hasAttendance;
-    const skip = (skipReasonsToday as any[]).find((r) => r.scheduleId === s.id);
+    const skip = skipReasonsToday.find((r) => r.scheduleId === s.id);
     const isSkipped = !!skip && !isDone;
     return {
       scheduleId: s.id,
@@ -138,7 +156,7 @@ export async function loadDashboardSummary(workspaceId: string): Promise<Dashboa
       isDone,
       isSkipped,
       sessionState: classifySessionState(s.timeSlot || '', isDone, undefined, isSkipped),
-      skipReason: skip ? { reason: skip.reason, note: skip.note || '' } : null,
+      skipReason: skip ? { reason: skip.reason ?? '', note: skip.note || '' } : null,
     };
   });
 
@@ -165,8 +183,8 @@ export async function loadDashboardSummary(workspaceId: string): Promise<Dashboa
     const dayName = getDayNameFromDateString(dateStr);
 
     // Jumlah jurnal pada hari itu
-    const journalCount = journals.filter((j: any) => j.date === dateStr).length;
-    const attendanceCount = attendances.filter((a: any) => a.date === dateStr).length;
+    const journalCount = i === 0 ? journalsToday.length : pastCounts.j[6 - i] ?? 0;
+    const attendanceCount = i === 0 ? attendancesToday.length : pastCounts.a[6 - i] ?? 0;
 
     weeklyDays.push(dayName.substring(0, 3)); // Sen, Sel, Rab, ...
     weeklyJournalCounts.push(journalCount);

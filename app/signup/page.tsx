@@ -6,6 +6,9 @@ import { auth } from '@/src/config/firebase';
 import { useRouter } from 'next/navigation';
 import { GraduationCap, Lock, Mail, ArrowRight, User, Building2, KeyRound } from 'lucide-react';
 import * as workspaceController from '@/lib/controllers/workspaceController';
+import * as teacherProfileController from '@/lib/controllers/teacherProfileController';
+import { LEGAL_PATHS } from '@/lib/config/legal';
+import LegalLinks from '@/src/components/legal/LegalLinks';
 
 type SignupMode = 'individual' | 'school' | 'join';
 
@@ -18,6 +21,7 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [workspaceName, setWorkspaceName] = useState('');
   const [inviteCode, setInviteCode] = useState('');
+  const [consent, setConsent] = useState(false);
 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -32,6 +36,10 @@ export default function SignupPage() {
     e.preventDefault();
     setError('');
 
+    if (!consent) {
+      setError('Anda harus menyetujui Kebijakan Privasi dan Syarat dan Ketentuan untuk mendaftar.');
+      return;
+    }
     if (!email || !password) {
       setError('Email dan kata sandi wajib diisi.');
       return;
@@ -73,6 +81,13 @@ export default function SignupPage() {
       } else {
         const idToken = await credential.user.getIdToken();
         await workspaceController.submitJoinWorkspaceByCode(idToken, inviteCode.trim());
+      }
+
+      // Bukti persetujuan (waktu server + versi dokumen). Kegagalan mencatat tidak membatalkan akun yang sudah jadi.
+      try {
+        await teacherProfileController.recordLegalConsent(uid);
+      } catch (consentError) {
+        console.error('Gagal mencatat persetujuan:', consentError);
       }
 
       router.push('/');
@@ -206,10 +221,26 @@ export default function SignupPage() {
             </div>
           )}
 
+          <label className="flex items-start gap-2.5 text-xs text-nb-ink leading-relaxed cursor-pointer">
+            <input
+              type="checkbox"
+              name="consent"
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+              className="mt-0.5 w-4 h-4 shrink-0 accent-[#2F6B4F]"
+            />
+            <span>
+              Saya telah membaca dan menyetujui{' '}
+              <a href={LEGAL_PATHS.privacy} target="_blank" rel="noopener noreferrer" className="text-nb-green font-bold hover:underline">Kebijakan Privasi</a>{' '}
+              dan{' '}
+              <a href={LEGAL_PATHS.terms} target="_blank" rel="noopener noreferrer" className="text-nb-green font-bold hover:underline">Syarat dan Ketentuan</a>.
+            </span>
+          </label>
+
           <button
             type="submit"
-            disabled={loading}
-            className="w-full py-3.5 bg-nb-green hover:bg-nb-green-strong text-white rounded-2xl text-xs font-bold shadow-md shadow-nb-green/20 transition-all active:scale-[0.97] flex items-center justify-center gap-2 mt-2"
+            disabled={loading || !consent}
+            className="w-full py-3.5 bg-nb-green hover:bg-nb-green-strong text-white rounded-2xl text-xs font-bold shadow-md shadow-nb-green/20 transition-all active:scale-[0.97] flex items-center justify-center gap-2 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span>{loading ? 'Memproses...' : 'Daftar & Masuk'}</span>
             <ArrowRight className="w-4 h-4" />
@@ -222,6 +253,7 @@ export default function SignupPage() {
             Masuk di sini
           </a>
         </p>
+        <LegalLinks />
       </div>
     </div>
   );

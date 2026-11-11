@@ -104,7 +104,7 @@ function stopServer(server) {
 
 async function run() {
   const server = await startAppServer();
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+  const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   const teacher = await (await browser.newContext()).newPage();
 
   const consoleErrors = [];
@@ -120,6 +120,7 @@ async function run() {
     await teacher.fill('input[placeholder="Minimal 6 karakter"]', TEACHER_PASSWORD);
     await teacher.fill('input[placeholder="Ulangi kata sandi"]', TEACHER_PASSWORD);
     await teacher.fill('input[placeholder*="Kelas Pak"]', 'Workspace Uji Visual');
+    await teacher.check('input[name="consent"]'); // persetujuan Kebijakan Privasi + Syarat (wajib saat daftar)
     await teacher.click('button[type="submit"]');
     await teacher.waitForURL(`${BASE_URL}/`, { timeout: 30000 });
     pass('Setup: guru mendaftar');

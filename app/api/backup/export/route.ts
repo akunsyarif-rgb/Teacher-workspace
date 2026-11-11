@@ -1,12 +1,15 @@
 import { Readable } from 'node:stream';
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminAuth, getAdminDb } from '@/lib/server/firebaseAdmin';
+import { getAdminDb } from '@/lib/server/firebaseAdmin';
+import { AuthFailure, authenticate } from '@/lib/server/requireAuth';
+import { limitRequests } from '@/lib/server/rateLimit';
 import { ulanganRpc } from '@/lib/server/ulanganSupabase';
 import { BackupAuthError, resolveBackupActor } from '@/lib/server/backup/actor';
 import { claimExportSlot, DEFAULT_COOLDOWN_SECONDS } from '@/lib/server/backup/cooldown';
 import { countExportDocs, exportZip } from '@/lib/server/backup/exportWorkspace';
-import { resolveMaxDocs } from '@/lib/server/backup/limits';
+import { exportRateLimits, resolveMaxDocs } from '@/lib/server/backup/limits';
 import { firestoreIdentity, makeUlanganCollector } from '@/lib/server/backup/ulanganExport';
+import { logger } from '@/lib/utils/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -18,19 +21,25 @@ const pad = (n: number) => String(n).padStart(2, '0');
 // Ekspor data workspace guru sebagai ZIP. Token Firebase diverifikasi (termasuk pencabutan sesi); identitas, workspace, dan peran
 // dibaca dari Firestore — TIDAK dari body. Respons streaming, tanpa berkas sementara, tanpa cache, tanpa URL publik.
 export async function POST(request: NextRequest) {
-  const idToken = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
-  if (!idToken) return fail(401, 'no_token', 'Token otentikasi diperlukan.');
-
-  let auth: ReturnType<typeof getAdminAuth>;
+  let uid: string;
   let db: ReturnType<typeof getAdminDb>;
-  try { auth = getAdminAuth(); db = getAdminDb(); } catch {
-    console.error('backup: konfigurasi Firebase Admin server belum lengkap/tidak valid');
+  try {
+    ({ uid } = await authenticate(request));
+    db = getAdminDb();
+  } catch (error) {
+    if (error instanceof AuthFailure) {
+      return error.code === 'server_config'
+        ? fail(503, 'server_config', 'Server belum dikonfigurasi untuk backup. Hubungi admin.')
+        : fail(error.status, error.code, error.code === 'no_token' ? 'Token otentikasi diperlukan.' : 'Sesi tidak valid. Masuk kembali lalu coba lagi.');
+    }
+    logger.error('backup_export.config_invalid');
     return fail(503, 'server_config', 'Server belum dikonfigurasi untuk backup. Hubungi admin.');
   }
-  let uid: string;
-  try { uid = (await auth.verifyIdToken(idToken, true)).uid; } catch {
-    return fail(401, 'invalid_token', 'Sesi tidak valid. Masuk kembali lalu coba lagi.');
-  }
+
+  // Pagar tambahan di depan cooldown per-workspace: ekspor membaca seluruh data workspace dan memakai kuota baca yang sama
+  // dengan aplikasi. Setiap permintaan (termasuk yang ditolak cooldown) dihitung, supaya spam tidak lolos ke Firestore.
+  const limited = await limitRequests(db, request, uid, 'backup-export', exportRateLimits());
+  if (limited) return fail(429, 'rate_limited', limited.message, { 'Retry-After': String(limited.retryAfterSeconds) });
 
   let release: (() => Promise<void>) | null = null;
   try {
@@ -41,7 +50,7 @@ export async function POST(request: NextRequest) {
     release = slot.release;
 
     const { value: maxDocs, source } = resolveMaxDocs();
-    if (source === 'clamped' || source === 'invalid') console.warn(`backup: BACKUP_MAX_DOCS diabaikan (${source}); memakai batas aman`);
+    if (source === 'clamped' || source === 'invalid') logger.warn('backup_export.max_docs_ignored', { source });
     const total = await countExportDocs(db, actor);
     if (total > maxDocs) { await release(); return fail(413, 'too_large', `Data terlalu besar untuk satu unduhan (±${total} dokumen, batas ${maxDocs}). Hubungi admin.`); }
 
@@ -53,7 +62,7 @@ export async function POST(request: NextRequest) {
     const rel = release;
     async function* guarded() {
       try { yield* exportZip(actor, { db, now, ulangan: collector }); }
-      catch (e) { await rel().catch(() => {}); console.error('backup stream gagal:', e instanceof Error ? e.name : typeof e); throw e; }
+      catch (e) { await rel().catch(() => {}); logger.error('backup_export.stream_failed', { errorName: e instanceof Error ? e.name : typeof e }); throw e; }
     }
     const body = Readable.toWeb(Readable.from(guarded())) as ReadableStream;
     return new Response(body, {
@@ -69,7 +78,7 @@ export async function POST(request: NextRequest) {
   } catch (e) {
     if (release) await release().catch(() => {});
     if (e instanceof BackupAuthError) return fail(403, 'not_a_teacher', 'Akun ini bukan akun guru aktif di sebuah workspace.');
-    console.error('backup export gagal:', e instanceof Error ? e.name : typeof e); // tanpa pesan: bisa memuat data/kredensial
+    logger.error('backup_export.failed', { errorName: e instanceof Error ? e.name : typeof e }); // tanpa pesan: bisa memuat data/kredensial
     return fail(500, 'export_failed', 'Backup gagal dibuat. Coba lagi beberapa saat lagi.');
   }
 }
