@@ -12,6 +12,7 @@ export type PersistentStore = {
   get<T>(key: string, ttlMs?: number, now?: number): T | undefined;
   set<T>(key: string, value: T, now?: number): void;
   remove(key: string): void;
+  keys(prefix?: string): string[];
   clear(): void;
 };
 
@@ -57,6 +58,20 @@ export function createPersistentStore(prefix: string): PersistentStore {
         storage()?.removeItem(prefix + key);
       } catch {
         // abaikan
+      }
+    },
+    keys(keyPrefix = '') {
+      try {
+        const s = storage();
+        if (!s) return [];
+        const out: string[] = [];
+        for (let i = 0; i < s.length; i++) {
+          const k = s.key(i);
+          if (k && k.startsWith(prefix + keyPrefix)) out.push(k.slice(prefix.length));
+        }
+        return out;
+      } catch {
+        return [];
       }
     },
     clear() {

@@ -38,6 +38,7 @@ import {
   School,
 } from "lucide-react";
 import { clearPersistentData } from "@/lib/utils/persistentCache";
+import { countGradeDrafts } from "@/lib/utils/gradeDraft";
 
 function getGreeting(date: Date = new Date()) {
   const hour = date.getHours();
@@ -224,6 +225,7 @@ export default function DashboardPage() {
   }, []);
 
   async function handleLogout() {
+    if (countGradeDrafts() > 0 && !window.confirm("Ada nilai yang belum disimpan di perangkat ini. Keluar akun akan menghapusnya. Tetap keluar?")) return;
     try {
       await signOut(auth);
       clearPersistentData();
