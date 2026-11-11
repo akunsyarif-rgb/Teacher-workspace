@@ -10,6 +10,7 @@ import SubmissionPanel from './SubmissionPanel';
 import * as assignmentController from '@/lib/controllers/assignmentController';
 import { uploadAssignmentFile } from '@/lib/adapters/storageAdapter';
 import { getCached } from '@/lib/utils/sessionCache';
+import { formDraftKey } from '@/lib/utils/formDraft';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 
 type AssignmentsTabProps = {
@@ -102,7 +103,12 @@ export default function AssignmentsTab({ className, subject }: AssignmentsTabPro
         </Button>
       </Card>
 
-      <AssignmentFormModal isOpen={showModal} onClose={() => setShowModal(false)} onSubmit={handleCreate} />
+      <AssignmentFormModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        onSubmit={handleCreate}
+        draftKey={workspaceId && className ? formDraftKey('tugas', workspaceId, className) : null}
+      />
 
       {loading ? (
         <div className="space-y-3">

@@ -15,6 +15,7 @@ import { SUBMISSION_STATUS } from "@/lib/config/constants";
 import { canStudentSubmit, describeSubmissionError, isPastDue } from "@/lib/utils/submissionRules";
 import { isValidSubmissionLink, SUBMISSION_LINK_ERROR_MESSAGE } from "@/lib/utils/submissionLink";
 import type { StudentProfile } from "@/src/context/StudentAuthContext";
+import { formDraftKey, loadFormDraft, saveFormDraft, removeFormDraft } from "@/lib/utils/formDraft";
 
 const STATUS_LABEL: Record<string, { label: string; className: string; icon: LucideIcon }> = {
   [SUBMISSION_STATUS.BELUM_MENGUMPULKAN]: { label: "Belum dikumpulkan", className: "text-nb-ink-muted", icon: Circle },
@@ -157,15 +158,32 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
     };
   }, []);
 
+  const answerDraftKey = (assignmentId: string) =>
+    formDraftKey("jawaban", scope.workspaceId, scope.studentId, assignmentId);
+
+  // Jawaban teks yang belum dikumpulkan ditahan di perangkat, supaya tidak hilang kalau halaman tertutup/dimuat ulang.
+  const [draftRestoredId, setDraftRestoredId] = useState<string | null>(null);
+  const openAssignment = assignments.find((a) => a.id === openId);
+  const serverAnswer = openAssignment?.textAnswer || "";
+  useEffect(() => {
+    if (!openId || saving) return;
+    const key = answerDraftKey(openId);
+    if (answer !== serverAnswer) saveFormDraft(key, { answer, answerPasted });
+    else removeFormDraft(key);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openId, answer, answerPasted, serverAnswer, saving]);
+
   function openForm(assignment: AssignmentRow) {
+    const saved = loadFormDraft<{ answer: string; answerPasted?: boolean }>(answerDraftKey(assignment.id));
+    setDraftRestoredId(saved && saved.answer !== (assignment.textAnswer || "") ? assignment.id : null);
     setOpenId(assignment.id);
-    setAnswer(assignment.textAnswer || "");
+    setAnswer(saved ? saved.answer : assignment.textAnswer || "");
     setFiles([]);
     setSubmitError("");
     setDriveLinkInput("");
     setDriveLinkRemoved(false);
     setShowDriveLink(!!externalLinkOf(assignment));
-    setAnswerPasted(false);
+    setAnswerPasted(saved?.answerPasted ?? false);
   }
 
   // Ambang 200 karakter: cukup untuk menyaring paste jawaban esai
@@ -303,6 +321,7 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
         { textAnswer: answer, attachments, externalLink: resolvedExternalLink, answerPasted },
         assignment.dueDate
       ));
+      removeFormDraft(answerDraftKey(assignment.id));
       setOpenId(null);
       setAnswer("");
       setFiles([]);
@@ -430,6 +449,12 @@ function AssignmentsContent({ profile }: { profile: StudentProfile }) {
             {isOpen && (
               <div className="space-y-2 pt-1">
                 <InlineAlert message={submitError} onDismiss={() => setSubmitError("")} />
+
+                {draftRestoredId === assignment.id && (
+                  <p data-testid="answer-draft-notice" className="text-xs font-medium text-amber-700 bg-amber-50 rounded-xl p-2.5">
+                    Jawaban yang belum dikumpulkan dipulihkan dari perangkat ini. Tekan Kumpulkan untuk mengirimnya.
+                  </p>
+                )}
 
                 <textarea
                   value={answer}

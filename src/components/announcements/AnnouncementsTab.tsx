@@ -1,6 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useFormDraft } from '@/src/hooks/useFormDraft';
+import { formDraftKey } from '@/lib/utils/formDraft';
+import DraftRestoredNotice from '@/src/components/ui/DraftRestoredNotice';
 import { Megaphone, Plus, Trash2, ArrowLeft } from 'lucide-react';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
@@ -25,6 +28,18 @@ export default function AnnouncementsTab({ className, subject }: AnnouncementsTa
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Draf pengumuman (judul + isi) tersimpan di perangkat sampai dikirim atau dibuang.
+  const draft = useFormDraft<{ title: string; body: string }>({
+    key: workspaceId && className ? formDraftKey('pengumuman', workspaceId, className) : null,
+    value: { title, body },
+    isDirty: title.trim() !== '' || body.trim() !== '',
+    enabled: !!workspaceId && !!className,
+    onRestore: (d) => {
+      setTitle(d.title);
+      setBody(d.body);
+    },
+  });
 
   useEffect(() => {
     if (className && workspaceId) loadAnnouncements();
@@ -93,6 +108,19 @@ export default function AnnouncementsTab({ className, subject }: AnnouncementsTa
           <span>Buat Pengumuman</span>
         </Button>
       </Card>
+
+      {draft.restored && !showModal && (
+        <DraftRestoredNotice
+          testId="announcement-draft-notice"
+          message="Ada draf pengumuman yang belum dikirim, dipulihkan dari perangkat ini. Tekan Buat Pengumuman untuk melanjutkan."
+          onDiscard={() => {
+            setTitle('');
+            setBody('');
+            draft.dismiss();
+          }}
+          onDismiss={draft.dismiss}
+        />
+      )}
 
       {step === 'preview' ? (
         <Modal isOpen={showModal} onClose={closeModal} title="Preview Pengumuman">

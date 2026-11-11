@@ -11,13 +11,13 @@ import InviteCodeCard from "@/src/components/workspace/InviteCodeCard";
 import LegalLinks from "@/src/components/legal/LegalLinks";
 import { User, ChevronRight, LogOut, BarChart3, Wallet, Database, ShieldCheck, HardDriveDownload, Trash2 } from "lucide-react";
 import { clearPersistentData } from "@/lib/utils/persistentCache";
-import { countGradeDrafts } from "@/lib/utils/gradeDraft";
+import { countUnsavedDrafts } from "@/lib/utils/formDraft";
 
 export default function AccountPage() {
   const router = useRouter();
   const { user, teacherProfile, workspace, role } = useWorkspace();
   async function handleLogout() {
-    if (countGradeDrafts() > 0 && !window.confirm("Ada nilai yang belum disimpan di perangkat ini. Keluar akun akan menghapusnya. Tetap keluar?")) return;
+    if (countUnsavedDrafts() > 0 && !window.confirm("Ada isian (nilai/jurnal/pengumuman/dll.) yang belum disimpan di perangkat ini. Keluar akun akan menghapusnya. Tetap keluar?")) return;
     try {
       await signOut(auth);
       clearPersistentData();

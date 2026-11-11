@@ -12,6 +12,7 @@ import * as studentPortalController from "@/lib/controllers/studentPortalControl
 import { isUlanganEnabled } from "@/lib/config/ulangan";
 import type { StudentProfile } from "@/src/context/StudentAuthContext";
 import { clearPersistentData } from "@/lib/utils/persistentCache";
+import { countUnsavedDrafts } from "@/lib/utils/formDraft";
 
 
 const MENU_ITEMS = [
@@ -45,6 +46,7 @@ function HomeContent({ profile }: { profile: StudentProfile }) {
   }, [profile.workspaceId, profile.className, profile.studentId]);
 
   async function handleLogout() {
+    if (countUnsavedDrafts() > 0 && !window.confirm("Ada jawaban yang belum dikumpulkan di perangkat ini. Keluar akun akan menghapusnya. Tetap keluar?")) return;
     await signOut(auth);
     clearPersistentData();
     router.push("/student/login");

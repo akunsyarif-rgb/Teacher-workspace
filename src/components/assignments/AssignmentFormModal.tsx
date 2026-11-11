@@ -6,20 +6,37 @@ import Modal from '../ui/Modal';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import { validateUploadFile } from '@/lib/adapters/storageAdapter';
+import { useFormDraft } from '@/src/hooks/useFormDraft';
+import DraftRestoredNotice from '../ui/DraftRestoredNotice';
 
 type AssignmentFormModalProps = {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: { title: string; description: string; dueDate: string; file: File | null }) => Promise<void>;
+  /** Kunci draf di perangkat (per workspace+kelas); tanpa ini draf tidak disimpan. */
+  draftKey?: string | null;
 };
 
-export default function AssignmentFormModal({ isOpen, onClose, onSubmit }: AssignmentFormModalProps) {
+export default function AssignmentFormModal({ isOpen, onClose, onSubmit, draftKey = null }: AssignmentFormModalProps) {
   const [step, setStep] = useState<'form' | 'preview'>('form');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Draf teks tugas (judul/instruksi/tenggat) bertahan di perangkat; file lampiran tidak ikut tersimpan.
+  const draft = useFormDraft<{ title: string; description: string; dueDate: string }>({
+    key: draftKey,
+    value: { title, description, dueDate },
+    isDirty: title.trim() !== '' || description.trim() !== '' || dueDate !== '',
+    enabled: !!draftKey,
+    onRestore: (d) => {
+      setTitle(d.title);
+      setDescription(d.description);
+      setDueDate(d.dueDate);
+    },
+  });
 
   // Reset ke langkah form setiap modal dibuka lagi — supaya guru tidak
   // pernah terdampar di layar Preview tugas sebelumnya.
@@ -108,6 +125,19 @@ export default function AssignmentFormModal({ isOpen, onClose, onSubmit }: Assig
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Buat Tugas Baru">
       <form onSubmit={handleContinueToPreview} className="space-y-3">
+        {draft.restored && (
+          <DraftRestoredNotice
+            testId="assignment-draft-notice"
+            message="Draf tugas dipulihkan dari perangkat ini (lampiran perlu dipilih ulang)."
+            onDiscard={() => {
+              setTitle('');
+              setDescription('');
+              setDueDate('');
+              draft.dismiss();
+            }}
+            onDismiss={draft.dismiss}
+          />
+        )}
         <Input
           label="Judul Tugas"
           value={title}

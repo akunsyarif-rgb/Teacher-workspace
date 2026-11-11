@@ -316,6 +316,19 @@ async function run() {
       await openCard.getByRole('button', { name: /Kerjakan Tugas/i }).first().click();
       await student.waitForTimeout(600);
       await openCard.locator('textarea').fill(STUDENT_ANSWER);
+      // Draf jawaban: muat ulang sebelum Kirim → jawaban teks harus dipulihkan dari perangkat.
+      await student.waitForTimeout(500);
+      await student.reload({ waitUntil: 'domcontentloaded' });
+      await student.waitForTimeout(3000);
+      await openCard.getByRole('button', { name: /Kerjakan Tugas/i }).first().click();
+      await student.waitForTimeout(600);
+      const restoredAnswer = await openCard.locator('textarea').inputValue();
+      if (restoredAnswer === STUDENT_ANSWER && (await student.getByTestId('answer-draft-notice').count()) > 0) {
+        pass('Jawaban siswa yang belum dikumpulkan dipulihkan setelah muat ulang');
+      } else {
+        fail('Jawaban siswa yang belum dikumpulkan dipulihkan setelah muat ulang', `isi="${restoredAnswer}"`);
+        await openCard.locator('textarea').fill(STUDENT_ANSWER);
+      }
       await openCard.locator('input[type="file"]').first().setInputFiles([
         { name: 'foto-jawaban.jpg', mimeType: 'application/octet-stream', buffer: ONE_PIXEL_PNG },
       ]);

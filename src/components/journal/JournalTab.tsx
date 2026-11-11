@@ -13,6 +13,10 @@ import * as journalController from "@/lib/controllers/journalController";
 import { getCached } from "@/lib/utils/sessionCache";
 import { useWorkspace } from "@/src/context/WorkspaceContext";
 import { useOnlineStatus } from "@/src/hooks/useOnlineStatus";
+import { useFormDraft } from "@/src/hooks/useFormDraft";
+import { formDraftKey } from "@/lib/utils/formDraft";
+import { getWitaDateString } from "@/lib/utils/witaDate";
+import DraftRestoredNotice from "@/src/components/ui/DraftRestoredNotice";
 import { SkeletonText, SkeletonCard } from "../ui/Skeleton";
 
 type JournalTabProps = {
@@ -167,8 +171,29 @@ export default function JournalTab({
   // mode edit dan hanya kalau isinya benar-benar beda dari yang tersimpan
   // (mode "view" tidak pernah dianggap dirty karena isinya persis salinan
   // savedTopic/savedNotes).
+  const dirty = mode === "edit" && (topic.trim() !== savedTopic.trim() || notes.trim() !== (savedNotes === "-" ? "" : savedNotes.trim()));
+
+  // Draf jurnal disimpan di perangkat (per kelas/jadwal/hari) dan dipulihkan bila halaman tertutup sebelum Simpan.
+  const draft = useFormDraft<{ topic: string; notes: string }>({
+    key: workspaceId && className ? formDraftKey("jurnal", workspaceId, className, scheduleId, getWitaDateString()) : null,
+    value: { topic, notes },
+    isDirty: dirty,
+    enabled: !!workspaceId && !!className && !loadingToday,
+    onRestore: (d) => {
+      setTopic(d.topic);
+      setNotes(d.notes);
+      setMode("edit");
+    },
+  });
+
+  function discardDraft() {
+    setTopic(savedTopic);
+    setNotes(savedNotes === "-" ? "" : savedNotes);
+    setMode(todayEntryId ? "view" : "edit");
+    draft.dismiss();
+  }
+
   useEffect(() => {
-    const dirty = mode === "edit" && (topic.trim() !== savedTopic.trim() || notes.trim() !== (savedNotes === "-" ? "" : savedNotes.trim()));
     onDirtyChange?.(dirty);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, topic, notes, savedTopic, savedNotes]);
@@ -221,6 +246,15 @@ export default function JournalTab({
             </>
           )}
         </div>
+      )}
+
+      {draft.restored && (
+        <DraftRestoredNotice
+          testId="journal-draft-notice"
+          message="Draf jurnal yang belum disimpan dipulihkan dari perangkat ini. Tekan Simpan untuk menyimpannya."
+          onDiscard={discardDraft}
+          onDismiss={draft.dismiss}
+        />
       )}
 
       <Card className="space-y-4">
