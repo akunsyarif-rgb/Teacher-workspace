@@ -92,10 +92,13 @@ describe('sekolah besar', () => {
     const ws = seed.workspaceId;
     const cls = seed.sampleClass;
     const scope = { workspaceId: ws, className: cls, studentId: seed.sampleStudentId };
+    // Guru contoh 't0': mengajar ±3 kelas (jadwal miliknya). Beranda & Analitik dibatasi ke kelas itu.
+    const teacher = { uid: 't0', role: 'TEACHER' };
+    const owner = { uid: 'owner', role: 'OWNER' };
 
     const scenarios: { name: string; actor: 'guru' | 'siswa'; label: string; run: () => Promise<unknown>; prime?: () => Promise<unknown>; fresh?: boolean }[] = [
-      { name: 'beranda', actor: 'guru', label: 'Guru: Beranda — buka pertama (cache perangkat kosong)', run: () => loadDashboardSummary(ws), fresh: true },
-      { name: 'beranda-hangat', actor: 'guru', label: 'Guru: Beranda — buka berikutnya (cache perangkat terisi)', run: () => loadDashboardSummary(ws), prime: () => loadDashboardSummary(ws) },
+      { name: 'beranda', actor: 'guru', label: 'Guru: Beranda — buka pertama (cache perangkat kosong)', run: () => loadDashboardSummary(ws, teacher), fresh: true },
+      { name: 'beranda-hangat', actor: 'guru', label: 'Guru: Beranda — buka berikutnya (cache perangkat terisi)', run: () => loadDashboardSummary(ws, teacher), prime: () => loadDashboardSummary(ws, teacher) },
       { name: 'daftar-kelas', actor: 'guru', label: 'Guru: daftar kelas — buka pertama', run: () => listClassSummaries(ws), fresh: true },
       { name: 'daftar-kelas-hangat', actor: 'guru', label: 'Guru: daftar kelas — buka berikutnya', run: () => listClassSummaries(ws), prime: () => listClassSummaries(ws) },
       { name: 'detail-kelas', actor: 'guru', label: 'Guru: detail kelas (siswa)', run: () => getStudentsInClass(ws, cls) },
@@ -103,9 +106,10 @@ describe('sekolah besar', () => {
       { name: 'riwayat-jurnal', actor: 'guru', label: 'Guru: riwayat jurnal satu kelas', run: () => listJournalEntries(ws, cls) },
       { name: 'nilai', actor: 'guru', label: 'Guru: tabel nilai kelas', run: () => loadGradeData(ws, cls) },
       { name: 'pengumpulan', actor: 'guru', label: 'Guru: pengumpulan satu tugas', run: () => getSubmissionsForAssignment(ws, cls, seed.sampleAssignmentId) },
-      { name: 'analitik', actor: 'guru', label: 'Guru: Analitik — buka pertama', run: () => loadInsights(ws), fresh: true },
-      { name: 'analitik-sinkron', actor: 'guru', label: 'Guru: Analitik — buka setelah cache hasil kedaluwarsa (sinkron 3 hari)', run: () => loadInsights(ws), prime: async () => { await loadInsights(ws); derivedCache.clear(); } },
-      { name: 'analitik-hangat', actor: 'guru', label: 'Guru: Analitik — buka berikutnya', run: () => loadInsights(ws), prime: () => loadInsights(ws) },
+      { name: 'analitik', actor: 'guru', label: 'Guru: Analitik — buka pertama', run: () => loadInsights(ws, teacher), fresh: true },
+      { name: 'analitik-sinkron', actor: 'guru', label: 'Guru: Analitik — buka setelah cache hasil kedaluwarsa (sinkron 3 hari)', run: () => loadInsights(ws, teacher), prime: async () => { await loadInsights(ws, teacher); derivedCache.clear(); } },
+      { name: 'analitik-pemilik', actor: 'guru', label: 'Pemilik/Admin: Analitik seluruh workspace — buka pertama', run: () => loadInsights(ws, owner), fresh: true },
+      { name: 'analitik-hangat', actor: 'guru', label: 'Guru: Analitik — buka berikutnya', run: () => loadInsights(ws, teacher), prime: () => loadInsights(ws, teacher) },
       { name: 'jadwal', actor: 'guru', label: 'Guru: Jadwal', run: () => loadSchedules(ws) },
       { name: 'siswa-beranda', actor: 'siswa', label: 'Siswa: Beranda (pengumuman)', run: () => portal.getAnnouncements(scope) },
       { name: 'siswa-jadwal', actor: 'siswa', label: 'Siswa: Jadwal', run: () => portal.getSchedule(scope) },

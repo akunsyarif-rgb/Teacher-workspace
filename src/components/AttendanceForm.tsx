@@ -37,7 +37,8 @@ type WorkspaceTab = 'jurnal' | 'presensi' | 'nilai' | 'tugas' | 'pengumuman' | '
 const VALID_TABS: WorkspaceTab[] = ['jurnal', 'presensi', 'nilai', 'tugas', 'pengumuman', 'riwayat'];
 
 export default function AttendanceForm() {
-  const { workspaceId } = useWorkspace();
+  const { workspaceId, user, role, teacherProfile } = useWorkspace();
+  const teacherScope = { uid: user?.uid ?? '', role, homeroomClassName: teacherProfile?.homeroomClassName };
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('jurnal');
@@ -220,7 +221,7 @@ export default function AttendanceForm() {
         getCached(classController.classSummariesCacheKey(workspaceId)) !== undefined &&
         getCached(scheduleController.schedulesCacheKey(workspaceId)) !== undefined &&
         getCached(
-          dashboardController.dashboardSummaryCacheKey(workspaceId),
+          dashboardController.dashboardSummaryCacheKey(workspaceId, teacherScope.uid),
           dashboardController.DASHBOARD_SUMMARY_TTL_MS
         ) !== undefined;
 
@@ -253,7 +254,7 @@ export default function AttendanceForm() {
   async function loadSessionStatuses() {
     if (!workspaceId) return [];
     try {
-      const summary = await dashboardController.fetchDashboardSummary(workspaceId);
+      const summary = await dashboardController.fetchDashboardSummary(workspaceId, teacherScope);
       const statuses = summary.todayClassStatuses || [];
       setTodayClassStatuses(statuses);
       return statuses;

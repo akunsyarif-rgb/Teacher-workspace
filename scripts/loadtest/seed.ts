@@ -71,7 +71,7 @@ export async function seedSchool(projectId: string, size: SchoolSize, workspaceI
       for (let l = 0; l < size.lessonsPerClassPerDay; l++) {
         const id = `sch-${c}-${di}-${l}`;
         scheduleIds.push(id);
-        put('schedules', id, { day, timeSlot: slots[(l + di) % slots.length], className: cls, subject: subjects[(c + l + di) % subjects.length], createdBy: `t${c % size.teachers}` });
+        put('schedules', id, { day, timeSlot: slots[(l + di) % slots.length], className: cls, subject: subjects[(c + l + di) % subjects.length], createdBy: `t${(c * 4 + l) % size.teachers}` });
       }
     });
 
