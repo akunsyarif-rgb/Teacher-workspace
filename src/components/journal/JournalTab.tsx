@@ -13,6 +13,7 @@ import * as journalController from "@/lib/controllers/journalController";
 import { getCached } from "@/lib/utils/sessionCache";
 import { useWorkspace } from "@/src/context/WorkspaceContext";
 import { useOnlineStatus } from "@/src/hooks/useOnlineStatus";
+import { describeSaveError } from "@/lib/utils/saveError";
 import { useFormDraft } from "@/src/hooks/useFormDraft";
 import { formDraftKey } from "@/lib/utils/formDraft";
 import { getWitaDateString } from "@/lib/utils/witaDate";
@@ -155,7 +156,7 @@ export default function JournalTab({
       await loadHistory();
       onSubmitted?.();
     } catch (error: any) {
-      setErrorMsg(error.message || "Gagal menyimpan jurnal.");
+      setErrorMsg(describeSaveError(error, "Gagal menyimpan jurnal."));
       throw error;
     } finally {
       setLoading(false);

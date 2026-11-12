@@ -9,7 +9,7 @@ import { fetchDashboardSummary } from "@/lib/controllers/dashboardController";
 
 export default function BottomNav() {
   const pathname = usePathname();
-  const { workspaceId, teacherProfile } = useWorkspace();
+  const { user, role, workspaceId, teacherProfile } = useWorkspace();
   const [pendingCount, setPendingCount] = useState(0);
 
   // Selalu 4 item — hanya item terakhir yang berganti isi (Siswa vs Wali
@@ -33,7 +33,7 @@ export default function BottomNav() {
   async function loadPendingCount() {
     if (!workspaceId) return;
     try {
-      const summary = await fetchDashboardSummary(workspaceId);
+      const summary = await fetchDashboardSummary(workspaceId, { uid: user?.uid ?? "", role, homeroomClassName: teacherProfile?.homeroomClassName });
       setPendingCount(summary.pendingClasses?.length || 0);
     } catch (err) {
       console.error("Gagal memuat notifikasi:", err);

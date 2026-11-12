@@ -1,17 +1,19 @@
 import { loadDashboardSummary } from '../services/dashboardService';
 import { withCache } from '../utils/sessionCache';
+import type { TeacherScope } from '../utils/teacherScope';
 
 // TTL pendek (bukan default 60s) — dipakai juga oleh pemanggil yang perlu
 // mengecek "apakah cache-nya masih hangat" (mis. AttendanceForm sebelum
 // menyalakan loading) supaya patokannya konsisten dengan withCache di bawah.
 export const DASHBOARD_SUMMARY_TTL_MS = 15_000;
 
-export function dashboardSummaryCacheKey(workspaceId: string) {
-  return `dashboardSummary:${workspaceId}`;
+export function dashboardSummaryCacheKey(workspaceId: string, uid: string) {
+  return `dashboardSummary:${workspaceId}:${uid}`;
 }
 
-export async function fetchDashboardSummary(workspaceId: string) {
-  if (!workspaceId) {
+// Beranda per guru: `teacher` (uid/role/kelas wali) menentukan jadwal & kelas yang dihitung.
+export async function fetchDashboardSummary(workspaceId: string, teacher: TeacherScope) {
+  if (!workspaceId || !teacher?.uid) {
     return {
       uniqueClasses: [],
       totalJournals: 0,
@@ -26,5 +28,5 @@ export async function fetchDashboardSummary(workspaceId: string) {
   // TTL pendek — ringkasan ini dipakai Action Center/Workflow Engine yang
   // perlu terasa akurat begitu guru berpindah menu, walau tanpa aksi
   // simpan yang men-trigger clearAllCached().
-  return withCache(dashboardSummaryCacheKey(workspaceId), () => loadDashboardSummary(workspaceId), DASHBOARD_SUMMARY_TTL_MS);
+  return withCache(dashboardSummaryCacheKey(workspaceId, teacher.uid), () => loadDashboardSummary(workspaceId, teacher), DASHBOARD_SUMMARY_TTL_MS);
 }

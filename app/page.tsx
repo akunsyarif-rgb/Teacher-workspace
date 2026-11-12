@@ -77,7 +77,7 @@ type SyncStatus = "idle" | "saving" | "saved" | "error" | "offline";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, teacherProfile, workspaceId, loading: profileLoading } = useWorkspace();
+  const { user, role, teacherProfile, workspaceId, loading: profileLoading } = useWorkspace();
 
   const [loading, setLoading] = useState(true);
   const [quickNote, setQuickNote] = useState("");
@@ -160,7 +160,7 @@ export default function DashboardPage() {
   async function loadSummary() {
     if (!workspaceId) return;
     try {
-      const summary = await measure('guru beranda: muat ringkasan hari ini', () => fetchDashboardSummary(workspaceId));
+      const summary = await measure('guru beranda: muat ringkasan hari ini', () => fetchDashboardSummary(workspaceId, { uid: user?.uid ?? '', role, homeroomClassName: teacherProfile?.homeroomClassName }));
       setUniqueClasses(summary.uniqueClasses);
       setTotalJournals(summary.totalJournals);
       setCurrentDayName(summary.currentDayName);

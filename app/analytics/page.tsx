@@ -37,7 +37,8 @@ const CATEGORY_STYLE: Record<string, { icon: any; label: string; tone: string }>
 };
 
 export default function AnalyticsPage() {
-  const { workspaceId } = useWorkspace();
+  const { workspaceId, user, role, teacherProfile } = useWorkspace();
+  const teacherScope = { uid: user?.uid ?? '', role, homeroomClassName: teacherProfile?.homeroomClassName };
   const [loading, setLoading] = useState(true);
   const [weeklyStats, setWeeklyStats] = useState<{
     days: string[];
@@ -60,15 +61,15 @@ export default function AnalyticsPage() {
   async function loadData() {
     if (!workspaceId) return;
     const alreadyWarm =
-      getCached(dashboardSummaryCacheKey(workspaceId)) !== undefined &&
-      getCached(insightsCacheKey(workspaceId)) !== undefined;
+      getCached(dashboardSummaryCacheKey(workspaceId, teacherScope.uid)) !== undefined &&
+      getCached(insightsCacheKey(workspaceId, teacherScope.uid)) !== undefined;
     if (!alreadyWarm) {
       setLoading(true);
     }
     try {
       const [summary, insightResult] = await Promise.all([
-        fetchDashboardSummary(workspaceId),
-        fetchInsights(workspaceId),
+        fetchDashboardSummary(workspaceId, teacherScope),
+        fetchInsights(workspaceId, teacherScope),
       ]);
       setWeeklyStats(summary.weeklyStats);
       setTotalJournals(summary.totalJournals);

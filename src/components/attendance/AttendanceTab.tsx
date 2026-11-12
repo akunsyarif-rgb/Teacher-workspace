@@ -15,6 +15,7 @@ import { useWorkspace } from "@/src/context/WorkspaceContext";
 import { useOnlineStatus } from "@/src/hooks/useOnlineStatus";
 import { exportAttendanceRecapPdf } from "@/lib/utils/attendancePdf";
 import { SkeletonCard, SkeletonTable } from "../ui/Skeleton";
+import { describeSaveError } from "@/lib/utils/saveError";
 
 type AttendanceTabProps = {
   className: string;
@@ -157,7 +158,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
       .catch((error: any) => {
         console.error("Gagal auto-save presensi:", error);
         setAutoSaveState("error");
-        setErrorMsg(error?.message || "Gagal menyimpan presensi otomatis.");
+        setErrorMsg(describeSaveError(error, "Gagal menyimpan presensi otomatis."));
       });
   }
 
@@ -192,7 +193,7 @@ export default function AttendanceTab({ className, subject, scheduleId, onSubmit
       // guru masih di tengah mengisi presensi siswa lain.
       onSubmitted?.();
     } catch (error: any) {
-      setErrorMsg(error.message || "Gagal menandai presensi selesai.");
+      setErrorMsg(describeSaveError(error, "Gagal menandai presensi selesai."));
     } finally {
       setMarkingDone(false);
       setShowCompleteConfirm(false);

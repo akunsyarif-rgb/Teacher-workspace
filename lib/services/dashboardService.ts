@@ -1,6 +1,4 @@
 import {
-  getAllStudentsForSummary,
-  getAllSchedulesForSummary,
   getJournalCount,
   getJournalsOnDate,
   getAttendancesOnDate,
@@ -11,6 +9,9 @@ import type { Doc } from '../adapters/firestoreAdapter';
 import type { ScheduleData } from '../types/models';
 import { measure } from '../utils/perf';
 import { withPersistentCache } from '../utils/persistentCache';
+import { loadTeacherClasses } from './teacherScopeService';
+import { listClassSummaries } from './studentService';
+import { classSignature, type TeacherScope } from '../utils/teacherScope';
 import { getByDate as getSkipReasonsByDate } from '../repositories/sessionSkipReasonRepository';
 import { sortSchedulesChronologically, classifySessionState, SessionState } from '../utils/scheduleTime';
 import {
@@ -79,8 +80,8 @@ function getTodayDate(): string {
 // reload/berpindah menu tidak mengunduh ulang; dibuang otomatis oleh clearAllCached() saat guru mengubah data.
 export const DASHBOARD_STATIC_TTL_MS = 10 * 60_000;
 
-export async function loadDashboardSummary(workspaceId: string): Promise<DashboardSummary> {
-  if (!workspaceId) {
+export async function loadDashboardSummary(workspaceId: string, teacher: TeacherScope): Promise<DashboardSummary> {
+  if (!workspaceId || !teacher?.uid) {
     return {
       uniqueClasses: [],
       totalJournals: 0,
@@ -100,32 +101,34 @@ export async function loadDashboardSummary(workspaceId: string): Promise<Dashboa
   const ttl = DASHBOARD_STATIC_TTL_MS;
   const ws = workspaceId;
 
-  const [uniqueClasses, journalsToday, schedules, attendancesToday, totalJournalsCount, skipReasonsToday, pastCounts] =
+  // Beranda = agenda SAYA: jadwal milik guru ini (data lama tanpa createdBy tetap dihitung milik semua),
+  // dan jurnal/presensi hanya dari kelas-kelas itu (lihat lib/utils/teacherScope.ts).
+  const { mySchedules, classes: myClasses, variants } = await loadTeacherClasses(ws, teacher);
+  const sig = classSignature(myClasses);
+  const hasClasses = variants.length > 0;
+
+  const [allClasses, journalsToday, attendancesToday, totalJournalsCount, skipReasonsToday, pastCounts] =
     await Promise.all([
-      measure('ringkasan: siswa', () =>
-        withPersistentCache(`dash:classes:${ws}`, ttl, async () =>
-          Array.from(
-            new Set((await getAllStudentsForSummary(ws)).map((s) => s.className?.trim()).filter(Boolean))
-          ) as string[]
-        )
-      ),
-      measure('ringkasan: jurnal hari ini', () => getJournalsOnDate(ws, todayDate)),
-      measure('ringkasan: jadwal', () =>
-        withPersistentCache(`dash:schedules:${ws}`, ttl, () => getAllSchedulesForSummary(ws))
-      ),
-      measure('ringkasan: presensi hari ini', () => getAttendancesOnDate(ws, todayDate)),
-      measure('ringkasan: hitung jurnal', () => getJournalCount(ws)),
+      measure('ringkasan: kelas', async () => (await listClassSummaries(ws)).map((c) => c.className)), // cache perangkat 10 menit, dibagi dengan halaman Kelas/Analitik
+      measure('ringkasan: jurnal hari ini', () => getJournalsOnDate(ws, todayDate, variants)),
+      measure('ringkasan: presensi hari ini', () => getAttendancesOnDate(ws, todayDate, variants)),
+      measure('ringkasan: hitung jurnal', () => getJournalCount(ws, variants)),
       measure('ringkasan: alasan skip', () => getSkipReasonsByDate(ws, todayDate)),
       measure('ringkasan: angka 6 hari lalu', () =>
-        withPersistentCache(`dash:past:${ws}:${todayDate}`, ttl, async () => {
+        withPersistentCache(`dash:past:${ws}:${teacher.uid}:${sig}:${todayDate}`, ttl, async () => {
+          if (!hasClasses) return { j: pastDates.map(() => 0), a: pastDates.map(() => 0) };
           const [j, a] = await Promise.all([
-            Promise.all(pastDates.map((d) => getJournalCountOnDate(ws, d))),
-            Promise.all(pastDates.map((d) => getAttendanceCountOnDate(ws, d))),
+            Promise.all(pastDates.map((d) => getJournalCountOnDate(ws, d, variants))),
+            Promise.all(pastDates.map((d) => getAttendanceCountOnDate(ws, d, variants))),
           ]);
           return { j, a };
         })
       ),
     ]);
+
+  const mine = new Set(myClasses);
+  const uniqueClasses = allClasses.filter((c) => mine.has(c));
+  const schedules = mySchedules;
 
   // Jadwal hari ini, diurutkan berdasarkan jam mulai
   const todaySchedules = sortSchedulesChronologically(
