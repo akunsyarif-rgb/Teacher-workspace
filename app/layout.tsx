@@ -5,6 +5,7 @@ import BottomNav from "@/src/components/BottomNav";
 import OfflineBanner from "@/src/components/ui/OfflineBanner";
 import PerfOverlay from "@/src/components/ui/PerfOverlay";
 import ClientMonitoring from "@/src/components/ui/ClientMonitoring";
+import UpdateBanner from "@/src/components/ui/UpdateBanner";
 import { WorkspaceProvider } from "@/src/context/WorkspaceContext"; // <-- IMPOR INI
 
 const geistSans = Geist({
@@ -48,6 +49,7 @@ export default function RootLayout({
           <BottomNav />
           <PerfOverlay />
           <ClientMonitoring />
+          <UpdateBanner />
         </WorkspaceProvider>
       </body>
     </html>
