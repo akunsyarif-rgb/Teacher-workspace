@@ -46,6 +46,10 @@ jobs:
         run: npm run lint:ci
       - name: Typecheck
         run: npm run typecheck
+      # Gagalkan PR bila dependensi PRODUKSI punya kerentanan tinggi/kritis (dev-only tidak dihitung).
+      # Bila ada temuan tanpa perbaikan yang tersedia, dokumentasikan dan turunkan ambang sementara — jangan matikan langkah ini.
+      - name: Audit dependensi produksi
+        run: npm audit --omit=dev --audit-level=high
 
   build:
     name: Build produksi
@@ -115,6 +119,9 @@ jobs:
           - test:e2e:onboarding
           - test:e2e:rename-class
           - test:e2e:grade-lock
+          - test:e2e:grade-draft
+          - test:e2e:form-draft
+          - test:e2e:version
           - test:e2e:submission
           - test:e2e:submission-drive-link
           - test:e2e:attendance-complete-confirm

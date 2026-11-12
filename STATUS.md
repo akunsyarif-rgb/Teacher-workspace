@@ -68,3 +68,28 @@ Selesai & ter-merge (PR #82, #83; CI hijau):
 - Pesan gagal-simpan yang jelas untuk penolakan izin; tes aturan auto-save presensi.
 - Insiden 12 Nov: "Missing or insufficient permissions" di Presensi — aturan baru ter-deploy lebih dulu daripada aplikasi (klien lama tanpa `createdBy`). Lihat `docs/AUDIT-KOMPREHENSIF-2026-11-12.txt` bagian 8.
 Terbuka (rinci di laporan audit): naikkan Next.js ke 16.4.6 dan dependensi rentan lain, urutan rilis aturan vs aplikasi, langkah manual pemilik, tinjauan hukum Privasi/Syarat, DSN Sentry.
+
+
+## Panduan: perubahan aturan Firestore — pola "Expand and Contract" (13 Nov 2026)
+**Masalah.** `deploy-firestore-rules.yml` men-deploy `firestore.rules` ke Firebase segera setelah `main` berubah, sedangkan bundel aplikasi baru di Vercel siap beberapa menit kemudian dan perangkat (iPad/PWA) bisa menyimpan bundel lama jauh lebih lama. Aturan yang diperketat sebelum semua klien ter-update membuat klien lama gagal dengan "Missing or insufficient permissions" (insiden presensi 12 Nov 2026: aturan mewajibkan `createdBy`, klien lama tidak mengirimnya).
+
+**Aturan main — jangan pernah memperketat dan mengubah klien dalam rilis yang sama.**
+1. **Expand (rilis A):** ubah klien agar mengirim/membaca bentuk data BARU, sementara aturan masih menerima bentuk LAMA dan BARU (mis. `createdBy` boleh ada atau tidak). Deploy, tunggu Vercel *Ready*.
+2. **Migrasi/backfill (bila perlu):** isi data lama ke bentuk baru; verifikasi tak ada lagi yang berbentuk lama.
+3. **Tunggu klien lama habis:** banner "Muat ulang halaman…" (`/api/version`) mendorong pengguna memuat ulang; beri jeda minimal 1–2 hari sekolah (perangkat yang jarang dibuka ikut ter-update) dan pantau galat `permission-denied` di Sentry.
+4. **Contract (rilis B):** barulah perketat aturan (hapus dukungan bentuk lama). Rilis ini HANYA mengubah `firestore.rules` (+ tes).
+5. **Pelonggaran aman dilakukan kapan saja** (aturan lebih longgar tidak merusak klien lama); **pengetatan tidak**.
+
+**Checklist PR yang menyentuh `firestore.rules`:**
+- [ ] Apakah ini memperketat (menolak sesuatu yang dulu diterima)? Jika ya → pecah jadi Expand lalu Contract.
+- [ ] Tambahkan/perbarui tes aturan untuk klien LAMA (contoh: `tests/attendance-autosave-rules.test.ts`) dan klien BARU.
+- [ ] Indeks baru di `firestore.indexes.json` di-deploy dan selesai dibangun SEBELUM kode yang butuh indeks itu dirilis.
+- [ ] Setelah merge: pastikan deployment Vercel *Ready* dan workflow "Deploy Firestore & Storage Rules" sukses.
+
+**Pengaman yang sudah ada:** `/api/version` + banner pembaruan (`src/components/ui/UpdateBanner.tsx`) membandingkan versi build klien dengan server saat halaman dibuka, difokuskan, atau berpindah halaman; pesan gagal-simpan menyuruh muat ulang saat `permission-denied`. Draf lokal (nilai, jurnal, dst.) bertahan saat muat ulang, jadi memuat ulang aman.
+
+## Pembaruan 13 Nov 2026 — dependensi & versi aplikasi
+- `next` 16.3.0 → 16.4.6, `firebase` 12.19.0, `firebase-admin` 14.5.1, `eslint-config-next` 16.4.6, `jspdf-autotable` 5.0.9; `dompurify` (transitif jspdf) → 3.4.17. `npm audit --omit=dev`: 0 kerentanan (sebelumnya 2 kritis, 11 tinggi).
+- `overrides` di package.json memaksa versi aman untuk transitif yang dipin paket induk: `@grpc/grpc-js` ^1.14.7 (firebase 12.x masih memin ~1.9), `axios` ^1.21.1 + `follow-redirects` ^1.16.3 (midtrans-client), `@fastify/busboy` ^3.2.5, `source-map-js` ^1.2.2. Override `jose` ^5.10.0 DIPERTAHANKAN (lihat catatan ERR_REQUIRE_ESM di package.json). Tinjau override ini saat induknya diperbarui; hapus bila sudah tak perlu.
+- CI menjalankan `npm audit --omit=dev --audit-level=high` pada setiap PR. Kerentanan dev-only (brace-expansion, js-yaml, vite) tidak diblokir CI.
+- `npm audit fix` di lingkungan ini crash (bug npm: "reading 'edgesOut'"), jadi perbaikan dilakukan lewat pembaruan langsung + overrides.

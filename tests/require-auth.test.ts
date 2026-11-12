@@ -101,11 +101,13 @@ describe('semua route /api memakai requireAuth', () => {
     expect(readFileSync(file, 'utf8')).not.toMatch(/verifyIdToken\s*\(/);
   });
 
-  it('route terproteksi memakai requireAuth/authenticate (kecuali webhook Midtrans yang diverifikasi signature)', () => {
+  it('route terproteksi memakai requireAuth/authenticate (kecuali webhook Midtrans yang diverifikasi signature dan /api/version yang publik)', () => {
     for (const file of routes) {
       const src = readFileSync(file, 'utf8');
       const isWebhook = file.includes(`${path.sep}payments${path.sep}webhook${path.sep}`);
-      if (isWebhook) expect(src).not.toMatch(/requireAuth|authenticate\(/);
+      // /api/version sengaja publik: hanya mengembalikan hash build (dipakai banner pembaruan di klien).
+      const isPublicVersion = file.includes(`${path.sep}api${path.sep}version${path.sep}`);
+      if (isWebhook || isPublicVersion) expect(src).not.toMatch(/requireAuth|authenticate\(/);
       else expect(src, file).toMatch(/requireAuth\(|authenticate\(/);
     }
   });

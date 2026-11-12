@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import type { NextConfig } from "next";
 import { buildSecurityHeaders, originOf } from "./lib/config/securityHeaders";
 import { dsnOrigin } from "./lib/utils/sentryReporter";
@@ -9,7 +10,22 @@ const securityHeaders = buildSecurityHeaders({
   sentryOrigin: dsnOrigin(process.env.NEXT_PUBLIC_SENTRY_DSN) ?? undefined,
 });
 
+// Versi build: hash commit (Vercel/GitHub) atau penanda unik per build lokal. Ditanam ke bundel klien dan route
+// /api/version; beda keduanya = perangkat memakai bundel lama (lihat src/components/ui/UpdateBanner.tsx).
+// Harus DETERMINISTIK (config ini dievaluasi di beberapa proses saat build): pakai SHA, bukan waktu.
+function resolveAppVersion(): string {
+  const fromEnv = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA;
+  if (fromEnv) return fromEnv;
+  try {
+    return execSync("git rev-parse HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim() || "dev";
+  } catch {
+    return "dev";
+  }
+}
+const APP_VERSION = resolveAppVersion();
+
 const nextConfig: NextConfig = {
+  env: { NEXT_PUBLIC_APP_VERSION: APP_VERSION },
   // Header keamanan (CSP, X-Frame-Options, Referrer-Policy, HSTS, dst) untuk semua route.
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
