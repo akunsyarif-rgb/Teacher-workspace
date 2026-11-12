@@ -139,9 +139,11 @@ export async function addDocument(collectionName: string, data: Record<string, a
   // "hanya pembuat atau OWNER/ADMIN yang boleh menghapus" di firestore.rules.
   // Immutable setelah dibuat.
   const createdBy = auth.currentUser?.uid;
+  // Tanpa sesi login createdBy tak bisa dicap dan aturan server pasti menolak — gagal lebih awal dengan sebab yang jelas.
+  if (!createdBy) throw Object.assign(new Error('Sesi login belum siap.'), { code: 'unauthenticated' });
   const docRef = await addDoc(collection(db, collectionName), {
     ...data,
-    ...(createdBy ? { createdBy } : {}),
+    createdBy,
     createdAt: serverTimestamp(),
   });
   return { id: docRef.id, ...data };

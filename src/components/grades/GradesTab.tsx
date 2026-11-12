@@ -14,6 +14,7 @@ import InlineAlert from '@/src/components/ui/InlineAlert';
 import * as gradeController from '@/lib/controllers/gradeController';
 import * as studentController from '@/lib/controllers/classController';
 import { getCached } from '@/lib/utils/sessionCache';
+import { describeSaveError } from '@/lib/utils/saveError';
 import { buildDraft, restoreDraft, loadGradeDraft, saveGradeDraft } from '@/lib/utils/gradeDraft';
 import { useWorkspace } from '@/src/context/WorkspaceContext';
 import { useOnlineStatus } from '@/src/hooks/useOnlineStatus';
@@ -252,7 +253,7 @@ export default function GradesTab({ className, onDraftChange, openReviewRef, onS
       setReviewOpen(false);
       onSavedSuccessfully?.();
     } catch (error: any) {
-      setErrorMsg(error.message || 'Gagal menyimpan nilai.');
+      setErrorMsg(describeSaveError(error, 'Gagal menyimpan nilai.'));
       throw error;
     }
   }

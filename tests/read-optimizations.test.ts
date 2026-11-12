@@ -95,3 +95,14 @@ describe('attendanceSync', () => {
     expect(planSync(st, today, shiftWitaDateString).kind).toBe('full');
   });
 });
+
+import { describeSaveError } from '@/lib/utils/saveError';
+describe('describeSaveError', () => {
+  it('menerjemahkan penolakan izin ke langkah yang bisa dilakukan guru', () => {
+    expect(describeSaveError({ code: 'permission-denied', message: 'Missing or insufficient permissions.' })).toMatch(/Muat ulang/);
+    expect(describeSaveError(new Error('Missing or insufficient permissions.'))).toMatch(/Muat ulang/);
+    expect(describeSaveError({ code: 'unauthenticated' })).toMatch(/Sesi login habis/);
+    expect(describeSaveError(new Error('Nama wajib diisi'))).toBe('Nama wajib diisi');
+    expect(describeSaveError(null, 'Gagal')).toBe('Gagal');
+  });
+});
