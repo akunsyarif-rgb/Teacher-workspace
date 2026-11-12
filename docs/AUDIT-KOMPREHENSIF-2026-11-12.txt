@@ -1,0 +1,457 @@
+================================================================================
+LAPORAN AUDIT KOMPREHENSIF — TEACHER WORKSPACE + STUDENT COMPANION
+Tanggal audit : 12 November 2026
+Basis kode    : branch main, commit 9ac183e (merge PR #83)
+Penyusun      : Claude (audit otomatis atas isi repo, hasil menjalankan tes, dan
+                data CI GitHub). Bahasa: Indonesia.
+================================================================================
+
+CATATAN CARA MEMBACA
+- [TERVERIFIKASI] = saya jalankan/baca sendiri pada sesi ini (tes, kode, CI,
+  npm audit).
+- [KLAIM DOKUMEN] = tertulis di dokumen repo, tidak saya uji ulang.
+- [TIDAK BISA DIVERIFIKASI] = ada di luar repo (Vercel, Firebase Console,
+  Supabase, Midtrans, jumlah pengguna). Akun Vercel yang tersambung ke sesi ini
+  tidak memuat project untuk repo ini, jadi status produksi tidak dapat saya
+  periksa.
+- Tingkat prioritas: P0 = kerjakan sebelum pengguna berbayar/skala besar;
+  P1 = segera; P2 = terjadwal; P3 = baik untuk dimiliki.
+
+
+--------------------------------------------------------------------------------
+1. RINGKASAN EKSEKUTIF
+--------------------------------------------------------------------------------
+Aplikasi: dua aplikasi dalam satu proyek Next.js 16 / React 19:
+  (a) Teacher Workspace ("/")  — jurnal, presensi, nilai, tugas, pengumuman,
+      analitik, wali kelas, jadwal, kas kelas, inventaris, backup, akun/paket.
+  (b) Student Companion ("/student") — jadwal, tugas & pengumpulan, nilai,
+      kehadiran, pengumuman, profil, ulangan (modul opsional).
+Backend: Firebase Auth + Firestore (utama), Supabase (lampiran tugas privat dan
+modul Ulangan Harian), Midtrans Snap (pembayaran), Firebase Admin SDK di route
+server. Hosting yang dituju: Vercel.
+
+Penilaian jujur:
+- Fondasi keamanan dan keandalan sudah jauh lebih kuat dibanding awal siklus
+  audit (lihat bagian 4 dan 5). Seluruh suite tes otomatis hijau dan CI GitHub
+  pada main berstatus sukses.
+- LAYAK untuk pilot terbatas / sekolah kecil-menengah dengan pemantauan.
+- BELUM layak untuk penjualan skala besar tanpa menyelesaikan butir P0 di
+  bagian 12: (1) pembaruan dependensi dengan kerentanan kritis/tinggi
+  (khususnya Next.js 16.3.0), (2) urutan rilis aturan Firestore vs aplikasi
+  yang sudah menimbulkan satu insiden nyata, (3) langkah manual pemilik yang
+  masih tertunda (migrasi Supabase, TTL, uji Midtrans sandbox, Sentry),
+  (4) tinjauan hukum atas dokumen Privasi/Syarat yang masih draf.
+- Biaya Firestore (model uji beban sekolah 1.296 siswa/60 guru): perkiraan
+  Rp 183 ribu/bulan, sekitar 15% dari pendapatan paket sekolah yang diasumsikan
+  — sehat, dengan syarat asumsi pemakaian terbukti saat pilot.
+
+Insiden terbaru yang relevan (12 Nov 2026): guru melaporkan "Missing or
+insufficient permissions." saat mengubah presensi. Penyebab paling mungkin
+(terbukti di emulator): aturan Firestore baru (wajib createdBy) ter-deploy
+otomatis saat merge, sedangkan aplikasi di perangkat masih versi lama. Lihat
+bagian 8.
+
+
+--------------------------------------------------------------------------------
+2. UKURAN & KOMPOSISI KODE [TERVERIFIKASI]
+--------------------------------------------------------------------------------
+- Berkas sumber TS/TSX (app, src, lib)  : 283 berkas, ±26.600 baris
+- Berkas yang dilacak git               : 436; riwayat commit: 154
+- Route API server                      : 17 (lihat bagian 4.4)
+- Aturan Firestore                      : 880 baris, 22 koleksi + aturan default
+- Aturan Storage                        : 64 baris
+- Berkas tes unit/rules (tests/)        : 63 berkas uji (58 lulus, 5 dilewati;
+                                          1.012 tes lulus, 59 dilewati — lihat
+                                          bagian 7)
+- Suite E2E browser (Playwright)        : 14 skrip (smoke, onboarding,
+                                          recycle-bin, rename-class, grade-lock,
+                                          grade-draft, form-draft, submission,
+                                          submission-drive-link,
+                                          attendance-complete-confirm, backup,
+                                          class-tabs-a11y, redesign-visual,
+                                          ulangan)
+- Komponen React terbesar               : app/page.tsx 754 baris,
+  app/student/tugas/page.tsx 654, SubmissionPanel 592, AttendanceForm 515
+- Penggunaan `any`/`: any` di app/src/lib: 99 kemunculan
+- Peringatan lint                       : 279 (batas ratchet CI: 283), 0 error
+- TODO/FIXME/HACK di kode               : 0
+- Dependensi produksi langsung          : 15 paket (next, react, firebase,
+  firebase-admin, zod, midtrans-client, jspdf, chart.js, dll.)
+- Berkas rahasia di repo                : tidak ada (.env.local.example hanya
+  template; pemindaian pola kunci/PEM/service account tidak menemukan rahasia).
+  Catatan: repo berstatus PUBLIC [KLAIM DOKUMEN: STATUS.md] — aturan keamanan
+  dan arsitektur terbaca publik; itu wajar bila tak ada rahasia, tetapi
+  pastikan seluruh kunci hanya di variabel lingkungan Vercel/GitHub Secrets.
+
+
+--------------------------------------------------------------------------------
+3. ARSITEKTUR [TERVERIFIKASI, mengacu AGENTS.md]
+--------------------------------------------------------------------------------
+- Alur berlapis: Presentasi -> Controller -> Service -> Repository -> Adapter ->
+  Firestore. UI tidak menyentuh Firestore langsung; Repository satu-satunya
+  lapisan yang menyentuh Adapter.
+- Multi-tenancy: semua koleksi wajib bidang workspaceId; semua query
+  repository difilter workspaceId; WorkspaceContext hanya state sesi.
+- Immutable: workspaceId, createdBy, createdAt tidak boleh diubah (ditegakkan di
+  firestore.rules lewat keepsTenantImmutables()).
+- Timestamp: createdAt/updatedAt dari serverTimestamp().
+- Cache berlapis (baru siklus ini):
+    * sessionCache (memori, TTL 15-60 dtk) dibuang saat guru menyimpan.
+    * persistentCache (localStorage perangkat): cache turunan (daftar kelas,
+      jadwal, angka hari lampau; TTL 10-30 menit; dibuang oleh clearAllCached)
+      dan "syncStore" (sinkron bertahap presensi siswa & Analitik; draf
+      formulir). Semuanya dibuang saat keluar akun.
+- Skema data utama (koleksi Firestore): workspaces, teacher_profiles,
+  workspace_invites, students, student_profiles, student_login_codes,
+  schedules, journals, attendances, grade_columns, grades, assignments,
+  submissions, announcements, student_notes, student_achievements,
+  class_fund_transactions, class_inventory, session_skip_reasons,
+  academic_years, payments; plus koleksi internal server (rate_limits,
+  class_rename_jobs). Supabase: lampiran tugas (bucket privat) dan modul
+  Ulangan.
+
+
+--------------------------------------------------------------------------------
+4. KEAMANAN
+--------------------------------------------------------------------------------
+4.1 Yang sudah dikerjakan [TERVERIFIKASI lewat kode + tes aturan emulator]
+- Aturan Firestore: isolasi tenant; field tenant immutable; batas kelas dan
+  kedaluwarsa paket ditegakkan server (/api/students/create), bukan hanya UI;
+  hapus berbasis peran (pembuat dokumen atau OWNER/ADMIN); hapus permanen
+  hanya OWNER/ADMIN; siswa hanya membaca data kelasnya; catatan konseling
+  (student_notes) tidak pernah terbuka untuk siswa; create wajib createdBy =
+  uid pengguna (tidak bisa memalsukan pembuat).
+- Webhook Midtrans: transaksional, verifikasi nominal, signature konstan-waktu,
+  balasan non-2xx saat gagal agar Midtrans mencoba ulang.
+- Kode akses siswa / kode undangan guru: CSPRNG, diverifikasi di server, ada
+  rate limit; bergabung sebagai TEACHER hanya lewat /api/workspace/join (cek
+  kode, kedaluwarsa, kuota kursi atomik).
+- Autentikasi server: requireAuth terpusat dengan pengecekan pencabutan sesi
+  (checkRevoked) — dikecualikan eksplisit hanya untuk autosave Ulangan.
+- Error API disanitasi (tidak membocorkan pesan mentah SDK); skema Zod di
+  batas API.
+- Unggahan: validasi tipe/ukuran ketat, rate limit untuk penandatanganan URL
+  dan ekspor backup, maksimum 10 lampiran per pengumpulan, bucket privat dengan
+  signed URL 5 menit.
+- Header keamanan: CSP (tanpa unsafe-eval di produksi), HSTS, dsb.
+- Draf/cached data di perangkat dibuang saat keluar akun, dengan peringatan bila
+  masih ada isian belum tersimpan.
+
+4.2 Temuan terbuka
+[P0] Dependensi rentan (npm audit --omit=dev, 12 Nov 2026):
+     24 kerentanan: 2 kritis, 11 tinggi, 10 sedang, 1 rendah.
+     - next 16.3.0 (kritis; rentang rentan 16.0.0–16.4.0; versi stabil
+       terbaru 16.4.6). Isu yang tercantum: RCE tanpa autentikasi pada server
+       berbasis Windows, RCE pada Image Optimization API (AVIF), RCE pada
+       next/og ImageResponse, kebocoran Draft Mode pada "use cache".
+       Penerapan pada app ini: kode TIDAK memakai next/image, next/og, maupun
+       "use cache" (dicari di app/src/lib) dan hosting Vercel bukan Windows,
+       sehingga paparan nyata kemungkinan rendah — tetapi tetap WAJIB
+       dinaikkan ke 16.4.6 (pembaruan minor, risiko regresi kecil).
+     - dompurify <=3.4.16 (kritis, transitif — dibawa jspdf): isu XSS pada
+       mode IN_PLACE/hook. App tidak memakai dompurify langsung (tidak
+       ditemukan di kode); naikkan jspdf agar ikut membawa versi perbaikan.
+     - Tinggi (transitif): axios, follow-redirects, sharp, @grpc/grpc-js
+       (lewat firebase/firebase-admin), @fastify/busboy, brace-expansion,
+       re2js, source-map-js. Sebagian besar hanya terjangkau di sisi server
+       atau saat build. `npm audit fix` tanpa --force menyelesaikan sebagian;
+       saran npm untuk firebase ("turun ke 9.14.0") TIDAK boleh diikuti
+       (downgrade mayor); cari versi firebase/firebase-admin terbaru yang
+       membawa grpc-js perbaikan.
+     Langkah: naikkan next, jspdf, firebase-admin/firebase; jalankan ulang
+     seluruh tes + e2e; pasang Dependabot/Renovate dan job `npm audit` di CI.
+[P1] CSP masih memakai 'unsafe-inline' untuk script/style (keterbatasan Next.js
+     App Router tanpa nonce). Mitigasi: CSP berbasis nonce (utang teknis
+     tercatat).
+[P1] Data lama tanpa createdBy: baru dicap sejak 8 Nov 2026. Konsekuensi:
+     (a) hanya OWNER/ADMIN yang bisa menghapus dokumen lama; (b) pemisahan
+     per-guru di Beranda/Analitik memperlakukan jadwal lama sebagai milik
+     semua guru sampai dibuat ulang. Tidak ada skrip migrasi/backfill.
+[P1] Ulangan Harian: dimatikan default (NEXT_PUBLIC_ULANGAN_ENABLED). Bila
+     diaktifkan butuh migrasi Supabase + identitas guru/siswa di Supabase.
+     Tes DB Ulangan di lingkungan audit ini dilewati (butuh Postgres) — CI
+     menjalankannya lewat workflow tersendiri.
+[P2] Rate limiter bergantung pada koleksi rate_limits; TTL pada
+     rate_limits.expiresAt BELUM dipasang (tugas pemilik) -> dokumen menumpuk.
+[P2] Tidak ada Audit Log penghapusan/penghapusan permanen (hanya log server
+     "trash.purged").
+[P3] Skenario "guru dikeluarkan dari workspace saat sesi masih aktif" tidak saya
+     uji secara khusus pada audit ini; disarankan ditambahkan sebagai tes.
+
+4.3 Privasi data di perangkat (baru)
+- Draf formulir dan cache disimpan di localStorage (kunci berawalan tw:).
+  Dibuang saat keluar akun. Bila sesi habis TANPA keluar manual, data tetap
+  ada di perangkat itu sampai TTL (cache 10-30 menit; draf 30 hari). Untuk
+  perangkat bersama, sarankan guru selalu menekan Keluar.
+
+4.4 Inventaris route API server (17)
+  workspace/join, workspace/members, classes/{rename,delete,restore},
+  students/{create,restore}, student/claim, submission-attachments/{sign,
+  upload}, payments/{create-transaction,webhook}, owner/workspaces,
+  backup/{export,attachments}, trash/purge, ulangan. Pemeriksaan sederhana (pencarian kata kunci) menunjukkan setiap route memuat
+  pemeriksaan autentikasi/verifikasi (requireAuth, signature webhook, atau
+  rate limit untuk klaim siswa); pembacaan logika per route tidak diulang di
+  audit ini (sudah ditinjau pada siklus keamanan sebelumnya).
+
+
+--------------------------------------------------------------------------------
+5. KEANDALAN & INTEGRITAS DATA
+--------------------------------------------------------------------------------
+5.1 Sudah ada [TERVERIFIKASI]
+- Soft delete (siswa, tugas, kolom nilai, kelas) + Recycle Bin UI
+  (/account/sampah) + pemulihan; hapus permanen manual (OWNER/ADMIN) dengan
+  cascade berurutan (anak dulu, induk terakhir; idempoten).
+- Rename kelas tahan-gagal dan dapat dilanjutkan (job + lease); BUKAN atomik
+  lintas batch (batas 500 operasi Firestore) — dijelaskan di TECHNICAL_DEBT.md.
+- Error boundary (error.tsx, global-error.tsx, not-found.tsx).
+- Presensi: autosave ke server dengan antrean berurutan.
+- Draf lokal otomatis (baru): nilai, jurnal, pengumuman, tugas, catatan siswa,
+  jawaban tugas siswa — pulih setelah muat ulang; konflik nilai dideteksi per
+  sel (tidak menimpa diam-diam); lampiran file tidak ikut tersimpan.
+- Backup: workflow GitHub Actions harian (Firestore Managed Export ke Cloud
+  Storage, 22:00 WITA) + fitur Backup & Ekspor Data di aplikasi (ZIP, manifest,
+  enkripsi sisi klien). [KLAIM DOKUMEN: restore teruji — status run terakhir
+  workflow backup TIDAK saya periksa.]
+
+5.2 Terbuka
+[P1] Jurnal, presensi, jadwal, pengumuman, catatan masih HARD delete (dibatasi
+     pembuat/OWNER/ADMIN, tidak bisa dipulihkan). Sel nilai yang dikosongkan
+     juga hapus permanen.
+[P2] Hapus permanen terjadwal (retensi 30 hari) belum ada.
+[P2] className terdenormalisasi di banyak koleksi (sebab kompleksitas rename);
+     perbaikan struktural: classId.
+[P2] Kalimat "tidak tercakup" penghapusan permanen: nama siswa yang tersalin di
+     rekap presensi per pertemuan, data ujian Ulangan, jurnal/presensi/jadwal
+     kelas.
+[P2] Penulisan langsung dari klien ke nama kelas lama saat rename besar
+     berjalan dapat terlewat (skrip cek konsistensi tersedia).
+
+
+--------------------------------------------------------------------------------
+6. PERFORMA & BIAYA FIRESTORE [TERVERIFIKASI lewat uji beban emulator]
+--------------------------------------------------------------------------------
+Data uji: 97.128 dokumen (36 kelas x 36 siswa, 60 guru, 180 hari sekolah).
+Angka bacaan eksak; waktu ms berasal dari emulator (bukan latensi produksi).
+
+Alur (bacaan per sekali buka)           Sebelum optimasi   Sekarang
+- Beranda guru, buka pertama (perangkat baru)      ±3.483      2.056
+- Beranda guru, buka berikutnya                    ±3.483         28
+- Daftar kelas, buka berikutnya                     1.296          0
+- Analitik guru, buka pertama (±3 kelas)           ±10.700      2.700
+- Analitik OWNER/ADMIN (seluruh workspace)         ±10.700      7.920
+- Kehadiran siswa, buka berikutnya                    720         24
+- Riwayat presensi/jurnal satu kelas                  720        720
+- Jadwal guru                                         720        720
+
+Estimasi bulanan sekolah besar (60 guru, 1.296 siswa, 60% siswa aktif, 22 hari
+sekolah): ≈ 18,9 juta bacaan -> ≈ US$ 11,4 ≈ Rp 183 ribu/bulan (Firestore saja).
+Dibanding pendapatan paket sekolah yang diasumsikan (Rp 240 ribu/kursi/tahun x
+60 guru ≈ Rp 1,2 juta/bulan): ≈ 15%.
+Catatan kejujuran:
+- Profil pemakaian dan "guru mengajar ±3 kelas" adalah ASUMSI. Guru nyata
+  biasanya mengajar 5-8 kelas, sehingga hemat nyata Beranda/Analitik lebih
+  kecil dari angka di atas. Ukur saat pilot.
+- Sebagian penurunan biaya siswa berasal dari KOREKSI skenario uji (versi lama
+  melebih-lebihkan dengan membuka semua halaman sekaligus).
+- Biaya Vercel, Supabase, Auth, Storage, Midtrans tidak dimodelkan.
+Sisa kekhawatiran performa:
+[P2] Buka pertama di perangkat baru masih memuat semua jadwal + daftar kelas
+     (±2.000 bacaan).
+[P2] Riwayat presensi/jurnal per kelas memuat setahun penuh (perlu paginasi
+     "muat lebih lama").
+[P2] Staleness yang disengaja: daftar kelas/jadwal ≤10 menit, Analitik ≤30
+     menit, rekap presensi/jurnal hari lampau (>3 hari) hingga sinkron penuh
+     7 hari; presensi siswa (>7 hari) hingga 14 hari. Perubahan dari
+     perangkat lain terlihat dengan jeda ini.
+
+
+--------------------------------------------------------------------------------
+7. KUALITAS KODE & PENGUJIAN
+--------------------------------------------------------------------------------
+Hasil pada sesi audit [TERVERIFIKASI]:
+- npm run test:rules (vitest + emulator): 63 berkas (58 lulus, 5 dilewati),
+  1.012 tes lulus, 59 dilewati, 0 gagal. Yang dilewati = tes DB/migrasi/PostgREST Ulangan yang
+  butuh Postgres (describe.skip tanpa URL admin); CI menjalankannya.
+- Typecheck (tsc --noEmit): bersih.
+- Lint: 0 error, 279 peringatan (batas 283 di CI).
+- E2E yang dijalankan ulang sesi ini: smoke 19/19, submission 32/32,
+  grade-draft 10/10, form-draft 6/6, grade-lock lulus,
+  attendance-complete-confirm 9/9, class-tabs 15/15.
+  (Satu kegagalan sesaat pada langkah daftar akun attendance-complete-confirm
+  lulus saat diulang — indikasi flaky pada waktu tunggu emulator, bukan bug.)
+- CI GitHub (ci.yml) pada main: run #4 (merge PR #83) sukses; run #3 (PR #83)
+  sukses; run #2 dan #1 (PR #82) sukses.
+Cakupan yang kuat: aturan Firestore/Storage (isolasi tenant, peran, immutable,
+auto-save presensi), logika murni (statistik siswa, insight, draf, sinkron),
+alur e2e guru+siswa nyata di browser.
+Celah pengujian [P2]:
+- Belum ada e2e berpasangan dua guru dalam satu workspace untuk memverifikasi
+  pemisahan Beranda/Analitik per guru dengan data nyata (hanya unit + uji
+  beban).
+- Tidak ada uji kompatibilitas "klien lama vs aturan baru" (penyebab insiden
+  bagian 8).
+- Draf: e2e menyentuh jurnal/pengumuman/tugas/nilai/jawaban siswa; belum ada uji
+  perangkat sungguhan (iOS Safari) — insiden presensi dilaporkan dari iPad.
+Maintainability [P2/P3]:
+- 99 `any` (sebagian besar di UI dan ulanganRepository), peringatan lint 279.
+- Komponen besar (app/page.tsx 754 baris dll.) perlu dipecah.
+- STATUS.md terakhir diperbarui 8 Nov dan telah ditambah pembaruan 12 Nov
+  bersama laporan ini.
+
+
+--------------------------------------------------------------------------------
+8. INSIDEN TERBARU: "Missing or insufficient permissions." (Presensi, 12 Nov)
+--------------------------------------------------------------------------------
+Gejala: banner merah saat guru mengubah presensi di iPad (07.51 WITA, ±6 menit
+setelah PR #82 di-merge).
+Bukti (emulator + aturan nyata, tes baru tests/attendance-autosave-rules.test.ts):
+- Klien versi baru: buat -> ubah -> tandai selesai LOLOS; juga untuk dokumen
+  lama tanpa createdBy dan dokumen buatan guru lain.
+- Klien versi LAMA (tidak mengirim createdBy saat membuat) DITOLAK dengan pesan
+  yang persis sama.
+Akar masalah proses: workflow deploy-firestore-rules.yml men-deploy
+firestore.rules ke Firebase SEGERA saat main berubah, sedangkan bundel aplikasi
+baru di Vercel baru siap beberapa menit kemudian dan perangkat dapat
+menyimpan bundel lama lebih lama lagi (PWA/Safari). Jendela ketidakcocokan ini
+akan berulang setiap rilis yang mengetatkan aturan.
+Yang sudah dilakukan: pesan gagal-simpan kini jelas ("Muat ulang halaman ...")
+di Presensi/Jurnal/Nilai; addDocument gagal dini bila tak ada sesi login; tes
+aturan auto-save ditambahkan.
+Rekomendasi [P0/P1]:
+ 1. Pola expand/contract: rilis pertama MELONGGARKAN aturan agar menerima klien
+    lama & baru; rilis berikutnya (setelah semua klien ter-update) mengetatkan.
+ 2. Atau tahan deploy aturan sampai deployment Vercel berstatus READY
+    (workflow_run / deployment_status).
+ 3. Tambahkan pengecekan versi klien (mis. endpoint /api/version + banner
+    "Ada pembaruan, muat ulang") agar perangkat lama dipaksa memuat ulang.
+ 4. Tes kompatibilitas klien-lama pada setiap perubahan firestore.rules.
+Tindak lanjut pemilik: pastikan deployment Vercel terbaru dari main berstatus
+Ready; tutup dan buka ulang aplikasi di iPad (atau hapus data situs Safari).
+
+
+--------------------------------------------------------------------------------
+9. LEGAL, KEPATUHAN, DAN PRIVASI
+--------------------------------------------------------------------------------
+- Halaman /privasi dan /syarat ada, dengan persetujuan wajib saat pendaftaran
+  guru. Isinya masih ditandai LEGAL_DRAFT (versi LEGAL_VERSION).
+[P0] Draf BELUM ditinjau ahli hukum. Aplikasi memproses data pribadi anak
+     (nama, NIS, presensi, nilai, catatan konseling). Perlu tinjauan terhadap
+     UU Pelindungan Data Pribadi (UU PDP) — dasar pemrosesan data anak,
+     persetujuan orang tua/wali atau dasar lain, retensi, hak subjek data,
+     lokasi penyimpanan (Firebase/Supabase di luar negeri), dan prosedur
+     insiden.
+[P1] Kebijakan retensi/penghapusan data ke pengguna (hapus permanen terjadwal
+     belum ada) perlu selaras dengan dokumen privasi.
+[P2] Belum ada prosedur tertulis permintaan akses/penghapusan data oleh orang
+     tua/siswa.
+
+
+--------------------------------------------------------------------------------
+10. OPERASIONAL, OBSERVABILITAS, DAN CI/CD
+--------------------------------------------------------------------------------
+- CI (.github/workflows/ci.yml): lint + typecheck, build, tes unit/rules/DB,
+  seluruh e2e paralel; pada main dan setiap PR. Sukses pada 4 run terakhir.
+- Workflow lain: backup-firestore (harian), deploy-firestore-rules (otomatis
+  dari main), test-firestore-rules, ulangan-db-tests.
+- Observabilitas: logger terstruktur dengan redaksi data sensitif; titik
+  sambung Sentry (lib/utils/sentryReporter.ts) aktif HANYA bila
+  NEXT_PUBLIC_SENTRY_DSN diisi.
+[P1] DSN Sentry belum diisi (placeholder) -> tidak ada pelaporan galat
+     produksi. Tanpa ini galat seperti insiden presensi hanya diketahui dari
+     laporan guru.
+[P2] Tidak ada bukti uptime monitoring/alerting, runbook insiden, maupun
+     rencana kapasitas (docs/MONITORING.md ada; isinya tidak diuji).
+[P2] CI tidak menjalankan pemindaian dependensi (tidak ada `npm audit` maupun
+     Dependabot di workflow; lihat bagian 4.2).
+[P2] Tidak ada staging terpisah yang terdokumentasi; rilis aturan Firestore
+     langsung ke produksi.
+
+
+--------------------------------------------------------------------------------
+11. STATUS FITUR
+--------------------------------------------------------------------------------
+Selesai & teruji (otomatis): guru — jurnal, presensi (autosave), nilai (matriks
+terkunci dengan konfirmasi ubah), tugas + lampiran + review, pengumuman,
+analitik (per guru), jadwal, wali kelas (konseling, prestasi, komunikasi
+ortu), kas kelas, inventaris, rename kelas, Recycle Bin, hapus permanen,
+backup/ekspor; siswa — kode akses, jadwal, tugas/pengumpulan (foto, tautan
+Drive, offline), nilai, kehadiran, pengumuman, profil/portofolio; pemilik —
+panel plan/kuota; pembayaran Midtrans (kode); draf otomatis.
+Opsional/dimatikan: Ulangan Harian (flag NEXT_PUBLIC_ULANGAN_ENABLED, butuh
+Supabase).
+Belum ada: hapus permanen terjadwal, Audit Log, notifikasi push, mode
+multi-sekolah/ERP/LMS (sengaja di luar scope per AGENTS.md).
+
+
+--------------------------------------------------------------------------------
+12. DAFTAR RISIKO & TINDAKAN BERPRIORITAS
+--------------------------------------------------------------------------------
+P0 (sebelum pengguna berbayar / skala):
+ 1. Naikkan Next.js ke 16.4.6; naikkan jspdf/dompurify, firebase-admin/firebase
+    (jangan downgrade); jalankan ulang seluruh tes; pasang Dependabot + npm
+    audit di CI.
+ 2. Perbaiki urutan rilis aturan Firestore vs aplikasi (expand/contract atau
+    tahan deploy aturan sampai Vercel Ready) + banner pembaruan versi klien.
+ 3. Tuntaskan langkah manual pemilik (bagian 13).
+ 4. Tinjauan hukum draf Privasi/Syarat (UU PDP, data anak).
+P1:
+ 5. Isi DSN Sentry dan pasang peringatan untuk galat permission-denied.
+ 6. Skrip backfill createdBy untuk data lama (butuh keputusan pemilik: siapa
+    pemilik jadwal/kelas lama) atau panduan pembuatan ulang jadwal.
+ 7. Uji sandbox Midtrans penuh (CSP Snap, order_id baru, webhook) sebelum
+    mode produksi.
+ 8. Soft delete untuk jurnal/presensi/jadwal/pengumuman, atau konfirmasi
+    eksplisit bahwa hard delete dapat diterima.
+ 9. CSP berbasis nonce (hapus 'unsafe-inline').
+P2:
+10. Paginasi riwayat presensi/jurnal; kurangi buka-pertama Beranda.
+11. e2e dua-guru satu-workspace; uji klien-lama vs aturan-baru; uji iOS Safari.
+12. Hapus permanen terjadwal + Audit Log.
+13. classId menggantikan className; pecah komponen besar; kurangi `any`/lint.
+14. Pantauan uptime, runbook insiden, staging terpisah.
+P3:
+15. Prosedur permintaan data oleh orang tua/siswa; dokumentasi retensi.
+
+
+--------------------------------------------------------------------------------
+13. LANGKAH MANUAL YANG HANYA BISA DILAKUKAN PEMILIK PROJECT
+--------------------------------------------------------------------------------
+ [ ] Jalankan migrasi Supabase
+     supabase/migrations/20261108000000_harden_submission_bucket.sql
+     (pengerasan bucket lampiran) — status penerapan belum dikonfirmasi.
+ [ ] Pasang kebijakan TTL Firestore pada koleksi rate_limits (field expiresAt).
+ [ ] Uji Midtrans Snap di sandbox (CSP, order_id baru, webhook non-2xx saat
+     gagal) sebelum MIDTRANS_IS_PRODUCTION=true.
+ [ ] Isi NEXT_PUBLIC_SENTRY_DSN (+ environment/release) di Vercel.
+ [ ] Pastikan deployment Vercel dari main (9ac183e) berstatus Ready dan
+     firestore.rules/indexes ter-deploy (cek tab Actions "Deploy Firestore &
+     Storage Rules"). Indeks baru butuh waktu build di Firebase.
+ [ ] Konfirmasi status run terakhir workflow backup-firestore dan lakukan
+     latihan restore berkala (docs/BACKUP.md).
+ [ ] Minta tinjauan hukum atas /privasi dan /syarat.
+ [ ] Putuskan apakah Ulangan Harian akan diaktifkan (flag + migrasi Supabase +
+     identitas di teacher_profiles/student_profiles di Supabase).
+ [ ] Verifikasi variabel lingkungan produksi: FIREBASE_ADMIN_SERVICE_ACCOUNT,
+     MIDTRANS_*, SUPABASE_URL, SUPABASE_SECRET_KEY, kunci Firebase publik.
+
+
+--------------------------------------------------------------------------------
+14. BATAS AUDIT INI (apa yang TIDAK saya periksa)
+--------------------------------------------------------------------------------
+- Konfigurasi dan keadaan produksi (Vercel, Firebase Console, Supabase,
+  Midtrans live/sandbox), jumlah pengguna, kuota/penagihan aktual.
+- Apakah aturan Firestore di Firebase sama dengan firestore.rules terbaru
+  (hanya workflow-nya yang saya lihat; status run deploy tidak diperiksa).
+- Latensi dan perilaku pada jaringan/perangkat nyata (uji beban memakai emulator).
+- Pen-test aktif terhadap aplikasi yang berjalan, atau pemindaian dependensi
+  selain `npm audit`.
+- Kepatuhan hukum (bukan nasihat hukum).
+- Isi data produksi (mis. berapa dokumen lama tanpa createdBy).
+
+Dokumen terkait di repo: STATUS.md, AGENTS.md, docs/TECHNICAL_DEBT.md,
+docs/LOAD-TEST.md, docs/LOAD-TEST-ANALISIS.md, docs/BACKUP.md,
+docs/PAYMENTS.md, docs/MONITORING.md, docs/ULANGAN-HARIAN.md.
+
+================================================================================
+AKHIR LAPORAN
+================================================================================

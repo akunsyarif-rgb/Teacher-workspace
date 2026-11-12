@@ -58,3 +58,13 @@ Langkah manual yang masih butuh pemilik project (tidak bisa dari repo):
 - Deploy rules + indeks (otomatis dari `main`); data lama tanpa `createdBy` hanya bisa dihapus OWNER/ADMIN.
 
 Terbuka: UI Recycle Bin & Audit Log, hapus-terjadwal data terhapus, integrasi Sentry sungguhan, CSP berbasis nonce, `className` → `classId`, pemecahan komponen React besar, `any` tersisa di UI dan `ulanganRepository`.
+
+
+## Pembaruan 12 Nov 2026 — performa bacaan, draf otomatis, per guru (main @ 9ac183e)
+Selesai & ter-merge (PR #82, #83; CI hijau):
+- Optimasi bacaan Firestore: Beranda (hanya hari ini + agregat + cache perangkat), presensi siswa dan Analitik (sinkron bertahap), daftar kelas (cache perangkat). Biaya model sekolah besar turun dari ±Rp 844 rb ke ±Rp 183 rb/bulan (`docs/LOAD-TEST-ANALISIS.md`).
+- Beranda dan Analitik per guru (kelas dari jadwal milik guru + kelas wali; OWNER/ADMIN tetap seluruh workspace di Analitik; data lama tanpa `createdBy` dianggap milik semua guru).
+- Draf otomatis di perangkat: nilai, jurnal, pengumuman, tugas, catatan siswa, jawaban tugas siswa (30 hari, dibuang saat keluar akun dengan peringatan).
+- Pesan gagal-simpan yang jelas untuk penolakan izin; tes aturan auto-save presensi.
+- Insiden 12 Nov: "Missing or insufficient permissions" di Presensi — aturan baru ter-deploy lebih dulu daripada aplikasi (klien lama tanpa `createdBy`). Lihat `docs/AUDIT-KOMPREHENSIF-2026-11-12.txt` bagian 8.
+Terbuka (rinci di laporan audit): naikkan Next.js ke 16.4.6 dan dependensi rentan lain, urutan rilis aturan vs aplikasi, langkah manual pemilik, tinjauan hukum Privasi/Syarat, DSN Sentry.
